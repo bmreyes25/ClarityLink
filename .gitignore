@@ -5,6 +5,8 @@
 
 # Raw and derived vehicle data stays outside Git.
 /research/captures/
+/research/acquisition/live-inventory/
+/research/acquisition/generated/
 /research/decompiled/
 /research/decompiled-clean/
 /research/deodexed/

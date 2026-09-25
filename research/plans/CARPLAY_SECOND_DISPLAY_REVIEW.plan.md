@@ -1,6 +1,6 @@
 # Clarity CarPlay second display — reviewable execution plan
 
-**Status:** revised for review, 2026-09-25. No step below authorizes a vehicle change. Work stays under `/Users/bmreyes24/ClarityLab/clarity-analysis`; `/Users/bmreyes24/ClarityLab/backups/CLARITY_BACKUP_20260918_0225_ORIGINAL` remains untouched and outside Git. Execution starts only after this plan is reviewed. Every later on-car write needs its own exact artifact, run card, rollback, and approval.
+**Status:** execution started with a local Git baseline; forensic acquisition added for separate review, 2026-09-25. No bulk copy has started. Analysis/design work stays under `/Users/bmreyes24/ClarityLab/clarity-analysis`. The later forensic Mac copies have their own paths below. `/Users/bmreyes24/ClarityLab/backups/CLARITY_BACKUP_20260918_0225_ORIGINAL` remains untouched, read-only, and outside Git. Every future on-car install or change needs its own exact artifact, run card, rollback, and approval.
 
 ## Target and present verdict
 
@@ -24,8 +24,11 @@ Evidence: [receiver audit](../native/receiver-multidisplay-audit.md), [implement
 ## Dependency map
 
 ```text
-1 Git/evidence → 2 Twin/viewport → 3 Decoder probe → 4 CarPlay coexistence
-       └───────────────→ 5 Static Identification
+1 Git/evidence → F-A Offline acquisition design → F-B Reviewed parked acquisition
+                                                    ↓
+                         2 Twin/viewport → 3 Decoder probe → 4 CarPlay coexistence
+                                                    ↓
+                                           5 Static Identification
                              ├─ sufficient evidence ──────┐
                              └─ ambiguity → 6 Capture ────┤
                                                             ↓
@@ -40,7 +43,7 @@ Evidence: [receiver audit](../native/receiver-multidisplay-audit.md), [implement
                                              12 Apple Maps, then Waze
 ```
 
-**Execution order:** 1 → 2 → 3 → 4 → 5 → 6 (only if static work leaves a material question) → 7 → 8/9 → 10 → 11 → 12. Step 5 may proceed offline while the decoder probe is prepared, but the short coexistence car test comes before an expensive packet-capture car session. Steps 1–3, 5, 7, and 9 are Mac-only. Steps 4 and 6 require separately reviewed parked-car run cards. Step 8 is a recovery evidence gate. Steps 10–11 each require review of the exact vehicle-changing artifact; approval of this plan alone does not authorize them.
+**Execution order:** 1 → F-A → F-B → 2 → 3 → 4 → 5 → 6 (only if static work leaves a material question) → 7 → 8/9 → 10 → 11 → 12. The forensic phase is a *head-unit* acquisition, not a dump of unrelated vehicle ECUs. No script may start the large copy until the fresh read-only inventory, exact space calculation, generated commands, and run card are reviewed. Step 5 may proceed offline while the decoder probe is prepared, but the short coexistence car test comes before an expensive packet-capture car session. Steps 1–3, 5, 7, and 9 are Mac-only. Steps 4 and 6 require separately reviewed parked-car run cards. Step 8 remains a recovery evidence gate; a full disk image is not a proven restoration path. Steps 10–11 each require review of the exact vehicle-changing artifact.
 
 ## 1. Create a Git and evidence baseline (Mac only)
 
@@ -50,11 +53,29 @@ Evidence: [receiver audit](../native/receiver-multidisplay-audit.md), [implement
 
 **Exit/verification:** `git status --short` and `git ls-files` show only intended code/docs, no backup, private capture, credentials, or bundled tool; ledger links resolve, hashes match, and existing simulator tests pass. **Rollback:** remove only the local Git metadata and derived files if needed; original artifacts remain unchanged.
 
+## F-A. Design the forensic head-unit acquisition (Mac only; underway)
+
+**Context:** the existing verified backup has filesystems and selected images but no full raw eMMC user-area image. Historical `/proc/partitions` reports a 7,549,747,200-byte `/dev/block/mmcblk0`; current size, eMMC boot regions, readable MTD list, applets, and USB free space must be reconfirmed. The same FAT32/MBR USB may be used, with a **new unique sibling** `CLARITY_FORENSIC_YYYYMMDD_HHMMSS` next to the immutable `CLARITY_BACKUP_20260918_0225`. Do not reformat or modify the old backup directory.
+
+**Work:** use [the read-only inventory commands](../acquisition/READ_ONLY_INVENTORY.md) to record `/proc/partitions`, `/proc/mtd`, `fdisk`, block/by-name links, mounts, USB identity and `df`, filesystem size estimates, source readability, and BusyBox applets. Update the [storage map](../acquisition/STORAGE_MAP.md) *before* generating the exact copy script. The [space budget](../acquisition/SPACE_BUDGET.md) currently gives only a provisional 20 GiB free-space floor; the live inventory must calculate the current requirement plus safety margin. Review the [USB layout](../acquisition/USB_LAYOUT.md), [script source/template](../acquisition/acquire_headunit.sh.in), generated per-device chunk manifest, and [parked run card](../acquisition/ON_CAR_FORENSIC_ACQUISITION_RUN_CARD.md). Use ~1 GiB FAT32-safe chunks with expected sizes from the *fresh* device size. Include raw eMMC, already-readable boot0/boot1 if present, documented readable MTD storage, filesystem archives, selected `/proc` and safe sysfs/HAL metadata, and bounded runtime snapshots. RPMB is inventory-only. No partition write, `force_ro` change, remount, MTD erase, bus access, or security weakening.
+
+**Exit/verification:** source paths appear only as `if=`/read inputs; every output is guarded beneath the new USB sibling. The exact generated script refuses mismatched live sector size, absent backup, hash mismatch, low free space, or an existing completed chunk with a wrong hash. A fresh script and run card are presented for review; **do not start the acquisition at this gate**. All raw and private outputs stay outside Git.
+
+## F-B. Acquire in a reviewed parked session, then verify on the Mac (not yet authorized)
+
+**Context:** run only after F-A's exact storage map, applet list, selected devices, calculated free space, generated script/hash, and run card are reviewed. The Honda devices are read-only *sources*; all car-side writes go to new files inside the unique USB forensic sibling. Full raw eMMC is a live, non-atomic image; do not unmount writable Android filesystems to improve consistency. The run may take longer than a short diagnostic; use chunk checkpoints and agreed time/power conditions, not a guessed duration.
+
+**Work:** verify existence and several known hashes from the old USB backup without changing it. Capture `/dev/block/mmcblk0` in numbered ~1 GiB chunks, accessible boot0/boot1, and documented storage MTD blocks. Save SHA-256 for each completed output, logs, and tar verification/error output. Archive `/system`, `/data`, `/mnt/data1`, `/mnt/data2`, `/mnt/media`, root/startup and Honda config as supported, reusing the earlier backup's lessons. Capture bounded runtime states: disconnected, CarPlay Home, Maps open, active route, route with center Music, factory cluster Navigation, Honda Hack casting, then disconnected. Attempt read-only `/proc/<pid>` cmdline/status/maps/fd for receiver, CarPlay, display, Navigation, SurfaceFlinger, and media processes; record permission denial rather than bypassing it. Capture hardware/kernel metadata and inventory HAL, EGL/GLES, Tegra, USB, audio, display, and named CarPlay/cluster components. Hash and verify all selected outputs; write `FINISHED.txt` only after complete verification. Stop and preserve `.partial` files if a copy fails; never silently overwrite a completed chunk.
+
+**Mac verification:** verify USB `SHA256SUMS`, copy the forensic directory to `/Users/bmreyes24/ClarityLab/forensic/CLARITY_FORENSIC_ORIGINAL`, verify again and make it read-only, then create a separate `CLARITY_FORENSIC_WORKING` copy. Reconstruct and hash `mmcblk0-full.img` from verified chunks in the working copy, parse the partition table, and compare to live inventory and the old backup. Raw `/data` and disk images can contain Wi-Fi, phone, route, account, or session data: keep them local/outside Git and never upload them. The acquisition is head-unit-only; any independent cluster MCU investigation would need a separate read-only plan.
+
+**Exit/verification:** every selected image/archive has length and SHA-256 evidence, storage map reconciles, runtime states are labeled, and Mac original/working copies are distinct. The existing boot-independent recovery gate remains unchanged. **Rollback:** stop reads, leave old backup untouched, retain incomplete new sibling for review; do not delete data to make space.
+
 ## 2. Make the infotainment twin a reliable oracle (Mac only)
 
 **Context:** the existing browser twin at `research/simulator/` replays Honda casting and head-unit Waze, plus a hypothetical second-stream contract. It is an infotainment test harness, not an ECU or full cluster-electronics emulator.
 
-**Tasks:** add photo-calibrated Navigation safe bounds and explicit center/cluster display identities. Ingest saved paired screenshots and Waze events as observed fixtures; keep hypothetical iPhone stream and route-metadata fixtures visibly synthetic. Model stream setup/frame/stop/error/disconnect, app switch Maps→Music, route expiry, voice-audio observation, and independent display ownership. Add deterministic replay assertions that a mirrored cluster follows Music, a true cluster stream does not, and stale frames/guidance clear. Record what the twin cannot validate (iPhone negotiation, physical warning overlays, receiver recovery).
+**Tasks:** integrate the forensic dataset in four bounded layers: (1) partition/filesystem and firmware catalog for Ghidra/JADX/native work; (2) Android/application twin with mocked Binder, Honda Navigation/ExternalDisplay, and display/audio services; (3) native receiver ABI harness with mocked USB/MFi/display/audio and replayed runtime fixtures; (4) dual-display infotainment twin modeling 800×480 center, HDMI/display-1, calibrated physical Navigation rectangle, main/cluster lifecycle, Maps→Music, route end, disconnect, and stale cleanup. Add photo-calibrated bounds and explicit center/cluster provenance. Ingest saved paired screenshots and Waze events as observed fixtures; keep hypothetical iPhone stream and route metadata visibly synthetic. Assert that a mirror follows Music and an independent stream does not. Investigate a full Android/QEMU boot only after these layers are useful; complete Tegra hardware emulation is not a prerequisite.
 
 **Exit/verification:** repeatable tests and a browser replay comparing three labeled modes: observed mirror, observed Honda guidance, proposed second stream. No production vehicle bus interface. **Rollback:** revert only simulator working files from the Step 1 manifest.
 

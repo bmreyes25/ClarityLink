@@ -1,0 +1,286 @@
+#!/system/bin/sh
+# GENERATED, REVIEW REQUIRED. Never run this template directly.
+# The generator replaces its marked fields after a fresh read-only inventory.
+# Sources are documented block devices and filesystem paths only.
+# Every output resolves below a unique /mnt/usbdrive1/CLARITY_FORENSIC_* sibling.
+set -eu
+
+BB=$(command -v busybox) || { echo 'busybox unavailable' >&2; exit 1; }
+USB=/mnt/usbdrive1
+BACKUP=$USB/CLARITY_BACKUP_20260918_0225
+RUN_ID=@RUN_ID@
+OUT=$USB/CLARITY_FORENSIC_$RUN_ID
+EXPECTED_SECTORS=@EXPECTED_SECTORS@
+EXPECTED_LOGICAL_BLOCK=@EXPECTED_LOGICAL_BLOCK@
+EXPECTED_USB_MOUNT_SOURCE=@EXPECTED_USB_MOUNT_SOURCE@
+EXPECTED_USB_SECTORS=@EXPECTED_USB_SECTORS@
+USB_ID_MODE=@USB_ID_MODE@
+USB_ID_VALUE=@USB_ID_VALUE@
+REQUIRED_FREE_KIB=@REQUIRED_FREE_KIB@
+MANIFEST_SHA256=@MANIFEST_SHA256@
+MANIFEST_BYTES=@MANIFEST_BYTES@
+SAFETY_KIB=2097152
+
+die() { echo "ABORT: $*" >&2; exit 1; }
+log() { printf '%s %s\n' "$("$BB" date)" "$*" >> "$OUT/acquisition.log"; }
+safe_rel() {
+    case "$1" in
+        ''|/*|*..*|*//*|*' '*|*'\t'*) die "unsafe relative output path: $1" ;;
+    esac
+}
+case "$RUN_ID" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+    *) die 'unsafe run ID' ;;
+esac
+case "$OUT" in "$USB"/CLARITY_FORENSIC_*) ;; *) die 'unsafe destination' ;; esac
+actual_mount_source=$("$BB" awk -v path="$USB" '$2==path && $3=="vfat" {print $1}' /proc/mounts)
+[ "$actual_mount_source" = "$EXPECTED_USB_MOUNT_SOURCE" ] || die 'USB mount source changed'
+[ "$("$BB" cat /sys/block/sda/size)" = "$EXPECTED_USB_SECTORS" ] || die 'USB device sector count changed'
+case "$USB_ID_MODE" in
+    sysfs-serial)
+        [ "$("$BB" cat /sys/block/sda/device/serial)" = "$USB_ID_VALUE" ] || die 'USB serial changed'
+        ;;
+    fat-uuid)
+        volume_info=$("$BB" blkid /dev/block/sda1) || die 'cannot read FAT volume UUID'
+        case "$volume_info" in *"UUID=\"$USB_ID_VALUE\""*) ;; *) die 'FAT volume UUID changed' ;; esac
+        ;;
+    *) die 'unsupported USB identity method' ;;
+esac
+[ -d "$BACKUP" ] || die 'existing backup directory missing'
+[ ! -L "$OUT" ] || die 'forensic destination is a symlink'
+[ "$("$BB" cat /sys/block/mmcblk0/size)" = "$EXPECTED_SECTORS" ] || die 'eMMC sector count changed'
+[ "$("$BB" cat /sys/block/mmcblk0/queue/logical_block_size)" = "$EXPECTED_LOGICAL_BLOCK" ] || die 'eMMC logical block size changed'
+
+# These are known hashes from the verified original; this function only reads.
+check_backup() {
+    want=$1; file=$2
+    [ -f "$BACKUP/$file" ] || die "backup file missing: $file"
+    got=$("$BB" sha256sum "$BACKUP/$file" | "$BB" awk '{print $1}') || die "cannot hash backup: $file"
+    [ "$got" = "$want" ] || die "backup hash mismatch: $file"
+}
+check_backup 37d928201d8861e3037c3e9be8254617eeadfe09e018e37a46500d0711d875cc boot.img
+check_backup b96888e9a5ba6b1831d4529fc8d827b6dd3c6bcf7a62f831490aab6108d4b702 recovery.img
+check_backup 43f345e5f7ab7d69b60accc74d89b1b69e5f9bcd75e9e84959e97ccf8bf040b7 nor-whole-device.img
+
+free_kib() {
+    "$BB" df -k "$USB" | "$BB" awk 'NR>1 {v=$4} END {print v}'
+}
+check_free() {
+    need=$1
+    free=$(free_kib)
+    case "$free" in ''|*[!0-9]*) die 'cannot parse USB free space' ;; esac
+    [ "$free" -ge "$need" ] || die "USB free space $free KiB is below required $need KiB"
+}
+
+if [ -e "$OUT/FINISHED.txt" ]; then die 'this acquisition was already finalized'; fi
+if [ -d "$OUT" ]; then
+    [ -f "$OUT/README.txt" ] || die 'existing destination lacks forensic marker'
+    "$BB" grep -q "^RUN_ID=$RUN_ID$" "$OUT/README.txt" || die 'existing destination belongs to another run'
+    log 'RESUME requested; completed files will be verified and skipped'
+else
+    check_free "$REQUIRED_FREE_KIB"
+    "$BB" mkdir "$OUT" || die 'cannot create forensic sibling'
+    "$BB" mkdir "$OUT/emmc" "$OUT/mtd" "$OUT/boot-regions" "$OUT/filesystems" "$OUT/metadata" "$OUT/runtime" || die 'cannot create forensic subdirectories'
+    printf 'RUN_ID=%s\nSOURCE=live MY16ADA head unit; not atomic\nBACKUP=%s (read-only verification only)\n' "$RUN_ID" "$BACKUP" > "$OUT/README.txt"
+    printf 'mmcblk0 sectors=%s logical_block=%s\n' "$EXPECTED_SECTORS" "$EXPECTED_LOGICAL_BLOCK" > "$OUT/device-map.txt"
+    : > "$OUT/SHA256SUMS"
+    : > "$OUT/acquisition.log"
+    log 'NEW forensic sibling created; no backup files written'
+fi
+
+# A torn FAT32 append is never guessed through. Preserve the directory and
+# repair only offline after comparing the last record with its .partial file.
+"$BB" awk 'NF!=2 || length($1)!=64 || $1 !~ /^[0-9a-f]+$/ || seen[$2]++ {bad=1} END {exit bad}' "$OUT/SHA256SUMS" || die 'checksum journal malformed; manual offline review required'
+
+hash_and_publish() {
+    rel=$1; expected=$2
+    safe_rel "$rel"
+    partial=$OUT/$rel.partial
+    final=$OUT/$rel
+    [ -f "$partial" ] || die "partial output missing: $rel"
+    actual=$("$BB" wc -c < "$partial") || die "cannot measure: $rel"
+    [ "$actual" -eq "$expected" ] || die "size mismatch for $rel: $actual != $expected"
+    digest=$("$BB" sha256sum "$partial" | "$BB" awk '{print $1}') || die "cannot hash: $rel"
+    [ "${#digest}" -eq 64 ] || die "invalid SHA-256 output for $rel"
+    [ ! -e "$final" ] || die "would overwrite completed file: $rel"
+    recorded=$("$BB" awk -v path="$rel" '$2==path {print $1}' "$OUT/SHA256SUMS") || die 'cannot read hash list'
+    [ -z "$recorded" ] || die "hash entry already exists before publish: $rel"
+    # Journal the verified partial first. An interrupted rename can then be
+    # completed only after the partial is rehashed against this entry.
+    printf '%s  %s\n' "$digest" "$rel" >> "$OUT/SHA256SUMS"
+    "$BB" mv "$partial" "$final" || die "cannot publish: $rel"
+    log "FINISHED $rel bytes=$expected sha256=$digest"
+}
+completed_or_new() {
+    rel=$1; expected=$2
+    safe_rel "$rel"
+    final=$OUT/$rel
+    partial=$OUT/$rel.partial
+    if [ -e "$partial" ]; then
+        [ ! -e "$final" ] || die "both partial and final exist: $rel"
+        actual=$("$BB" wc -c < "$partial") || die "cannot measure partial: $rel"
+        [ "$actual" -eq "$expected" ] || die "incomplete partial requires review: $rel"
+        got=$("$BB" sha256sum "$partial" | "$BB" awk '{print $1}') || die "cannot hash partial: $rel"
+        want=$("$BB" awk -v path="$rel" '$2==path {print $1}' "$OUT/SHA256SUMS") || die 'cannot read hash list'
+        if [ -n "$want" ]; then
+            [ "$got" = "$want" ] || die "journaled partial hash mismatch: $rel"
+            "$BB" mv "$partial" "$final" || die "cannot complete journaled publish: $rel"
+            log "RECOVERED verified publish $rel"
+        else
+            hash_and_publish "$rel" "$expected"
+        fi
+    fi
+    if [ -e "$final" ]; then
+        actual=$("$BB" wc -c < "$final") || die "cannot measure existing file: $rel"
+        [ "$actual" -eq "$expected" ] || die "existing size mismatch: $rel"
+        want=$("$BB" awk -v path="$rel" '$2==path {print $1}' "$OUT/SHA256SUMS") || die 'cannot read hash list'
+        [ "${#want}" -eq 64 ] || die "existing file has no unique hash: $rel"
+        got=$("$BB" sha256sum "$final" | "$BB" awk '{print $1}') || die "cannot hash existing file: $rel"
+        [ "$got" = "$want" ] || die "existing hash mismatch: $rel"
+        log "SKIP verified $rel"
+        return 0
+    fi
+    return 1
+}
+verify_existing_without_size() {
+    rel=$1
+    safe_rel "$rel"
+    final=$OUT/$rel
+    [ -f "$final" ] || return 1
+    want=$("$BB" awk -v path="$rel" '$2==path {print $1}' "$OUT/SHA256SUMS") || die 'cannot read hash list'
+    [ "${#want}" -eq 64 ] || die "existing file has no unique hash: $rel"
+    got=$("$BB" sha256sum "$final" | "$BB" awk '{print $1}') || die "cannot hash existing file: $rel"
+    [ "$got" = "$want" ] || die "existing hash mismatch: $rel"
+    log "SKIP verified $rel"
+    return 0
+}
+save_manifest() {
+    rel=ACQUISITION_MANIFEST.json
+    if completed_or_new "$rel" "$MANIFEST_BYTES"; then
+        got=$("$BB" sha256sum "$OUT/$rel" | "$BB" awk '{print $1}') || die 'cannot hash existing manifest'
+        [ "$got" = "$MANIFEST_SHA256" ] || die 'existing acquisition manifest differs from generated script'
+        return
+    fi
+    [ ! -e "$OUT/$rel.partial" ] || die 'incomplete manifest partial requires review'
+    "$BB" cat > "$OUT/$rel.partial" <<'__CLARITY_MANIFEST_EOF__'
+@MANIFEST_CONTENT@
+__CLARITY_MANIFEST_EOF__
+    got=$("$BB" sha256sum "$OUT/$rel.partial" | "$BB" awk '{print $1}') || die 'cannot hash manifest'
+    [ "$got" = "$MANIFEST_SHA256" ] || die 'embedded manifest hash mismatch'
+    hash_and_publish "$rel" "$MANIFEST_BYTES"
+    printf 'manifest_sha256=%s\n' "$MANIFEST_SHA256" >> "$OUT/device-map.txt"
+}
+save_manifest
+copy_exact() {
+    source=$1; rel=$2; expected=$3; block_size=$4; skip_blocks=$5; count_blocks=$6
+    safe_rel "$rel"
+    case "$source" in
+        /dev/block/mmcblk0|/dev/block/mmcblk0boot0|/dev/block/mmcblk0boot1|/dev/block/mtdblock[0-9]*) ;;
+        *) die "source not in storage allowlist: $source" ;;
+    esac
+    case "$rel" in emmc/*|mtd/*|boot-regions/*) ;; *) die "unsafe relative image path: $rel" ;; esac
+    [ -r "$source" ] || die "source not readable: $source"
+    if completed_or_new "$rel" "$expected"; then return; fi
+    need_kib=$(( (expected + 1023) / 1024 + SAFETY_KIB ))
+    check_free "$need_kib"
+    log "START $rel source=$source skip=$skip_blocks count=$count_blocks bs=$block_size"
+    "$BB" dd if="$source" of="$OUT/$rel.partial" bs="$block_size" skip="$skip_blocks" count="$count_blocks" 2>> "$OUT/acquisition.log" || die "dd failed: $rel"
+    hash_and_publish "$rel" "$expected"
+}
+
+# The generator inserts exact per-device commands from fresh inventory here.
+@BLOCK_COPY_COMMANDS@
+
+# Filesystem archives are live copies. Any tar error leaves .partial for review.
+archive_dir() {
+    source=$1; rel=$2
+    safe_rel "$rel"
+    case "$source" in /system|/system/vendor|/data|/mnt/data1|/mnt/data2|/mnt/media|/data/MitsubishiElectric) ;; *) die "unapproved archive source: $source" ;; esac
+    case "$rel" in filesystems/*.tar) ;; *) die "unsafe archive destination: $rel" ;; esac
+    [ -d "$source" ] || die "archive source missing: $source"
+    [ ! -e "$OUT/$rel.partial" ] || die "partial archive exists: $rel"
+    if verify_existing_without_size "$rel"; then return; fi
+    source_kib=$("$BB" du -sk "$source" | "$BB" awk '{print $1}') || die "cannot estimate archive source: $source"
+    case "$source_kib" in ''|*[!0-9]*) die "invalid du output: $source" ;; esac
+    [ "$source_kib" -lt 3670016 ] || die "archive may exceed FAT32 single-file limit: $source"
+    check_free "$(( source_kib * 2 + SAFETY_KIB ))"
+    log "ARCHIVE_START $rel source=$source"
+    "$BB" tar -cf "$OUT/$rel.partial" "$source" 2> "$OUT/$rel.errors.txt" || die "tar failed; inspect errors: $rel"
+    "$BB" tar -tf "$OUT/$rel.partial" > /dev/null 2>> "$OUT/$rel.errors.txt" || die "tar verification failed: $rel"
+    expected=$("$BB" wc -c < "$OUT/$rel.partial") || die "archive size unavailable: $rel"
+    [ "$expected" -lt 3758096384 ] || die "archive exceeds conservative FAT32 size limit: $rel"
+    hash_and_publish "$rel" "$expected"
+}
+
+@FILESYSTEM_ARCHIVE_COMMANDS@
+
+# The prior verified root-startup archive listed these paths. Recheck them in
+# fresh inventory; a missing path makes tar fail closed and leaves .partial.
+archive_root_startup() {
+    rel=filesystems/root-startup.tar
+    [ ! -e "$OUT/$rel.partial" ] || die "partial archive exists: $rel"
+    if verify_existing_without_size "$rel"; then return; fi
+    startup_kib=$("$BB" du -sk /sbin | "$BB" awk '{print $1}') || die 'cannot estimate root-startup source'
+    case "$startup_kib" in ''|*[!0-9]*) die 'invalid root-startup du output' ;; esac
+    [ "$startup_kib" -lt 3670016 ] || die 'root-startup archive may exceed FAT32 file limit'
+    check_free "$(( startup_kib * 2 + SAFETY_KIB ))"
+    log "ARCHIVE_START $rel"
+    "$BB" tar -cf "$OUT/$rel.partial" /init /init.rc /init.goldfish.rc /init.nv_dev_board.usb.rc /init.recovery.vcm30t30.rc /init.tf.rc /init.trace.rc /init.usb.rc /init.vcm30t30.rc /default.prop /ueventd.goldfish.rc /ueventd.rc /ueventd.vcm30t30.rc /sbin 2> "$OUT/$rel.errors.txt" || die "tar failed: $rel"
+    "$BB" tar -tf "$OUT/$rel.partial" > /dev/null 2>> "$OUT/$rel.errors.txt" || die "tar verification failed: $rel"
+    expected=$("$BB" wc -c < "$OUT/$rel.partial") || die "archive size unavailable: $rel"
+    [ "$expected" -lt 3758096384 ] || die 'root-startup archive exceeds conservative FAT32 size limit'
+    hash_and_publish "$rel" "$expected"
+}
+archive_root_startup
+
+# Metadata is deliberately bounded. Unavailable optional reads are logged.
+capture_optional() {
+    rel=$1; shift
+    safe_rel "$rel"
+    case "$rel" in metadata/*.txt) ;; *) die "unsafe metadata path: $rel" ;; esac
+    [ ! -e "$OUT/$rel.partial" ] || die "partial metadata exists: $rel"
+    if verify_existing_without_size "$rel"; then return; fi
+    if "$@" > "$OUT/$rel.partial" 2> "$OUT/$rel.errors.txt"; then
+        expected=$("$BB" wc -c < "$OUT/$rel.partial") || die "metadata size unavailable: $rel"
+        hash_and_publish "$rel" "$expected"
+    else
+        log "UNAVAILABLE $rel; preserved error output"
+        [ ! -e "$OUT/$rel.unavailable.txt" ] || die "previous unavailable result exists: $rel"
+        "$BB" mv "$OUT/$rel.partial" "$OUT/$rel.unavailable.txt" || die "cannot preserve unavailable result: $rel"
+    fi
+}
+capture_optional metadata/proc-cpuinfo.txt "$BB" cat /proc/cpuinfo
+capture_optional metadata/proc-meminfo.txt "$BB" cat /proc/meminfo
+capture_optional metadata/proc-cmdline.txt "$BB" cat /proc/cmdline
+capture_optional metadata/proc-version.txt "$BB" cat /proc/version
+capture_optional metadata/proc-modules.txt "$BB" cat /proc/modules
+capture_optional metadata/proc-interrupts.txt "$BB" cat /proc/interrupts
+capture_optional metadata/proc-devices.txt "$BB" cat /proc/devices
+capture_optional metadata/proc-mounts.txt "$BB" cat /proc/mounts
+capture_optional metadata/proc-partitions.txt "$BB" cat /proc/partitions
+capture_optional metadata/proc-mtd.txt "$BB" cat /proc/mtd
+capture_optional metadata/getprop.txt getprop
+capture_optional metadata/dmesg.txt dmesg
+capture_optional metadata/sys-graphics.txt "$BB" ls -l /sys/class/graphics
+capture_optional metadata/sys-fb.txt "$BB" ls -l /sys/class/graphics/fb0
+capture_optional metadata/sys-input.txt "$BB" ls -l /sys/class/input
+capture_optional metadata/sys-sound.txt "$BB" ls -l /sys/class/sound
+capture_optional metadata/sys-net.txt "$BB" ls -l /sys/class/net
+capture_optional metadata/sys-usb.txt "$BB" ls -l /sys/bus/usb/devices
+capture_optional metadata/sys-platform.txt "$BB" ls -l /sys/bus/platform/devices
+capture_optional metadata/system-lib-hw.txt "$BB" ls -l /system/lib/hw
+capture_optional metadata/system-vendor-lib-hw.txt "$BB" ls -l /system/vendor/lib/hw
+capture_optional metadata/system-lib-egl.txt "$BB" ls -l /system/lib/egl
+capture_optional metadata/system-vendor-lib.txt "$BB" ls -l /system/vendor/lib
+capture_optional metadata/system-vendor-bin.txt "$BB" ls -l /system/vendor/bin
+capture_optional metadata/system-vendor-app.txt "$BB" ls -l /system/vendor/app
+capture_optional metadata/system-etc-firmware.txt "$BB" ls -l /system/etc/firmware
+capture_optional metadata/system-vendor-firmware.txt "$BB" ls -l /system/vendor/firmware
+capture_optional metadata/root-list.txt "$BB" ls -l /
+capture_optional metadata/init-rc.txt "$BB" cat /init.rc
+capture_optional metadata/default-prop.txt "$BB" cat /default.prop
+
+log 'STORAGE_AND_METADATA_DONE; runtime-state snapshots and Mac verification still required'
+printf 'Storage/metadata phase complete; not a final forensic acquisition.\n' > "$OUT/STORAGE_DONE.txt"
+if command -v sync > /dev/null 2>&1; then sync; fi
+echo "Storage/metadata phase complete at $OUT; do not add FINISHED.txt until Mac verification and runtime snapshots pass."
