@@ -1,6 +1,7 @@
 # This repository tracks ClarityLab source and research notes, not firmware backups.
 /*
 !/.gitignore
+!/README.md
 !/research/
 
 # Raw and derived vehicle data stays outside Git.
