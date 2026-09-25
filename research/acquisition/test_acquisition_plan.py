@@ -14,7 +14,7 @@ def fixture(folder: Path, *, free_kib: int = 100_000_000, sectors: int = 14_745_
     values = {
         "proc-mounts": "/dev/block/vold/8:1 /mnt/usbdrive1 vfat rw 0 0\n",
         "backup-dir": "drwx------ 1 root root 4096 CLARITY_BACKUP_20260918_0225\n",
-        "root-startup-list": "".join(f"-r--r--r-- {path}\n" for path in plan.ROOT_STARTUP_PATHS),
+        "root-startup-list": "".join(f"-r--r--r-- {path.rsplit('/', 1)[-1]}\n" for path in plan.ROOT_STARTUP_PATHS),
         "usb-root": "CLARITY_BACKUP_20260918_0225\nWirebug.apk\n",
         "busybox-applets": "\n".join(sorted(plan.REQUIRED_APPLETS)) + "\n",
         "emmc-sectors": f"{sectors}\n",
@@ -109,6 +109,24 @@ class AcquisitionPlanTests(unittest.TestCase):
             (folder / "root-startup-list.stdout.txt").write_text("-r--r--r-- /init.rc\n")
             with self.assertRaisesRegex(ValueError, "root-startup paths missing"):
                 plan.build(folder, "20260925_120000")
+
+    def test_existing_root_inventory_requires_root_and_selects_protected_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            fixture(folder)
+            manifest = json.loads((folder / "manifest.json").read_text())
+            manifest["root_verified"] = True
+            for name in ("readable-root-mmcblk0", "readable-root-mtdblock0", "readable-root-mtdblock7"):
+                manifest["commands"][name] = {"exit": 0}
+            manifest["commands"]["filesystem-du-root"] = {"exit": 0}
+            (folder / "filesystem-du-root.stdout.txt").write_text((folder / "filesystem-du.stdout.txt").read_text())
+            (folder / "manifest.json").write_text(json.dumps(manifest))
+            result = plan.build(folder, "20260925_120000")
+            self.assertTrue(result["requires_existing_root"])
+            self.assertEqual([x["index"] for x in result["mtd"]], [0, 7])
+            shell = plan.render_script(result)
+            self.assertIn("generated acquisition requires existing root read access", shell)
+            self.assertIn("base64 -d", shell)
 
 
 if __name__ == "__main__":

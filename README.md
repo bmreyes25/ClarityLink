@@ -11,13 +11,13 @@ The vehicle is a 2018 Honda Clarity with an MY16ADA head unit running Android 4.
 - Static receiver analysis identified the `jmcs` CarPlay engine, `libcarplay_proxy.so`, CarPlay service, Honda Navigation/ExternalDisplay services, and the second-display rendering path. The inspected build configures one main CarPlay screen; the proxy's screen callback is a singleton. A dormant usable second stream has not been demonstrated.
 - A temporary, approved decoder probe exercised two NVIDIA H.264 instances and was removed afterward. It produced frames from both, but did not establish sustained concurrent decoding **with CarPlay running**. iAP2 identification packets and actual multi-display negotiation have not been decoded.
 - A Mac simulator replays observed casting and head-unit Waze behavior alongside clearly labeled hypothetical independent-screen and route-metadata contracts. It tests lifecycle behavior such as Maps-to-Music switching, route end, disconnect, and stale guidance clearing; it is not a full Tegra or cluster-electronics emulator.
-- The original USB/Mac backup was verified and remains outside Git. A guarded **head-unit-only** forensic acquisition is designed, but its fresh storage inventory, exact script, and bulk copy are pending separate review.
+- The original USB/Mac backup was verified and remains outside Git. A fresh parked read-only inventory confirmed the eMMC/MTD sizes and about 114 GiB free on the USB. An exact guarded **head-unit-only** acquisition script has been generated locally for review; the bulk copy has not run.
 
 The detailed [analysis report](research/REPORT.md) separates observations from inference. The [native cluster audit](research/NATIVE_CARPLAY_CLUSTER.md) explains the route-metadata and separate-video paths. The [execution plan](research/plans/CARPLAY_SECOND_DISPLAY_REVIEW.plan.md) records stages and evidence gates; the [forensic run card](research/acquisition/ON_CAR_FORENSIC_ACQUISITION_RUN_CARD.md) is a draft, not authorization to copy.
 
 ## Next milestones
 
-1. Inventory storage and USB free space read-only, generate and review the exact forensic acquisition script, then acquire and verify a new USB sibling without touching the old backup.
+1. Review the [live inventory packet](research/acquisition/LIVE_INVENTORY_REVIEW.md) and exact local forensic acquisition script, then acquire and verify a new USB sibling without touching the old backup.
 2. Feed verified firmware and runtime fixtures into the Mac twin; map receiver, display, audio, and navigation boundaries.
 3. Determine from actual protocol evidence whether the Honda advertises iAP2 route guidance or negotiates multiple CarPlay displays. Separately test decoder coexistence with the main CarPlay session.
 4. Prototype the smallest reversible display-only integration that survives center app changes, route end, and disconnect while preserving voice. A true independent iPhone-rendered map requires proven receiver support or a separately reviewed receiver change.

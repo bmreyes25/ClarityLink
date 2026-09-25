@@ -8,11 +8,13 @@ The generated script must be reviewed separately before it is run on the car.
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime as dt
 import hashlib
 import json
 import math
 import re
+import textwrap
 from pathlib import Path
 
 
@@ -27,7 +29,7 @@ PRIOR_ARCHIVES = (
     "media-config.tar",
     "root-startup.tar",
 )
-REQUIRED_APPLETS = {"awk", "cat", "date", "dd", "df", "du", "grep", "ls", "mkdir", "mv", "sha256sum", "tar", "wc"}
+REQUIRED_APPLETS = {"awk", "base64", "cat", "date", "dd", "df", "du", "grep", "id", "ls", "mkdir", "mv", "printf", "sha256sum", "tar", "wc"}
 ROOT_STARTUP_PATHS = (
     "/init", "/init.rc", "/init.goldfish.rc", "/init.nv_dev_board.usb.rc",
     "/init.recovery.vcm30t30.rc", "/init.tf.rc", "/init.trace.rc",
@@ -97,6 +99,7 @@ def build(folder: Path, run_id: str) -> dict[str, object]:
     if not RUN_ID_RE.fullmatch(run_id):
         raise ValueError("run ID must be YYYYMMDD_HHMMSS")
     manifest = json.loads((folder / "manifest.json").read_text())
+    root_verified = manifest.get("root_verified") is True
     captured = manifest.get("captured_utc", "")
     if not re.match(r"\d{4}-\d{2}-\d{2}T", captured):
         raise ValueError("inventory has no UTC timestamp")
@@ -114,7 +117,8 @@ def build(folder: Path, run_id: str) -> dict[str, object]:
     if "CLARITY_BACKUP_20260918_0225" not in backup_listing:
         raise ValueError("existing backup sibling not confirmed")
     root_listing = read_result(folder, "root-startup-list")
-    missing_roots = [path for path in ROOT_STARTUP_PATHS if not re.search(rf"(?<!\S){re.escape(path)}(?:\s|$)", root_listing)]
+    listed_roots = {line.split()[-1].lstrip("/") for line in root_listing.splitlines() if line.startswith(("-", "d")) and line.split()}
+    missing_roots = [path for path in ROOT_STARTUP_PATHS if path.lstrip("/") not in listed_roots]
     if missing_roots:
         raise ValueError(f"root-startup paths missing in fresh inventory: {missing_roots}")
     sibling = f"CLARITY_FORENSIC_{run_id}"
@@ -125,11 +129,11 @@ def build(folder: Path, run_id: str) -> dict[str, object]:
     if missing:
         raise ValueError(f"required BusyBox applets unavailable: {sorted(missing)}")
     sectors = positive_int(read_result(folder, "emmc-sectors"), "eMMC sectors")
-    if manifest["commands"].get("readable-mmcblk0", {}).get("exit") != 0:
+    if manifest["commands"].get("readable-root-mmcblk0" if root_verified else "readable-mmcblk0", {}).get("exit") != 0:
         raise ValueError("eMMC user area not readable by current ADB shell")
     usb_sectors = positive_int(read_result(folder, "usb-sda-sectors"), "USB sda sectors")
     usb_serial = read_result(folder, "usb-serial", required=False)
-    blkid = read_result(folder, "usb-blkid", required=False)
+    blkid = read_result(folder, "usb-blkid-root" if root_verified else "usb-blkid", required=False)
     if usb_serial and re.fullmatch(r"[A-Za-z0-9._:-]{4,128}", usb_serial.strip()):
         usb_identity = {"mode": "sysfs-serial", "value": usb_serial.strip()}
     else:
@@ -151,16 +155,17 @@ def build(folder: Path, run_id: str) -> dict[str, object]:
         raise ValueError("MTD inventory absent or ambiguous")
     if any(not re.fullmatch(r"[A-Za-z0-9_-]+", x["name"]) for x in mtd_all):
         raise ValueError("MTD name not safe for generated path")
-    mtd = [x for x in mtd_all if manifest["commands"].get(f"readable-mtdblock{x['index']}", {}).get("exit") == 0]
+    readable_prefix = "readable-root-" if root_verified else "readable-"
+    mtd = [x for x in mtd_all if manifest["commands"].get(f"{readable_prefix}mtdblock{x['index']}", {}).get("exit") == 0]
     mtd_unavailable = [x for x in mtd_all if x not in mtd]
     boot: list[dict[str, int | str]] = []
     for side in (0, 1):
         size_text = read_result(folder, f"boot{side}-sectors", required=False)
-        if size_text is not None and manifest["commands"].get(f"readable-mmcblk0boot{side}", {}).get("exit") == 0:
+        if size_text is not None and manifest["commands"].get(f"{readable_prefix}mmcblk0boot{side}", {}).get("exit") == 0:
             boot_sectors = positive_int(size_text, f"boot{side} sectors")
             boot.append({"name": f"mmcblk0boot{side}", "sectors": boot_sectors, "bytes": boot_sectors * 512})
     free_kib = parse_free_kib(read_result(folder, "usb-df"))
-    fs_bytes = parse_du_bytes(read_result(folder, "filesystem-du"))
+    fs_bytes = parse_du_bytes(read_result(folder, "filesystem-du-root" if root_verified else "filesystem-du"))
     prior_bytes = sum((ANALYSIS / name).stat().st_size for name in PRIOR_ARCHIVES)
     archive_budget = max(2 * fs_bytes, 2 * prior_bytes)
     required_bytes = max(20 * ONE_GIB, emmc_bytes + sum(x["bytes"] for x in mtd) + sum(x["bytes"] for x in boot) + archive_budget + 2 * ONE_GIB)
@@ -172,6 +177,7 @@ def build(folder: Path, run_id: str) -> dict[str, object]:
         "inventory": str(folder),
         "inventory_utc": captured,
         "serial": manifest.get("serial"),
+        "requires_existing_root": root_verified,
         "usb_mount_source": usb_source,
         "usb_sda_sectors_512b": usb_sectors,
         "usb_identity": usb_identity,
@@ -198,8 +204,8 @@ def manifest_text(plan: dict[str, object]) -> str:
 def render_script(plan: dict[str, object]) -> str:
     template = (HERE / "acquire_headunit.sh.in").read_text()
     payload = manifest_text(plan)
-    if "__CLARITY_MANIFEST_EOF__" in payload:
-        raise ValueError("manifest conflicts with shell here-document delimiter")
+    encoded = base64.b64encode(payload.encode()).decode()
+    manifest_emitter = "\n".join(f"        \"$BB\" printf '%s' '{part}'" for part in textwrap.wrap(encoded, 76))
     commands = []
     for chunk in plan["chunks"]:
         commands.append(f'copy_exact /dev/block/mmcblk0 {chunk["name"]} {chunk["expected_bytes"]} 1048576 {chunk["skip_mib"]} {chunk["count_mib"]}')
@@ -221,6 +227,7 @@ def render_script(plan: dict[str, object]) -> str:
     archive_lines = [f"archive_dir {source} filesystems/{name}" for source, name in archives]
     replacements = {
         "@RUN_ID@": str(plan["run_id"]),
+        "@REQUIRES_ROOT@": "1" if plan["requires_existing_root"] else "0",
         "@EXPECTED_SECTORS@": str(plan["emmc_sectors_512b"]),
         "@EXPECTED_LOGICAL_BLOCK@": str(plan["emmc_logical_block_bytes"]),
         "@REQUIRED_FREE_KIB@": str(plan["required_free_kib"]),
@@ -230,7 +237,7 @@ def render_script(plan: dict[str, object]) -> str:
         "@USB_ID_VALUE@": str(plan["usb_identity"]["value"]),
         "@MANIFEST_SHA256@": hashlib.sha256(payload.encode()).hexdigest(),
         "@MANIFEST_BYTES@": str(len(payload.encode())),
-        "@MANIFEST_CONTENT@": payload.rstrip("\n"),
+        "@MANIFEST_EMIT_COMMANDS@": manifest_emitter,
         "@BLOCK_COPY_COMMANDS@": "\n".join(commands),
         "@FILESYSTEM_ARCHIVE_COMMANDS@": "\n".join(archive_lines),
     }

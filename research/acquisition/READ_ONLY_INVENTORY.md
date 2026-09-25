@@ -17,9 +17,9 @@ adb -s SERIAL shell ls -l /dev/block/platform/sdhci-tegra.3/by-name
 adb -s SERIAL shell ls -ld /init /init.rc /init.*.rc /default.prop /ueventd.* /sbin
 adb -s SERIAL shell cat /sys/block/mmcblk0/size
 adb -s SERIAL shell cat /sys/block/mmcblk0/queue/logical_block_size
-adb -s SERIAL shell df -k /mnt/usbdrive1
+adb -s SERIAL shell busybox df -k /mnt/usbdrive1
 adb -s SERIAL shell cat /sys/block/sda/size
-adb -s SERIAL shell cat /sys/block/sda/device/serial
+adb -s SERIAL shell cat /sys/block/sda/device/../../../../serial
 adb -s SERIAL shell busybox blkid /dev/block/sda1
 adb -s SERIAL shell du -sk /system /data /mnt/data1 /mnt/data2 /mnt/media
 adb -s SERIAL shell ls -ld /mnt/usbdrive1/CLARITY_BACKUP_20260918_0225
@@ -43,6 +43,6 @@ adb -s SERIAL shell cat /sys/block/mmcblk0boot1/size
 adb -s SERIAL shell cat /sys/block/mmcblk0boot1/force_ro
 ```
 
-For a no-hand-typing run, `research/acquisition/read_only_inventory.py` performs only allowlisted reads and writes its transcript on the Mac. Review its source before use. Then update [STORAGE_MAP.md](STORAGE_MAP.md) with the fresh mapping, USB filesystem/free space, actual applets, and any unavailable results. **Only after that** generate the exact chunk manifest and seek review of the run card.
+For a no-hand-typing run, `research/acquisition/read_only_inventory.py` performs only allowlisted reads and writes its transcript on the Mac. On this Android build, the unprivileged ADB shell cannot read block devices or estimate protected directories. The optional `--existing-root-readonly` flag uses the already installed `su` only for fixed inventory reads; it does not change protection settings or run a bulk copy. Review its source before use. Then update [STORAGE_MAP.md](STORAGE_MAP.md) with the fresh mapping, USB filesystem/free space, actual applets, and any unavailable results. **Only after that** generate the exact chunk manifest and seek review of the run card.
 
 The later metadata pass may read `/proc/cpuinfo`, `/proc/meminfo`, `/proc/cmdline`, `/proc/version`, `/proc/modules`, `/proc/interrupts`, `/proc/devices`, `getprop`, and bounded existing sysfs names/properties. It must not recursively read arbitrary sysfs controls or access safety-related buses.

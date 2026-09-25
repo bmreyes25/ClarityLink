@@ -6,6 +6,7 @@
 set -eu
 
 BB=$(command -v busybox) || { echo 'busybox unavailable' >&2; exit 1; }
+[ "@REQUIRES_ROOT@" = 0 ] || [ "$("$BB" id -u)" = 0 ] || { echo 'ABORT: generated acquisition requires existing root read access' >&2; exit 1; }
 USB=/mnt/usbdrive1
 BACKUP=$USB/CLARITY_BACKUP_20260918_0225
 RUN_ID=@RUN_ID@
@@ -22,7 +23,7 @@ MANIFEST_BYTES=@MANIFEST_BYTES@
 SAFETY_KIB=2097152
 
 die() { echo "ABORT: $*" >&2; exit 1; }
-log() { printf '%s %s\n' "$("$BB" date)" "$*" >> "$OUT/acquisition.log"; }
+log() { "$BB" printf '%s %s\n' "$("$BB" date)" "$*" >> "$OUT/acquisition.log"; }
 safe_rel() {
     case "$1" in
         ''|/*|*..*|*//*|*' '*|*'\t'*) die "unsafe relative output path: $1" ;;
@@ -38,7 +39,7 @@ actual_mount_source=$("$BB" awk -v path="$USB" '$2==path && $3=="vfat" {print $1
 [ "$("$BB" cat /sys/block/sda/size)" = "$EXPECTED_USB_SECTORS" ] || die 'USB device sector count changed'
 case "$USB_ID_MODE" in
     sysfs-serial)
-        [ "$("$BB" cat /sys/block/sda/device/serial)" = "$USB_ID_VALUE" ] || die 'USB serial changed'
+        [ "$("$BB" cat /sys/block/sda/device/../../../../serial)" = "$USB_ID_VALUE" ] || die 'USB serial changed'
         ;;
     fat-uuid)
         volume_info=$("$BB" blkid /dev/block/sda1) || die 'cannot read FAT volume UUID'
@@ -81,8 +82,8 @@ else
     check_free "$REQUIRED_FREE_KIB"
     "$BB" mkdir "$OUT" || die 'cannot create forensic sibling'
     "$BB" mkdir "$OUT/emmc" "$OUT/mtd" "$OUT/boot-regions" "$OUT/filesystems" "$OUT/metadata" "$OUT/runtime" || die 'cannot create forensic subdirectories'
-    printf 'RUN_ID=%s\nSOURCE=live MY16ADA head unit; not atomic\nBACKUP=%s (read-only verification only)\n' "$RUN_ID" "$BACKUP" > "$OUT/README.txt"
-    printf 'mmcblk0 sectors=%s logical_block=%s\n' "$EXPECTED_SECTORS" "$EXPECTED_LOGICAL_BLOCK" > "$OUT/device-map.txt"
+    "$BB" printf 'RUN_ID=%s\nSOURCE=live MY16ADA head unit; not atomic\nBACKUP=%s (read-only verification only)\n' "$RUN_ID" "$BACKUP" > "$OUT/README.txt"
+    "$BB" printf 'mmcblk0 sectors=%s logical_block=%s\n' "$EXPECTED_SECTORS" "$EXPECTED_LOGICAL_BLOCK" > "$OUT/device-map.txt"
     : > "$OUT/SHA256SUMS"
     : > "$OUT/acquisition.log"
     log 'NEW forensic sibling created; no backup files written'
@@ -107,7 +108,7 @@ hash_and_publish() {
     [ -z "$recorded" ] || die "hash entry already exists before publish: $rel"
     # Journal the verified partial first. An interrupted rename can then be
     # completed only after the partial is rehashed against this entry.
-    printf '%s  %s\n' "$digest" "$rel" >> "$OUT/SHA256SUMS"
+    "$BB" printf '%s  %s\n' "$digest" "$rel" >> "$OUT/SHA256SUMS"
     "$BB" mv "$partial" "$final" || die "cannot publish: $rel"
     log "FINISHED $rel bytes=$expected sha256=$digest"
 }
@@ -162,13 +163,13 @@ save_manifest() {
         return
     fi
     [ ! -e "$OUT/$rel.partial" ] || die 'incomplete manifest partial requires review'
-    "$BB" cat > "$OUT/$rel.partial" <<'__CLARITY_MANIFEST_EOF__'
-@MANIFEST_CONTENT@
-__CLARITY_MANIFEST_EOF__
+    {
+@MANIFEST_EMIT_COMMANDS@
+    } | "$BB" base64 -d > "$OUT/$rel.partial" || die 'cannot decode embedded manifest'
     got=$("$BB" sha256sum "$OUT/$rel.partial" | "$BB" awk '{print $1}') || die 'cannot hash manifest'
     [ "$got" = "$MANIFEST_SHA256" ] || die 'embedded manifest hash mismatch'
     hash_and_publish "$rel" "$MANIFEST_BYTES"
-    printf 'manifest_sha256=%s\n' "$MANIFEST_SHA256" >> "$OUT/device-map.txt"
+    "$BB" printf 'manifest_sha256=%s\n' "$MANIFEST_SHA256" >> "$OUT/device-map.txt"
 }
 save_manifest
 copy_exact() {
@@ -281,6 +282,7 @@ capture_optional metadata/init-rc.txt "$BB" cat /init.rc
 capture_optional metadata/default-prop.txt "$BB" cat /default.prop
 
 log 'STORAGE_AND_METADATA_DONE; runtime-state snapshots and Mac verification still required'
-printf 'Storage/metadata phase complete; not a final forensic acquisition.\n' > "$OUT/STORAGE_DONE.txt"
+"$BB" printf 'Storage/metadata phase complete; not a final forensic acquisition.\n' > "$OUT/STORAGE_DONE.txt"
 if command -v sync > /dev/null 2>&1; then sync; fi
 echo "Storage/metadata phase complete at $OUT; do not add FINISHED.txt until Mac verification and runtime snapshots pass."
+exit 0

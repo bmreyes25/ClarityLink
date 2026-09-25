@@ -1,10 +1,12 @@
-# MY16ADA storage map — historical, pending fresh read-only inventory
+# MY16ADA storage map — fresh parked read-only inventory
 
-**Status:** provisional. Values below come from the saved September 18, 2026 `partitions.txt`, `emmc-layout.txt`, `partition-names.txt`, `mounts.txt`, and `mtd.txt` at the analysis root. On September 25, `adb devices -l` listed no device and `/Volumes/CLARITY` was absent, so no current device size, USB free-space value, boot-area accessibility, or applet list has been verified. **Do not run a bulk acquisition from this map alone.** The first connected step is the command set in [READ_ONLY_INVENTORY.md](READ_ONLY_INVENTORY.md); reconcile its output with this file and then generate/review the exact acquisition manifest.
+**Status:** refreshed September 25, 2026 from `research/acquisition/live-inventory/20260925T210625Z/` on the Mac. The earlier September 18 `partitions.txt`, `emmc-layout.txt`, `partition-names.txt`, `mounts.txt`, and `mtd.txt` agree with the current main eMMC and MTD sizes. The exact generated copy commands still require review; **no bulk acquisition has run**.
+
+The current ADB endpoint is `192.168.86.102:5555`. The ordinary shell is `uid=2000(shell)` and cannot read raw block devices. The already installed `su` returned `uid=0(root)` for the fixed read-only inventory commands; `/dev/block/mmcblk0` and all eight `mtdblock` devices passed root readability tests. No `force_ro` value was changed. BusyBox provides the required `dd`, `sha256sum`, `tar`, `df`, `du`, `awk`, `id`, and related applets. The USB mount is `/dev/block/vold/8:1` at `/mnt/usbdrive1`, `vfat`; its serial and FAT UUID are recorded in the ignored local inventory/manifest so the generated script can reject a different USB. `busybox df -k` reported **119,880,800 KiB available** (about 114.3 GiB) at inventory time. The three checked files in the existing backup sibling—`boot.img`, `recovery.img`, and `nor-whole-device.img`—matched their known SHA-256 hashes when read on the car.
 
 ## Historical block topology
 
-`/proc/partitions` reports Linux 1 KiB blocks. The raw eMMC user area was **7,372,800 KiB = 7,549,747,200 bytes = 7.03125 GiB**, 14,745,600 logical 512-byte sectors. `fdisk -l` reported a protective MBR/GPT entry; it did not fully enumerate GPT contents. The by-name symlinks and mounts establish the following mapping:
+`/proc/partitions` reports Linux 1 KiB blocks. The raw eMMC user area is **7,372,800 KiB = 7,549,747,200 bytes = 7.03125 GiB**, 14,745,600 logical 512-byte sectors. Current `fdisk -l` reports a protective MBR/GPT entry; it does not fully enumerate GPT contents. The by-name symlinks and mounts establish the following mapping:
 
 | Device | Historical size | Name | Mount | FS / mount state | Proposed acquisition |
 |---|---:|---|---|---|---|
@@ -19,13 +21,13 @@
 | `mmcblk0p8` | 1,048,576 KiB | SDC | `/mnt/media` | ext4, rw | included in raw; filesystem archive in separate phase |
 | `mmcblk0p9` | 2,490,368 KiB | UDA | `/data` | ext4, rw | included in raw; live filesystem archive may have transient errors |
 
-`mmcblk0boot0`, `mmcblk0boot1`, and `mmcblk0rpmb` were **not recorded** in the saved `/proc/partitions`. Fresh inventory must determine whether they exist. Boot0/boot1 are optional *read-only* sources only if exposed and readable without changing `force_ro` or protection state. RPMB is inventory-only.
+`mmcblk0boot0`, `mmcblk0boot1`, and `mmcblk0rpmb` are absent from current `/proc/partitions` and `/dev/block` even under the existing root shell. Boot0/boot1 are therefore **omitted** from this acquisition; no protection state is changed. RPMB remains inventory-only.
 
 The saved `mmcblk1` (15,826,944 KiB) with a vfat partition mounted at `/storage/sdcard1` is removable/storage media, **not** part of the raw head-unit eMMC request. The saved `sda` (121,020,416 KiB) and `sda1` mounted at `/mnt/usbdrive1` are the USB destination, **never** image sources or device-level output targets.
 
 ## Historical NOR/MTD topology
 
-These names and sizes come from `/proc/mtd`. Recheck the live device names and readability before choosing sources. The prior verified `nor-whole-device.img` is 67,108,864 bytes and remains untouched.
+These names and sizes are confirmed by current `/proc/mtd`; all eight documented `mtdblock` sources passed root read tests. The prior verified `nor-whole-device.img` is 67,108,864 bytes and remains untouched.
 
 | Device | Size | Name | Proposed method |
 |---|---:|---|---|
