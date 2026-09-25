@@ -1,0 +1,11 @@
+{"tMs":0,"type":"connected"}
+{"tMs":10,"type":"center-app","app":"maps"}
+{"tMs":11,"type":"capture-frame","display":"center","captureId":"center-20260925-native-maps"}
+{"tMs":12,"type":"capture-frame","display":"cluster","captureId":"cluster-20260925-native"}
+{"tMs":20,"type":"display","mode":"casting"}
+{"tMs":21,"type":"capture-frame","display":"center","captureId":"center-20260925-cast-maps"}
+{"tMs":22,"type":"capture-frame","display":"cluster","captureId":"cluster-20260925-cast-maps"}
+{"tMs":23,"type":"voice","status":"heard"}
+{"tMs":30,"type":"center-app","app":"music"}
+{"tMs":31,"type":"capture-frame","display":"center","captureId":"center-20260925-music"}
+{"tMs":32,"type":"capture-frame","display":"cluster","captureId":"cluster-20260925-cast-music"}

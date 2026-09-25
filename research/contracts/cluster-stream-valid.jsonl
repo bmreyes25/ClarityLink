@@ -1,0 +1,8 @@
+{"contractVersion":"1.0.0","eventId":"e0","sessionId":"s1","atMs":0,"type":"session-start","audioPolicy":"preserve-existing-carplay","safetyScope":"navigation-region-only"}
+{"contractVersion":"1.0.0","eventId":"e1","sessionId":"s1","atMs":1,"type":"display-advertised","display":{"displayId":"center","role":"center","widthPixels":800,"heightPixels":480,"maxFps":30,"viewArea":{"x":0,"y":0,"width":800,"height":480},"safeArea":{"x":0,"y":0,"width":800,"height":480}}}
+{"contractVersion":"1.0.0","eventId":"e2","sessionId":"s1","atMs":2,"type":"display-advertised","display":{"displayId":"cluster-map","role":"cluster-map","widthPixels":800,"heightPixels":480,"maxFps":15,"viewArea":{"x":0,"y":0,"width":800,"height":480},"safeArea":{"x":100,"y":40,"width":600,"height":320}}}
+{"contractVersion":"1.0.0","eventId":"e3","sessionId":"s1","atMs":3,"type":"stream-setup","streamId":"cluster-1","displayId":"cluster-map","codec":"h264"}
+{"contractVersion":"1.0.0","eventId":"e4","sessionId":"s1","atMs":4,"type":"stream-active","streamId":"cluster-1"}
+{"contractVersion":"1.0.0","eventId":"e5","sessionId":"s1","atMs":5,"type":"frame-ready","streamId":"cluster-1","sequence":0,"ptsUs":0,"frameRef":"bench://frames/cluster-0000"}
+{"contractVersion":"1.0.0","eventId":"e6","sessionId":"s1","atMs":6,"type":"stream-stop","streamId":"cluster-1","reason":"route-ended"}
+{"contractVersion":"1.0.0","eventId":"e7","sessionId":"s1","atMs":7,"type":"session-stop","reason":"normal"}

@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claritylab.local/contracts/cluster-stream-v1.schema.json",
+  "title": "ClarityLab independent CarPlay display event",
+  "description": "Authoritative offline bench contract between a proposed receiver adapter and a display-1 renderer. It carries references to decoded frames, never vehicle-bus data or raw navigation commands.",
+  "oneOf": [
+    { "$ref": "#/$defs/sessionStart" },
+    { "$ref": "#/$defs/displayAdvertised" },
+    { "$ref": "#/$defs/streamSetup" },
+    { "$ref": "#/$defs/streamActive" },
+    { "$ref": "#/$defs/frameReady" },
+    { "$ref": "#/$defs/streamStop" },
+    { "$ref": "#/$defs/sessionStop" },
+    { "$ref": "#/$defs/receiverError" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["contractVersion", "eventId", "sessionId", "atMs", "type"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "eventId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "sessionId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "atMs": { "type": "integer", "minimum": 0 },
+        "type": { "type": "string" }
+      }
+    },
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "width": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 4096 }
+      }
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["displayId", "role", "widthPixels", "heightPixels", "maxFps", "viewArea", "safeArea"],
+      "properties": {
+        "displayId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        "role": { "enum": ["center", "cluster-map", "cluster-maneuver"] },
+        "widthPixels": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "heightPixels": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "maxFps": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "viewArea": { "$ref": "#/$defs/rect" },
+        "safeArea": { "$ref": "#/$defs/rect" }
+      }
+    },
+    "sessionStart": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "audioPolicy", "safetyScope"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "session-start" },
+            "audioPolicy": { "const": "preserve-existing-carplay" },
+            "safetyScope": { "const": "navigation-region-only" }
+          }
+        }
+      ]
+    },
+    "displayAdvertised": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "display"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "display-advertised" }, "display": { "$ref": "#/$defs/display" }
+          }
+        }
+      ]
+    },
+    "streamSetup": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "streamId", "displayId", "codec"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "stream-setup" },
+            "streamId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+            "displayId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+            "codec": { "const": "h264" }
+          }
+        }
+      ]
+    },
+    "streamActive": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "streamId"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "stream-active" }, "streamId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" }
+          }
+        }
+      ]
+    },
+    "frameReady": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "streamId", "sequence", "ptsUs", "frameRef"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "frame-ready" },
+            "streamId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+            "sequence": { "type": "integer", "minimum": 0 },
+            "ptsUs": { "type": "integer", "minimum": 0 },
+            "frameRef": { "type": "string", "pattern": "^bench://[A-Za-z0-9/_-]{1,160}$" }
+          }
+        }
+      ]
+    },
+    "streamStop": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "streamId", "reason"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "stream-stop" },
+            "streamId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+            "reason": { "enum": ["route-ended", "phone-request", "disconnect", "receiver-error", "renderer-error"] }
+          }
+        }
+      ]
+    },
+    "sessionStop": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "reason"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "session-stop" }, "reason": { "enum": ["normal", "disconnect", "receiver-error"] }
+          }
+        }
+      ]
+    },
+    "receiverError": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["contractVersion", "eventId", "sessionId", "atMs", "type", "scope", "code", "recoverable"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" }, "eventId": true, "sessionId": true, "atMs": true,
+            "type": { "const": "receiver-error" },
+            "scope": { "enum": ["session", "center-stream", "cluster-stream", "renderer"] },
+            "code": { "type": "string", "pattern": "^[A-Z0-9_]{1,64}$" },
+            "recoverable": { "type": "boolean" }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{"tMs":0,"type":"connected"}
+{"tMs":0,"type":"center-app","app":"maps"}
+{"tMs":2,"type":"receiver-capabilities","clusterDisplay":true}
+{"tMs":3,"type":"cluster-setup"}
+{"tMs":4,"type":"cluster-activate"}
+{"tMs":5,"type":"cluster-frame","frameId":"cluster-0000"}
+{"tMs":6,"type":"center-app","app":"music"}
+{"tMs":7,"type":"cluster-frame","frameId":"cluster-0001"}
+{"tMs":8,"type":"guidance-end"}
+{"tMs":8,"type":"cluster-stop"}
+{"tMs":9,"type":"disconnected"}

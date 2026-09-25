@@ -1,0 +1,9 @@
+{"contractVersion":"1.0.0","eventId":"m0","sessionId":"music-session","atMs":0,"type":"session-start","audioPolicy":"preserve-existing-carplay","safetyScope":"navigation-region-only"}
+{"contractVersion":"1.0.0","eventId":"m1","sessionId":"music-session","atMs":1,"type":"display-advertised","display":{"displayId":"center","role":"center","widthPixels":800,"heightPixels":480,"maxFps":30,"viewArea":{"x":0,"y":0,"width":800,"height":480},"safeArea":{"x":0,"y":0,"width":800,"height":480}}}
+{"contractVersion":"1.0.0","eventId":"m2","sessionId":"music-session","atMs":2,"type":"display-advertised","display":{"displayId":"cluster-map","role":"cluster-map","widthPixels":800,"heightPixels":480,"maxFps":15,"viewArea":{"x":0,"y":0,"width":800,"height":480},"safeArea":{"x":100,"y":40,"width":600,"height":320}}}
+{"contractVersion":"1.0.0","eventId":"m3","sessionId":"music-session","atMs":3,"type":"stream-setup","streamId":"cluster-1","displayId":"cluster-map","codec":"h264"}
+{"contractVersion":"1.0.0","eventId":"m4","sessionId":"music-session","atMs":4,"type":"stream-active","streamId":"cluster-1"}
+{"contractVersion":"1.0.0","eventId":"m5","sessionId":"music-session","atMs":5,"type":"frame-ready","streamId":"cluster-1","sequence":0,"ptsUs":0,"frameRef":"bench://frames/cluster-0000"}
+{"contractVersion":"1.0.0","eventId":"m6","sessionId":"music-session","atMs":7,"type":"frame-ready","streamId":"cluster-1","sequence":1,"ptsUs":66666,"frameRef":"bench://frames/cluster-0001"}
+{"contractVersion":"1.0.0","eventId":"m7","sessionId":"music-session","atMs":8,"type":"stream-stop","streamId":"cluster-1","reason":"route-ended"}
+{"contractVersion":"1.0.0","eventId":"m8","sessionId":"music-session","atMs":9,"type":"session-stop","reason":"normal"}

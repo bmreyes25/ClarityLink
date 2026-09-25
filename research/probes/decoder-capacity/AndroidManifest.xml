@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylab.decoderprobe">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:label="Clarity Decoder Probe" android:allowBackup="false">
+        <activity android:name=".DecoderCapacityProbeActivity"
+            android:label="Clarity Decoder Probe"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

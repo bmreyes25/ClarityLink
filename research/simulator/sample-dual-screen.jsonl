@@ -1,0 +1,12 @@
+{"tMs":0,"type":"connected"}
+{"tMs":1,"type":"receiver-capabilities","clusterDisplay":true}
+{"tMs":2,"type":"center-app","app":"maps"}
+{"tMs":3,"type":"cluster-setup"}
+{"tMs":4,"type":"guidance","maneuver":"right","road":"Example Road","distanceMeters":350,"provenance":"synthetic"}
+{"tMs":5,"type":"cluster-activate"}
+{"tMs":6,"type":"cluster-frame","frameId":"map-001"}
+{"tMs":7,"type":"center-app","app":"music"}
+{"tMs":8,"type":"cluster-frame","frameId":"map-002"}
+{"tMs":9,"type":"guidance-end"}
+{"tMs":10,"type":"cluster-stop"}
+{"tMs":11,"type":"disconnected"}

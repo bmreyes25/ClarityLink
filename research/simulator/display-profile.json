@@ -1,0 +1,91 @@
+{
+  "source": "working copies of backed-up j_config.xml and Honda Hack meter_civic.xml; saved read-only display captures",
+  "center": {
+    "width": 800,
+    "height": 480,
+    "configuredMaxFps": 30
+  },
+  "clusterHdmiCapture": {
+    "width": 800,
+    "height": 480
+  },
+  "meterLayout": {
+    "width": 584,
+    "height": 215,
+    "placementOnPhysicalCluster": "user reports cast in the NE compass/Navigation area; exact pixel boundary unmeasured"
+  },
+  "physicalClusterReferences": {
+    "physical-cluster-20260925.jpg": {
+      "image": "assets/physical-cluster-20260925.jpg",
+      "sha256": "eb60af08d277831958ea47dfe231810445281493465d9a09808459aec2dd1c8f"
+    },
+    "physical-maps-20260925.jpg": {
+      "image": "assets/physical-maps-20260925.jpg",
+      "sha256": "d69cce82aeb4731b9a8bb12e10b50d9692a68ce26d6445abee856eae8263d8f9"
+    },
+    "physical-carplay-home-20260925.jpg": {
+      "image": "assets/physical-carplay-home-20260925.jpg",
+      "sha256": "ad3950910409ed4c23ae2dc062cbc2ef595309bb07d1c6ea7526e8dae4ecf7b5"
+    },
+    "physical-music-20260925.jpg": {
+      "image": "assets/physical-music-20260925.jpg",
+      "sha256": "549ddb6d18b643f4624d3d1c67d42aa3bfc23f056feb0b7adb7ab8385094eff6"
+    },
+    "physical-honda-home-20260925.jpg": {
+      "image": "assets/physical-honda-home-20260925.jpg",
+      "sha256": "6cfea53e7f0bdcbdf63638ca2c7e378217aafd51b425e1af5f30ee701d950ea4"
+    }
+  },
+  "physicalCastObservation": "wide central rectangle below speed and above Menu/trip row; speed/range visible; edge clearance near power/charge scales unverified",
+  "files": {
+    "center-maps.png": {
+      "sha256": "0d7ea46289c295e378dfb8ebc15c8a7d5dc780d1a8f3410ec65c90da18c288d0",
+      "width": 800,
+      "height": 480
+    },
+    "center-music.png": {
+      "sha256": "1f5bb6f306309c37ab1194587b780a0ab365618df188a1df2e59f7ef34646a09",
+      "width": 800,
+      "height": 480
+    },
+    "cluster-navigation.png": {
+      "sha256": "64ed06129996408c6a2653f60f2421134b972fd2467e418a4c15e85e0c043805",
+      "width": 800,
+      "height": 480
+    },
+    "center-20260925-native-maps.png": {
+      "sha256": "5382a6d50978ff965d5ffe496b9f5f507fd69a3af8008b8b3cfa3f5f0f4dd96f",
+      "width": 800,
+      "height": 480
+    },
+    "cluster-20260925-native.png": {
+      "sha256": "5b41a9efd76b4e91d364bf83fa7a6616ec1428d0fa1ce7b2091e7d9ff2f5f846",
+      "width": 800,
+      "height": 480
+    },
+    "center-20260925-cast-maps.png": {
+      "sha256": "247edb13ecb22aa86c0941925e7754c3ae7e5dbceb28d6ffdd4b248c451961b4",
+      "width": 800,
+      "height": 480
+    },
+    "cluster-20260925-cast-maps.png": {
+      "sha256": "5ef96b8c609e1204f12c3caefe1e31c1125851e6005df0893b6959495f68c031",
+      "width": 800,
+      "height": 480
+    },
+    "center-20260925-music.png": {
+      "sha256": "80bd1ca22719b243d63210d69188bbe71e9a261c747cc8b7f60b9819f2bcc579",
+      "width": 800,
+      "height": 480
+    },
+    "cluster-20260925-cast-music.png": {
+      "sha256": "04557965040d0eb79920ef7bbe3c2de336092c65ad9b313683084c7de25fdecb",
+      "width": 800,
+      "height": 480
+    }
+  },
+  "firmwareCopySha256": {
+    "j_config.xml": "358cab78f4366d091cc4afa36d386ae8d9c21a81127091e2a2313ee6753240cc",
+    "meter_civic.xml": "0d757096b1baae269b61e0ff2dd5cafe7ef450614ef46768f023b81055e7ea2e"
+  }
+}

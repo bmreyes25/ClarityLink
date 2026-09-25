@@ -1,0 +1,128 @@
+[
+  {
+    "copy": "pristine",
+    "name": "honda-config.tar",
+    "expected": "eddfe37671e591bc518b177f1090049aa643fe0c0cd1792b90713e0283a06660",
+    "actual": "eddfe37671e591bc518b177f1090049aa643fe0c0cd1792b90713e0283a06660",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "honda-config.tar",
+    "expected": "eddfe37671e591bc518b177f1090049aa643fe0c0cd1792b90713e0283a06660",
+    "actual": "eddfe37671e591bc518b177f1090049aa643fe0c0cd1792b90713e0283a06660",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "boot.img",
+    "expected": "37d928201d8861e3037c3e9be8254617eeadfe09e018e37a46500d0711d875cc",
+    "actual": "37d928201d8861e3037c3e9be8254617eeadfe09e018e37a46500d0711d875cc",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "boot.img",
+    "expected": "37d928201d8861e3037c3e9be8254617eeadfe09e018e37a46500d0711d875cc",
+    "actual": "37d928201d8861e3037c3e9be8254617eeadfe09e018e37a46500d0711d875cc",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "recovery.img",
+    "expected": "b96888e9a5ba6b1831d4529fc8d827b6dd3c6bcf7a62f831490aab6108d4b702",
+    "actual": "b96888e9a5ba6b1831d4529fc8d827b6dd3c6bcf7a62f831490aab6108d4b702",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "recovery.img",
+    "expected": "b96888e9a5ba6b1831d4529fc8d827b6dd3c6bcf7a62f831490aab6108d4b702",
+    "actual": "b96888e9a5ba6b1831d4529fc8d827b6dd3c6bcf7a62f831490aab6108d4b702",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "nor-whole-device.img",
+    "expected": "43f345e5f7ab7d69b60accc74d89b1b69e5f9bcd75e9e84959e97ccf8bf040b7",
+    "actual": "43f345e5f7ab7d69b60accc74d89b1b69e5f9bcd75e9e84959e97ccf8bf040b7",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "nor-whole-device.img",
+    "expected": "43f345e5f7ab7d69b60accc74d89b1b69e5f9bcd75e9e84959e97ccf8bf040b7",
+    "actual": "43f345e5f7ab7d69b60accc74d89b1b69e5f9bcd75e9e84959e97ccf8bf040b7",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "system-vendor.tar",
+    "expected": "74f61a07df79fe6e1e63c938b7799b9e1638090ab1e350859391101465b212c9",
+    "actual": "74f61a07df79fe6e1e63c938b7799b9e1638090ab1e350859391101465b212c9",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "system-vendor.tar",
+    "expected": "74f61a07df79fe6e1e63c938b7799b9e1638090ab1e350859391101465b212c9",
+    "actual": "74f61a07df79fe6e1e63c938b7799b9e1638090ab1e350859391101465b212c9",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "userdata-live.tar",
+    "expected": "97d31c55436cd0f27f5381f91aa75560eb3e27b1bef0864b14373294b80055ef",
+    "actual": "97d31c55436cd0f27f5381f91aa75560eb3e27b1bef0864b14373294b80055ef",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "userdata-live.tar",
+    "expected": "97d31c55436cd0f27f5381f91aa75560eb3e27b1bef0864b14373294b80055ef",
+    "actual": "97d31c55436cd0f27f5381f91aa75560eb3e27b1bef0864b14373294b80055ef",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "media-config.tar",
+    "expected": "3e5431d76ff3c17d858659bc5ec15f1808bbed7f2692dbb08fddf66c3f87399c",
+    "actual": "3e5431d76ff3c17d858659bc5ec15f1808bbed7f2692dbb08fddf66c3f87399c",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "media-config.tar",
+    "expected": "3e5431d76ff3c17d858659bc5ec15f1808bbed7f2692dbb08fddf66c3f87399c",
+    "actual": "3e5431d76ff3c17d858659bc5ec15f1808bbed7f2692dbb08fddf66c3f87399c",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "root-startup.tar",
+    "expected": "665096f2d25621b0f63b9ae4ecd74a72ce73d736b3486c43042da317683b5817",
+    "actual": "665096f2d25621b0f63b9ae4ecd74a72ce73d736b3486c43042da317683b5817",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "root-startup.tar",
+    "expected": "665096f2d25621b0f63b9ae4ecd74a72ce73d736b3486c43042da317683b5817",
+    "actual": "665096f2d25621b0f63b9ae4ecd74a72ce73d736b3486c43042da317683b5817",
+    "match": true
+  },
+  {
+    "copy": "pristine",
+    "name": "emmc-first-4MiB.bin",
+    "expected": "abadd54e647c800d41cf491ce0f1ca3f6b5e2ea5b1de35a907cf3bbc33e16183",
+    "actual": "abadd54e647c800d41cf491ce0f1ca3f6b5e2ea5b1de35a907cf3bbc33e16183",
+    "match": true
+  },
+  {
+    "copy": "analysis",
+    "name": "emmc-first-4MiB.bin",
+    "expected": "abadd54e647c800d41cf491ce0f1ca3f6b5e2ea5b1de35a907cf3bbc33e16183",
+    "actual": "abadd54e647c800d41cf491ce0f1ca3f6b5e2ea5b1de35a907cf3bbc33e16183",
+    "match": true
+  }
+]

@@ -1,0 +1,35 @@
+{
+  "name": "Clarity actual-frame AVC decoder probe",
+  "status": "Approved parked test completed 2026-09-25; 28/30 frames from two concurrent NVIDIA decoders; APK removed and baseline restored",
+  "vehicle": "2018 Honda Clarity MY16ADA Android 4.2.2",
+  "package": "org.claritylab.decoderprobe",
+  "apk": "build/decoder-probe-signed.apk",
+  "question": "Can the selected AVC codec decode one or two concurrent 800x480 15fps H.264 streams to actual output buffers?",
+  "test_limit": "A two-decoder success does not prove CarPlay receiver multi-display negotiation or coexistence with the factory CarPlay decoder.",
+  "fixture": {
+    "path": "fixtures/avc-800x480-15fps.mp4",
+    "profile": "H.264 Constrained Baseline, 800x480, 15fps, 30 frames, 2s, approximately 519kbps",
+    "sha256": "1a1f70418ad0df9210822ee03a44c313049879699ea75d9df3517dbcc42c04cc"
+  },
+  "vehicle_changes_if_later_approved": [
+    "Install one APK in /data/app and create its ordinary app data",
+    "Reserve and release one or two AVC decoder instances for at most seven seconds after a button tap",
+    "Write ordinary Android logcat entries under ClarityDecoderProbe"
+  ],
+  "excluded_interfaces": [
+    "CAN/B-CAN/F-CAN",
+    "cluster display",
+    "vehicle controls",
+    "audio",
+    "root",
+    "network"
+  ],
+  "rollback_if_later_approved": "Force-stop and uninstall org.claritylab.decoderprobe, verify package removal, and verify baseline center CarPlay/voice after normal session restart.",
+  "manifest_permissions": [],
+  "build_and_verify": "python3 research/probes/decoder-capacity/build_probe.py; python3 -m unittest discover -s research/probes/decoder-capacity -p 'test_*.py'",
+  "sha256": {
+    "AndroidManifest.xml": "5a9fb7e28845e2da0cfec8fed671d80145466597775848f75652dbcfdde65588",
+    "DecoderCapacityProbeActivity.java": "af65e011d3ca5d1fa380425d3d701fd595875740b929f1674a3cbdb8aef1fc7a",
+    "decoder-probe-signed.apk": "162cae47046ad144946c3fc889297c9f6f62c037ece6c3e45b35d5229db3aac7"
+  }
+}

@@ -1,0 +1,7 @@
+{"tMs":0,"type":"connected"}
+{"tMs":1,"type":"center-app","app":"maps"}
+{"tMs":2,"type":"guidance","maneuver":"right","road":"Synthetic Road","distanceMeters":300,"sourceKind":"route-metadata","provenance":"hypothetical iAP2 metadata; not captured"}
+{"tMs":5000,"type":"center-app","app":"music"}
+{"tMs":8000,"type":"voice","status":"heard"}
+{"tMs":15003,"type":"vehicle","speedKph":0}
+{"tMs":16000,"type":"disconnected"}

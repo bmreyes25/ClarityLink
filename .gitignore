@@ -1,0 +1,55 @@
+# This repository tracks ClarityLab source and research notes, not firmware backups.
+/*
+!/.gitignore
+!/research/
+
+# Raw and derived vehicle data stays outside Git.
+/research/captures/
+/research/decompiled/
+/research/decompiled-clean/
+/research/deodexed/
+/research/extracted/
+/research/logs/
+/research/resources/
+/research/search/
+/research/smali/
+/research/tools/
+/research/tmp/
+/research/internet/livi/
+/research/internet/livi-source/
+/research/internet/livi-tree.json
+
+# Native disassembly and copied binaries are derived from vendor firmware.
+/research/native/*
+!/research/native/*.md
+
+# Private preferences, generated images, copied backups, and build output.
+/research/simulator/working-backup/
+/research/simulator/assets/
+/research/simulator/*.png
+/research/simulator/*captured*.jsonl
+/research/simulator/guidance-card
+/research/simulator/guidance-ocr
+/research/extracted/
+/research/probes/**/build/
+/research/probes/**/apktool.yml
+/research/probes/**/fixtures/*.mp4
+/research/**/__pycache__/
+/research/**/*.pyc
+/research/**/.DS_Store
+
+# Never track credentials, signing material, or archives if new paths appear.
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.apk
+*.dex
+*.odex
+*.so
+*.img
+*.bin
+*.tar
+*.tar.gz
+*.zip

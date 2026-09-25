@@ -1,0 +1,8 @@
+[
+  {
+    "archive": "userdata-live.tar",
+    "member": "data/app/cn.autohack.hondahack-2.apk",
+    "local": "research/extracted/cn.autohack.hondahack-2.apk",
+    "sha256": "5013b478ddd95b01d8f3866fa533d2cd2da5629d6bb609c03c3d816e836afb73"
+  }
+]

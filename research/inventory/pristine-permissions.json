@@ -1,0 +1,268 @@
+[
+  {
+    "path": ".",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "mounts.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "root-startup.tar",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "properties.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "system-vendor.errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "partitions.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "mtd.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "boot.img",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "file-inventory.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "honda-config.verify-errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "media-config.tar",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "emmc-layout.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "userdata-live.contents.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "media-config.verify-errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "userdata-live.errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "media-config.errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "root-startup.contents.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "root-startup.verify-errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "media-config.contents.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "honda-config.contents.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "emmc-first-4MiB.bin",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "root-startup.errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "system-vendor.contents.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "partition-names.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "image-verification.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "system-vendor.verify-errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "backup.log",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "README.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "nor-whole-device.img",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "honda-config.tar",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "emmc-header-read.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "SHA256SUMS",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "honda-config.errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "FINISHED.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "userdata-live.verify-errors.txt",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "system-vendor.tar",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "recovery.img",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  },
+  {
+    "path": "userdata-live.tar",
+    "mode": "0o500",
+    "symlink": false,
+    "write_bits": false,
+    "writable_by_current_user": false
+  }
+]

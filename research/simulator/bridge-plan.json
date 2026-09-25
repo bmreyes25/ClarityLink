@@ -1,0 +1,34 @@
+{
+  "reading": "Start on Example Rd",
+  "candidate": {
+    "icon": "start",
+    "street": "Example Rd",
+    "distance": null,
+    "source": "Apple Maps screenshot OCR",
+    "verified": false
+  },
+  "actions_after_approval": [
+    [
+      "shell",
+      "am",
+      "broadcast",
+      "-a",
+      "cn.autohack.hondahack.UPDATE_NAVI_WAZE",
+      "--es",
+      "icon",
+      "start",
+      "--es",
+      "street",
+      "Example Rd"
+    ]
+  ],
+  "rollback": [
+    "shell",
+    "am",
+    "broadcast",
+    "-a",
+    "cn.autohack.hondahack.STOP_NAVI"
+  ],
+  "scope": "Honda Hack navigation view only; no system-file patch",
+  "limit": "Image-based, unverified; no distance or turn sent unless recognized"
+}

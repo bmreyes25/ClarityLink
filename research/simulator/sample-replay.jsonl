@@ -1,0 +1,5 @@
+{"tMs":0,"type":"connected"}
+{"tMs":100,"type":"vehicle","speedKph":0,"gear":"P","batterySocPercent":70,"evRangeKm":72}
+{"tMs":200,"type":"guidance","maneuver":"unknown","road":"Start on Example Rd","distanceMeters":0,"provenance":"OCR of captured CarPlay screenshot; distance placeholder"}
+{"tMs":300,"type":"display","mode":"casting"}
+{"tMs":400,"type":"voice","status":"heard"}

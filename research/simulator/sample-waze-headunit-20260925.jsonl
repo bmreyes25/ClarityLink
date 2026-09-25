@@ -1,0 +1,11 @@
+{"tMs":0,"type":"connected"}
+{"tMs":10,"type":"center-app","app":"waze"}
+{"tMs":11,"type":"capture-frame","display":"center","captureId":"center-20260925-waze-route"}
+{"tMs":12,"type":"capture-frame","display":"cluster","captureId":"cluster-20260925-waze-route"}
+{"tMs":20,"type":"center-app","app":"home"}
+{"tMs":21,"type":"capture-frame","display":"center","captureId":"center-20260925-honda-home"}
+{"tMs":22,"type":"capture-frame","display":"cluster","captureId":"cluster-20260925-waze-route"}
+{"tMs":30,"type":"center-app","app":"waze"}
+{"tMs":31,"type":"capture-frame","display":"center","captureId":"center-20260925-waze-ended"}
+{"tMs":32,"type":"capture-frame","display":"cluster","captureId":"cluster-20260925-waze-ended"}
+{"tMs":33,"type":"guidance-end"}
