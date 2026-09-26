@@ -21,3 +21,7 @@ Use one plan step per prompt. Give the model the current plan section, the conci
 F-B's reviewed acquisition is now verified complete; see [the completion record](../acquisition/ACQUISITION_COMPLETION_20260926.md). The next practical sequence is Step 2 simulator fixtures, Step 3 decoder-probe preparation, and Step 5 static Identification analysis, each offline in a fresh task. Use [the post-acquisition prompts](POST_ACQUISITION_PROMPTS.md). Do not advance Steps 10–12 on the live car without their separate reviewed artifacts and recovery gates.
 
 Review model suggestions against the cited files before turning them into tasks. During setup, an early Step 2 response incorrectly treated ordinary runtime snapshots as a source of raw iAP2 payloads, and another inferred display bounds from the GPT partition map. The prompts and system profile now state both limits explicitly. The client never executes the model's directions or writes to the vehicle.
+
+## Numbered master-plan prompts
+
+Use [five standalone prompts with model assignments](master-plan-prompts/README.md) for numbered Steps 1–5. Offline execution requires a tool-capable Ollama-backed Codex task; `run_step.py` remains advice-only. All vehicle execution is assigned to GPT-6 Sol Codex.

@@ -9,3 +9,5 @@ Requested by the user on 2026-09-25. This applies to every subsequent ClarityLab
 5. Commit and push the verified checkpoint to the private GitHub repository. Verify that the commit reached `origin/main`, record the commit ID, and report the verification result. If a step fails, push a sanitized failure/status checkpoint rather than implying it passed.
 
 The local model gives advice only; Codex performs the verification and repository checkpoint. No unattended model output may authorize or execute a vehicle write. Do not proceed through a dependent gate until the required verification passes.
+
+For tool-capable Ollama-backed Codex tasks, the local executor may perform offline work and push sanitized evidence/checkpoints as requested. Acceptance remains pending independent supervising Codex verification until the declared checks are reviewed. The advice-only `run_step.py` client does not execute commands. All vehicle work is assigned to GPT-6 Sol Codex and retains exact-artifact approval and recovery gates.
