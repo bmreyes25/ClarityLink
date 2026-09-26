@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -74,6 +75,38 @@ class FinalizeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
             finalize(self.usb, self.folder, self.manifest, self.runtime)
         self.assertFalse((self.folder / "FINISHED.txt").exists())
+
+    def test_appledouble_metadata_is_retained(self) -> None:
+        sidecar = self.folder / "._runtime"
+        sidecar.write_bytes(bytes.fromhex("0005160700020000") + bytes(18))
+        finalize(self.usb, self.folder, self.manifest, self.runtime)
+        self.assertIn("  ._runtime\n", (self.folder / "SHA256SUMS").read_text())
+
+    def test_resumes_verified_runtime_without_overwrite(self) -> None:
+        shutil.copytree(self.runtime, self.folder / "runtime", dirs_exist_ok=True)
+        before = (self.folder / "runtime" / STATES[0] / "ps.stdout.txt").stat().st_mtime_ns
+        finalize(self.usb, self.folder, self.manifest, self.runtime)
+        self.assertEqual(before, (self.folder / "runtime" / STATES[0] / "ps.stdout.txt").stat().st_mtime_ns)
+
+    def test_changed_existing_runtime_aborts_without_overwrite(self) -> None:
+        shutil.copytree(self.runtime, self.folder / "runtime", dirs_exist_ok=True)
+        changed = self.folder / "runtime" / STATES[0] / "ps.stdout.txt"
+        changed.write_text("changed")
+        with self.assertRaisesRegex(ValueError, "runtime copy hash mismatch"):
+            finalize(self.usb, self.folder, self.manifest, self.runtime)
+        self.assertEqual(changed.read_text(), "changed")
+        self.assertFalse((self.folder / "FINISHED.txt").exists())
+
+    def test_unexpected_existing_runtime_aborts(self) -> None:
+        shutil.copytree(self.runtime, self.folder / "runtime", dirs_exist_ok=True)
+        (self.folder / "runtime" / "extra.txt").write_text("unexpected")
+        with self.assertRaisesRegex(ValueError, "runtime file set mismatch"):
+            finalize(self.usb, self.folder, self.manifest, self.runtime)
+
+    def test_invalid_appledouble_header_is_rejected(self) -> None:
+        (self.folder / "._runtime").write_bytes(b"unrecognized file")
+        with self.assertRaisesRegex(ValueError, "unexpected top-level file"):
+            finalize(self.usb, self.folder, self.manifest, self.runtime)
 
     def test_missing_runtime_state_aborts(self) -> None:
         missing = self.runtime / STATES[-1]
