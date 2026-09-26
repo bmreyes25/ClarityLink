@@ -1,5 +1,7 @@
 # Terminal commands to finish filesystem archives and metadata
 
+**Historical commands:** this storage resume and subsequent runtime/Mac verification have completed. See [the completion record](ACQUISITION_COMPLETION_20260926.md). Do not run these commands again on the finalized acquisition; the next work is offline.
+
 Use these only with the car parked and powered, the same CLARITY USB inserted in the head unit, and Wirebug enabled. The previously shown address was `192.168.86.102:5555`; substitute the current Wirebug address if it changed. The script reads Honda internal storage and writes only the existing new forensic USB sibling. It verifies/skips completed raw images; it never overwrites the original backup. Expect the initial rehash of the completed raw images to take time even when no new file is yet being created.
 
 On the Mac, verify the exact reviewed script and connect:

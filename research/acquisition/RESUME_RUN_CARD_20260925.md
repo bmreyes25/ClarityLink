@@ -1,5 +1,7 @@
 # Parked-car resume card for the partial September 25 acquisition
 
+**Historical execution card:** this resume has now run and the reviewed acquisition passed [final verification](ACQUISITION_COMPLETION_20260926.md). Do not rerun it against the finalized USB sibling. The notes below preserve the pre-run state and exact reviewed procedure.
+
 **Current state:** USB is on the Mac; no ADB device is connected. This card is preparation only. The eight raw eMMC chunks, eight MTD images, and `/system` tar already verified on USB. The next run must resume the same forensic sibling; it must not start a new raw copy or change the September 18 backup.
 
 Reviewed local inputs (ignored from Git because the embedded manifest contains device identity):

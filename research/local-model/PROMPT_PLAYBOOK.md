@@ -1,5 +1,9 @@
 # Prompting the local model through the 12-step plan
 
+Start a fresh local Codex task per bounded deliverable. The long project conversation produced a 67,057-token request against the actual 65,536-token Ollama context and was rejected. Reusing that entire conversation cannot serve as a connection test. The [post-acquisition prompt sheet](POST_ACQUISITION_PROMPTS.md) uses short file pointers. An advice-only F-B smoke request completed normally with 6,397 measured input tokens and 815 output tokens; model advice still requires source review, and current status must replace stale historical missing-file lists.
+
+A separate short Responses API request with reasoning disabled returned a valid `report_local_ready(status="ready")` function call. That check executed no shell command and verifies tool-call formatting only, not successful autonomous implementation. Use the fresh-task prompts for actual offline work and have Codex verify the resulting files/tests before a dependent step advances.
+
 The installed model's metadata reports a 262,144-token architectural limit, but Ollama currently loads it at **65,536 tokens** on this 36 GiB Mac. Use 65,536 as the real session limit. The tested F-B packet used 4,380 input tokens and 747 output tokens; a Step 2 packet used about 6,700 input tokens. Keep normal input packets below about 16,000 tokens so there is room for tool outputs, analysis, and a response. Character count divided by three is a conservative rough estimate, not a tokenizer. The model does not retain prior sessions: the files below are its durable memory.
 
 For each step, provide only:

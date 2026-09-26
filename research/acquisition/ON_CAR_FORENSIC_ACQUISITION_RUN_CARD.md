@@ -1,5 +1,7 @@
 # Head-unit forensic acquisition — **DRAFT, NOT APPROVED TO RUN**
 
+**Historical design draft:** execution proceeded through the separately reviewed exact resume card. The dataset now passed [completion verification](ACQUISITION_COMPLETION_20260926.md); do not repeat copying from this historical draft. Its original pre-acquisition state is retained below for provenance.
+
 **Current state (2026-09-25):** the parked-car read-only inventory completed over Wi-Fi ADB, using the existing `su` facility for protected storage facts. The exact generated manifest and script are in `generated/20260925_211500/` on the Mac for review. No `dd`, tar, or bulk copy has started. The new USB sibling does not yet exist. This card remains a draft until the exact generated files, time window, and runtime-state sequence are reviewed.
 
 The concise [live review packet](LIVE_INVENTORY_REVIEW.md) records the measured sizes, available space, selected sources, and exact local SHA-256 hashes of the generated files.

@@ -61,7 +61,9 @@ Evidence: [receiver audit](../native/receiver-multidisplay-audit.md), [implement
 
 **Exit/verification:** source paths appear only as `if=`/read inputs; every output is guarded beneath the new USB sibling. The exact generated script refuses mismatched live sector size, absent backup, hash mismatch, low free space, or an existing completed chunk with a wrong hash. A fresh script and run card are presented for review; **do not start the acquisition at this gate**. All raw and private outputs stay outside Git.
 
-## F-B. Acquire in a reviewed parked session, then verify on the Mac (raw storage verified; remaining work pending)
+## F-B. Acquire in a reviewed parked session, then verify on the Mac (reviewed scope verified complete)
+
+Completion evidence: [September 26 record](../acquisition/ACQUISITION_COMPLETION_20260926.md). The new complete original/working copies preserve the historical partial copies. Optional denied/unavailable reads remain explicit; the following requirements describe the reviewed acquisition and should not be rerun merely because the local model starts a fresh task.
 
 **Context:** run only after F-A's exact storage map, applet list, selected devices, calculated free space, generated script/hash, and run card are reviewed. The Honda devices are read-only *sources*; all car-side writes go to new files inside the unique USB forensic sibling. Full raw eMMC is a live, non-atomic image; do not unmount writable Android filesystems to improve consistency. The run may take longer than a short diagnostic; use chunk checkpoints and agreed time/power conditions, not a guessed duration.
 
