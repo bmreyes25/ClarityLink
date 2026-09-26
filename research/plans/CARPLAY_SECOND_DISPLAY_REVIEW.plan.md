@@ -1,6 +1,6 @@
 # Clarity CarPlay second display — reviewable execution plan
 
-**Status:** the local Git baseline and fresh parked read-only forensic inventory are complete, 2026-09-25. The exact acquisition script is generated locally for review; no bulk copy has started. Analysis/design work stays under `/Users/bmreyes24/ClarityLab/clarity-analysis`. The later forensic Mac copies have their own paths below. `/Users/bmreyes24/ClarityLab/backups/CLARITY_BACKUP_20260918_0225_ORIGINAL` remains untouched, read-only, and outside Git. Every future on-car install or change needs its own exact artifact, run card, rollback, and approval.
+**Status:** the local Git baseline, parked read-only inventory, and raw eMMC/MTD copy are complete as of 2026-09-25. All 25 currently hashed USB files verified, but seven planned archives, much metadata, eight runtime snapshots, and final completion markers are missing; the forensic acquisition is **partial**. See [the exact status and partition map](../acquisition/FORENSIC_STATUS_20260925.md). Analysis/design work stays under `/Users/bmreyes24/ClarityLab/clarity-analysis`; raw Mac forensic copies stay outside Git. `/Users/bmreyes24/ClarityLab/backups/CLARITY_BACKUP_20260918_0225_ORIGINAL` remains untouched, read-only, and outside Git. Every future on-car install or change needs its own exact artifact, run card, rollback, and approval.
 
 ## Target and present verdict
 
@@ -61,7 +61,7 @@ Evidence: [receiver audit](../native/receiver-multidisplay-audit.md), [implement
 
 **Exit/verification:** source paths appear only as `if=`/read inputs; every output is guarded beneath the new USB sibling. The exact generated script refuses mismatched live sector size, absent backup, hash mismatch, low free space, or an existing completed chunk with a wrong hash. A fresh script and run card are presented for review; **do not start the acquisition at this gate**. All raw and private outputs stay outside Git.
 
-## F-B. Acquire in a reviewed parked session, then verify on the Mac (not yet authorized)
+## F-B. Acquire in a reviewed parked session, then verify on the Mac (raw storage verified; remaining work pending)
 
 **Context:** run only after F-A's exact storage map, applet list, selected devices, calculated free space, generated script/hash, and run card are reviewed. The Honda devices are read-only *sources*; all car-side writes go to new files inside the unique USB forensic sibling. Full raw eMMC is a live, non-atomic image; do not unmount writable Android filesystems to improve consistency. The run may take longer than a short diagnostic; use chunk checkpoints and agreed time/power conditions, not a guessed duration.
 

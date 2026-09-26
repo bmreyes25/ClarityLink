@@ -57,6 +57,8 @@ class FinalizeTests(unittest.TestCase):
     def test_finalizes_and_hashes_sidecars_and_runtime(self) -> None:
         (self.folder / "metadata").mkdir()
         (self.folder / "metadata" / "dmesg.errors.txt").write_text("unavailable")
+        (self.folder / "SHA256SUMS.original").write_text("preserved prior journal")
+        (self.folder / "acquisition.log.original").write_text("preserved prior log")
         result = finalize(self.usb, self.folder, self.manifest, self.runtime)
         self.assertEqual(result["runtime_states"], len(STATES))
         self.assertTrue((self.folder / "FINISHED.txt").exists())
@@ -64,6 +66,8 @@ class FinalizeTests(unittest.TestCase):
         self.assertIn("metadata/dmesg.errors.txt", sums)
         self.assertIn(f"runtime/{STATES[0]}/manifest.json", sums)
         self.assertIn("acquisition.log", sums)
+        self.assertIn("SHA256SUMS.original", sums)
+        self.assertIn("acquisition.log.original", sums)
 
     def test_bad_source_hash_aborts_before_copy(self) -> None:
         (self.folder / "emmc/mmcblk0.part000").write_bytes(b"evil")

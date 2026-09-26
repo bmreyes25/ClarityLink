@@ -209,7 +209,7 @@ archive_dir() {
     "$BB" tar -cf "$OUT/$rel.partial" "$source" 2> "$OUT/$rel.errors.txt" || die "tar failed; inspect errors: $rel"
     "$BB" tar -tf "$OUT/$rel.partial" > /dev/null 2>> "$OUT/$rel.errors.txt" || die "tar verification failed: $rel"
     expected=$("$BB" wc -c < "$OUT/$rel.partial") || die "archive size unavailable: $rel"
-    [ "$expected" -lt 3758096384 ] || die "archive exceeds conservative FAT32 size limit: $rel"
+    "$BB" awk -v size="$expected" 'BEGIN { exit !(size < 3758096384) }' || die "archive exceeds conservative FAT32 size limit: $rel"
     hash_and_publish "$rel" "$expected"
 }
 
@@ -229,7 +229,7 @@ archive_root_startup() {
     "$BB" tar -cf "$OUT/$rel.partial" /init /init.rc /init.goldfish.rc /init.nv_dev_board.usb.rc /init.recovery.vcm30t30.rc /init.tf.rc /init.trace.rc /init.usb.rc /init.vcm30t30.rc /default.prop /ueventd.goldfish.rc /ueventd.rc /ueventd.vcm30t30.rc /sbin 2> "$OUT/$rel.errors.txt" || die "tar failed: $rel"
     "$BB" tar -tf "$OUT/$rel.partial" > /dev/null 2>> "$OUT/$rel.errors.txt" || die "tar verification failed: $rel"
     expected=$("$BB" wc -c < "$OUT/$rel.partial") || die "archive size unavailable: $rel"
-    [ "$expected" -lt 3758096384 ] || die 'root-startup archive exceeds conservative FAT32 size limit'
+    "$BB" awk -v size="$expected" 'BEGIN { exit !(size < 3758096384) }' || die 'root-startup archive exceeds conservative FAT32 size limit'
     hash_and_publish "$rel" "$expected"
 }
 archive_root_startup

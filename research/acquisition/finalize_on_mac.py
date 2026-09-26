@@ -146,7 +146,10 @@ def finalize(usb_root: Path, folder: Path, manifest_path: Path, runtime_source: 
     destination.rmdir()
     staging.rename(destination)
     retained: dict[str, str] = {}
-    allowed_top = {"ACQUISITION_MANIFEST.json", "README.txt", "device-map.txt", "acquisition.log", "STORAGE_DONE.txt"}
+    allowed_top = {
+        "ACQUISITION_MANIFEST.json", "README.txt", "device-map.txt", "acquisition.log",
+        "acquisition.log.original", "SHA256SUMS.original", "STORAGE_DONE.txt",
+    }
     allowed_dirs = {"emmc", "mtd", "boot-regions", "filesystems", "metadata", "runtime"}
     for path in folder.rglob("*"):
         if path.is_symlink():

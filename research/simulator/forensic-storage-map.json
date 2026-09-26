@@ -1,0 +1,126 @@
+{
+  "source": "verified partial forensic eMMC user-area image; live, non-atomic",
+  "image_bytes": 7549747200,
+  "gpt_primary_header_crc32": "9603979b",
+  "gpt_backup_header_crc32": "5f8fd323",
+  "gpt_entry_array_crc32": "9f526d4d",
+  "partitions": [
+    {
+      "index": 1,
+      "name": "CAC",
+      "start_lba": 32768,
+      "end_lba": 2129919,
+      "size_bytes": 1073741824,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/cache",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    },
+    {
+      "index": 2,
+      "name": "CAP",
+      "start_lba": 2129920,
+      "end_lba": 3702783,
+      "size_bytes": 805306368,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/system/vendor",
+        "filesystem": "ext4",
+        "read_only": true
+      }
+    },
+    {
+      "index": 3,
+      "name": "APP",
+      "start_lba": 3702784,
+      "end_lba": 4751359,
+      "size_bytes": 536870912,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/system",
+        "filesystem": "ext4",
+        "read_only": true
+      }
+    },
+    {
+      "index": 4,
+      "name": "LOG",
+      "start_lba": 4751360,
+      "end_lba": 5013503,
+      "size_bytes": 134217728,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/log",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    },
+    {
+      "index": 5,
+      "name": "MITSU",
+      "start_lba": 5013504,
+      "end_lba": 7110655,
+      "size_bytes": 1073741824,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/data/MitsubishiElectric",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    },
+    {
+      "index": 6,
+      "name": "SDA",
+      "start_lba": 7110656,
+      "end_lba": 7372799,
+      "size_bytes": 134217728,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/mnt/data1",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    },
+    {
+      "index": 7,
+      "name": "SDA2",
+      "start_lba": 7372800,
+      "end_lba": 7634943,
+      "size_bytes": 134217728,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/mnt/data2",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    },
+    {
+      "index": 8,
+      "name": "SDC",
+      "start_lba": 7634944,
+      "end_lba": 9732095,
+      "size_bytes": 1073741824,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/mnt/media",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    },
+    {
+      "index": 9,
+      "name": "UDA",
+      "start_lba": 9732096,
+      "end_lba": 14712831,
+      "size_bytes": 2550136832,
+      "ext4_superblock_signature": true,
+      "mount": {
+        "path": "/data",
+        "filesystem": "ext4",
+        "read_only": false
+      }
+    }
+  ]
+}
