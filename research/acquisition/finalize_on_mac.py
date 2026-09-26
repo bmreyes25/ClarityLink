@@ -35,6 +35,17 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_appledouble(path: Path) -> bool:
+    """Recognize a paired macOS metadata sidecar without treating it as payload."""
+    if not path.name.startswith("._") or path.is_symlink() or not path.is_file():
+        return False
+    paired = path.with_name(path.name[2:])
+    if not paired.exists() or paired.is_symlink() or path.stat().st_size < 26:
+        return False
+    with path.open("rb") as stream:
+        return stream.read(8) == bytes.fromhex("0005160700020000")
+
+
 def expected_paths(manifest: dict[str, object]) -> set[str]:
     paths = {"ACQUISITION_MANIFEST.json"}
     paths.update(str(x["name"]) for x in manifest["chunks"])
@@ -126,8 +137,8 @@ def finalize(usb_root: Path, folder: Path, manifest_path: Path, runtime_source: 
     if max(capture_times) - min(capture_times) > dt.timedelta(hours=24):
         raise ValueError("runtime states span more than 24 hours; review stale state folders")
     destination = folder / "runtime"
-    if any(destination.iterdir()):
-        raise ValueError("USB runtime directory already contains files; inspect before finalizing")
+    if destination.is_symlink():
+        raise ValueError("USB runtime directory is a symlink")
     staging = folder / "runtime.__staging__"
     if staging.exists():
         raise ValueError("interrupted runtime staging exists; inspect before retry")
@@ -139,12 +150,29 @@ def finalize(usb_root: Path, folder: Path, manifest_path: Path, runtime_source: 
         for source_file in src.rglob("*"):
             if source_file.is_file():
                 source_hashes[str(source_file.relative_to(runtime_source))] = sha256(source_file)
-    shutil.copytree(runtime_source, staging)
+    if any(destination.iterdir()):
+        # A prior run may have published runtime/ before failing later. Never
+        # overwrite it: accept only the exact verified source file set.
+        copied_files = set()
+        for path in destination.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("symlink in existing runtime copy")
+            if path.is_file():
+                relative = str(path.relative_to(destination))
+                if relative in source_hashes or not is_appledouble(path):
+                    copied_files.add(relative)
+        if copied_files != set(source_hashes):
+            raise ValueError("runtime file set mismatch; preserve existing copy for review")
+        verification_root = destination
+    else:
+        shutil.copytree(runtime_source, staging, copy_function=shutil.copyfile)
+        verification_root = staging
     for relative, want in source_hashes.items():
-        if sha256(staging / relative) != want:
+        if sha256(verification_root / relative) != want:
             raise ValueError(f"runtime copy hash mismatch: {relative}")
-    destination.rmdir()
-    staging.rename(destination)
+    if verification_root == staging:
+        destination.rmdir()
+        staging.rename(destination)
     retained: dict[str, str] = {}
     allowed_top = {
         "ACQUISITION_MANIFEST.json", "README.txt", "device-map.txt", "acquisition.log",
@@ -157,7 +185,9 @@ def finalize(usb_root: Path, folder: Path, manifest_path: Path, runtime_source: 
         if not path.is_file() or path.name == "SHA256SUMS":
             continue
         relative = path.relative_to(folder)
-        if len(relative.parts) == 1 and relative.name not in allowed_top:
+        paired_top = relative.name[2:] if relative.name.startswith("._") else ""
+        accepted_metadata = paired_top in (allowed_top | allowed_dirs) and is_appledouble(path)
+        if len(relative.parts) == 1 and relative.name not in allowed_top and not accepted_metadata:
             raise ValueError(f"unexpected top-level file: {relative}")
         if len(relative.parts) > 1 and relative.parts[0] not in allowed_dirs:
             raise ValueError(f"unexpected acquisition path: {relative}")
