@@ -2,6 +2,8 @@
 
 This is a compact status index for the local model. The detailed exit criteria remain in [the 12-step plan](CARPLAY_SECOND_DISPLAY_REVIEW.plan.md). A passing simulator assertion does not prove a receiver feature.
 
+Every subsequent step requires the user's [backup, Codex verification, documentation, and GitHub push checkpoint](STEP_COMPLETION_POLICY.md). The next acquisition commands are in [the terminal resume guide](../acquisition/TERMINAL_RESUME_GUIDE.md).
+
 | Step | Status | Evidence / remaining gate |
 |---|---|---|
 | 1 Git/evidence baseline | Complete | Private GitHub repo and sanitized research baseline exist. Raw firmware excluded from Git. |

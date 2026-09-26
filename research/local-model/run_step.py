@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PLAN = ROOT / "research/plans/CARPLAY_SECOND_DISPLAY_REVIEW.plan.md"
 BRIEF = ROOT / "research/local-model/PROJECT_BRIEF.md"
 STATUS = ROOT / "research/plans/STEP_STATUS.md"
+POLICY = ROOT / "research/plans/STEP_COMPLETION_POLICY.md"
 MODEL = "clarity-research:latest"
 MAX_CHARS = 48000  # Conservative ~16k-token input; 65,536 tokens are configured.
 SOURCES = {
@@ -57,6 +58,7 @@ def packet(step: str, question: str) -> str:
         "Use only these sources. Cite path:line. Give status, evidence gaps, the next available offline action, and verification. Mention later car requirements only if they block that action. Do not claim a step passed without exit evidence; do not infer raw iAP2 payloads from ordinary runtime snapshots.\n",
         numbered_excerpt(BRIEF, 6500),
         numbered_excerpt(STATUS, 6500),
+        numbered_excerpt(POLICY, 6500),
         f"SOURCE {PLAN.relative_to(ROOT)}\n{plan_section(step)}\n",
     ]
     for relative in SOURCES.get(step, []):
