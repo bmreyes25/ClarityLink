@@ -8,6 +8,8 @@ Existing offline simulator assets already replay paired Maps/Music HDMI screensh
 
 Storage GPT partition names/sizes/mounts are useful for the firmware catalog only. They contain no cluster pixel boundaries or HDMI safe-area coordinates. Use saved display captures and physical photos for display geometry, with unmeasured edges still labeled unknown.
 
+Step 3 now has a Mac-only trace scorer for a future active-CarPlay decoder test. It correctly marks 28/30 as 93.33% and below the 95% gate; 29/30 is the minimum passing count at that sample size. The historical signed probe was not changed. No new APK or live coexistence result exists.
+
 Forensic state, 2026-09-25: the USB sibling `CLARITY_FORENSIC_20260925_211500` has verified SHA-256 for eight eMMC chunks (7,549,747,200 bytes), eight MTD images, `/system.tar`, and seven metadata files. The primary and backup GPT headers and partition-entry CRCs validate; there are nine named eMMC partitions. Seven planned filesystem archives, the broad metadata inventory, eight runtime snapshots, `STORAGE_DONE.txt`, and `FINISHED.txt` are missing. This is a verified **partial** acquisition. A separate original 2026-09-18 backup remains untouched and read-only. Never call the new dataset complete until the missing requirements are met or the scope is explicitly revised.
 
 Safety: do not patch, remount, flash, alter safety systems or vehicle buses. The current phase is offline analysis and simulator/probe preparation. A later reviewed acquisition may write only new files beneath the forensic USB sibling; Honda internal storage remains read-only source media. A full eMMC image does not prove a boot-independent recovery path. Raw images, phone data, routes, credentials, and vendor firmware remain local and outside Git.

@@ -19,7 +19,7 @@ MAX_CHARS = 48000  # Conservative ~16k-token input; 65,536 tokens are configured
 SOURCES = {
     "F-B": ["research/acquisition/FORENSIC_STATUS_20260925.md", "research/acquisition/STORAGE_MAP.md"],
     "2": ["research/simulator/INFOTAINMENT_TWIN_SCOPE.md", "research/simulator/README.md", "research/simulator/sample-dual-screen.jsonl", "research/simulator/test-dual-screen.js"],
-    "3": ["research/probes/decoder-capacity/ON_CAR_RUN_CARD.md"],
+    "3": ["research/probes/decoder-capacity/README.md", "research/probes/decoder-capacity/src/org/claritylab/decoderprobe/DecoderCapacityProbeActivity.java", "research/captures/20260925T150706Z-SESSION_FINDINGS.md"],
     "4": ["research/probes/decoder-capacity/ON_CAR_RUN_CARD.md"],
     "5": ["research/native/receiver-multidisplay-audit.md", "research/NATIVE_CARPLAY_CLUSTER.md"],
     "6": ["research/native/receiver-multidisplay-audit.md"],

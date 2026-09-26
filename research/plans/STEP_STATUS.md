@@ -8,7 +8,7 @@ This is a compact status index for the local model. The detailed exit criteria r
 | F-A Acquisition design | Complete | Read-only storage inventory, USB layout, chunk manifest, script guards, and run card documented. |
 | F-B Forensic acquisition | Partial | Eight eMMC chunks, eight MTD images, `/system` tar and seven metadata files verified; remaining archives/metadata/runtime states absent. See [status](../acquisition/FORENSIC_STATUS_20260925.md). |
 | 2 Infotainment twin | In progress | Existing tests replay observed Maps→Music mirroring, head-unit Waze arrow cleanup, and a separately labeled hypothetical independent stream. A sanitized, GPT-CRC-validated nine-partition storage fixture now seeds the firmware catalog; deeper app/service ownership fixtures remain. |
-| 3 Decoder coexistence probe prep | Pending | Earlier CarPlay-disconnected probe measured 28/30 frames per decoder. New bounded active-CarPlay probe has not been built/reviewed. |
+| 3 Decoder coexistence probe prep | In progress | Earlier CarPlay-disconnected probe measured 28/30 frames per decoder. A Mac-only trace scorer now encodes the 95%/250-ms/EOS gate; the background-safe APK and reviewed run card have not been built. |
 | 4 Active-CarPlay decoder test | Pending car/review | No active-CarPlay coexistence measurement. |
 | 5 Static Identification reconstruction | In progress | Main-screen registration and singleton proxy callback found; raw actual Identification bytes remain unavailable. |
 | 6 Protocol capture | Conditional pending | Only if Step 5 leaves a material unknown and a bench-validated capture method exists. |
