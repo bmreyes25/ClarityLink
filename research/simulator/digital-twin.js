@@ -11,11 +11,14 @@ const ClarityTwin = (() => {
     'cluster-20260925-waze-ended': 'cluster'
   });
   const blankClusterStream = () => ({advertised: false, setup: false, active: false, frameId: null, frames: 0, expiresAtMs: null});
+  // Retiring these pixels is a model cleanup policy, not an observed route-end frame.
+  const routeBearingCaptures = new Set(['cluster-20260925-waze-route', 'cluster-20260925-cast-maps']);
   const blank = () => ({
     source: 'synthetic', connected: false, navigation: null,
     speedKph: 0, gear: 'P', batterySocPercent: 70, evRangeKm: 70,
     display: 'native', voiceGuidance: 'unobserved', centerApp: 'none',
-    clusterStream: blankClusterStream(), centerCaptureId: null, clusterCaptureId: null, updatedMs: 0
+    clusterStream: blankClusterStream(), centerCaptureId: null, clusterCaptureId: null,
+    clusterCaptureExpiresAtMs: null, updatedMs: 0
   });
   function apply(state, event) {
     if (!event || typeof event !== 'object' || !Number.isFinite(event.tMs) || event.tMs < state.updatedMs)
@@ -24,11 +27,14 @@ const ClarityTwin = (() => {
     if (next.navigation && event.tMs >= next.navigation.expiresAtMs) next.navigation = null;
     if (next.clusterStream.expiresAtMs !== null && event.tMs >= next.clusterStream.expiresAtMs)
       next.clusterStream = blankClusterStream();
+    if (next.clusterCaptureExpiresAtMs !== null && event.tMs >= next.clusterCaptureExpiresAtMs) {
+      next.clusterCaptureId = null; next.clusterCaptureExpiresAtMs = null;
+    }
     if (event.type === 'connected') return {...blank(), connected: true, updatedMs: event.tMs};
     else if (event.type === 'disconnected') {
       next.connected = false; next.navigation = null; next.display = 'native';
       next.centerApp = 'none'; next.clusterStream = blankClusterStream();
-      next.centerCaptureId = null; next.clusterCaptureId = null;
+      next.centerCaptureId = null; next.clusterCaptureId = null; next.clusterCaptureExpiresAtMs = null;
     }
     else if (event.type === 'guidance') {
       if (!next.connected) throw Error('Guidance requires a connected session');
@@ -46,6 +52,9 @@ const ClarityTwin = (() => {
     else if (event.type === 'guidance-end') {
       next.navigation = null;
       next.clusterStream = blankClusterStream();
+      if (routeBearingCaptures.has(next.clusterCaptureId)) {
+        next.clusterCaptureId = null; next.clusterCaptureExpiresAtMs = null;
+      }
     }
     else if (event.type === 'center-app') {
       if (!next.connected) throw Error('Center app requires a connected session');
@@ -58,7 +67,10 @@ const ClarityTwin = (() => {
       if (!['center', 'cluster'].includes(event.display)) throw Error('Invalid capture display');
       if (captures[event.captureId] !== event.display) throw Error('Invalid capture ID for display');
       if (event.display === 'center') next.centerCaptureId = event.captureId;
-      else next.clusterCaptureId = event.captureId;
+      else {
+        next.clusterCaptureId = event.captureId;
+        next.clusterCaptureExpiresAtMs = routeBearingCaptures.has(event.captureId) ? event.tMs + 15000 : null;
+      }
     }
     else if (event.type === 'receiver-capabilities') {
       if (!next.connected || next.clusterStream.setup) throw Error('Capabilities require a connected session before setup');
@@ -68,11 +80,11 @@ const ClarityTwin = (() => {
     else if (event.type === 'cluster-setup') {
       if (!next.connected || !next.clusterStream.advertised || next.clusterStream.setup)
         throw Error('Cluster setup requires an advertised, unused display');
-      next.clusterStream = {...next.clusterStream, setup: true};
+      next.clusterStream = {...next.clusterStream, setup: true, expiresAtMs: event.tMs + 15000};
     }
     else if (event.type === 'cluster-activate') {
       if (!next.connected || !next.clusterStream.setup) throw Error('Cluster activation requires setup');
-      next.clusterStream = {...next.clusterStream, active: true};
+      next.clusterStream = {...next.clusterStream, active: true, expiresAtMs: event.tMs + 15000};
     }
     else if (event.type === 'cluster-frame') {
       if (!next.connected || !next.clusterStream.active) throw Error('Cluster frame requires an active stream');

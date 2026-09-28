@@ -38,7 +38,7 @@ def catalog(root):
     snapshots = []
     for state in STATES:
         files = {}
-        for name in ("audio.stdout.txt", "display.stdout.txt", "services.stdout.txt"):
+        for name in ("activity.stdout.txt", "audio.stdout.txt", "display.stdout.txt", "services.stdout.txt"):
             data = (root / "runtime" / state / name).read_bytes()
             files[name] = {"sha256": digest(data), "bytes": len(data)}
         snapshots.append({"state": state, "source": "runtime/" + state, "files": files,
@@ -46,7 +46,7 @@ def catalog(root):
                           "audioFocusOwner": "unknown; opaque snapshot, not decoded here"})
     return {"schemaVersion": 1, "source": root.name,
             "evidence": "observed file bytes; no private contents included",
-            "storageRef": "forensic-storage-map.json", "artifacts": artifacts,
+            "storageRef": "forensic-storage-map.json", "serviceEvidenceRef": "service-evidence.json", "artifacts": artifacts,
             "runtimeSnapshots": snapshots,
             "limitations": ["Live filesystem archives are non-atomic", "No ARM code executed",
                             "No protocol payload or per-event audio decoded"]}

@@ -3,6 +3,7 @@
   "source": "CLARITY_FORENSIC_20260925_211500_COMPLETE_WORKING",
   "evidence": "observed file bytes; no private contents included",
   "storageRef": "forensic-storage-map.json",
+  "serviceEvidenceRef": "service-evidence.json",
   "artifacts": [
     {
       "archive": "filesystems/system.tar",
@@ -94,6 +95,10 @@
       "state": "01-disconnected",
       "source": "runtime/01-disconnected",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "77c5244e5d85692ba651207304702195f8d2c4c1fa5960f726d47816ae006ba7",
+          "bytes": 123097
+        },
         "audio.stdout.txt": {
           "sha256": "b6a90bd7153ecbdf49aa2069f594655ef53c35d26c3fcc2e0a86f165f30a92b8",
           "bytes": 3493
@@ -114,6 +119,10 @@
       "state": "02-carplay-home",
       "source": "runtime/02-carplay-home",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "81f3ec70face082a60b70faad27b059570946fd4ba912ee2e1ae369970ec0d1f",
+          "bytes": 128392
+        },
         "audio.stdout.txt": {
           "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
           "bytes": 3488
@@ -134,6 +143,10 @@
       "state": "03-apple-maps-open",
       "source": "runtime/03-apple-maps-open",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "a6494bc56d23023b19adcc9546a2961c225ffc48dfeead6af3a059b0a4361dc0",
+          "bytes": 127822
+        },
         "audio.stdout.txt": {
           "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
           "bytes": 3488
@@ -154,6 +167,10 @@
       "state": "04-apple-maps-routing",
       "source": "runtime/04-apple-maps-routing",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "486688112e4b993f3951a7913aad91475c85a39a671fda06552e02a0d26c9687",
+          "bytes": 127234
+        },
         "audio.stdout.txt": {
           "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
           "bytes": 3488
@@ -174,6 +191,10 @@
       "state": "05-route-center-music",
       "source": "runtime/05-route-center-music",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "b5e1b1db311cc24eb8791511c5b1271a79aa43ca35ce1948bfae1ec89919b269",
+          "bytes": 126557
+        },
         "audio.stdout.txt": {
           "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
           "bytes": 3488
@@ -194,6 +215,10 @@
       "state": "06-factory-cluster-navigation",
       "source": "runtime/06-factory-cluster-navigation",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "f36184dee36e8020d895b076272e51fbff0ad1c53f7b8bb07d839bd9fb2fb26f",
+          "bytes": 124867
+        },
         "audio.stdout.txt": {
           "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
           "bytes": 3488
@@ -214,6 +239,10 @@
       "state": "07-hondahack-casting",
       "source": "runtime/07-hondahack-casting",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "c1021ab8c6b586bed254432b8a6145eed7e6436f4a6072168e2705e410b19495",
+          "bytes": 122577
+        },
         "audio.stdout.txt": {
           "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
           "bytes": 3488
@@ -234,6 +263,10 @@
       "state": "08-disconnected-again",
       "source": "runtime/08-disconnected-again",
       "files": {
+        "activity.stdout.txt": {
+          "sha256": "39ba1a54c526a31842ba5612a177df09072fb884f1f8dd74015ba2b677c4c6eb",
+          "bytes": 127088
+        },
         "audio.stdout.txt": {
           "sha256": "b6a90bd7153ecbdf49aa2069f594655ef53c35d26c3fcc2e0a86f165f30a92b8",
           "bytes": 3493

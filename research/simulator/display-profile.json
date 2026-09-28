@@ -11,9 +11,14 @@
   },
   "physicalNavigationBounds": {
     "rectangle": null,
-    "evidence": "unknown; photos qualitative only",
+    "evidence": "unknown safe edges; photo cast footprints are inferred separately",
     "calibrated": false,
     "source": "physicalClusterReferences"
+  },
+  "photoCalibration": {
+    "source": "photo-calibration.json",
+    "sha256": "fc48180a93779f9edbdcb2ffcbf2a6b2d2c53d22f0145af4f5206eebcfbfdb8a",
+    "evidence": "inferred cast footprint per camera pose; physical safe bounds unknown"
   },
   "pairedCaptureProvenance": [
     {

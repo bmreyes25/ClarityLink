@@ -30,6 +30,19 @@ class DisplayProfileTest(unittest.TestCase):
         config = next(a for a in catalog["artifacts"] if a["member"].endswith("j_config.xml"))
         self.assertEqual(config["sha256"], profile["firmwareCopySha256"]["j_config.xml"])
 
+    def test_photo_placement_is_hash_backed_inference_not_safe_bounds(self):
+        profile = json.loads((ROOT / "display-profile.json").read_text())
+        calibration = json.loads((ROOT / "photo-calibration.json").read_text())
+        self.assertEqual(digest(ROOT / profile["photoCalibration"]["source"]), profile["photoCalibration"]["sha256"])
+        self.assertFalse(calibration["physicalNavigationSafeBounds"]["calibrated"])
+        for name in ("maps", "music"):
+            result = calibration["registrations"][name]
+            self.assertTrue(result["accepted"])
+            self.assertGreaterEqual(result["inliers"], 20)
+            self.assertLess(result["p95ResidualPhotoPx"], 2)
+            for reference in (result["frame"], result["photo"]):
+                self.assertEqual(digest(ROOT / reference["source"]), reference["sha256"])
+
     def test_profile_matches_working_firmware_and_captures(self):
         profile = json.loads((ROOT / "display-profile.json").read_text())
         vendor = ET.parse(ROOT / "working-backup" / "j_config.xml").getroot()

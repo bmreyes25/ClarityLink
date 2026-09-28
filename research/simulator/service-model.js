@@ -78,10 +78,10 @@ const ClarityServices = (() => {
         },
         ExternalDisplay: {compose: () => {
           this.outputs.center = this.state.connected ? (this.state.centerCaptureId || this.state.centerApp) : null;
-          this.outputs.hdmi = this.state.clusterCaptureId ||
-            (this.state.clusterStream.frameId ? 'synthetic:' + this.state.clusterStream.frameId :
-             this.hondaGuidance ? 'modeled:honda-guidance' :
-             this.state.display === 'casting' ? this.outputs.center : null);
+          this.outputs.hdmi = this.state.clusterStream.frameId ? 'synthetic:' + this.state.clusterStream.frameId :
+            (this.state.clusterCaptureId ||
+             (this.hondaGuidance ? 'modeled:honda-guidance' :
+              this.state.display === 'casting' ? this.outputs.center : null));
         }},
         Audio: {update: value => {
           if (!this.state.connected) throw Error('Audio requires a session');
@@ -106,12 +106,16 @@ const ClarityServices = (() => {
       return this.state;
     }
   }
-  function replayRuntimeSnapshots(catalog) {
+  function replayRuntimeSnapshots(catalog, serviceEvidence = null) {
     // Labels imply model actions; no captured ABI calls or transport bytes.
     const apps = {'02-carplay-home': 'home', '03-apple-maps-open': 'maps', '04-apple-maps-routing': 'maps',
       '05-route-center-music': 'music', '06-factory-cluster-navigation': 'music', '07-hondahack-casting': 'music'};
     const model = new AndroidModel(); const checkpoints = []; let tMs = 0;
     for (const snapshot of catalog.runtimeSnapshots) {
+      const observed = serviceEvidence?.runtimeSnapshots.find(item => item.state === snapshot.state);
+      if (serviceEvidence && (serviceEvidence.source !== catalog.source || !observed ||
+          !Object.entries(snapshot.files).every(([name, reference]) => observed.sources[name]?.sha256 === reference.sha256)))
+        throw Error('Runtime observation provenance mismatch');
       const disconnected = ['01-disconnected', '08-disconnected-again'].includes(snapshot.state);
       if (!disconnected && !Object.hasOwn(apps, snapshot.state)) throw Error('Unknown runtime state label');
       if (disconnected) model.apply({tMs: tMs++, type: 'disconnected'});
@@ -120,11 +124,12 @@ const ClarityServices = (() => {
         model.apply({tMs: tMs++, type: 'center-app', app: apps[snapshot.state]});
       }
       checkpoints.push({state: snapshot.state, source: snapshot.source, files: snapshot.files,
-        observed: 'snapshot bytes/hashes and acquisition state label',
+        observed: observed ? 'hashed snapshot, acquisition label, allowlisted focus and bindings' : 'snapshot bytes/hashes and acquisition state label',
         inferred: 'connection/app from state label', synthetic: 'ABI calls and replay clock',
         unknown: 'USB/MFi payloads, protocol negotiation, per-event audio focus',
         receiverPhase: model.receiver.phase, centerApp: model.state.centerApp,
-        audioFocus: model.receiver.audio.focus});
+        audioFocus: model.receiver.audio.focus,
+        observedAudioSnapshot: observed?.audio || null, observedBindings: observed?.activity.bindings || []});
     }
     return {model, checkpoints};
   }

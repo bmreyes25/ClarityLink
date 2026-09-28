@@ -2,24 +2,26 @@
 
 ## Step 2 repeatable checkpoint
 
-The four-layer implementation and remaining gaps are in [the scope report](INFOTAINMENT_TWIN_SCOPE.md#step-2-bounded-checkpoint--september-28-utc). Acceptance remains pending independent supervising Codex review. The receiver is an explicitly labeled ABI **model**, not execution of `jmcs` or its ARM proxy. Physical Navigation bounds remain unknown. All new interfaces are offline mocks; no production vehicle-bus connector is present.
+The four-layer implementation and remaining gaps are in [the scope report](INFOTAINMENT_TWIN_SCOPE.md#step-2-bounded-checkpoint--september-28-utc). **Step 2 is complete and independently accepted for the assigned offline/model scope.** The [review](../verification/STEP_02_REVIEW.md) records reproduced checks and retained limits. The receiver is an explicitly labeled ABI **model**, not execution of `jmcs` or its ARM proxy. Photo registration now estimates cast footprints for Maps and Music in each camera view. Physical Navigation safe edges and panel-native coordinates remain unknown. All new interfaces are offline mocks; no production vehicle-bus connector is present.
 
-Run all offline tests, including the existing private-capture checks:
+Run the baseline offline checks, including existing private-capture checks (six OpenCV geometry tests skip on system Python; use the full acceptance command below):
 
 ```sh
 python3 research/simulator/check_offline.py
 ```
 
-The actual browser check uses locally installed Chrome and Playwright in ignored scratch space. It reads private images locally and exports no screenshots, video, trace or raw pixels; it blocks HTTP/HTTPS requests. On this Mac:
+The full acceptance command also runs the local photo-geometry tests. Install the small analysis environment in ignored scratch space; no private images are uploaded. The actual browser check uses locally installed Chrome and Playwright in ignored scratch space. It reads private images locally and exports no screenshots, video, trace or raw pixels; it blocks HTTP/HTTPS requests. On this Mac:
 
 ```sh
+python3 -m venv research/tmp/step-2/vision-env
+research/tmp/step-2/vision-env/bin/pip install opencv-python-headless==5.0.0.93 numpy==2.5.3
 npm install --prefix research/tmp/step-2/browser --no-audit --no-fund playwright
 CLARITY_PLAYWRIGHT_MODULE="$PWD/research/tmp/step-2/browser/node_modules/playwright" \
 CLARITY_BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
-python3 research/simulator/check_offline.py --browser
+research/tmp/step-2/vision-env/bin/python research/simulator/check_offline.py --browser
 ```
 
-Open `research/simulator/index.html` locally and select **Load September 25 casting session** (observed mirror), **Load head-unit Waze guidance** (observed Honda guidance), or **Load independent-screen model** (synthetic proposed second stream). The replay badge names the evidence category. Audio focus remains unknown in captured replays; continuity tests are explicitly modeled. Capture pairs and hashes are recorded in `display-profile.json`. Synthetic map/metadata fixtures do not contain captured iPhone streams.
+Open `research/simulator/index.html` locally and select **Load September 25 casting session** (observed mirror), **Load head-unit Waze guidance** (observed Honda guidance), or **Load independent-screen model** (synthetic proposed second stream). The replay badge names the evidence category. Modeled audio focus remains unknown unless explicitly set; observed runtime focus snapshots are documented separately; continuity tests are explicitly modeled. Capture pairs and hashes are recorded in `display-profile.json`. The active compositor owner is shown separately from saved observed reference captures. The proposed 800×480 display-1 schematic clips its synthetic map to an explicitly synthetic viewport based on the inferred cast configuration; two photo overlays show inferred placement with uncertainty. Synthetic map/metadata fixtures do not contain captured iPhone streams.
 
 Regenerate the allowlisted firmware catalog from the complete working dataset without extracting files:
 
@@ -30,7 +32,21 @@ python3 research/simulator/catalog_firmware.py \
 cmp research/simulator/firmware-catalog.json research/tmp/step-2/firmware-catalog-review.json
 ```
 
-The catalog stores only archive/member names, byte counts and hashes. Raw runtime snapshots stay opaque. Eight state labels drive inferred app/connection transitions through `replayRuntimeSnapshots`, which labels its callback sequence and clock synthetic and its protocol/audio unknown. The callback offsets and singleton restriction are static evidence; method ordering, transport readiness and audio updates are modeled behavior. Stale guidance/stream TTL is a 15-second model policy, evaluated on each event or explicit `tick`. Route end, failed stream, disconnect and reconnect invalidate stream setup and reject late frames. Audio music/voice state is preserved through app switches, route end and stream stop, then released on disconnect in the model. Full Android/Tegra/QEMU boot is not a prerequisite.
+The catalog stores only archive/member names, byte counts and hashes. Raw runtime snapshots stay local. `catalog_services.py` extracts only allowlisted current APK ownership, activity-service binding edges, logical dimensions and audio focus snapshot facts into `service-evidence.json`. Four current APK binary manifests match the prior decoder inputs. All eight saved states show CarPlay service binding to Navigation and ExternalDisplay, plus AvApService focus on stream 12, including disconnected acquisition labels; that is not continuous CarPlay audio evidence. Eight state labels drive inferred app/connection transitions through `replayRuntimeSnapshots`, which labels its callback sequence and clock synthetic and its protocol and per-event audio unknown. Passing service evidence into the replay exposes snapshot observations separately from modeled audio; all shared activity/audio/display/services hashes must match before those facts are attached. The callback offsets and singleton restriction are static evidence; method ordering, transport readiness and audio updates are modeled behavior. Stale guidance/stream TTL is a 15-second model policy, evaluated on each event or explicit `tick`. Route end, failed stream, disconnect, reconnect and setup/activation stalls invalidate stream setup and reject late frames. Captured route-bearing Waze/Maps pixels retire on modeled end/TTL while the explicit observed ended-compass fixture remains. A proposed active stream owns the modeled output over an older reference capture. Audio music/voice state is preserved through app switches, route end and stream stop, then released on disconnect in the model. Full Android/Tegra/QEMU boot is not a prerequisite.
+
+Reproduce service and photo evidence without changing raw inputs:
+
+```sh
+python3 research/simulator/catalog_services.py \
+  /Users/bmreyes24/ClarityLab/forensic/CLARITY_FORENSIC_20260925_211500_COMPLETE_WORKING \
+  research/tmp/step-2/service-evidence-review.json
+cmp research/simulator/service-evidence.json research/tmp/step-2/service-evidence-review.json
+research/tmp/step-2/vision-env/bin/python research/simulator/calibrate_display.py \
+  --output research/tmp/step-2/photo-calibration-review.json
+cmp research/simulator/photo-calibration.json research/tmp/step-2/photo-calibration-review.json
+```
+
+`photo-calibration.json` records observed source hashes and inferred photo quadrilaterals, residuals, support and deterministic resampling sensitivity. Maps has 66 inliers and 0.302 photo-pixel median residual; Music has 31 and 0.356. Maps right corners extrapolate beyond its matched feature support. The camera poses differ, and resampling does not establish safe edge clearance. Home correspondence is unavailable. No photo coordinate is advertised as a CarPlay capability or a physically safe vehicle rendering rectangle. `build_simulator_assets.py` validates calibration source hashes and regenerates numeric-only `display-geometry.js` for file-based replay.
 
 The [sanitized forensic storage fixture](forensic-storage-map.json) is generated from the verified working eMMC image and live mount inventory by `research/acquisition/catalog_storage.py`. Its nine GPT partitions, ext4 signatures, and mount/read-only states seed the firmware-catalog layer of the twin. It contains no filesystem contents and says nothing about display pixel bounds; those still come from display captures and physical photos. The image was read live, so writable filesystem contents are not an atomic snapshot. Run `python3 -m unittest discover -s research/simulator -p 'test_*.py'` to check the fixture's partition ordering and mount relationships.
 

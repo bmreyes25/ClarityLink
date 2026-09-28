@@ -100,13 +100,58 @@ test('rejected events do not mutate Android resources or audio', () => {
 
 test('eight runtime snapshots drive inferred model lifecycle without inventing ABI or audio measurements', () => {
   const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, 'firmware-catalog.json'), 'utf8'));
-  const {model, checkpoints} = replayRuntimeSnapshots(catalog);
+  const evidence = JSON.parse(fs.readFileSync(path.join(__dirname, 'service-evidence.json'), 'utf8'));
+  const {model, checkpoints} = replayRuntimeSnapshots(catalog, evidence);
   assert.equal(checkpoints.length, 8);
   assert.equal(checkpoints[4].centerApp, 'music'); assert.equal(checkpoints[4].receiverPhase, 'running');
   for (const checkpoint of checkpoints) {
     assert.equal(checkpoint.audioFocus, null);
+    assert.deepEqual(checkpoint.observedAudioSnapshot.focusOwners, ['AvApService']);
+    assert.deepEqual(checkpoint.observedAudioSnapshot.focusStreams, [12]);
+    assert.ok(checkpoint.observedBindings.some(edge => edge.client === 'CarPlayApService' && edge.service === 'NavigationApService'));
     assert.match(checkpoint.synthetic, /ABI calls/); assert.ok(checkpoint.files['audio.stdout.txt'].sha256);
   }
   assert.equal(model.receiver.usb.attached, false); assert.equal(model.receiver.display.frame, null);
   assert.throws(() => replayRuntimeSnapshots({runtimeSnapshots: [{state: 'invented'}]}), /Unknown/);
+  assert.throws(() => replayRuntimeSnapshots(catalog, {...evidence, source: 'wrong'}), /provenance mismatch/);
+  for (const name of ['activity.stdout.txt', 'display.stdout.txt', 'services.stdout.txt']) {
+    const altered = JSON.parse(JSON.stringify(evidence));
+    altered.runtimeSnapshots[0].sources[name].sha256 = 'wrong';
+    assert.throws(() => replayRuntimeSnapshots(catalog, altered), /provenance mismatch/);
+  }
+});
+
+test('proposed active stream owns HDMI over an earlier observed reference capture', () => {
+  const model = connected();
+  model.apply({tMs: 1, type: 'capture-frame', display: 'cluster', captureId: 'cluster-20260925-cast-music'});
+  setup(model);
+  assert.equal(model.outputs.hdmi, 'synthetic:proposed-map');
+  assert.equal(model.state.clusterCaptureId, 'cluster-20260925-cast-music'); // historical reference, separate from owner
+});
+
+test('modeled route end and stale clock retire route-bearing captures, preserving observed ended compass', () => {
+  for (const type of ['guidance-end', 'tick']) {
+    const model = connected();
+    model.apply({tMs: 1, type: 'capture-frame', display: 'cluster', captureId: 'cluster-20260925-waze-route'});
+    model.apply({tMs: type === 'tick' ? 15001 : 2, type});
+    assert.equal(model.outputs.hdmi, null); assert.equal(model.state.clusterCaptureId, null);
+    model.apply({tMs: 15002, type: 'capture-frame', display: 'cluster', captureId: 'cluster-20260925-waze-ended'});
+    model.apply({tMs: 15003, type: 'guidance-end'});
+    assert.equal(model.outputs.hdmi, 'cluster-20260925-waze-ended');
+  }
+});
+
+test('setup and activation expire without a first frame while audio remains continuous', () => {
+  for (const activate of [false, true]) {
+    const model = connected();
+    model.apply({tMs: 1, type: 'receiver-capabilities', clusterDisplay: true});
+    model.apply({tMs: 2, type: 'cluster-setup'});
+    if (activate) model.apply({tMs: 3, type: 'cluster-activate'});
+    model.binder.call('Audio', 'update', {music: 'playing', voice: 'speaking'});
+    const audio = {...model.receiver.audio};
+    model.apply({tMs: activate ? 15003 : 15002, type: 'tick'});
+    assert.deepEqual(model.state.clusterStream, twin.blank().clusterStream);
+    assert.deepEqual(model.receiver.audio, audio);
+    assert.throws(() => model.apply({tMs: 15004, type: 'cluster-activate'}), /setup/);
+  }
 });

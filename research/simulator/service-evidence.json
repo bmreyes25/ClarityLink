@@ -1,0 +1,926 @@
+{
+  "schemaVersion": 1,
+  "source": "CLARITY_FORENSIC_20260925_211500_COMPLETE_WORKING",
+  "firmwareOwnership": [
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/Navigation.apk",
+      "apkSha256": "774d43a2efd6ccfe45528688b2262513677f56b94300a6bc3a3fa8dc38b15881",
+      "manifestSha256": "2e9906d056057a73954691842e656c5a4e31df65adf2a9b2d961a89b7ee796b8",
+      "ownerComponent": "NavigationApService",
+      "originalManifestMatchesCurrentApk": true,
+      "evidence": "observed APK manifest declaration through previously decoded manifest; current binary manifest matched decoder input",
+      "decodedSource": "research/resources/Navigation/AndroidManifest.xml",
+      "decodedSha256": "0cc5c4190e52f3b3fb30ce216aa5101ab6e5e7a67b594ecc024dc0157a27200f",
+      "declaredAllowlistedServices": [
+        "NavigationApService"
+      ]
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/CarPlayService.apk",
+      "apkSha256": "a81f9e6431cd370059d10ec8827b92d91b74d7dc5357959bb30c948993dca89e",
+      "manifestSha256": "a5ef969b63e57b2f1eb82fde8987b406842d35b0f3a46a9425fe544cee3fde00",
+      "ownerComponent": "CarPlayApService",
+      "originalManifestMatchesCurrentApk": true,
+      "evidence": "observed APK manifest declaration through previously decoded manifest; current binary manifest matched decoder input",
+      "decodedSource": "research/resources/CarPlayService/AndroidManifest.xml",
+      "decodedSha256": "f6871e06cb1d7ea2f03c8e960a38fb54dd3df8c6fdbc884f27cf2f37b7b84d37",
+      "declaredAllowlistedServices": [
+        "CarPlayApService"
+      ]
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/ExternalDisplayApService.apk",
+      "apkSha256": "0167100294e8fa60a3cad9d761040687c22a58825044e3c19c1a5560da761d3f",
+      "manifestSha256": "a2eb39b60a38923a970f939b4fcff8b54ed1ade1dcad08be71ff02802f30c55c",
+      "ownerComponent": "ExternalDisplayApService",
+      "originalManifestMatchesCurrentApk": true,
+      "evidence": "observed APK manifest declaration through previously decoded manifest; current binary manifest matched decoder input",
+      "decodedSource": "research/resources/ExternalDisplayApService/AndroidManifest.xml",
+      "decodedSha256": "7a12729de5a37c2218ec28f58821d13dee95be151159ffe0027a9f6c3be8354f",
+      "declaredAllowlistedServices": [
+        "ExternalDisplayApService"
+      ]
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/ExternalDisplayOutService.apk",
+      "apkSha256": "2b29800dc1c1e524e096c0b1d37ce1c109e5a815a067a1a1ce59621e0c2f97e5",
+      "manifestSha256": "845052e3d94a61806a644c85522cbbde24978aea8fb3537f7858e04e1575e60d",
+      "ownerComponent": "ExternalDisplayOutService",
+      "originalManifestMatchesCurrentApk": true,
+      "evidence": "observed APK manifest declaration through previously decoded manifest; current binary manifest matched decoder input",
+      "decodedSource": "research/resources/ExternalDisplayOutService/AndroidManifest.xml",
+      "decodedSha256": "4ca72b5daa2c3f681b6d82e28e47d83b4a909f4c9eff737b8ecf8fde30977ab9",
+      "declaredAllowlistedServices": [
+        "ExternalDisplayOutService"
+      ]
+    }
+  ],
+  "runtimeSnapshots": [
+    {
+      "state": "01-disconnected",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/01-disconnected/activity.stdout.txt",
+          "sha256": "77c5244e5d85692ba651207304702195f8d2c4c1fa5960f726d47816ae006ba7",
+          "bytes": 123097
+        },
+        "services.stdout.txt": {
+          "source": "runtime/01-disconnected/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/01-disconnected/audio.stdout.txt",
+          "sha256": "b6a90bd7153ecbdf49aa2069f594655ef53c35d26c3fcc2e0a86f165f30a92b8",
+          "bytes": 3493
+        },
+        "display.stdout.txt": {
+          "source": "runtime/01-disconnected/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "02-carplay-home",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/02-carplay-home/activity.stdout.txt",
+          "sha256": "81f3ec70face082a60b70faad27b059570946fd4ba912ee2e1ae369970ec0d1f",
+          "bytes": 128392
+        },
+        "services.stdout.txt": {
+          "source": "runtime/02-carplay-home/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/02-carplay-home/audio.stdout.txt",
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "source": "runtime/02-carplay-home/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "03-apple-maps-open",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/03-apple-maps-open/activity.stdout.txt",
+          "sha256": "a6494bc56d23023b19adcc9546a2961c225ffc48dfeead6af3a059b0a4361dc0",
+          "bytes": 127822
+        },
+        "services.stdout.txt": {
+          "source": "runtime/03-apple-maps-open/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/03-apple-maps-open/audio.stdout.txt",
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "source": "runtime/03-apple-maps-open/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "04-apple-maps-routing",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/04-apple-maps-routing/activity.stdout.txt",
+          "sha256": "486688112e4b993f3951a7913aad91475c85a39a671fda06552e02a0d26c9687",
+          "bytes": 127234
+        },
+        "services.stdout.txt": {
+          "source": "runtime/04-apple-maps-routing/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/04-apple-maps-routing/audio.stdout.txt",
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "source": "runtime/04-apple-maps-routing/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "05-route-center-music",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/05-route-center-music/activity.stdout.txt",
+          "sha256": "b5e1b1db311cc24eb8791511c5b1271a79aa43ca35ce1948bfae1ec89919b269",
+          "bytes": 126557
+        },
+        "services.stdout.txt": {
+          "source": "runtime/05-route-center-music/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/05-route-center-music/audio.stdout.txt",
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "source": "runtime/05-route-center-music/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "06-factory-cluster-navigation",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/06-factory-cluster-navigation/activity.stdout.txt",
+          "sha256": "f36184dee36e8020d895b076272e51fbff0ad1c53f7b8bb07d839bd9fb2fb26f",
+          "bytes": 124867
+        },
+        "services.stdout.txt": {
+          "source": "runtime/06-factory-cluster-navigation/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/06-factory-cluster-navigation/audio.stdout.txt",
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "source": "runtime/06-factory-cluster-navigation/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "07-hondahack-casting",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/07-hondahack-casting/activity.stdout.txt",
+          "sha256": "c1021ab8c6b586bed254432b8a6145eed7e6436f4a6072168e2705e410b19495",
+          "bytes": 122577
+        },
+        "services.stdout.txt": {
+          "source": "runtime/07-hondahack-casting/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/07-hondahack-casting/audio.stdout.txt",
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "source": "runtime/07-hondahack-casting/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    },
+    {
+      "state": "08-disconnected-again",
+      "sources": {
+        "activity.stdout.txt": {
+          "source": "runtime/08-disconnected-again/activity.stdout.txt",
+          "sha256": "39ba1a54c526a31842ba5612a177df09072fb884f1f8dd74015ba2b677c4c6eb",
+          "bytes": 127088
+        },
+        "services.stdout.txt": {
+          "source": "runtime/08-disconnected-again/services.stdout.txt",
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        },
+        "audio.stdout.txt": {
+          "source": "runtime/08-disconnected-again/audio.stdout.txt",
+          "sha256": "b6a90bd7153ecbdf49aa2069f594655ef53c35d26c3fcc2e0a86f165f30a92b8",
+          "bytes": 3493
+        },
+        "display.stdout.txt": {
+          "source": "runtime/08-disconnected-again/display.stdout.txt",
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        }
+      },
+      "activity": {
+        "availability": "available",
+        "servicesPresent": {
+          "NavigationApService": true,
+          "CarPlayApService": true,
+          "ExternalDisplayApService": true,
+          "ExternalDisplayOutService": true,
+          "AvApService": true
+        },
+        "bindings": [
+          {
+            "client": "AvApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "CarPlayApService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "ExternalDisplayApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "AvApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "CarPlayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "ExternalDisplayApService"
+          },
+          {
+            "client": "ExternalDisplayOutService",
+            "service": "NavigationApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "AvApService"
+          },
+          {
+            "client": "NavigationApService",
+            "service": "CarPlayApService"
+          }
+        ],
+        "evidence": "observed dumpsys activity service records and connection clients; binding is not a decoded route"
+      },
+      "audio": {
+        "availability": "available",
+        "focusOwners": [
+          "AvApService"
+        ],
+        "focusStreams": [
+          12
+        ],
+        "evidence": "observed focus snapshot; no per-event voice or sample continuity proved"
+      },
+      "display": {
+        "availability": "available",
+        "dimensionsObserved": [
+          [
+            800,
+            480
+          ]
+        ],
+        "physicalNavigationBounds": "unknown; logical display dimensions do not calibrate physical Navigation rectangle",
+        "evidence": "observed display-device dimensions; no pixel producer ownership asserted"
+      },
+      "servicesRegistry": {
+        "availability": "available",
+        "evidence": "service-manager registry hashed separately; not the activity-service connection graph"
+      }
+    }
+  ],
+  "limitations": [
+    "Allowlisted ownership only; not exhaustive service reverse engineering",
+    "Binding does not establish route metadata delivery or independent video",
+    "No ARM receiver, Android Binder, USB/MFi or vehicle bus execution",
+    "Runtime focus is snapshot evidence, not per-event audio continuity"
+  ]
+}

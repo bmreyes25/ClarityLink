@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "method": {
+    "name": "SIFT ratio .72, RANSAC 3 photo pixels; deterministic resampling",
+    "opencv": "5.0.0",
+    "seed": 20260927
+  },
+  "sourceCastRectangle": {
+    "xywh": [
+      0,
+      24,
+      584,
+      191
+    ],
+    "evidence": "inferred: copied XML layout/padding agrees with observed HDMI content start",
+    "source": "working-backup/meter_civic.xml",
+    "sourceLines": [
+      2,
+      74,
+      75
+    ],
+    "sha256": "0d757096b1baae269b61e0ff2dd5cafe7ef450614ef46768f023b81055e7ea2e"
+  },
+  "photoReferences": [
+    {
+      "source": "research/captures/20260925T150706Z-physical-cluster.jpg",
+      "asset": "assets/physical-cluster-20260925.jpg",
+      "sha256": "eb60af08d277831958ea47dfe231810445281493465d9a09808459aec2dd1c8f",
+      "bytes": 184836,
+      "copyVerified": true
+    },
+    {
+      "source": "research/captures/20260925T150706Z-physical-maps.jpg",
+      "asset": "assets/physical-maps-20260925.jpg",
+      "sha256": "d69cce82aeb4731b9a8bb12e10b50d9692a68ce26d6445abee856eae8263d8f9",
+      "bytes": 241124,
+      "copyVerified": true
+    },
+    {
+      "source": "research/captures/20260925T150706Z-physical-carplay-home.jpg",
+      "asset": "assets/physical-carplay-home-20260925.jpg",
+      "sha256": "ad3950910409ed4c23ae2dc062cbc2ef595309bb07d1c6ea7526e8dae4ecf7b5",
+      "bytes": 237642,
+      "copyVerified": true
+    },
+    {
+      "source": "research/captures/20260925T150706Z-physical-music.jpg",
+      "asset": "assets/physical-music-20260925.jpg",
+      "sha256": "549ddb6d18b643f4624d3d1c67d42aa3bfc23f056feb0b7adb7ab8385094eff6",
+      "bytes": 265986,
+      "copyVerified": true
+    },
+    {
+      "source": "research/captures/20260925T150706Z-physical-honda-home.jpg",
+      "asset": "assets/physical-honda-home-20260925.jpg",
+      "sha256": "6cfea53e7f0bdcbdf63638ca2c7e378217aafd51b425e1af5f30ee701d950ea4",
+      "bytes": 257154,
+      "copyVerified": true
+    }
+  ],
+  "registrations": {
+    "maps": {
+      "accepted": true,
+      "evidence": "inferred from observed image feature correspondences",
+      "quad": [
+        [
+          278.324,
+          525.805
+        ],
+        [
+          989.621,
+          527.29
+        ],
+        [
+          1001.181,
+          762.885
+        ],
+        [
+          269.308,
+          767.508
+        ]
+      ],
+      "inliers": 66,
+      "inlierRatio": 0.7952,
+      "medianResidualPhotoPx": 0.3016,
+      "p95ResidualPhotoPx": 0.8301,
+      "sourceHullCoverage": 0.2945,
+      "sourceAxisCoverage": [
+        0.4186,
+        0.8523
+      ],
+      "sourceInlierBounds": [
+        [
+          41.529,
+          33.543
+        ],
+        [
+          286.014,
+          196.33
+        ]
+      ],
+      "resampling": {
+        "count": 100,
+        "corner95PercentIntervalsPhotoPx": [
+          [
+            [
+              277.655,
+              525.465
+            ],
+            [
+              987.322,
+              526.758
+            ],
+            [
+              999.071,
+              761.983
+            ],
+            [
+              268.461,
+              767.342
+            ]
+          ],
+          [
+            [
+              279.175,
+              526.137
+            ],
+            [
+              991.016,
+              527.856
+            ],
+            [
+              1003.012,
+              763.379
+            ],
+            [
+              269.828,
+              767.904
+            ]
+          ]
+        ],
+        "meaning": "algorithm sensitivity only; not physical-boundary confidence"
+      },
+      "frame": {
+        "source": "assets/cluster-20260925-cast-maps.png",
+        "sha256": "5ef96b8c609e1204f12c3caefe1e31c1125851e6005df0893b6959495f68c031",
+        "size": [
+          800,
+          480
+        ]
+      },
+      "photo": {
+        "source": "assets/physical-maps-20260925.jpg",
+        "sha256": "d69cce82aeb4731b9a8bb12e10b50d9692a68ce26d6445abee856eae8263d8f9",
+        "size": [
+          1280,
+          960
+        ]
+      },
+      "keypoints": [
+        414,
+        1850
+      ],
+      "ratioMatches": 83
+    },
+    "music": {
+      "accepted": true,
+      "evidence": "inferred from observed image feature correspondences",
+      "quad": [
+        [
+          360.201,
+          562.831
+        ],
+        [
+          992.257,
+          570.033
+        ],
+        [
+          999.535,
+          781.156
+        ],
+        [
+          351.665,
+          778.648
+        ]
+      ],
+      "inliers": 31,
+      "inlierRatio": 0.6458,
+      "medianResidualPhotoPx": 0.3562,
+      "p95ResidualPhotoPx": 0.8817,
+      "sourceHullCoverage": 0.5736,
+      "sourceAxisCoverage": [
+        0.8461,
+        0.8292
+      ],
+      "sourceInlierBounds": [
+        [
+          44.032,
+          40.716
+        ],
+        [
+          538.171,
+          199.084
+        ]
+      ],
+      "resampling": {
+        "count": 100,
+        "corner95PercentIntervalsPhotoPx": [
+          [
+            [
+              358.255,
+              562.533
+            ],
+            [
+              991.574,
+              569.835
+            ],
+            [
+              997.361,
+              779.738
+            ],
+            [
+              350.794,
+              778.201
+            ]
+          ],
+          [
+            [
+              360.345,
+              563.419
+            ],
+            [
+              992.882,
+              570.183
+            ],
+            [
+              999.642,
+              781.329
+            ],
+            [
+              353.009,
+              779.128
+            ]
+          ]
+        ],
+        "meaning": "algorithm sensitivity only; not physical-boundary confidence"
+      },
+      "frame": {
+        "source": "assets/cluster-20260925-cast-music.png",
+        "sha256": "04557965040d0eb79920ef7bbe3c2de336092c65ad9b313683084c7de25fdecb",
+        "size": [
+          800,
+          480
+        ]
+      },
+      "photo": {
+        "source": "assets/physical-music-20260925.jpg",
+        "sha256": "549ddb6d18b643f4624d3d1c67d42aa3bfc23f056feb0b7adb7ab8385094eff6",
+        "size": [
+          1280,
+          960
+        ]
+      },
+      "keypoints": [
+        703,
+        2065
+      ],
+      "ratioMatches": 48
+    }
+  },
+  "home": {
+    "accepted": false,
+    "quad": null,
+    "evidence": "unknown",
+    "reason": "no saved HDMI CarPlay Home frame paired to physical Home photo; shared UI chrome is insufficient"
+  },
+  "physicalNavigationSafeBounds": {
+    "rectangle": null,
+    "calibrated": false,
+    "evidence": "unknown: photo registrations locate cast content, not safe edge clearance or panel-native pixel coordinates"
+  },
+  "rendererViewport": {
+    "evidence": "synthetic",
+    "meaning": "browser schematic uses a proposed viewport; it is not these photo coordinates"
+  },
+  "limitations": [
+    "Photos and saved frames are not atomic pairs; matched content correspondence is inferred.",
+    "Maps support occupies left portion of cast rectangle; right corners extrapolate beyond matched features.",
+    "Camera poses differ; quads cannot be combined into one physical panel rectangle.",
+    "Resampling excludes camera distortion, crop changes and incorrect boundary semantics.",
+    "No physical safety clearance, CarPlay protocol capability or native receiver execution is established."
+  ]
+}

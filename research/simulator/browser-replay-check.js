@@ -17,16 +17,23 @@ async function main() {
       ['live-casting-sample', 'Observed mirror', 32, async () => {
         assert.match(await page.locator('#center-app').textContent(), /music/);
         assert.match(await page.locator('#cluster-capture-label').textContent(), /cast-music/);
+        assert.match(await page.locator('#active-owner').textContent(), /cluster-20260925-cast-music/);
         assert.equal(await page.locator('#map-plane').evaluate(e => e.classList.contains('active')), false);
       }],
       ['waze-headunit-sample', 'Observed Honda guidance', 22, async () => {
         assert.match(await page.locator('#center-app').textContent(), /home/);
         assert.match(await page.locator('#cluster-capture-label').textContent(), /waze-route/);
+        assert.match(await page.locator('#active-owner').textContent(), /cluster-20260925-waze-route/);
       }],
       ['dual-sample', 'Synthetic proposed second stream', 8, async () => {
         assert.match(await page.locator('#center-app').textContent(), /music/);
         assert.equal(await page.locator('#map-plane').evaluate(e => e.classList.contains('active')), true);
         assert.match(await page.locator('#cluster-stream').textContent(), /map-002/);
+        assert.match(await page.locator('#active-owner').textContent(), /synthetic:map-002/);
+        assert.equal(await page.locator('#synthetic-hdmi-frame').getAttribute('visibility'), 'visible');
+        assert.equal(await page.locator('#synthetic-hdmi-frame').getAttribute('clip-path'), 'url(#map-clip)');
+        const clip = await page.locator('#viewport-clip').evaluate(e => ['x','y','width','height'].map(k => Number(e.getAttribute(k))));
+        assert.deepEqual(clip, [0,24,584,191]);
       }]]) {
       await page.locator('#' + button).click();
       assert.match(await page.locator('#replay-evidence').textContent(), new RegExp(evidence));
@@ -47,11 +54,14 @@ async function main() {
       assert.equal(await page.locator('#map-plane').evaluate(e => e.classList.contains('active')), false);
       assert.equal(await page.locator('#center-capture').getAttribute('src'), null);
       assert.equal(await page.locator('#cluster-capture').getAttribute('src'), null);
+      assert.equal(await page.locator('#synthetic-hdmi-frame').getAttribute('visibility'), 'hidden');
       await page.locator('#reset').click();
       assert.equal(await page.evaluate(() => model.receiver.usb.attached), false);
       console.log('PASS local browser replay: ' + evidence);
     }
     assert.deepEqual(errors, []); assert.deepEqual(requests, []);
+    assert.match(await page.locator('#viewport-evidence').textContent(), /Physical safe rectangle remains unknown/);
+    assert.equal(await page.locator('#photo-placement polygon').count(), 2);
     console.log('PASS no page errors or remote HTTP requests; capture images stayed local');
   } finally { await browser.close(); }
 }
