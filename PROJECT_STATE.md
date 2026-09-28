@@ -6,7 +6,7 @@ Render a genuine, independent second CarPlay display only in the existing Honda 
 
 ## Current milestone
 
-The current focus is CarPlay Display B negotiation (Step 4). The renderer is sufficient to define a candidate Android output endpoint, but must not distract from the iPhone-facing second display/session model.
+Step 4 remains partial. The focused offline trace now follows `_ScreenThread` through `AirPlayReceiverSessionScreen_StartSession` into generic `ScreenStream` creation/configuration/start. It does not recover the upstream control transport/request/response, a display-to-stream identity key, or the concrete decoder/output consumer. Display B negotiation is not ready to implement.
 
 HondaHack's cluster output path is traced. It uses a normal Android View injected into Honda's existing externaldisplay main/interrupt window hierarchy, not direct framebuffer output or a DisplayManager Presentation. Screen Casting captures Display 0 at 400×240 ARGB_8888, passes frames through a MemoryFile/PFD Messenger path, and sets them on a HondaHack ImageView in that View. The externaldisplay process owns the Display 1 full-screen windows.
 
@@ -22,6 +22,7 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 - Unknown: raw iAP2 Identification, second display descriptor/UUID/role, and second session negotiation.
 - Unknown: a supported/maintainable ClarityLink mechanism to obtain Honda's externaldisplay root without HondaHack's private Xposed integration.
 - Not implemented: second CarPlay session, second H.264 stream, hardware renderer, or on-car test.
+- New trace artifacts: `research/carplay/screen-start-transport.md`, `primary-screen-start-request.md`, `video-stream-binding.md`, `decoder-output-path.md`, `display-b-interposer.md`, and `step-reports/08-screen-session-trace.md`.
 
 ## Roadmap
 
@@ -30,7 +31,7 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 | 1 | Evidence baseline | Complete |
 | 2 | Prove cluster/HondaHack output path | Complete: HondaHack uses a regular View in Honda's ExternalDisplay window; exact physical crop remains non-blocking and unproven |
 | 3 | Reusable ClarityLink renderer abstraction | Partial and sufficient for protocol work: synthetic host model/tests and API 17 View skeleton; root acquisition, crop, and zero-copy remain deferred |
-| 4 | Second-display Identification/session reconstruction | Current: primary model traced; Display B/session and wire schema are partial/blocked |
+| 4 | Primary screen/session transport and callback trace | Partial: `_ScreenThread` to generic stream lifecycle traced; setup transport/schema, binding identity, and decoder/output consumer unresolved |
 | 5 | Implement Display-B negotiation | Not ready; requires accepted descriptor/session evidence and a reversible implementation design |
 | 6 | Receive second CarPlay H.264 stream | Pending negotiated stream; existing decoder feasibility stands |
 | 7 | Connect decoder to ExternalDisplay renderer | Pending stream-to-frame lifecycle and renderer integration |
