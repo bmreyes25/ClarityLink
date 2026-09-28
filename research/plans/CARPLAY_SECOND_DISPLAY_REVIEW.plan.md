@@ -1,5 +1,7 @@
 # Clarity CarPlay second display — reviewable execution plan
 
+> **Historical plan:** This exploratory plan is superseded for current execution by the narrowed ClarityLink roadmap in [PROJECT_STATE.md](../../PROJECT_STATE.md) and [STEP_STATUS.md](STEP_STATUS.md). Use this file only as background; do not follow its old steps or gates.
+
 **Status:** the local Git baseline, parked read-only inventory, and raw eMMC/MTD copy are complete as of 2026-09-25. All 25 currently hashed USB files verified, but seven planned archives, much metadata, eight runtime snapshots, and final completion markers are missing; the forensic acquisition is **partial**. See [the exact status and partition map](../acquisition/FORENSIC_STATUS_20260925.md). Analysis/design work stays under `/Users/bmreyes24/ClarityLab/clarity-analysis`; raw Mac forensic copies stay outside Git. `/Users/bmreyes24/ClarityLab/backups/CLARITY_BACKUP_20260918_0225_ORIGINAL` remains untouched, read-only, and outside Git. Every future on-car install or change needs its own exact artifact, run card, rollback, and approval.
 
 ## Target and present verdict

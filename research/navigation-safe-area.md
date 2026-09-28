@@ -30,17 +30,27 @@ The Android screen and Honda Hack layout are different coordinate spaces. No par
 
 ## Minimum missing observation
 
-Obtain **one synchronized, read-only capture of the factory Navigation page** consisting of (1) the actual HDMI/display-1 frame for that state and (2) a perpendicular full-cluster photo with the complete lit panel/bezel visible. The car must be parked, Honda Hack casting off, and the OEM Navigation page active. The paired frame/photo should include a known panel boundary or calibration reference so a projective transform and the visible native page bounds can be measured independently of the cast layout. If the instrument cluster composes the page outside display 1, the frame will show that limitation; the smallest further evidence would then be a read-only native meter framebuffer/page-layout snapshot from the controller that owns the Navigation view. A cast-on image is not an acceptable substitute.
+The required paired factory Navigation Display 1 frame and physical photo have been collected. They show that the Android frame does not contain all physical cluster indicators, but do not provide a calibrated transform into physical cluster coordinates. If precise physical bounds become necessary, the next observation should add a known scale/panel reference or an OEM-owned viewport coordinate source; no repeat of the same uncalibrated capture is currently useful. No raw framebuffer read is authorized by the available metadata.
 
 ## ClarityLink scope update — 2026-09-28
 
-The project now targets only an independent secondary CarPlay display inside the existing map region; it does not require replacing the full cluster UI or identifying unused panel specifications. The next proof is diagnostics-first: determine the head unit's display devices, candidate framebuffer and Honda destination path through parked, read-only ADB diagnostics. Existing saved evidence reports built-in and HDMI logical outputs at 800×480, which is not a measurement of the native Navigation rectangle. A photo is a validation step if diagnostics do not expose enough geometry. No new rectangle evidence was collected in the latest ADB check, which returned no connected device.
+The project now targets only an independent secondary CarPlay display inside the existing map region; it does not require replacing the full cluster UI or identifying unused panel specifications. Read-only ADB diagnostics and paired display-1 captures are now available. The latest evidence is summarized below; the native Navigation rectangle remains unknown.
+
+## Paired Display 1 evidence — 2026-09-28
+
+Factory Navigation, HondaHack Advanced Meter, and HondaHack Screen Casting were each captured through `screencap -d 1` as valid 800×480 PNGs. In every SurfaceFlinger dump, Display 1 is the HDMI display on layer stack 1 and its active layer source and destination frames are full-frame `[0,0,800,480]`. No Android source crop or destination inset is exposed.
+
+The factory frame's compass/grid and Menu match the physical cluster photo. The photo also shows speedometer, charge/power, range, and status indicators that do not appear in the Display 1 screenshot. Therefore Display 1 is an input/output canvas related to the visible Navigation content, not a complete capture of all instrument cluster UI. The evidence is consistent with additional cluster-side composition or masking, but does not prove the exact location, dimensions, transform, or whether it is a hardware mask versus another downstream renderer.
+
+HondaHack Screen Casting produced a different Display 1 image (Instrument Cluster settings and Menu over a black remainder), and Advanced Meter also changed visible pixels. Static APK analysis now traces HondaHack's output to a normal View injected by Xposed into Honda's ExternalDisplay InterfaceWindow root. The named `MeterActivity` layer is on Display 0/layer stack 0; it is not the Display 1 output layer. HondaHack's layout-local cast rectangle `(0,24,584,191)` remains unproven as a physical cluster destination.
+
+**Updated verdict: the Android Display 1 canvas is confirmed as 800×480; native factory Navigation destination rectangle remains UNKNOWN.** No physical safe-area dimensions are inferred from the photo.
 
 
 ## Live display diagnostics — 2026-09-28
 
 Read-only ADB confirms the Android HDMI logical display is display 1, 800×480 at about 60 Hz, layer stack 1. SurfaceFlinger/HWC reports the active HDMI source and destination as the full 800×480 frame. This is the head-unit output surface; it does not expose the smaller native factory Navigation map rectangle.
 
-Framebuffer sysfs exposes `fb1` on `tegradc.1`, with mode `800x480p-59`, virtual size 800×960, stride 3200, and `bits_per_pixel=0`. Its alignment to Android display 1 is likely by matching indices but is not directly proven. The format/byte allocation is not safe to assume, so no `/dev/graphics/fb1` read was performed. The installed `screencap` supports `-d display-id`; a display-1 frame can be streamed read-only to the Mac after the user displays the normal factory Navigation page and replies READY.
+Framebuffer sysfs exposes `fb1` on `tegradc.1`, with mode 800×480p-59, virtual size 800×960, stride 3200, and bits_per_pixel=0. Its alignment to Android display 1 is likely by matching indices but is not directly proven. The format/byte allocation is not safe to assume, so no /dev/graphics/fb1 read was performed. The installed screencap display-1 path was used to collect the required states.
 
-The Honda Hack cast still provides only its local `(0,24,584,191)` geometry. The OEM map destination rectangle and scaling/crop remain unknown.
+HondaHack's rendering mechanism is now traced to its injected View and ExternalDisplay host, but the factory Navigation physical rectangle and scaling/crop remain unknown. No additional live capture is currently required to continue the protocol model.

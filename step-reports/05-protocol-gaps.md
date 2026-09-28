@@ -4,9 +4,9 @@
 
 ## Cluster geometry and Honda render path
 
-The exact factory Navigation destination rectangle remains unknown. Saved evidence establishes Android built-in and HDMI logical displays at 800×480. Honda Hack mirrors into the cluster over the HDMI path, but its `(0,24,584,191)` coordinates are local to a 584×215 layout and do not establish the underlying factory surface or native cluster bounds.
+The exact factory Navigation destination rectangle remains unknown. Saved evidence establishes Android built-in and HDMI logical displays at 800×480. HondaHack's output path is traced to an Xposed-injected Android View hosted in Honda ExternalDisplay's main/interrupt window hierarchy; its `(0,24,584,191)` coordinates are local to a 584×215 layout and do not establish the physical cluster bounds. See `step-reports/05c-hondahack-display-path.md`.
 
-Parked, read-only ADB diagnostics are now collected. Android display 1 is the 800×480 HDMI output; `fb1`/`tegradc.1` is the likely matching framebuffer. Its BPP reports zero, so its raw format/size remain unverified. `screencap -d 1` provides a read-only output capture path. Next capture one display-1 frame only after the user shows the normal factory Navigation page with casting off and replies READY. This frame can validate what reaches HDMI; a matched straight-on photo may be needed to derive physical map bounds. Do not read the raw framebuffer until its format and byte size are proven.
+Parked, read-only ADB diagnostics and factory/Advanced Meter/Screen Casting Display 1 captures are complete. Android display 1 is the 800×480 HDMI output; `fb1`/`tegradc.1` is the likely matching framebuffer. Its BPP reports zero, so its raw format/size remain unverified. SurfaceFlinger exposes no subrectangle. HondaHack's output view path is understood, but physical map bounds and a standalone host adapter remain unresolved. No raw framebuffer access is required.
 
 ## CarPlay second-display/session evidence
 
@@ -14,7 +14,7 @@ Static `jmcs` evidence configures one main CarPlay screen and has a separate Air
 
 ## Practical Step 6 gate
 
-Step 6 remains **not ready**. It may proceed when evidence is sufficient to define:
+The old exploratory Step 6 gate is superseded by the focused ClarityLink roadmap in `PROJECT_STATE.md`. The next milestone is offline second-display Identification/session reconstruction. Live rendering remains gated on:
 
 1. The second CarPlay display size and session identity.
 2. The Honda rendering surface/path and cluster Navigation destination rectangle.

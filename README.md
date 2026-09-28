@@ -1,48 +1,42 @@
 # ClarityLink
 
-**Independent CarPlay navigation in the factory map region of the 2018 Honda Clarity instrument cluster, while the center CarPlay display remains independently usable.**
-
-The target behavior is Apple Maps first and Waze if supported, confined to the existing factory/HondaHack map region. The speedometer, gauges, warnings, and other stock cluster UI must remain intact. No independent iPhone-rendered cluster stream is confirmed yet.
+**Official project name: ClarityLink.** Make a genuine, independent second CarPlay display appear only in the factory Honda Clarity instrument-cluster Navigation region while normal CarPlay remains independently usable on the center screen. Preserve all other stock cluster UI. Apple Maps is first; Waze follows if supported.
 
 ## Current status — 2026-09-28
 
-Steps 1–5 offline are complete. Step 5B is active and has been narrowed to the practical questions needed for this target: cluster output geometry, Honda's existing render path, second-display CarPlay setup, and binding a second stream to the map region.
+The HondaHack output path is traced to a normal Android View hosted in Honda's externaldisplay window hierarchy. Screen Casting captures Display 0 at 400×240 ARGB_8888, transfers frames through shared MemoryFile/PFD IPC, and places them in an ImageView. HondaHack's Xposed module inserts that view into Honda's InterfaceWindow main/interrupt root. Display 1 is the external HDMI output at 800×480 on layer stack 1.
 
-- Live read-only ADB diagnostics confirm Android display 0 (built-in) and display 1 (HDMI) are each 800×480 at about 60 Hz. Display 1 uses layer stack 1 and its current HWC source/destination is the full 800×480 frame.
-- `/proc/fb` exposes two Tegra framebuffer nodes. Sysfs links `fb0` to `tegradc.0` and `fb1` to `tegradc.1`; both report virtual size 800×960, stride 3200, and `bits_per_pixel=0`. The direct framebuffer format and allocation size therefore remain unverified.
-- The read-only `screencap` utility supports selecting display ID 1 and can stream to the Mac. No frame has been captured yet; waiting for the normal factory Navigation page and the user’s READY.
-- Honda Hack reaches the cluster over HDMI, but the exact factory Navigation destination surface/rectangle is still not exposed.
-- Built-in usbmon paths are absent and `CONFIG_USB_MON` is not listed. Filtered logs show iAP2 connection/authentication and screen-transfer policy, but no raw Identification bytes or display/session descriptor. Do not recommend analyzer purchase yet; the descriptor may use another transport.
-- Exact navigation destination rectangle, second-display negotiation, and safe-clear behavior remain unknown. Step 6 has not started.
+An offline ClarityLink renderer prototype separates synthetic FrameSource, renderer, and output backend. Host tests cover 800×480 sizing, row stride, invalid frames, repeated submission, and backend clear/destroy lifecycle. The API 17 Android View backend is a skeleton: externaldisplay root acquisition and real viewport/hardware output remain unimplemented. No independent CarPlay second stream exists.
+
+Exact physical Navigation bounds remain unknown. SurfaceFlinger reports full-frame Display 1 output without a smaller crop. HondaHack's 584×215 root and 584×191 local cast image region are not proven physical coordinates. The main protocol blocker is still the missing second-display Identification/session advertisement and descriptor.
 
 ## Roadmap
 
 1. Evidence baseline — complete.
-2. Cluster navigation-region model — partial; production geometry unresolved.
-3. Second decoder capability — sufficient offline evidence for now; do not repeat without a new reason.
-4. Static CarPlay display/Identification model — complete for static evidence.
-5. Resolve practical cluster geometry, Honda render path, and available CarPlay session evidence — current.
-6. Build the two-display Identification/session model offline.
-7. Build the second-display receiver/decoder offline.
-8. Bind its video to the cluster navigation region.
-9. Validate independent center and cluster displays offline.
-10. Prepare a reversible on-car runtime experiment.
-11. Obtain a real secondary CarPlay stream while parked.
-12. Validate Apple Maps in the cluster map region with the center display independent; then assess Waze.
-
-Step 6 may proceed when evidence is sufficient to define the second display, its session identity, the target rendering surface and map rectangle, and rollback/fail-clear behavior. Unneeded panel specifications alone are not blockers.
+2. Prove cluster/HondaHack output path — complete for Android View host path; physical crop unresolved.
+3. Build reusable Display 1 renderer — partial; host mock complete, API 17 integration skeleton only.
+4. Reconstruct second-display Identification/session model — next.
+5. Implement second-display negotiation.
+6. Receive/decode second CarPlay H.264 stream.
+7. Route decoder output to Display 1.
+8. Offline integration and failure handling.
+9. Minimal reversible parked-car test.
+10. Apple Maps center/cluster validation.
+11. Waze validation.
+12. Packaging and recovery/persistent implementation.
 
 ## Start here
 
 | Purpose | File |
 |---|---|
-| Current state and safety boundary | [PROJECT_STATE.md](PROJECT_STATE.md) |
+| Current state | [PROJECT_STATE.md](PROJECT_STATE.md) |
 | One next action | [NEXT_ACTION.md](NEXT_ACTION.md) |
-| Evidence map | [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) |
-| Current Step 5B diagnostic report | [step-reports/05b-display-diagnostics.md](step-reports/05b-display-diagnostics.md) |
-| Existing protocol and geometry gaps | [step-reports/05-protocol-gaps.md](step-reports/05-protocol-gaps.md) |
-| Safe-area evidence ledger | [research/navigation-safe-area.md](research/navigation-safe-area.md) |
-| iAP2/display static analysis | [research/iap2-identification.md](research/iap2-identification.md) |
-| New-session handoff | [research/handoff/new-chat/START_HERE.md](research/handoff/new-chat/START_HERE.md) |
+| Evidence index | [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) |
+| HondaHack path | [research/hondahack/hondahack-display-path.md](research/hondahack/hondahack-display-path.md) |
+| Static trace | [research/hondahack/hondahack-static-analysis.md](research/hondahack/hondahack-static-analysis.md) |
+| Renderer interface | [research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md](research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md) |
+| Milestone report | [step-reports/05c-hondahack-display-path.md](step-reports/05c-hondahack-display-path.md) |
+| CarPlay protocol | [research/iap2-identification.md](research/iap2-identification.md) |
+| Physical safe-area evidence | [research/navigation-safe-area.md](research/navigation-safe-area.md) |
 
-Reports, source, sanitized fixtures, and plans are organized under `step-reports/`, `research/`, `simulator/`, and `tests/`. Raw firmware, forensic images, phone/location data, and raw captures remain local and are excluded from Git. Work is read-only until an independently reviewed reversible experiment is explicitly prepared.
+Raw captures, APKs, firmware, forensic images, and sensitive data stay local and ignored. No direct framebuffer access or vehicle writes are part of current work.

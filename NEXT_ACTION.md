@@ -1,7 +1,14 @@
 # Next action
 
-**ACTION REQUIRED:** Display the normal factory Navigation map in the instrument cluster with Honda Hack casting off, then reply **READY**. ADB is connected at `192.168.86.102:5555`, root is available, and the read-only diagnostics are saved locally under `research/captures/display-diagnostics/20260928T-adb-session/`.
+**Continue Step 4 offline:** reconstruct the minimum second-display Identification/session advertisement from the existing Honda CarPlay static model and record the required descriptor fields and unresolved bytes. Do not use the vehicle or begin live negotiation.
 
-After READY, capture one display-1 frame with the read-only `screencap -d 1` path, streamed to the Mac. Do not write a capture to vehicle storage. Then request a straight-on full-cluster photo of the same Navigation state if needed to match display pixels to the physical map area.
+The HondaHack Android output path is now traced to a regular View hosted inside Honda's ExternalDisplay window. The host renderer prototype is available at src/claritylink-renderer/, but its API 17 backend needs privileged host integration and the physical Navigation viewport remains unmeasured.
 
-Do not read `/dev/graphics/fb*` yet: sysfs reports `bits_per_pixel=0`, so the raw framebuffer format/allocation size is unverified. Keep raw diagnostic logs local/ignored, analyze only copies, and do not recommend USB analyzer purchase yet. Existing USB-monitor support is absent and filtered logs do not contain raw iAP2 Identification or display/session descriptor data.
+Current reports:
+
+- research/hondahack/hondahack-display-path.md
+- research/hondahack/hondahack-static-analysis.md
+- research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md
+- research/iap2-identification.md
+
+Keep raw captures/APKs local and ignored. No framebuffer access or vehicle write is part of the next step.

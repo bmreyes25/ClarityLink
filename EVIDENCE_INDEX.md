@@ -1,14 +1,16 @@
-# ClarityLink evidence index — Step 5B
+# ClarityLink evidence index — 2026-09-28
 
-| Question | Current evidence | Verdict | Next proof |
+| Question | Evidence | Verdict | Remaining proof |
 |---|---|---|---|
-| Android output/display devices | Live `dumpsys display`, SurfaceFlinger, `/proc/fb`, and framebuffer sysfs; `research/cluster-display-diagnostics.md` | Display 0 built-in and display 1 HDMI, both 800×480; `fb1`/`tegradc.1` likely matches display 1; BPP reports 0 | Display-1 `screencap` frame after user shows factory Navigation and replies READY |
-| Cluster navigation target rectangle | `research/navigation-safe-area.md`; Honda Hack 584×215 local layout; saved display evidence | Unknown; Honda Hack layout coordinates do not prove factory bounds | Identify Honda destination path first; then read-only frame and matched normal Navigation state/photo if needed |
-| Honda render path | Honda Hack cast observation; `research/native/receiver-multidisplay-audit.md`; cluster helpers and `disp_com_meter` | HDMI reaches cluster; exact underlying composition surface and native destination remain uncertain | Bounded Honda service/component inspection and runtime display inventory |
-| iAP2 Identification contents | `research/iap2-identification.md`; static `jmcs` symbols/strings; `j_config.xml` | Exact packet unknown; no raw exchange captured | Exhaust read-only USB-monitor/logging options; analyzer only if needed after evidence review |
-| CarPlay display/session descriptor | `jmcs` `mc_carplay_app_init`, `screen_add_props`, `AirPlayReceiverSessionScreen_CopyDisplaysInfo` | One configured primary screen; UUID and serialized descriptor unknown | Observe existing logs/transport read-only; identify endpoints before any later passive capture |
-| Decoder concurrency | `step-reports/03-second-decoder.md` and local fixtures | Two NVIDIA decoders produced 28/30 frames with CarPlay disconnected; host replay passed | No repeat unless new receiver/session evidence requires it |
-| Forensic acquisition | Acquisition reports; original and working copies outside Git | Verified local acquisition; immutable original preserved | None |
-| Step 5B ADB availability | Read-only ADB diagnostics on 2026-09-28 | Connected at `192.168.86.102:5555`; root confirmed; no writes; frame pending READY | User shows normal factory Navigation with casting off and replies READY |
+| Android output target | Live display/sysfs/SF snapshots and screencap | Display 1 HDMI, 800×480, about 60 Hz, layer stack 1 | None for Android logical mode |
+| HondaHack Screen Casting path | Targeted 7.7.7 APK decompilation plus Screen Casting snapshot | Display 0 captured at 400×240 ARGB_8888; Bitmap via shared MemoryFile/PFD; ImageView/View injected in Honda ExternalDisplay root; full-window Display 1 output | Supported ClarityLink host acquisition/lifecycle |
+| Advanced Meter path | Same APK trace and state snapshots | Uses same Xposed-injected externaldisplay View host; content is meter/navigation widgets | Exact runtime child-view to layer mapping |
+| Android Display 1 crop | Three SF state dumps | Full-frame 800×480 layers; no smaller Android crop observed | None for current evidence |
+| Physical Navigation bounds | Paired Display 1 factory image and full-cluster photo | UNKNOWN. Photo/capture difference supports downstream composition but gives no calibrated rectangle | Physical coordinate mapping / panel transform |
+| Framebuffer format | sysfs reports bpp 0 and stride 3200 | UNKNOWN; no raw framebuffer access | Driver metadata only if a later need arises |
+| ClarityLink renderer prototype | src/claritylink-renderer and host tests | Synthetic 800×480 RGBA source, explicit frame contract, mock attach/submit/clear/destroy, API 17 View backend skeleton | Compile against API 17 SDK and establish real host |
+| Second CarPlay display/session | research/iap2-identification.md and static jmcs model | Raw Identification/second display descriptor/UUID/role unknown | Reconstruct or passively observe protocol advertisement |
+| Decoder coexistence | step-reports/03-second-decoder.md | Dual NVIDIA decode plausible; active CarPlay coexistence not established | Revisit only when a second stream/session exists |
+| Live evidence availability | captures under ignored research/captures/hondahack-display-path/20260928T152742Z | Factory Navigation, Advanced Meter, Screen Casting snapshots and SHA-256 list saved locally | None for these three states |
 
-Raw firmware, forensic images, phone/location data, and raw capture artifacts are not committed. The project scope and current evidence gate are summarized in `PROJECT_STATE.md` and `step-reports/05b-display-diagnostics.md`.
+Raw evidence, APKs, firmware, forensic images, and sensitive device identifiers are excluded from Git. Sanitized conclusions are recorded in the research and step reports.
