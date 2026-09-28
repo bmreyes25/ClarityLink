@@ -9,3 +9,6 @@
 
 - 2026-09-28: Project scope narrowed and named ClarityLink: independent CarPlay map display confined to the existing cluster map region, with center display independent. Diagnostics-first Step 5B supersedes analyzer-first ordering. Saved evidence: built-in and HDMI logical outputs at 800×480; native cluster rectangle remains unknown.
 - 2026-09-28: Re-ran read-only `adb devices -l` while reconciling state for publication; returned no devices. Did not connect or query the vehicle because parked/powered readiness was not confirmed. No new physical evidence or captures.
+
+- 2026-09-28: Parked read-only ADB diagnostics completed at 192.168.86.102:5555; root confirmed. Android displays 0/1 are built-in/HDMI 800×480 at ~60 Hz; fb0/fb1 map to tegradc.0/.1, virtual size 800×960, stride 3200, BPP 0. SurfaceFlinger shows full-frame HDMI composition. No framebuffer read. `screencap -d` supports selecting display 1; one frame awaits normal Navigation page and user READY.
+- 2026-09-28: USB monitor paths and tcpdump/strace/usbmon tools unavailable. Filtered logcat shows iAP2 connection/authentication and screen-transfer policy, not raw Identification or display descriptor. Raw logs remain ignored locally.

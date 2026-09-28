@@ -1,7 +1,7 @@
 # Next action
 
-**ACTION REQUIRED:** Confirm the vehicle is parked and powered and ready for read-only ADB diagnostics over Wi-Fi. If its address differs from `192.168.86.102`, provide the current address. The latest `adb devices -l` returned no attached devices; do not connect or query the vehicle before this confirmation.
+**ACTION REQUIRED:** Display the normal factory Navigation map in the instrument cluster with Honda Hack casting off, then reply **READY**. ADB is connected at `192.168.86.102:5555`, root is available, and the read-only diagnostics are saved locally under `research/captures/display-diagnostics/20260928T-adb-session/`.
 
-After confirmation, reconnect ADB only if needed and collect the bounded read-only display inventory described in the revised Step 5B handoff. Start with `/proc/fb`, graphics sysfs, `dumpsys display`, SurfaceFlinger, window diagnostics, and display properties. Save full outputs locally under `research/captures/display-diagnostics/`; extract only relevant lines into `research/cluster-display-diagnostics.md` and `step-reports/05b-display-diagnostics.md`.
+After READY, capture one display-1 frame with the read-only `screencap -d 1` path, streamed to the Mac. Do not write a capture to vehicle storage. Then request a straight-on full-cluster photo of the same Navigation state if needed to match display pixels to the physical map area.
 
-Do not capture a framebuffer until its identity, dimensions, format, stride, and exact byte count are known. Then ask the user to display the normal factory Navigation map and reply READY before one read-only frame capture. Do not require a USB analyzer before the existing diagnostics and logging options have been exhausted. Keep the iPhone disconnected until any required capture setup is ready.
+Do not read `/dev/graphics/fb*` yet: sysfs reports `bits_per_pixel=0`, so the raw framebuffer format/allocation size is unverified. Keep raw diagnostic logs local/ignored, analyze only copies, and do not recommend USB analyzer purchase yet. Existing USB-monitor support is absent and filtered logs do not contain raw iAP2 Identification or display/session descriptor data.

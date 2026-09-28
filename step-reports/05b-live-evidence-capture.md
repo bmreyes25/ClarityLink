@@ -1,12 +1,11 @@
-# Step 5B — Live evidence status (superseded capture ordering)
+# Step 5B — Initial capture hold and revised status
 
-**Status: waiting for parked ADB diagnostics.** This report preserves the fact that the earlier USB/photo capture session was not performed. The diagnostics-first scope and current next step are documented in `05b-display-diagnostics.md`.
+The earlier 2026-09-28 session did not start a physical capture because ADB and capture prerequisites were not then confirmed. That analyzer-first/photo-first sequence has been superseded by diagnostics-first work.
 
-- The 2026-09-28 read-only `adb devices -l` returned no attached device.
-- No ADB connection attempt, vehicle query, USB trace, framebuffer read, cluster photo, or display-frame capture was performed in that check.
-- The user reports ADB over Wi-Fi is available; no hardware USB analyzer is owned.
-- Parked/powered readiness has not been confirmed. Do not connect or query the vehicle before confirmation.
-- The older analyzer-first sequence is superseded. Check existing display diagnostics, USB-monitor availability, and targeted logs before recommending analyzer purchase.
-- Geometry and iAP2 evidence remain unresolved; Step 6 has not started.
+## Current status
 
-The practical Step 6 gate is sufficient evidence for the second display/session identity, target Honda rendering surface and cluster map rectangle, and rollback/fail-clear behavior. See `research/cluster-display-diagnostics.md`, `research/navigation-safe-area.md`, and `research/iap2-identification.md` for the evidence ledgers.
+Read-only ADB diagnostics are now complete at `192.168.86.102:5555`; root was confirmed. Android display 1 is the external HDMI output at 800×480, with a likely associated `fb1`/`tegradc.1` node. Its sysfs BPP reads 0, so no raw framebuffer read is authorized. `screencap -d 1` is available for a read-only image stream to the Mac.
+
+No display-1 frame or cluster photo has been captured. Next, ask the user to show the normal factory Navigation map with Honda Hack casting off and reply READY. The USB analyzer remains unowned; built-in usbmon is absent and filtered logs contain no raw Identification bytes or session descriptor.
+
+See `05b-display-diagnostics.md` for findings and the practical Step 6 gate. Raw outputs remain local/ignored; no vehicle writes occurred.

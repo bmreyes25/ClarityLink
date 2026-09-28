@@ -35,3 +35,12 @@ Obtain **one synchronized, read-only capture of the factory Navigation page** co
 ## ClarityLink scope update — 2026-09-28
 
 The project now targets only an independent secondary CarPlay display inside the existing map region; it does not require replacing the full cluster UI or identifying unused panel specifications. The next proof is diagnostics-first: determine the head unit's display devices, candidate framebuffer and Honda destination path through parked, read-only ADB diagnostics. Existing saved evidence reports built-in and HDMI logical outputs at 800×480, which is not a measurement of the native Navigation rectangle. A photo is a validation step if diagnostics do not expose enough geometry. No new rectangle evidence was collected in the latest ADB check, which returned no connected device.
+
+
+## Live display diagnostics — 2026-09-28
+
+Read-only ADB confirms the Android HDMI logical display is display 1, 800×480 at about 60 Hz, layer stack 1. SurfaceFlinger/HWC reports the active HDMI source and destination as the full 800×480 frame. This is the head-unit output surface; it does not expose the smaller native factory Navigation map rectangle.
+
+Framebuffer sysfs exposes `fb1` on `tegradc.1`, with mode `800x480p-59`, virtual size 800×960, stride 3200, and `bits_per_pixel=0`. Its alignment to Android display 1 is likely by matching indices but is not directly proven. The format/byte allocation is not safe to assume, so no `/dev/graphics/fb1` read was performed. The installed `screencap` supports `-d display-id`; a display-1 frame can be streamed read-only to the Mac after the user displays the normal factory Navigation page and replies READY.
+
+The Honda Hack cast still provides only its local `(0,24,584,191)` geometry. The OEM map destination rectangle and scaling/crop remain unknown.

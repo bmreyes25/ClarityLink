@@ -42,3 +42,10 @@ No deterministic packet-emitter script is appropriate: message/parameter IDs, pa
 ## ClarityLink scope update — 2026-09-28
 
 The practical target is a second independent CarPlay display routed into the cluster map region while the center display remains independent. Exact wire reconstruction remains open, but hardware purchase is not the next step: first use parked, read-only ADB to check existing USB-monitor support, available diagnostic tools, and targeted CarPlay/iAP2 logs. The latest `adb devices -l` check returned no device, so no live logs or vehicle-side checks were collected. The live descriptor transport remains unknown.
+
+
+## Live ADB observations — 2026-09-28
+
+Read-only filtered logcat included iAP2-connected, CarPlay authentication/startup, and screen-transfer policy events. It reports policy values such as screen transfer type/priority and Take/Borrow constraints, but no raw iAP2 Identification payload, parameter IDs/order, display dimensions, display UUID, or second-display descriptor. Device serials are present in raw local logs and are not included here.
+
+The head unit has no `/sys/kernel/debug/usb/usbmon` or `/dev/usbmon*`; `/proc/config.gz` lists `CONFIG_DEBUG_FS=y` but no `CONFIG_USB_MON`. Debugfs was already mounted, but no tracing configuration was changed. `tcpdump`, `strace`, and `usbmon` utilities are unavailable. This makes existing on-head-unit capture options insufficient for raw USB payload bytes. No USB analyzer is owned; defer purchase until the separate display-info transport is identified and all remaining software options are reviewed.

@@ -8,11 +8,12 @@ The target behavior is Apple Maps first and Waze if supported, confined to the e
 
 Steps 1–5 offline are complete. Step 5B is active and has been narrowed to the practical questions needed for this target: cluster output geometry, Honda's existing render path, second-display CarPlay setup, and binding a second stream to the map region.
 
-- Saved evidence shows separate Android built-in and HDMI display devices at 800×480. That is the head-unit output size, not proof of the cluster map rectangle or its native framebuffer.
-- Honda Hack mirrors the center CarPlay image into the cluster navigation area; it follows the center app. This establishes a usable existing output path, not the exact factory map bounds or a second CarPlay stream.
-- A read-only `adb devices -l` check on 2026-09-28 returned no attached device. No vehicle diagnostics or capture were started in that check.
-- The user reports ADB over Wi-Fi is available and no USB protocol analyzer is owned. The next investigation is read-only head-unit display diagnostics and targeted Honda component inspection. Do not recommend analyzer purchase until existing software options are exhausted.
-- Exact navigation destination rectangle, actual iAP2 Identification bytes, second-display negotiation, and safe-clear behavior remain unknown. Step 6 has not started.
+- Live read-only ADB diagnostics confirm Android display 0 (built-in) and display 1 (HDMI) are each 800×480 at about 60 Hz. Display 1 uses layer stack 1 and its current HWC source/destination is the full 800×480 frame.
+- `/proc/fb` exposes two Tegra framebuffer nodes. Sysfs links `fb0` to `tegradc.0` and `fb1` to `tegradc.1`; both report virtual size 800×960, stride 3200, and `bits_per_pixel=0`. The direct framebuffer format and allocation size therefore remain unverified.
+- The read-only `screencap` utility supports selecting display ID 1 and can stream to the Mac. No frame has been captured yet; waiting for the normal factory Navigation page and the user’s READY.
+- Honda Hack reaches the cluster over HDMI, but the exact factory Navigation destination surface/rectangle is still not exposed.
+- Built-in usbmon paths are absent and `CONFIG_USB_MON` is not listed. Filtered logs show iAP2 connection/authentication and screen-transfer policy, but no raw Identification bytes or display/session descriptor. Do not recommend analyzer purchase yet; the descriptor may use another transport.
+- Exact navigation destination rectangle, second-display negotiation, and safe-clear behavior remain unknown. Step 6 has not started.
 
 ## Roadmap
 
