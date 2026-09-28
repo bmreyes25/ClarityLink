@@ -43,6 +43,8 @@
 /research/probes/**/fixtures/*.mp4
 /research/**/__pycache__/
 /research/**/*.pyc
+/tests/**/__pycache__/
+/tests/**/*.pyc
 /research/**/.DS_Store
 
 # Never track credentials, signing material, or archives if new paths appear.
