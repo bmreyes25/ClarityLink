@@ -1,0 +1,5 @@
+# Step 5 run status
+
+2026-09-28 — Starting bounded offline checks for the factory Navigation rectangle and iAP2 Identification. Initial review found the three requested root state files absent; six-file context review was otherwise limited to the available Step 2/4 reports and Identification model. No raw image or vehicle access is planned. Next operations are allowlisted APK/ODEX/resource and receiver-symbol queries only.
+
+2026-09-28 — Targeted pass complete. No OEM factory Navigation rectangle was found in the selected ODEX/frameworks/layout/config, cluster wrappers, or `disp_com_meter` strings/symbols. The 584×191 cast image coordinates are local to the 584×215 Honda Hack layout; the mapping to 800×480 display-1 coordinates is unproven. `jmcs` contains iAP2 Identification state symbols, but no raw transaction or fully evidenced wire serializer; `AirPlayReceiverSessionScreen_CopyDisplaysInfo` is the separate display-session path. No car capture was performed. Writing two gap reports, the Step 5 report, and the three absent concise root state files.
