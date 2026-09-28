@@ -3,6 +3,9 @@
 !/.gitignore
 !/README.md
 !/research/
+!/step-reports/
+!/simulator/
+!/tests/
 
 # Raw and derived vehicle data stays outside Git.
 /research/captures/
