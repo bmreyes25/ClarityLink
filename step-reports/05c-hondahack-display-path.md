@@ -35,5 +35,7 @@ ANDROID_DISPLAY1_CANVAS: 800×480 full frame
 ANDROID_SMALLER_NAV_CROP: NOT OBSERVED in SurfaceFlinger
 DOWNSTREAM_CLUSTER_MASK_OR_COMPOSITION: PLAUSIBLE; physical transform unresolved
 STEP 2 OUTPUT PATH: COMPLETE
-STEP 3 HOST RENDERER: COMPLETE; Android host integration skeleton only
-STEP 4 IDENTIFICATION: NEXT / unresolved
+STEP 3 CLARITYLINK RENDERER: CURRENT; host mock/prototype exists, but executable Honda output integration and hardware proof remain
+STEP 4 IDENTIFICATION/SESSION: MAJOR BLOCKER AFTER STEP 3 / unresolved
+
+The revised official roadmap has nine steps (see PROJECT_STATE.md and research/plans/STEP_STATUS.md). Exact physical map-region coordinates remain unknown but are not a gate for Step 2; revisit only if the renderer needs them. The immediate next task is the offline renderer proof. A later single parked, reversible test will establish actual output. The larger project risk remains making the iPhone/Honda CarPlay stack accept an independent second display/session.

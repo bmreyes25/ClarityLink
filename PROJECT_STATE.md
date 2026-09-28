@@ -26,19 +26,16 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 | Step | Work | Status |
 |---|---|---|
 | 1 | Evidence baseline | Complete |
-| 2 | Prove cluster/HondaHack output path | Complete for Android view host path; physical safe-area crop unresolved |
-| 3 | Build reusable ClarityLink Display 1 renderer | Partial: host mock/prototype complete; Android API 17 host backend skeleton only |
-| 4 | Reconstruct second-display CarPlay Identification/session model | Next |
-| 5 | Implement second-display negotiation | Pending Step 4 evidence |
-| 6 | Receive/decode second CarPlay H.264 stream | Pending |
-| 7 | Route decoder output to Display 1 | Pending root/lifecycle and viewport work |
-| 8 | Offline integration and failure handling | Pending |
-| 9 | Minimal reversible parked-car test | Pending separate reviewed run card |
-| 10 | Apple Maps independent center/cluster validation | Pending |
-| 11 | Waze validation | Pending Apple Maps path |
-| 12 | Packaging and recovery/persistent implementation | Pending after validation |
+| 2 | Prove cluster/HondaHack output path | Complete: HondaHack uses a regular View in Honda's ExternalDisplay window; exact physical crop remains non-blocking and unproven |
+| 3 | Prove a reusable ClarityLink Display 1 renderer | Current: host prototype and API 17 View skeleton exist; finish an executable/custom output path offline, then prepare one reversible parked-car test |
+| 4 | Finalize the second-display CarPlay protocol model | Major blocker after Step 3: Identification/session descriptor, display role/UUID, and second-display capability |
+| 5 | Build the second CarPlay receiver/decoder | Pending accepted Display B stream; prior decoder feasibility work stands unless real-stream evidence changes it |
+| 6 | Connect primary and secondary paths | Pending: independent center display plus decoded secondary stream routed through ClarityLink to Display 1 |
+| 7 | Offline integration and failure handling | Pending lifecycle, reconnect, display loss, and fail-clear validation |
+| 8 | Parked-car second-display experiment | Pending completion of Steps 2–7 and a minimal reversible run plan |
+| 9 | Apple Maps, independence, then Waze validation | Pending real second stream; package reversible recovery after stable validation |
 
-The largest current blocker is reconstructing the second-display Identification/session advertisement. Physical viewport proof and a production-safe externaldisplay host adapter remain required before live rendering.
+Near-term work is the Step 3 renderer proof. The largest project risk remains the Step 4 CarPlay second-display advertisement/session model. Exact panel identity and mathematically exact physical safe-area geometry are deferred unless renderer implementation demonstrates they are needed. No vehicle is needed for the current offline work; the renderer proof eventually requires one parked, reversible test.
 
 ## Repository and data safety
 
