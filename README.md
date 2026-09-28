@@ -10,19 +10,24 @@ An offline ClarityLink renderer prototype separates synthetic FrameSource, rende
 
 Exact physical Navigation bounds remain unknown. SurfaceFlinger reports full-frame Display 1 output without a smaller crop. HondaHack's 584×215 root and 584×191 local cast image region are not proven physical coordinates. The main protocol blocker is still the missing second-display Identification/session advertisement and descriptor.
 
+Display B static work is documented in `research/carplay/`. The offline model in `src/carplay-session-model/` emits deterministic JSON research fixtures with explicit unknown fields; it does not synthesize protocol bytes.
+
 ## Roadmap
 
 1. Evidence baseline — complete.
-2. Prove cluster/HondaHack output path — complete; HondaHack's Android View host path is traced. Exact physical crop is deferred unless rendering needs it.
-3. Prove a reusable ClarityLink renderer — current; complete the offline prototype, then run one reversible parked-car renderer test.
-4. Finalize the second-display CarPlay protocol model — major blocker after Step 3; resolve Identification/session, display role/UUID, dimensions, FPS, touch behavior, and capability.
-5. Build the second CarPlay receiver/decoder — begin once Display B is accepted; prior decoder feasibility work is sufficient for now.
-6. Connect the two halves — keep primary center CarPlay independent while routing the secondary decoded stream through ClarityLink to Display 1.
-7. Offline integration and failure handling — validate session and decoder lifecycle, reconnect, display loss, and fail-clear behavior.
-8. Parked-car second-display experiment — after Steps 2–7, with a minimal reversible test.
-9. Apple Maps, independence, then Waze — prove Maps, independent center use, then Waze; package with recovery after stable validation.
+2. Honda/cluster output path — complete enough; HondaHack View path traced to Display 1.
+3. Reusable ClarityLink renderer abstraction — partial and sufficient for protocol work.
+4. Second-display Identification/session reconstruction — current; primary model recovered, Display B model partial.
+5. Implement Display-B negotiation — blocked on descriptor/session evidence.
+6. Receive second CarPlay H.264 stream — pending accepted Display B.
+7. Connect decoder to ExternalDisplay renderer — pending.
+8. Offline integration and failure handling — pending.
+9. Minimal reversible parked-car test — pending reviewed design.
+10. Apple Maps cluster display with independent center display — pending.
+11. Waze validation — pending Apple Maps success.
+12. Packaging, recovery, and persistent implementation — pending.
 
-Immediate order: finish the renderer proof, then focus the bulk of effort on the second-display CarPlay protocol/session model. The vehicle remains off during current offline work.
+The current engineering focus is Display B negotiation. Do not spend time on exact physical crop, HondaHack capture, framebuffer access, renderer optimization, root acquisition, or zero-copy input unless a protocol finding directly requires it.
 
 ## Start here
 
@@ -37,5 +42,9 @@ Immediate order: finish the renderer proof, then focus the bulk of effort on the
 | Milestone report | [step-reports/05c-hondahack-display-path.md](step-reports/05c-hondahack-display-path.md) |
 | CarPlay protocol | [research/iap2-identification.md](research/iap2-identification.md) |
 | Physical safe-area evidence | [research/navigation-safe-area.md](research/navigation-safe-area.md) |
+| Primary display/session trace | [research/carplay/primary-display-session.md](research/carplay/primary-display-session.md) |
+| Display B candidate model | [research/carplay/second-display-session.md](research/carplay/second-display-session.md) |
+| Descriptor schema evidence | [research/carplay/identification-schema.md](research/carplay/identification-schema.md) |
+| Session-model tests | [tests/carplay-session-model/test_model.py](tests/carplay-session-model/test_model.py) |
 
 Raw captures, APKs, firmware, forensic images, and sensitive data stay local and ignored. No direct framebuffer access or vehicle writes are part of current work.

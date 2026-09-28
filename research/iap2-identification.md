@@ -35,6 +35,10 @@ CarPlay screen information is a separate code path: `mc_carplay_app_init` create
 
 The available offline evidence records `CONFIG_USB_MON` as unset, so on-head-unit usbmon is not a supported capture route on this kernel. `jmcs` is the observed receiver/media-core process containing the iAP2 state machine and the CarPlay display-info path. The USB endpoint and any later socket remain runtime facts to collect. A Mac-side ADB session alone cannot recover payload bytes that were never captured.
 
+## Display B static-trace update — 2026-09-28
+
+The focused follow-up is recorded in [`research/carplay/primary-display-session.md`](carplay/primary-display-session.md) and [`research/carplay/second-display-session.md`](carplay/second-display-session.md). It confirms the main-screen display-info callback is distinct from the iAP2 Identification state machine. An iAP2-only capture may therefore not reveal the display/session descriptor or second-stream setup. Missing evidence is the display-info encoding plus an accepted second-display setup response binding its stream/session; transport ownership is not yet identified.
+
 ## Exact packet decision
 
 No deterministic packet-emitter script is appropriate: message/parameter IDs, parameter order, lengths, UUID, and framing/checksum are not established. The future capture must distinguish the raw iAP2 accessory Identification exchange from the later CarPlay/AirPlay display-session advertisement; the latter is the path relevant to screen count and view geometry.

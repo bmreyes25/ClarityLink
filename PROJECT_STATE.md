@@ -6,6 +6,8 @@ Render a genuine, independent second CarPlay display only in the existing Honda 
 
 ## Current milestone
 
+The current focus is CarPlay Display B negotiation (Step 4). The renderer is sufficient to define a candidate Android output endpoint, but must not distract from the iPhone-facing second display/session model.
+
 HondaHack's cluster output path is traced. It uses a normal Android View injected into Honda's existing externaldisplay main/interrupt window hierarchy, not direct framebuffer output or a DisplayManager Presentation. Screen Casting captures Display 0 at 400×240 ARGB_8888, passes frames through a MemoryFile/PFD Messenger path, and sets them on a HondaHack ImageView in that View. The externaldisplay process owns the Display 1 full-screen windows.
 
 Display 1 is confirmed as HDMI/external, 800×480 at about 60 Hz, layer stack 1. SurfaceFlinger reports full-frame bounds and no smaller Android crop. HondaHack's 584×215 root and 584×191 cast ImageView region are local layout measurements, not proven physical cluster bounds. Photo and screenshot together support downstream composition but do not prove the exact cluster crop/mask.
@@ -27,15 +29,18 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 |---|---|---|
 | 1 | Evidence baseline | Complete |
 | 2 | Prove cluster/HondaHack output path | Complete: HondaHack uses a regular View in Honda's ExternalDisplay window; exact physical crop remains non-blocking and unproven |
-| 3 | Prove a reusable ClarityLink Display 1 renderer | Current: host prototype and API 17 View skeleton exist; finish an executable/custom output path offline, then prepare one reversible parked-car test |
-| 4 | Finalize the second-display CarPlay protocol model | Major blocker after Step 3: Identification/session descriptor, display role/UUID, and second-display capability |
-| 5 | Build the second CarPlay receiver/decoder | Pending accepted Display B stream; prior decoder feasibility work stands unless real-stream evidence changes it |
-| 6 | Connect primary and secondary paths | Pending: independent center display plus decoded secondary stream routed through ClarityLink to Display 1 |
-| 7 | Offline integration and failure handling | Pending lifecycle, reconnect, display loss, and fail-clear validation |
-| 8 | Parked-car second-display experiment | Pending completion of Steps 2–7 and a minimal reversible run plan |
-| 9 | Apple Maps, independence, then Waze validation | Pending real second stream; package reversible recovery after stable validation |
+| 3 | Reusable ClarityLink renderer abstraction | Partial and sufficient for protocol work: synthetic host model/tests and API 17 View skeleton; root acquisition, crop, and zero-copy remain deferred |
+| 4 | Second-display Identification/session reconstruction | Current: primary model traced; Display B/session and wire schema are partial/blocked |
+| 5 | Implement Display-B negotiation | Not ready; requires accepted descriptor/session evidence and a reversible implementation design |
+| 6 | Receive second CarPlay H.264 stream | Pending negotiated stream; existing decoder feasibility stands |
+| 7 | Connect decoder to ExternalDisplay renderer | Pending stream-to-frame lifecycle and renderer integration |
+| 8 | Offline integration and failure handling | Pending independent teardown, reconnect, display-loss, and fail-clear validation |
+| 9 | Minimal reversible parked-car test | Pending Steps 4–8 and reviewed run/recovery plan |
+| 10 | Apple Maps cluster display with independent center display | Pending real Display B stream |
+| 11 | Waze validation | Pending Apple Maps success |
+| 12 | Packaging, recovery, and persistent implementation | Pending stable validation and recovery plan |
 
-Near-term work is the Step 3 renderer proof. The largest project risk remains the Step 4 CarPlay second-display advertisement/session model. Exact panel identity and mathematically exact physical safe-area geometry are deferred unless renderer implementation demonstrates they are needed. No vehicle is needed for the current offline work; the renderer proof eventually requires one parked, reversible test.
+The primary blocker is the iPhone-facing Display B descriptor/session/stream negotiation. Exact physical crop, externaldisplay root acquisition, and zero-copy input remain deferred unless protocol integration requires them. This milestone was offline; no vehicle is needed until a reviewed reversible test is ready.
 
 ## Repository and data safety
 
@@ -54,3 +59,8 @@ Near-term work is the Step 3 renderer proof. The largest project risk remains th
 - research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md — renderer contract/limits.
 - step-reports/05c-hondahack-display-path.md — live/static milestone result.
 - research/iap2-identification.md — unresolved CarPlay session advertisement.
+- research/carplay/primary-display-session.md — primary static trace.
+- research/carplay/second-display-session.md — Display B boundaries and missing evidence.
+- research/carplay/identification-schema.md — field-level schema confidence.
+- step-reports/07-second-carplay-session-model.md — current protocol milestone.
+- src/carplay-session-model/model.py — offline candidate model, not wire serialization.

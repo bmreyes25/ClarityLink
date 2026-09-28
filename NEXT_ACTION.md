@@ -1,8 +1,8 @@
 # Next action
 
-**Continue Step 3 offline:** turn the existing renderer abstraction and API 17 View skeleton into the smallest executable ClarityLink output prototype supported by the HondaHack trace. Keep Honda's externaldisplay-root integration explicitly isolated behind an adapter, validate the API 17-compatible frame contract and lifecycle, and do not claim hardware output. After the offline prototype is reviewable, prepare one reversible parked-car renderer test. Do not use the vehicle during this offline task.
+**Continue Step 4 offline:** trace the focused `jmcs` display/session setup and screen-stream entry points to determine whether the main-only `CopyDisplaysInfo` path or singleton `libcarplay_proxy` callback can be extended without changing the primary session. Record the exact call boundary and any missing request/response fields. Do not invent a wire serializer or use the vehicle.
 
-Step 2 is closed: HondaHack uses a regular View injected into Honda's ExternalDisplay window on Display 1 (800×480, layer stack 1). The host-side synthetic renderer and API 17 View skeleton already exist, but the latter does not yet acquire Honda's root or demonstrate device output. The exact physical Navigation viewport remains unknown and is deferred unless needed by the renderer.
+Steps 1–3 are complete enough for protocol work. HondaHack's output path is traced; the renderer abstraction exists, while root acquisition, physical crop, and zero-copy remain deferred. Static analysis confirms one Honda `gMainScreen`, main-only display-info copy, and a singleton proxy callback. The offline two-display model exists, but cannot establish a genuine Display B session.
 
 Current reports:
 
@@ -10,5 +10,8 @@ Current reports:
 - research/hondahack/hondahack-static-analysis.md
 - research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md
 - src/claritylink-renderer/
+- research/carplay/second-display-session.md
+- research/carplay/identification-schema.md
+- src/carplay-session-model/model.py
 
 Keep raw captures/APKs local and ignored. No framebuffer access or vehicle write is part of the next step.
