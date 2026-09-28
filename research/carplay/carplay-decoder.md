@@ -1,23 +1,21 @@
 # CarPlay decoder and output trace
 
-**Verdict: the CarPlay callback reaches a real generic media-stream handoff; its concrete vtable target and the actual output Surface remain unresolved.**
+**Verdict: the generic screen stream dispatch is resolved to a named media-interface operation, but its concrete sink instance has not been connected to the Android decoder backend.**
 
-`mc_ScreenStreamProcessData` calls `mc_stream_alloc_buf` (`0x8e70c`) and `mc_stream_push_data` (`0x8ea18`). These functions dispatch to a linked media object through vtable slots `+0x10` (allocate buffer) and `+0x14` (push/process buffer). This establishes the handoff from the CarPlay callback into the media graph, but the linked object/table instance is not yet identified.
+`mc_ScreenStreamProcessData` (`0xbee90`) calls `mc_stream_alloc_buf` (`0x8e70c`) and `mc_stream_push_data` (`0x8ea18`). DWARF identifies the linked object as a `mc_stream_sink` interface: slot +0x10 is `alloc_buf`, and slot +0x14 is `process_data`. The CarPlay push call passes the linked sink and an `mc_stream_buf*`; the structure carries data pointer, size, timestamp, and buffer-free metadata.
 
-The `jmcs` ELF has a substantial Stagefright backend with named functions including `android_mediacodec_create`, `android_mediacodec_process_data`, `initialize_codec`, decoder-output, stop/destroy, and surface-setting helpers. It imports MediaCodec create/configure/start, input/output buffer operations, and output rendering. `initialize_codec` takes an `android_mediacodec_ctx_t` and `surface_ctx_t`; `configure` accepts a `SurfaceTextureClient` smart pointer. These establish a concrete backend implementation in this binary, but the callback's `+0x14` method has not been joined to those functions.
+The same ELF contains a concrete Stagefright/MediaCodec backend. `android_mediacodec_ctx_t` is 116 bytes and stores a base MMF context, source, surface context, width/height, codec and input/output buffer vectors. Its process routine calls MediaCodec input-buffer dequeue and queue operations. `android_mediacodec_set_surface(ctx, void*)` stores the supplied surface context and invokes codec initialization; that initialization configures MediaCodec with a `SurfaceTextureClient` smart pointer. These facts establish backend capabilities but not a call edge from the active CarPlay sink to that backend.
 
 | Item | Result |
 |---|---|
-| Screen callback | `mc_ScreenStreamProcessData` (`0xbee91`) |
-| Media handoff | `mc_stream_alloc_buf` -> linked vtable `+0x10`; `mc_stream_push_data` -> linked vtable `+0x14` |
-| First confirmed H.264 boundary on this path | Not established beyond the linked vtable dispatch |
-| Decoder implementation present | `android_mediacodec_create`, `android_mediacodec_process_data`, `initialize_codec`, output/stop/destroy functions |
-| Decoder owner/cardinality | Backend uses `android_mmf_ctx_t` and `android_mediacodec_ctx_t`; CarPlay stream/session cardinality unknown |
-| Codec and dimensions | Backend helpers exist; values for this screen stream unknown |
-| Output target type | `surface_ctx_t` and `SurfaceTextureClient` configure argument |
-| Actual CarPlay Surface/owner/binding | Unknown |
-| Two decoder/output objects | Unknown |
+| Screen callback | `mc_ScreenStreamProcessData` (`0xbee90`) |
+| Generic media object | `mc_stream_sink`, with `ops` and `priv` |
+| +0x14 role | `mc_stream_sink_ifc.process_data` (DWARF-confirmed) |
+| Concrete active target | unresolved |
+| First H.264 boundary on CarPlay path | unresolved |
+| Backend present | `android_mediacodec_create`, process/init/surface/start/stop/destroy helpers |
+| Backend context | `android_mediacodec_ctx_t`; decoder cardinality on CarPlay path unknown |
+| Output interface | `surface_ctx_t`; configure takes `SurfaceTextureClient` smart pointer |
+| CarPlay output creator/host | unknown |
 
-The next static edge is the code that links the CarPlay stream to its media object and initializes that object's `+0x10/+0x14` method table. Until that is traced, H.264 and the decoder backend remain available native capability rather than proven consumer of this screen connection.
-
-The generic ScreenStream context APIs and Honda per-stream context/counting remain confirmed; semantic screen/session identity is still unresolved.
+The exact active sink initialization/assignment is the remaining join needed to prove the CarPlay-to-decoder path. See `media-vtable.md` and `decoder-surface-binding.md`.

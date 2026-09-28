@@ -46,3 +46,8 @@ Generic screen registry and stream counters exist, but Honda initialization regi
 **Raw TCP capture: NOT REQUIRED to resolve the first read**, which static analysis recovered. A capture remains **HELPFUL** only if subsequent offline analysis cannot resolve the accepted TCP record semantics or external port advertisement. The local bind port is dynamic, so any future capture would first need to observe the runtime endpoint. No USB analyzer is indicated.
 
 **Ready for Display B implementation: NO.** Static analysis is **not exhausted**: the exact binary, symbols, DWARF, and relocations are available. The main remaining static blocker is linking the CarPlay media object to the MediaCodec backend through its vtable construction.
+
+
+## Media/backend evidence update (Step 13)
+
+`mc_stream_push_data` -> `mc_stream_sink_ifc.process_data` (+0x14) is confirmed by DWARF layout and callsite. The active sink target remains unresolved. A separate Android MediaCodec backend is present; its per-context structure contains codec, dimensions, surface context, and buffer vectors, and its surface setter configures through a `SurfaceTextureClient`. The CarPlay call edge into that backend and H.264 remains unknown. See `media-object.md`, `media-vtable.md`, and `decoder-surface-binding.md`.

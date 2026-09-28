@@ -1,6 +1,6 @@
 # Screen TCP listener trace
 
-Scope: static review of the exact local `jmcs` ELF at commit `62aca6a`. No vehicle, ADB session, live capture, or firmware modification was used.
+Scope: static review of the exact local `jmcs` ELF at commit `d347519`. No vehicle, ADB session, live capture, or firmware modification was used.
 
 ## Findings
 
@@ -8,7 +8,7 @@ Scope: static review of the exact local `jmcs` ELF at commit `62aca6a`. No vehic
 
 The exact ELF is available locally and the full function has now been checked. In `AirPlayReceiverSessionSetup`, one UDP socket call is separate from the TCP listener call at `0x2856fe`. The TCP call supplies the address-family value from the session network-address field, `SOCK_STREAM` (`1`), `IPPROTO_TCP` (`6`), requested port `0`, a port-output pointer at session `+0x2b8`, and an FD-output pointer at `+0x2b4`. `ServerSocketOpen` supports IPv4 and IPv6 family branches and zero-initializes the address portion; the selected family is not statically fixed here. It binds port zero, calls `getsockname()`, obtains the assigned port using `SockAddrGetPort`, stores it through `+0x2b8`, and stores the descriptor through `+0x2b4`. The port is dynamic/ephemeral.
 
-Setup passes the value from `+0x2b8` to `CFDictionarySetInt64` (`0x2945bd`). This proves insertion into the setup dictionary. The key pointer comes from a session/setup field; its semantic string is not recovered.
+Setup passes the value from `+0x2b8` to `CFDictionarySetInt64` (`0x2945bd`). This proves insertion into the setup dictionary. The key pointer comes from a session/setup field; its semantic string is not recovered. This proves insertion into a local setup dictionary only; the dictionary’s serialization, return, or external advertisement destination has not been established.
 
 | Item | Finding | Confidence |
 |---|---|---|
