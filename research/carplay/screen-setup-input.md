@@ -1,30 +1,21 @@
 # Screen setup input trace
 
-**Status: partial.** Offline trace of the indexed MY16ADA `jmcs` focused disassembly and the local ignored binary. No protocol bytes or live session were used.
+**Status: dictionary lookup family confirmed; schema/key semantics remain unresolved.**
 
-## Caller and arguments
+## Caller and data flow
 
-| Item | Finding | Confidence |
-|---|---|---|
-| Setup | `AirPlayReceiverSessionScreen_Setup`, VA `0x287d5d` | High |
-| Direct caller | `AirPlayReceiverSessionSetup`, VA `0x2854e1`; direct call at `0x28609c` | High; targeted linear call scan of indexed `jmcs` |
-| Setup arg 0 | Receiver screen-session pointer, retained in `r4`; writes two values at offsets `+0x10` and `+0x14` | High for ABI/register and stores; field semantics unknown |
-| Setup arg 1 | Pointer passed to helper `0x294598` as lookup object | High for data flow; concrete type unknown |
-| Setup return | Constant zero | High |
-| Caller class | Receiver setup routine; whether it is reached from a request parser, event, or another internal state transition remains unknown | Partial |
+`AirPlayReceiverSessionSetup` (`jmcs` VA `0x2854e0`, Thumb symbol `0x2854e1`) directly calls `AirPlayReceiverSessionScreen_Setup` (`0x287d5c`, Thumb symbol `0x287d5d`) at call site `0x28609c`. The callee receives the screen object in `r0` and a lookup object in `r1`. It passes the lookup object, a literal-derived key-object pointer, and a stack error/status slot to `0x294598`. It stores the two returned registers at screen-object offsets `+0x10` and `+0x14`. If the status slot is nonzero, it stores `0x46` and `0` instead. The function returns zero.
 
-`Setup` passes arg 1 to `0x294598` with a key pointer derived from an address literal and an output slot at its stack `+4`. The helper returns two register values, stored at receiver offsets `+0x10/+0x14`; if the output slot is nonzero, those fields are replaced with `0x46` and zero. Key text, value types, and semantic names are not recovered in the available annotated excerpt, so fields remain unnamed.
+## Helper classification
 
-## Request schema ledger
+`0x294598` calls `0x28e520`, which calls the local `CFLDictionaryGetValue` implementation at `0x28f37c`. That implementation performs `__CFLDictionaryFindKey` and obtains the dictionary value. On success `0x294598` tail-calls `0x293d40` to convert/return the value; on failure it writes an error/default marker and returns zero in both registers. Thus the helper family is a Honda `CFLDictionaryGetValue` lookup plus typed conversion, not proven CoreFoundation, plist, or raw struct-offset access.
 
-| FIELD / KEY | TYPE | SOURCE | PRIMARY VALUE IF KNOWN | USED BY | CONFIDENCE |
-|---|---|---|---|---|---|
-| lookup key at Setup literal-derived address | Unknown | `AirPlayReceiverSessionScreen_Setup` -> helper `0x294598` | Unknown | Result stored at receiver `+0x10` | Low; key bytes not decoded |
-| second helper return | Unknown | Helper `0x294598` | Unknown | Stored at receiver `+0x14`, except error/default path writes zero | Medium for data flow only |
-| helper status/output slot | Stack output at Setup `sp+4` | Helper `0x294598` | If nonzero, defaults receiver fields to `0x46`, `0` | Setup branch | High for control flow; meaning unknown |
+The literal-derived key is an object pointer in the local CFL constant pool; no stable human-readable key string was recovered from the indexed string listing. Do not assign a semantic label from the value `0x46` or the key pointer alone.
 
-## Boundary and missing evidence
+| Source | Destination | Observed type/data | Later consumers | Confidence |
+|---|---|---|---|---|
+| CFL dictionary lookup result via `0x294598` | screen object `+0x10` | first returned word; numeric meaning not established | screen/session code; semantic xrefs not yet bounded | High data flow; unknown meaning |
+| CFL dictionary lookup result via `0x294598` | screen object `+0x14` | second returned word | passed as screen-object pointer in caller setup flow; precise consumers require object-layout cross-reference audit | High data flow; unknown meaning |
+| lookup status at callee stack output slot | fallback to `+0x10/+0x14` | `0x46`, `0` | error/default path | High |
 
-No external transport or parser is established. The exact missing artifact is a complete caller/xref and control-flow trace above `AirPlayReceiverSessionSetup` within `jmcs`, including its entry arguments and the producer of the screen-session event. The indexed focused analysis does not include that trace or the event producer.
-
-No `CFDictionary`, plist, HTTP dictionary, or other concrete object class is claimed. `0x294598` is only established as a key-and-output style helper by its call shape; its implementation/type contract is not included in the bounded trace.
+**Input object type:** CFL dictionary compatible, high confidence from implementation. **Key/field:** unresolved. **Return:** converted pair in `r0/r1`; exact scalar/compound semantic type unresolved. No guessed width/height/ID/port labels are introduced.

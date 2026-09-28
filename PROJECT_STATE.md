@@ -6,7 +6,7 @@ Render a genuine, independent second CarPlay display only in the existing Honda 
 
 ## Current milestone
 
-Step 4 remains partial. The focused offline trace identifies `AirPlayReceiverSessionSetup` as the direct caller of `AirPlayReceiverSessionScreen_Setup` (call VA `0x28609c`) and the `_ScreenThread` wait helper/object (`0x2a0480`, screen-session offset `+0x1418`). It still does not recover the external control transport/parser, Setup input schema, wait-object signal producer, display-to-stream identity, or concrete decoder/output consumer. Display B negotiation is not ready to implement.
+Step 4 remains partial. A deeper offline `jmcs` pass confirms `AirPlayReceiverSessionSetup` calls `AirPlayReceiverSessionScreen_Setup` at `0x28609c`; Setup reads a Honda CFL dictionary value through `0x294598` and stores converted values at the screen object `+0x10/+0x14`. The field at outer session `+0x1418` is a TCP listening socket descriptor created by `ServerSocketOpen` (`0x2a0a34`), not a semaphore. `_ScreenThread` calls `SocketAccept` (`0x2a0480`), which uses `select()` and `accept()`; an inbound TCP connection is the event that advances to `StartSession`. The upstream request dispatcher/schema and accepted-connection protocol remain unknown. Media helper `0x8e70c` is a framed-data callback dispatcher, not a decoder. H.264/MediaCodec support exists elsewhere in `jmcs` but its link to this callback and the output Surface remain unknown. Display B negotiation is not ready to implement.
 
 HondaHack's cluster output path is traced. It uses a normal Android View injected into Honda's existing externaldisplay main/interrupt window hierarchy, not direct framebuffer output or a DisplayManager Presentation. Screen Casting captures Display 0 at 400×240 ARGB_8888, passes frames through a MemoryFile/PFD Messenger path, and sets them on a HondaHack ImageView in that View. The externaldisplay process owns the Display 1 full-screen windows.
 
@@ -19,10 +19,10 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 - Confirmed: separate Android Displays 0 and 1 at 800×480; Display 1 / layer stack 1; HondaHack Screen Casting and Advanced Meter share the ExternalDisplay Xposed-injected View host path.
 - Confirmed: HondaHack captures the center display at 400×240 ARGB_8888 and presents it in a fitXY ImageView. The source layout's local cast area is 584×191 within a 584×215 root.
 - Unknown: exact physical Navigation region geometry and downstream crop/mask transform.
-- Unknown: raw iAP2 Identification, second display descriptor/UUID/role, and second session negotiation.
+- Unknown: raw iAP2 Identification, second display descriptor/UUID/role, and second session negotiation. The primary screen setup path now shows a TCP listener and accepted connection, but its upstream dispatcher/request schema is still unknown.
 - Unknown: a supported/maintainable ClarityLink mechanism to obtain Honda's externaldisplay root without HondaHack's private Xposed integration.
 - Not implemented: second CarPlay session, second H.264 stream, hardware renderer, or on-car test.
-- New trace artifacts: `research/carplay/screen-setup-input.md`, `screen-thread-event.md`, `video-callback-trace.md`, `carplay-decoder.md`, `primary-screen-end-to-end.md`, `display-b-interposer.md`, and `step-reports/09-control-and-decoder-trace.md`.
+- New trace artifacts: `research/carplay/control-plane-state-machine.md`, `screen-setup-input.md`, `screen-thread-event.md`, `video-callback-trace.md`, `carplay-decoder.md`, `primary-screen-end-to-end.md`, `display-b-interposer.md`, and `step-reports/10-control-media-breakthrough.md`.
 
 ## Roadmap
 
@@ -31,7 +31,7 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 | 1 | Evidence baseline | Complete |
 | 2 | Prove cluster/HondaHack output path | Complete: HondaHack uses a regular View in Honda's ExternalDisplay window; exact physical crop remains non-blocking and unproven |
 | 3 | Reusable ClarityLink renderer abstraction | Partial and sufficient for protocol work: synthetic host model/tests and API 17 View skeleton; root acquisition, crop, and zero-copy remain deferred |
-| 4 | Primary screen/session transport and callback trace | Partial: Setup direct caller and thread wait helper/object located; transport/schema, signal producer, binding identity, and decoder/output consumer unresolved |
+| 4 | Primary screen/session transport and callback trace | Partial: Setup dictionary family and TCP listener/accept event confirmed; upstream parser/schema, binding identity, callback-to-decoder link, and output Surface unresolved |
 | 5 | Implement Display-B negotiation | Not ready; requires accepted descriptor/session evidence and a reversible implementation design |
 | 6 | Receive second CarPlay H.264 stream | Pending negotiated stream; existing decoder feasibility stands |
 | 7 | Connect decoder to ExternalDisplay renderer | Pending stream-to-frame lifecycle and renderer integration |

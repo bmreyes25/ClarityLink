@@ -1,18 +1,16 @@
-# Screen thread event trace
+# Screen thread wait and connection event
 
-**Status: wait/start edge confirmed; producer unresolved.**
+**Status: listening socket, select wait, and accept producer confirmed.**
 
-`_ScreenThread` (`jmcs`, VA `0x283dad`) reads its wait object from the screen-session context at `[r4 + 0x1400 + 0x18]` and calls helper `0x2a0480` at `0x283de4`, with timeout argument `10` and a local timing structure. When that call returns zero, the worker proceeds through session-state handling and invokes `AirPlayReceiverSessionScreen_StartSession` at `0x283eb6` (`0x2883a9`). A nonzero result takes an error/cleanup path.
+The field at outer receiver/session offset `+0x1418` is populated by `ServerSocketOpen` (`0x2a0a34`) from `AirPlayReceiverSessionSetup`. This is a file descriptor, not a semaphore or condition object. `_ScreenThread` (`0x283dac`) loads `[r4 + 0x1400 + 0x18]` and calls `SocketAccept` (`0x2a0480`) with timeout 10 seconds. `SocketAccept` builds an `fd_set`, calls imported `select()` (`0x12d88`), and, when readable, calls imported `accept()` (`0x12f08`). The incoming connection is therefore the producer of readiness. A zero return from the wrapper causes `_ScreenThread` to call `AirPlayReceiverSessionScreen_StartSession` (`0x2883a8`, call site `0x283eb6`).
 
-The helper's implementation and synchronization primitive are not identified by the indexed excerpts. It is therefore **not proven** to be `sem_wait`, `pthread_cond_wait`, or another named primitive. The existing excerpt also does not show where the wait object is initialized/stored or which functions signal it.
-
-| Question | Result |
+| Lifecycle action | Evidence |
 |---|---|
-| Wait function | Helper `0x2a0480`; primitive unknown |
-| Wait object | `[r4 + 0x1400 + 0x18]` |
-| Object creation/storage | Unknown; initializer/xrefs absent from focused excerpt |
-| Signal/post callers | Unknown; signal producer/xrefs absent |
-| State changed before wake | Unknown |
-| Function that makes worker start a screen session | Successful return from helper `0x2a0480` in `_ScreenThread`; upstream producer unknown |
+| Initialize / create | `AirPlayReceiverSessionSetup` calls `ServerSocketOpen`; `socket`, nonblocking configuration, `bind`, and `listen` are visible in `0x2a0a34` |
+| Store | returned listener fd is stored in the receiver/session field at `+0x1418` |
+| Wait | `_ScreenThread` calls `SocketAccept`; helper uses `select()` and a 10-second timeout |
+| Signal / post | No separate signal primitive. Remote/client TCP connection causes fd readiness; helper then accepts it |
+| Accepted state | `accept()` result is returned through the helper output slot; successful return proceeds to StartSession |
+| Destroy / close | cleanup paths reset the stored field and call `close()` where applicable; exact ownership on every error path is not fully audited |
 
-The exact next artifact needed is a caller/xref trace for helper `0x2a0480` and the object at session offset `+0x1418`, including initialization and every signal path in `jmcs`. No specific semaphore or condition-variable API is asserted.
+**Object type:** listening socket descriptor (confirmed). **Initializer:** `ServerSocketOpen`, invoked from `AirPlayReceiverSessionSetup`. **Wait:** `SocketAccept` / `select` / `accept`. **Producer:** peer connection to the listener; request parser and accepted-socket consumer remain to be traced. No semaphore/condition-variable claim applies.

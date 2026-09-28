@@ -1,53 +1,49 @@
 # Primary screen end-to-end trace
 
-**Status: partial; both transport/event and decoder/output boundaries remain open.**
+**Status: control path extended through TCP accept; H.264 decoder/output binding remains open.**
 
 ```text
-CONTROL INPUT                         MEDIA / OUTPUT
-unknown transport/parser              unknown video input source
-        |                                      |
-        v                                      v
-AirPlayReceiverSessionSetup            mc_ScreenStreamProcessData
-        |                                      |
-        v                                      v
-AirPlayReceiverSessionScreen_Setup      generic ScreenStream callback dispatch
-  caller VA 0x28609c                            |
-  structured lookup helper                      v
-        |                                decoder: UNKNOWN
-        v                                      |
-receiver fields +0x10/+0x14                    v
-        |                                  output Surface: UNKNOWN
-        v
-event producer/signal: UNKNOWN
-        |
-        v
-_ScreenThread waits via helper 0x2a0480
-        |
-        v
-AirPlayReceiverSessionScreen_StartSession
-        |
-        v
-ScreenStreamCreate -> configure -> ScreenStreamStart
+CONTROL INPUT                                    MEDIA / OUTPUT
+unknown dispatcher / session call               accepted session data
+        |                                                  |
+        v                                                  v
+AirPlayReceiverSessionSetup                ScreenStreamProcessData
+        |                                      global callback dispatch
+        +-- AirPlayReceiverSessionScreen_Setup             |
+        |   CFL dictionary value -> +0x10/+0x14            v
+        +-- ServerSocketOpen -> listener fd +0x1418    mc_ScreenStreamProcessData
+                      |                                      |
+                      v                                      v
+               _ScreenThread -> SocketAccept(select/accept) framed parser
+                      |                                      |
+                      v                                      v
+        AirPlayReceiverSessionScreen_StartSession      helper 0x8e70c
+                      |                                indirect callback [obj+0x10]
+                      v                                      |
+             ScreenStream create/start                     helper 0x8ea18
+                      |                                      |
+                      +---- session/stream binding ----------+? UNKNOWN
+                                                             |
+                       H.264/MediaCodec capability in jmcs   |
+                       linkage to callback UNKNOWN ----------+
+                                                             v
+                                                decoder / output Surface UNKNOWN
 ```
 
 ## Edge ledger
 
 | Edge | Status | Evidence |
 |---|---|---|
-| `AirPlayReceiverSessionSetup` -> `AirPlayReceiverSessionScreen_Setup` | CONFIRMED | Direct call at `jmcs` VA `0x28609c` |
-| Setup input -> stored receiver fields | CONFIRMED | Helper `0x294598`; writes at receiver offsets `+0x10/+0x14`; semantic field names unknown |
-| Setup -> wait object signal | UNKNOWN | No signal producer/xref in focused artifacts |
-| wait helper -> `_ScreenThread` start branch | CONFIRMED | `_ScreenThread` calls `0x2a0480`; zero return reaches StartSession call |
-| `_ScreenThread` -> `StartSession` | CONFIRMED | Call at `0x283eb6` |
-| `StartSession` -> generic stream create/configure/start | CONFIRMED | `0x28e208`, property/context helpers, `0x28e298` |
-| `ScreenStream` -> Honda callback dispatch | CONFIRMED at generic ABI | Global callback dispatch; singleton Honda proxy table |
-| Honda callback -> concrete decoder | UNKNOWN | No proven decoder call edge |
-| decoder -> output Surface | UNKNOWN | No proven output-object edge |
+| `AirPlayReceiverSessionSetup` -> `AirPlayReceiverSessionScreen_Setup` | CONFIRMED | direct call site `0x28609c` |
+| Setup dictionary -> screen object `+0x10/+0x14` | CONFIRMED | `0x294598` -> `CFLDictionaryGetValue` and typed conversion |
+| Setup -> listener at outer `+0x1418` | CONFIRMED | `ServerSocketOpen` (`0x2a0a34`) returns fd stored in field |
+| listener -> `_ScreenThread` | CONFIRMED | `_ScreenThread` reads offset and calls `SocketAccept` (`0x2a0480`) |
+| `SocketAccept` -> incoming peer | CONFIRMED | imported `select()` then `accept()` |
+| successful accept -> `StartSession` | CONFIRMED | zero return branch calls `0x2883a8` at `0x283eb6` |
+| StartSession -> generic ScreenStream lifecycle | CONFIRMED | existing trace at `0x28e208` / configure / start |
+| ScreenStream -> Honda callback | CONFIRMED at generic ABI | global callback dispatch in `ScreenStreamProcessData` |
+| Honda callback -> `0x8e70c` framed dispatch | CONFIRMED | two call sites in `mc_ScreenStreamProcessData` |
+| callback -> H.264 pipeline/MediaCodec | UNKNOWN | same ELF has H.264 and MediaCodec APIs, but no proven object/call xref from this callback |
+| decoder -> output Surface | UNKNOWN | no CarPlay-specific output binding recovered |
 
-## Boundaries
-
-The Setup caller is now known, but the external/control-channel entry above `AirPlayReceiverSessionSetup`, the exact input object class/schema, and the wake producer remain unknown. Downstream, `mc_ScreenStreamProcessData` parses structured input but the H.264 frame receiver, decoder object, decoder cardinality, and Android Surface are unknown. No stream/display binding token is evident in the supported trace.
-
-Minimum conceptual Display B insertion points remain: (1) descriptor/setup production and session assignment, and (2) per-stream callback/decoder/output routing. The current Honda singleton callback table is a material constraint. These points are hypotheses for investigation, not a supported interposer design.
-
-**Second session structurally possible:** UNKNOWN. **Display-B interposer:** PLAUSIBLE as an investigation architecture, implementation blocked. **Raw capture:** HELPFUL only after the control endpoint is identified; an Identification-only capture is insufficient. No broad USB capture is indicated by current evidence.
+No shared `screenSession` context has yet been proven across Setup and media dispatch. The generic stream context API exists, but its assignment and semantic identity remain unresolved. Display B remains blocked by the missing link from accepted session/request through stream identity to independent decoder/output routing.
