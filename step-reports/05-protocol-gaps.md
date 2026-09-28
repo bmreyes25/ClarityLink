@@ -1,23 +1,23 @@
-# Step 5 — Resolve protocol and geometry gaps
+# Step 5 — Protocol and cluster map-region evidence
 
-**Status: complete for the offline evidence gate; both proof gaps remain and their minimum read-only observations are specified.** No Step 6 work or live car capture was started.
+**Status: offline review complete; practical live evidence remains open.** ClarityLink targets a separate CarPlay map display inside the existing instrument-cluster navigation region while the center display remains independently usable.
 
-## Task A — factory Navigation safe area
+## Cluster geometry and Honda render path
 
-**Exact factory rectangle: unresolved.** The static allowlist establishes only two related coordinate spaces: primary Android display `(0,0,800,480)` and Honda Hack's local cast image `(0,24,584,191)` within its `(0,0,584,215)` layout. No OEM safe-area rectangle, crop/scissor bounds, or transform between those spaces was found in the targeted Navigation/ExternalDisplay code, config/resources, cluster wrappers, or `disp_com_meter` evidence. The detailed candidate ledger and confidence labels are in [`research/navigation-safe-area.md`](../research/navigation-safe-area.md).
+The exact factory Navigation destination rectangle remains unknown. Saved evidence establishes Android built-in and HDMI logical displays at 800×480. Honda Hack mirrors into the cluster over the HDMI path, but its `(0,24,584,191)` coordinates are local to a 584×215 layout and do not establish the underlying factory surface or native cluster bounds.
 
-The smallest missing observation is a paired, read-only HDMI/display-1 frame and perpendicular full-cluster image while the OEM Navigation page is active with Honda Hack casting off. If the OEM page is composed by a separate meter controller, a read-only native page-layout/framebuffer snapshot from that controller will be required instead. The cast rectangle is explicitly excluded as proof.
+The next step is parked, read-only ADB diagnostics of framebuffer/sysfs, Android display services, and bounded Honda display components. If those do not reveal enough geometry, use an identified read-only frame and a matched normal Navigation view/photo. Do not read a framebuffer until the target and byte count are verified.
 
-## Task B — iAP2 Identification
+## CarPlay second-display/session evidence
 
-**Raw packet: not reconstructed.** `jmcs` contains iAP2 Identification state names and accessory-info/XML routines. Separately, its AirPlay receiver's `AirPlayReceiverSessionScreen_CopyDisplaysInfo` path builds display/session information from the main screen. Static config values cannot supply missing packet bytes, parameter IDs/order, UUID, or encryption/framing. The exact capture boundary and privacy-scoped plan are in [`research/iap2-identification.md`](../research/iap2-identification.md): passive USB capture before iPhone reconnect through Identification Accepted, plus a separately identified passive session-control capture if the screen descriptor does not travel over the captured USB link.
+Static `jmcs` evidence configures one main CarPlay screen and has a separate AirPlay receiver display-info path. The raw iAP2 Identification bytes, display/session descriptor, UUID, and second-display negotiation are unknown. Before considering a USB analyzer, check existing read-only USB-monitor support, tools, and targeted runtime logs after ADB is available.
 
-## Step 6 gate
+## Practical Step 6 gate
 
-```text
-SAFE_AREA_READY_FOR_STEP_6: NO
-IDENTIFICATION_READY_FOR_STEP_6: NO
-STEP_6_READY: NO
-```
+Step 6 remains **not ready**. It may proceed when evidence is sufficient to define:
 
-Blockers: (1) factory Navigation bounds are not measured in native panel coordinates, and (2) no raw iAP2 Identification exchange or subsequent display-session descriptor capture exists. Step 6 was not started. No car/USB capture, vehicle writes, or changes to firmware/backups occurred.
+1. The second CarPlay display size and session identity.
+2. The Honda rendering surface/path and cluster Navigation destination rectangle.
+3. A reversible binding with rollback and fail-clear behavior that preserves all stock cluster UI and center CarPlay use.
+
+Perfect knowledge of unrelated panel specifications is not required. See `step-reports/05b-display-diagnostics.md` for the current parked-access gate.

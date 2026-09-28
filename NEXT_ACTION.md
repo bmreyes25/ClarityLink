@@ -1,11 +1,7 @@
 # Next action
 
-**Step 6 is not ready.** Do not start protocol capture until a capture-only USB 2.0 analyzer and the paired cluster-photo/display capture are prepared.
+**ACTION REQUIRED:** Confirm the vehicle is parked and powered and ready for read-only ADB diagnostics over Wi-Fi. If its address differs from `192.168.86.102`, provide the current address. The latest `adb devices -l` returned no attached devices; do not connect or query the vehicle before this confirmation.
 
-When the user schedules one parked read-only session:
+After confirmation, reconnect ADB only if needed and collect the bounded read-only display inventory described in the revised Step 5B handoff. Start with `/proc/fb`, graphics sysfs, `dumpsys display`, SurfaceFlinger, window diagnostics, and display properties. Save full outputs locally under `research/captures/display-diagnostics/`; extract only relevant lines into `research/cluster-display-diagnostics.md` and `step-reports/05b-display-diagnostics.md`.
 
-1. With Honda Hack casting off and the OEM cluster Navigation page active, capture the HDMI/display-1 frame and a perpendicular full-cluster photo in the same state.
-2. Passively capture USB traffic from before reconnect through iAP2 Identification Accepted, saving the pcapng on the Mac. Continue through initial CarPlay screen/session setup. If the screen descriptor uses another transport, identify it through read-only `jmcs` endpoint inventory before capturing only that session control endpoint.
-3. Keep captures local; analyze offline and update the two Step 5 gap reports before deciding whether Step 6 can proceed.
-
-No current car connection or vehicle write is requested or authorized by this file.
+Do not capture a framebuffer until its identity, dimensions, format, stride, and exact byte count are known. Then ask the user to display the normal factory Navigation map and reply READY before one read-only frame capture. Do not require a USB analyzer before the existing diagnostics and logging options have been exhausted. Keep the iPhone disconnected until any required capture setup is ready.

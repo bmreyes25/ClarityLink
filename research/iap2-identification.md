@@ -38,3 +38,7 @@ The available offline evidence records `CONFIG_USB_MON` as unset, so on-head-uni
 ## Exact packet decision
 
 No deterministic packet-emitter script is appropriate: message/parameter IDs, parameter order, lengths, UUID, and framing/checksum are not established. The future capture must distinguish the raw iAP2 accessory Identification exchange from the later CarPlay/AirPlay display-session advertisement; the latter is the path relevant to screen count and view geometry.
+
+## ClarityLink scope update — 2026-09-28
+
+The practical target is a second independent CarPlay display routed into the cluster map region while the center display remains independent. Exact wire reconstruction remains open, but hardware purchase is not the next step: first use parked, read-only ADB to check existing USB-monitor support, available diagnostic tools, and targeted CarPlay/iAP2 logs. The latest `adb devices -l` check returned no device, so no live logs or vehicle-side checks were collected. The live descriptor transport remains unknown.

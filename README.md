@@ -1,33 +1,47 @@
-# ClarityLab: CarPlay navigation for the 2018 Honda Clarity cluster
+# ClarityLink
 
-This project investigates how to show **Apple Maps or Waze navigation from an iPhone in the factory instrument cluster** while the center display remains independently usable for Music, calls, or other CarPlay apps. The target is genuine CarPlay instrument-cluster integration: a separate map stream and, where available, maneuver, distance, and road guidance. Normal spoken navigation through the factory speakers must keep working.
+**Independent CarPlay navigation in the factory map region of the 2018 Honda Clarity instrument cluster, while the center CarPlay display remains independently usable.**
 
-The vehicle is a 2018 Honda Clarity with an MY16ADA head unit running Android 4.2.2, build 1.F1A2.45. Work is evidence-first and begins with copied firmware, parked read-only diagnostics, and a Mac infotainment twin. No receiver patch or independent iPhone-rendered cluster map is working yet.
+The target behavior is Apple Maps first and Waze if supported, confined to the existing factory/HondaHack map region. The speedometer, gauges, warnings, and other stock cluster UI must remain intact. No independent iPhone-rendered cluster stream is confirmed yet.
 
-## What we have established
+## Current status — 2026-09-28
 
-- The head unit exposes separate 800×480 Android center and HDMI display devices. Honda Hack can mirror live CarPlay into the cluster's central Navigation area. Apple Maps voice guidance continued to work during that cast. When the center switched to Music, the cast followed Music; it was a mirror, not a separate iPhone map.
-- Waze running **on the head unit** drove a native cluster arrow and distance that remained visible over Honda Home and cleared when the route ended. This proves a separate cluster navigation view exists, but it does not prove that iPhone CarPlay sends route guidance to this Honda receiver.
-- Static receiver analysis identified the `jmcs` CarPlay engine, `libcarplay_proxy.so`, CarPlay service, Honda Navigation/ExternalDisplay services, and the second-display rendering path. The inspected build configures one main CarPlay screen; the proxy's screen callback is a singleton. A dormant usable second stream has not been demonstrated.
-- A temporary, approved decoder probe exercised two NVIDIA H.264 instances and was removed afterward. It produced frames from both, but did not establish sustained concurrent decoding **with CarPlay running**. iAP2 identification packets and actual multi-display negotiation have not been decoded.
-- A Mac simulator replays observed casting and head-unit Waze behavior alongside clearly labeled hypothetical independent-screen and route-metadata contracts. It tests lifecycle behavior such as Maps-to-Music switching, route end, disconnect, and stale guidance clearing; it is not a full Tegra or cluster-electronics emulator.
-- The reviewed **head-unit-only** forensic acquisition is complete: eight eMMC chunks, eight MTD images, eight filesystem archives, kernel/HAL metadata, and eight labeled runtime states. All 2,487 final checksum entries passed in separate new Mac original/working copies. The original is read-only; older backups were preserved. The 7,549,747,200-byte eMMC reconstruction and nine-partition GPT checks passed. Optional protected process reads are explicitly unavailable; the live dataset is not atomic or proof of boot-independent recovery. See [completion evidence](research/acquisition/ACQUISITION_COMPLETION_20260926.md).
-- A local Ollama research profile uses the installed `qwen3.6:35b-coding` at a tested 65,536-token context. It receives short, line-numbered step packets from curated sanitized files. It cannot execute car commands; its suggestions are checked against the evidence and tests.
-- Step 3 now has a separately built API-17 background-service candidate, a signed APK hash, strict Mac trace extraction/scoring, 19 passing host tests, and a parked run card. The build has not been runtime-tested on Android/emulator, installed on the car, or independently accepted yet. The old 28/30 result remains a 93.33% failure against the 95% gate; CarPlay picture and voice remain separate human observations. See [probe design](research/probes/carplay-coexistence/DESIGN.md) and [review run card](research/probes/carplay-coexistence/ON_CAR_RUN_CARD.md).
+Steps 1–5 offline are complete. Step 5B is active and has been narrowed to the practical questions needed for this target: cluster output geometry, Honda's existing render path, second-display CarPlay setup, and binding a second stream to the map region.
 
-The detailed [analysis report](research/REPORT.md) separates observations from inference. The [native cluster audit](research/NATIVE_CARPLAY_CLUSTER.md) explains the route-metadata and separate-video paths. The [execution plan](research/plans/CARPLAY_SECOND_DISPLAY_REVIEW.plan.md) and [step-status index](research/plans/STEP_STATUS.md) record progress and evidence gates. The [forensic status](research/acquisition/FORENSIC_STATUS_20260925.md), [resume run card](research/acquisition/RESUME_RUN_CARD_20260925.md), and [local-model setup](research/local-model/README.md) describe the next work.
+- Saved evidence shows separate Android built-in and HDMI display devices at 800×480. That is the head-unit output size, not proof of the cluster map rectangle or its native framebuffer.
+- Honda Hack mirrors the center CarPlay image into the cluster navigation area; it follows the center app. This establishes a usable existing output path, not the exact factory map bounds or a second CarPlay stream.
+- A read-only `adb devices -l` check on 2026-09-28 returned no attached device. No vehicle diagnostics or capture were started in that check.
+- The user reports ADB over Wi-Fi is available and no USB protocol analyzer is owned. The next investigation is read-only head-unit display diagnostics and targeted Honda component inspection. Do not recommend analyzer purchase until existing software options are exhausted.
+- Exact navigation destination rectangle, actual iAP2 Identification bytes, second-display negotiation, and safe-clear behavior remain unknown. Step 6 has not started.
 
-## Next milestones
+## Roadmap
 
-1. Use the new verified complete working copy for offline research; the acquisition and Mac-copy checkpoint has passed. Start a fresh local task with [the bounded prompts](research/local-model/POST_ACQUISITION_PROMPTS.md), preserving every original backup.
-2. Feed verified firmware and existing captured fixtures into the Mac twin; map receiver, display, audio, and navigation boundaries. A sanitized nine-partition GPT/mount fixture already seeds the firmware-catalog layer.
-3. Determine from actual protocol evidence whether the Honda advertises iAP2 route guidance or negotiates multiple CarPlay displays. Separately test decoder coexistence with the main CarPlay session.
-4. Prototype the smallest reversible display-only integration that survives center app changes, route end, and disconnect while preserving voice. A true independent iPhone-rendered map requires proven receiver support or a separately reviewed receiver change.
+1. Evidence baseline — complete.
+2. Cluster navigation-region model — partial; production geometry unresolved.
+3. Second decoder capability — sufficient offline evidence for now; do not repeat without a new reason.
+4. Static CarPlay display/Identification model — complete for static evidence.
+5. Resolve practical cluster geometry, Honda render path, and available CarPlay session evidence — current.
+6. Build the two-display Identification/session model offline.
+7. Build the second-display receiver/decoder offline.
+8. Bind its video to the cluster navigation region.
+9. Validate independent center and cluster displays offline.
+10. Prepare a reversible on-car runtime experiment.
+11. Obtain a real secondary CarPlay stream while parked.
+12. Validate Apple Maps in the cluster map region with the center display independent; then assess Waze.
 
-CarPlay Ultra and spatial audio are later research topics; neither is a claim of support on this hardware.
+Step 6 may proceed when evidence is sufficient to define the second display, its session identity, the target rendering surface and map rectangle, and rollback/fail-clear behavior. Unneeded panel specifications alone are not blockers.
 
-## Safety and data handling
+## Start here
 
-No system flash, partition write, remount, CAN/ADAS/safety-system access, or vehicle-control change is part of the current work. Any later on-car modification requires an exact artifact, backup/recovery evidence, rollback procedure, and separate review. The pristine backup, raw firmware, private logs, phone/route data, generated APKs, and forensic images stay local and are excluded from this repository. Only sanitized research, source, fixtures, plans, and tests are tracked.
+| Purpose | File |
+|---|---|
+| Current state and safety boundary | [PROJECT_STATE.md](PROJECT_STATE.md) |
+| One next action | [NEXT_ACTION.md](NEXT_ACTION.md) |
+| Evidence map | [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) |
+| Current Step 5B diagnostic report | [step-reports/05b-display-diagnostics.md](step-reports/05b-display-diagnostics.md) |
+| Existing protocol and geometry gaps | [step-reports/05-protocol-gaps.md](step-reports/05-protocol-gaps.md) |
+| Safe-area evidence ledger | [research/navigation-safe-area.md](research/navigation-safe-area.md) |
+| iAP2/display static analysis | [research/iap2-identification.md](research/iap2-identification.md) |
+| New-session handoff | [research/handoff/new-chat/START_HERE.md](research/handoff/new-chat/START_HERE.md) |
 
-This repository is private because reverse-engineering notes and vehicle-specific details need review before any broader release.
+Reports, source, sanitized fixtures, and plans are organized under `step-reports/`, `research/`, `simulator/`, and `tests/`. Raw firmware, forensic images, phone/location data, and raw captures remain local and are excluded from Git. Work is read-only until an independently reviewed reversible experiment is explicitly prepared.

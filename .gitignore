@@ -1,4 +1,4 @@
-# This repository tracks ClarityLab source and research notes, not firmware backups.
+# ClarityLink tracks sanitized source and research notes, not vehicle data.
 /*
 !/.gitignore
 !/README.md
@@ -9,6 +9,14 @@
 
 # Raw and derived vehicle data stays outside Git.
 /research/captures/
+!/research/captures/
+/research/captures/*
+!/research/captures/step5b/
+/research/captures/step5b/*
+!/research/captures/step5b/20260928T130534Z/
+/research/captures/step5b/20260928T130534Z/*
+!/research/captures/step5b/20260928T130534Z/CAPTURE_PLAN.md
+!/research/captures/step5b/20260928T130534Z/CAPTURE_STATUS.md
 /research/acquisition/live-inventory/
 /research/acquisition/generated/
 /research/local-model/runs/
