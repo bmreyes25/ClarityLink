@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "purpose": "offline model of the instrument-cluster navigation rectangle",
+  "canvas": {
+    "width": 800,
+    "height": 480,
+    "units": "Android logical display pixels",
+    "evidence": "observed built-in and HDMI display dimensions in saved Android captures; CarPlay configuration also specifies 800x480",
+    "orientation": "landscape (inferred from width greater than height and captured frames)"
+  },
+  "candidateNavigationImageRegion": {
+    "x": 0,
+    "y": 24,
+    "width": 584,
+    "height": 191,
+    "evidence": "inferred from Honda Hack meter_civic.xml: root is 584x215 and screen_cast image fills a match-parent child with 24px top padding",
+    "confidence": "medium for the Honda Hack cast rectangle; low as a proxy for the factory Navigation safe rectangle",
+    "source": "research/simulator/working-backup/meter_civic.xml",
+    "physicalFactoryBoundsCalibrated": false
+  },
+  "rendering": {
+    "scalePolicy": "fit viewport while preserving 584:191 aspect ratio",
+    "sourceCastLayoutScaleType": "fitXY",
+    "physicalPanelScaling": "unknown",
+    "pixelFormat": "unknown at the Android-to-meter transport; saved PNG captures are RGB screenshots",
+    "orientationTransform": "none in the offline logical canvas; physical rotation/mirroring not independently measured"
+  },
+  "transport": {
+    "observedAndroidDestination": "HDMI display 1 (800x480)",
+    "candidateComponents": [
+      "ExternalDisplayOutService",
+      "Navigation services",
+      "disp_com_meter",
+      "cluster helpers"
+    ],
+    "physicalMeterTransport": "not fully reconstructed; do not infer the pixel protocol from these components alone"
+  },
+  "fixture": {
+    "kind": "synthetic",
+    "containsCapturedPhoneOrVehiclePixels": false,
+    "mapAndManeuverAreEvidence": false
+  }
+}
