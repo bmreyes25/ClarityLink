@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "source": "CLARITY_FORENSIC_20260925_211500_COMPLETE_WORKING",
+  "evidence": "observed file bytes; no private contents included",
+  "storageRef": "forensic-storage-map.json",
+  "artifacts": [
+    {
+      "archive": "filesystems/system.tar",
+      "member": "system/bin/jmcs",
+      "bytes": 13406720,
+      "sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232"
+    },
+    {
+      "archive": "filesystems/system.tar",
+      "member": "system/lib/libcarplay_proxy.so",
+      "bytes": 53156,
+      "sha256": "dc8bc5c19cf32a8e7edcc14c1d80e78bb96ca6ccc434229349c74590136bef66"
+    },
+    {
+      "archive": "filesystems/system.tar",
+      "member": "system/etc/media_codecs.xml",
+      "bytes": 5475,
+      "sha256": "5d844847b6a259492ec816935aae39da5998788d1ff3e2dbee75b55194313ba4"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/media/mcs/j_config.xml",
+      "bytes": 14337,
+      "sha256": "358cab78f4366d091cc4afa36d386ae8d9c21a81127091e2a2313ee6753240cc"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/CarPlay.apk",
+      "bytes": 199341,
+      "sha256": "0166a751900b285fd86715dc3b74606d0da35453ce9b3843e9edaab6bcadd828"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/CarPlay.odex",
+      "bytes": 103048,
+      "sha256": "d0b643708ce7ce8bd2bd51e387c8f1d12f99eb5fe16a3d5f32c97b445b6f0421"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/CarPlayService.apk",
+      "bytes": 3922,
+      "sha256": "a81f9e6431cd370059d10ec8827b92d91b74d7dc5357959bb30c948993dca89e"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/CarPlayService.odex",
+      "bytes": 371456,
+      "sha256": "cb8cef4ef5f209d74efdb04ed58c1efb9e6a2742c1a8f331f123d9e55449a0ae"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/Navigation.apk",
+      "bytes": 4894,
+      "sha256": "774d43a2efd6ccfe45528688b2262513677f56b94300a6bc3a3fa8dc38b15881"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/Navigation.odex",
+      "bytes": 546664,
+      "sha256": "88ed9c4c07e6beff5b9f3ae24748ce50ff80f3b4baabbb4f8ee6a6ebb94b6789"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/ExternalDisplayApService.apk",
+      "bytes": 5922,
+      "sha256": "0167100294e8fa60a3cad9d761040687c22a58825044e3c19c1a5560da761d3f"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/ExternalDisplayApService.odex",
+      "bytes": 96640,
+      "sha256": "4d539587578b87b54b47311f790113a868034c306f7e5a957bd20ea305b73d80"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/ExternalDisplayOutService.apk",
+      "bytes": 3690934,
+      "sha256": "2b29800dc1c1e524e096c0b1d37ce1c109e5a815a067a1a1ce59621e0c2f97e5"
+    },
+    {
+      "archive": "filesystems/system-vendor.tar",
+      "member": "system/vendor/app/ExternalDisplayOutService.odex",
+      "bytes": 1551064,
+      "sha256": "de1e56a98d279537374b8b092d3355896ed18490364ddcd086277901afe12bb4"
+    }
+  ],
+  "runtimeSnapshots": [
+    {
+      "state": "01-disconnected",
+      "source": "runtime/01-disconnected",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "b6a90bd7153ecbdf49aa2069f594655ef53c35d26c3fcc2e0a86f165f30a92b8",
+          "bytes": 3493
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "02-carplay-home",
+      "source": "runtime/02-carplay-home",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "03-apple-maps-open",
+      "source": "runtime/03-apple-maps-open",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "04-apple-maps-routing",
+      "source": "runtime/04-apple-maps-routing",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "05-route-center-music",
+      "source": "runtime/05-route-center-music",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "06-factory-cluster-navigation",
+      "source": "runtime/06-factory-cluster-navigation",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "07-hondahack-casting",
+      "source": "runtime/07-hondahack-casting",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "169bcd75a45c3eecdca254ddb866e3fde6445842b6295debd8642f3986130935",
+          "bytes": 3488
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    },
+    {
+      "state": "08-disconnected-again",
+      "source": "runtime/08-disconnected-again",
+      "files": {
+        "audio.stdout.txt": {
+          "sha256": "b6a90bd7153ecbdf49aa2069f594655ef53c35d26c3fcc2e0a86f165f30a92b8",
+          "bytes": 3493
+        },
+        "display.stdout.txt": {
+          "sha256": "6e569d3cdbf7848d75cf34e009099ba21aeecfc501efe4d96ba293b2ad57527b",
+          "bytes": 3129
+        },
+        "services.stdout.txt": {
+          "sha256": "65d8d428565cca403950b86bf0d2dc8fbada745ca43e14e78798076242c44462",
+          "bytes": 3986
+        }
+      },
+      "evidence": "observed snapshot; state name is acquisition label",
+      "audioFocusOwner": "unknown; opaque snapshot, not decoded here"
+    }
+  ],
+  "limitations": [
+    "Live filesystem archives are non-atomic",
+    "No ARM code executed",
+    "No protocol payload or per-event audio decoded"
+  ]
+}

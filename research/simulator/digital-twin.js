@@ -10,7 +10,7 @@ const ClarityTwin = (() => {
     'center-20260925-honda-home': 'center', 'center-20260925-waze-ended': 'center',
     'cluster-20260925-waze-ended': 'cluster'
   });
-  const blankClusterStream = () => ({advertised: false, setup: false, active: false, frameId: null, frames: 0});
+  const blankClusterStream = () => ({advertised: false, setup: false, active: false, frameId: null, frames: 0, expiresAtMs: null});
   const blank = () => ({
     source: 'synthetic', connected: false, navigation: null,
     speedKph: 0, gear: 'P', batterySocPercent: 70, evRangeKm: 70,
@@ -21,8 +21,10 @@ const ClarityTwin = (() => {
     if (!event || typeof event !== 'object' || !Number.isFinite(event.tMs) || event.tMs < state.updatedMs)
       throw Error('Invalid or out-of-order event time');
     const next = {...state, updatedMs: event.tMs};
-    if (next.navigation && event.tMs > next.navigation.expiresAtMs) next.navigation = null;
-    if (event.type === 'connected') next.connected = true;
+    if (next.navigation && event.tMs >= next.navigation.expiresAtMs) next.navigation = null;
+    if (next.clusterStream.expiresAtMs !== null && event.tMs >= next.clusterStream.expiresAtMs)
+      next.clusterStream = blankClusterStream();
+    if (event.type === 'connected') return {...blank(), connected: true, updatedMs: event.tMs};
     else if (event.type === 'disconnected') {
       next.connected = false; next.navigation = null; next.display = 'native';
       next.centerApp = 'none'; next.clusterStream = blankClusterStream();
@@ -43,7 +45,7 @@ const ClarityTwin = (() => {
     }
     else if (event.type === 'guidance-end') {
       next.navigation = null;
-      next.clusterStream = {...next.clusterStream, active: false, frameId: null};
+      next.clusterStream = blankClusterStream();
     }
     else if (event.type === 'center-app') {
       if (!next.connected) throw Error('Center app requires a connected session');
@@ -76,7 +78,8 @@ const ClarityTwin = (() => {
       if (!next.connected || !next.clusterStream.active) throw Error('Cluster frame requires an active stream');
       if (typeof event.frameId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(event.frameId))
         throw Error('Invalid frame ID');
-      next.clusterStream = {...next.clusterStream, frameId: event.frameId, frames: next.clusterStream.frames + 1};
+      next.clusterStream = {...next.clusterStream, frameId: event.frameId, frames: next.clusterStream.frames + 1,
+                            expiresAtMs: event.tMs + 15000};
     }
     else if (event.type === 'cluster-stop') next.clusterStream = blankClusterStream();
     else if (event.type === 'display') {
@@ -99,7 +102,7 @@ const ClarityTwin = (() => {
         next.gear = event.gear;
       }
     }
-    else throw Error('Unknown event type');
+    else if (event.type !== 'tick') throw Error('Unknown event type');
     return next;
   }
   function replay(events) {return events.reduce(apply, blank());}

@@ -9,6 +9,116 @@
     "width": 800,
     "height": 480
   },
+  "physicalNavigationBounds": {
+    "rectangle": null,
+    "evidence": "unknown; photos qualitative only",
+    "calibrated": false,
+    "source": "physicalClusterReferences"
+  },
+  "pairedCaptureProvenance": [
+    {
+      "id": "observed-mirror-off",
+      "evidence": "observed paired captures, consecutive not atomic",
+      "timing": "sample tMs are replay order, not measured latency",
+      "displays": {
+        "center": {
+          "captureId": "center-20260925-native-maps",
+          "source": "research/captures/20260925T150706Z-twin-off/twin-survey/display-0.png",
+          "sha256": "5382a6d50978ff965d5ffe496b9f5f507fd69a3af8008b8b3cfa3f5f0f4dd96f"
+        },
+        "hdmi": {
+          "captureId": "cluster-20260925-native",
+          "source": "research/captures/20260925T150706Z-twin-off/twin-survey/display-1.png",
+          "sha256": "5b41a9efd76b4e91d364bf83fa7a6616ec1428d0fa1ce7b2091e7d9ff2f5f846"
+        }
+      }
+    },
+    {
+      "id": "observed-mirror-maps",
+      "evidence": "observed paired captures, consecutive not atomic",
+      "timing": "sample tMs are replay order, not measured latency",
+      "displays": {
+        "center": {
+          "captureId": "center-20260925-cast-maps",
+          "source": "research/captures/20260925T150706Z-twin-on/twin-survey/display-0.png",
+          "sha256": "247edb13ecb22aa86c0941925e7754c3ae7e5dbceb28d6ffdd4b248c451961b4"
+        },
+        "hdmi": {
+          "captureId": "cluster-20260925-cast-maps",
+          "source": "research/captures/20260925T150706Z-twin-on/twin-survey/display-1.png",
+          "sha256": "5ef96b8c609e1204f12c3caefe1e31c1125851e6005df0893b6959495f68c031"
+        }
+      }
+    },
+    {
+      "id": "observed-mirror-music",
+      "evidence": "observed paired captures, consecutive not atomic",
+      "timing": "sample tMs are replay order, not measured latency",
+      "displays": {
+        "center": {
+          "captureId": "center-20260925-music",
+          "source": "research/captures/20260925T150706Z-music-cast/music/display-0.png",
+          "sha256": "80bd1ca22719b243d63210d69188bbe71e9a261c747cc8b7f60b9819f2bcc579"
+        },
+        "hdmi": {
+          "captureId": "cluster-20260925-cast-music",
+          "source": "research/captures/20260925T150706Z-music-cast/music/display-1.png",
+          "sha256": "04557965040d0eb79920ef7bbe3c2de336092c65ad9b313683084c7de25fdecb"
+        }
+      }
+    },
+    {
+      "id": "observed-honda-waze",
+      "evidence": "observed paired captures, consecutive not atomic",
+      "timing": "sample tMs are replay order, not measured latency",
+      "displays": {
+        "center": {
+          "captureId": "center-20260925-waze-route",
+          "source": "research/captures/20260925-waze-headunit-route/twin-survey/display-0.png",
+          "sha256": "1d4c70937930600267ad2425421b7bb9727d7eccda64b493e6d2ce9f57a67370"
+        },
+        "hdmi": {
+          "captureId": "cluster-20260925-waze-route",
+          "source": "research/captures/20260925-waze-headunit-route/twin-survey/display-1.png",
+          "sha256": "b3d948bf9dc8efbac09dd828b9de2595247ed5952ffab1dd18aea51b82864c52"
+        }
+      }
+    },
+    {
+      "id": "observed-honda-home",
+      "evidence": "observed paired captures, consecutive not atomic",
+      "timing": "sample tMs are replay order, not measured latency",
+      "displays": {
+        "center": {
+          "captureId": "center-20260925-honda-home",
+          "source": "research/captures/20260925-waze-background-home/twin-survey/display-0.png",
+          "sha256": "6e2add98f111f9df229d11d4d095a77fadbfb34a6f844a7e5831d17eaddb0a10"
+        },
+        "hdmi": {
+          "captureId": "cluster-20260925-waze-route",
+          "source": "research/captures/20260925-waze-background-home/twin-survey/display-1.png",
+          "sha256": "b3d948bf9dc8efbac09dd828b9de2595247ed5952ffab1dd18aea51b82864c52"
+        }
+      }
+    },
+    {
+      "id": "observed-honda-end",
+      "evidence": "observed paired captures, consecutive not atomic",
+      "timing": "sample tMs are replay order, not measured latency",
+      "displays": {
+        "center": {
+          "captureId": "center-20260925-waze-ended",
+          "source": "research/captures/20260925-waze-route-ended/twin-survey/display-0.png",
+          "sha256": "97463b43179d7832f6e9cff43b7744b60b9f48e4bf046d30539e806832f47694"
+        },
+        "hdmi": {
+          "captureId": "cluster-20260925-waze-ended",
+          "source": "research/captures/20260925-waze-route-ended/twin-survey/display-1.png",
+          "sha256": "d55efb5506c0130ddc121ee9ce4db110cf3d562549b521684636f6797864e3c4"
+        }
+      }
+    }
+  ],
   "meterLayout": {
     "width": 584,
     "height": 215,
@@ -80,6 +190,31 @@
     },
     "cluster-20260925-cast-music.png": {
       "sha256": "04557965040d0eb79920ef7bbe3c2de336092c65ad9b313683084c7de25fdecb",
+      "width": 800,
+      "height": 480
+    },
+    "center-20260925-waze-route.png": {
+      "sha256": "1d4c70937930600267ad2425421b7bb9727d7eccda64b493e6d2ce9f57a67370",
+      "width": 800,
+      "height": 480
+    },
+    "cluster-20260925-waze-route.png": {
+      "sha256": "b3d948bf9dc8efbac09dd828b9de2595247ed5952ffab1dd18aea51b82864c52",
+      "width": 800,
+      "height": 480
+    },
+    "center-20260925-honda-home.png": {
+      "sha256": "6e2add98f111f9df229d11d4d095a77fadbfb34a6f844a7e5831d17eaddb0a10",
+      "width": 800,
+      "height": 480
+    },
+    "center-20260925-waze-ended.png": {
+      "sha256": "97463b43179d7832f6e9cff43b7744b60b9f48e4bf046d30539e806832f47694",
+      "width": 800,
+      "height": 480
+    },
+    "cluster-20260925-waze-ended.png": {
+      "sha256": "d55efb5506c0130ddc121ee9ce4db110cf3d562549b521684636f6797864e3c4",
       "width": 800,
       "height": 480
     }

@@ -1,6 +1,19 @@
 # Evidence-backed Clarity infotainment twin
 
-**Scope:** reproduce the head unit, CarPlay receiver, Android display-1 navigation area, Honda Hack casting, and observable audio/navigation state on the Mac. Vehicle speed, gear, SOC, and range are **synthetic inputs** for display testing. This is not an ECU, CAN, instrument, warning, or vehicle-control emulator. The physical car remains the final compatibility test.
+**Scope:** offline models and captured display replay of the head unit, receiver seams, Android display-1 navigation area, Honda Hack casting, and audio/navigation state. The actual ARM receiver is not executed. Vehicle speed, gear, SOC, and range are **synthetic inputs** for display testing. This is not a full vehicle emulator or proof of native CarPlay support. The physical car remains the final compatibility test.
+
+## Step 2 bounded checkpoint — September 28 UTC
+
+Acceptance pending independent supervising Codex review; Step 2 remains partial.
+
+| Layer | Implemented and checked | Still incomplete / unknown |
+| --- | --- | --- |
+| 1 Firmware/storage | Existing GPT fixture retained; [catalog](firmware-catalog.json) hashes 14 allowlisted receiver/config/APK/ODEX members in the complete working archives and eight runtime snapshot triples. Config hash matches the existing display profile. | Exhaustive app/service ownership, filesystem extraction and deeper reverse engineering are outside this bounded catalog. No raw vendor bytes in Git. |
+| 2 Android/application | [Pure mocked Binder, Navigation, ExternalDisplay, display and Audio interfaces](service-model.js); three existing replay modes consume the same model. Factory TBT/bus methods are absent. | No Android services or real Binder transactions execute. Binding seams derive from [sanitized topology](../native/live-session-topology-20260925.md); route fields and live audio continuity are not established by a mock. |
+| 3 Receiver ABI | Explicit JS model of six 32-bit callback offsets in 24 bytes and singleton duplicate-registration result `0x16` from [static audit](../native/receiver-multidisplay-audit.md). Mock USB/MFi readiness, display and audio. `replayRuntimeSnapshots` replays eight acquisition labels with observed file hashes, inferred app/connection state, synthetic callback actions/clock and unknown protocol/audio. | **Native ARM receiver execution and binary ABI harness remain unavailable.** No proprietary payload decoded, MFi authenticated, video decoded or second native callback supported. Proposed cluster stream is a separate synthetic contract, not an extension of the singleton ABI. |
+| 4 Dual display | Six hash-verified consecutive center/HDMI pairs, head-unit Waze route/background/end, visibly synthetic map/metadata; browser replay in local Chromium. 800×480 center and HDMI surfaces; stale guidance/frame cleanup at modeled 15-second boundary; audio invariant checked separately as a model. | Photo-calibrated physical Navigation rectangle remains **unknown** (`rectangle: null`, `calibrated: false`). 584×215 layout is not a physical safe-area measurement. Replay timestamps are illustrative, not measured latency. Real audio/decoder coexistence and native negotiation remain pending their separate gates. |
+
+`python3 research/simulator/check_offline.py --browser` is the review entry point (see README for environment). 15 Python tests, six legacy JS assertion suites, eight new model tests, and three browser mode checks pass locally. Browser tests inject a **modeled** disconnect after observed samples; they do not claim an unplug was captured. The model's TTL advances only on event/tick replay, not real wall time. No full Tegra/QEMU boot is required for this work.
 
 ## Current component model
 

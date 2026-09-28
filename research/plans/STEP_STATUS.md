@@ -1,4 +1,4 @@
-# Clarity second-display step status — 2026-09-26 UTC
+# Clarity second-display step status — 2026-09-28 UTC
 
 This is a compact status index for the local model. The detailed exit criteria remain in [the 12-step plan](CARPLAY_SECOND_DISPLAY_REVIEW.plan.md). A passing simulator assertion does not prove a receiver feature.
 
@@ -9,7 +9,7 @@ Every subsequent step requires the user's [backup, Codex verification, documenta
 | 1 Git/evidence baseline | Complete | Private GitHub repo and sanitized research baseline exist. Raw firmware excluded from Git. |
 | F-A Acquisition design | Complete | Read-only storage inventory, USB layout, chunk manifest, script guards, and run card documented. |
 | F-B Forensic acquisition | Complete for reviewed scope, with optional unavailable reads | Storage hashes/tar checks, eight labeled runtime states, finalization, two new verified Mac copies, reconstruction, and nine-partition GPT checks passed. Final journal: 2,487 hashes. Optional maps/fd reads denied in 158 attempts; recorded without bypassing permissions. See [completion](../acquisition/ACQUISITION_COMPLETION_20260926.md). |
-| 2 Infotainment twin | In progress | Existing tests replay observed Maps→Music mirroring, head-unit Waze arrow cleanup, and a separately labeled hypothetical independent stream. A sanitized, GPT-CRC-validated nine-partition storage fixture now seeds the firmware catalog; deeper app/service ownership fixtures remain. |
+| 2 Infotainment twin | Partial; acceptance pending independent supervising Codex review | Four bounded layers now have firmware/runtime hashes, pure Android/Binder/display/audio mocks, an explicitly labeled receiver ABI model, and three browser replay modes. 15 Python tests, six legacy JS suites, eight model tests and three local browser mode checks passed. Actual ARM receiver execution, exhaustive service ownership and photo-calibrated physical Navigation bounds remain incomplete. No native CarPlay support proven. See [checkpoint](../progress/STEP_02_CHANGELOG.md) and [scope](../simulator/INFOTAINMENT_TWIN_SCOPE.md). |
 | 3 Decoder coexistence probe prep | In progress | Earlier CarPlay-disconnected probe measured 28/30 frames per decoder. A Mac-only trace scorer now encodes the 95%/250-ms/EOS gate; the background-safe APK and reviewed run card have not been built. |
 | 4 Active-CarPlay decoder test | Pending car/review | No active-CarPlay coexistence measurement. |
 | 5 Static Identification reconstruction | In progress | Main-screen registration and singleton proxy callback found; raw actual Identification bytes remain unavailable. |

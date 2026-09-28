@@ -16,6 +16,20 @@ def digest(path):
 
 
 class DisplayProfileTest(unittest.TestCase):
+    def test_paired_capture_provenance_and_unknown_physical_bounds(self):
+        profile = json.loads((ROOT / "display-profile.json").read_text())
+        self.assertIsNone(profile["physicalNavigationBounds"]["rectangle"])
+        self.assertFalse(profile["physicalNavigationBounds"]["calibrated"])
+        self.assertEqual(len(profile["pairedCaptureProvenance"]), 6)
+        for pair in profile["pairedCaptureProvenance"]:
+            self.assertIn("not atomic", pair["evidence"])
+            for capture in pair["displays"].values():
+                self.assertEqual(digest(ROOT.parents[1] / capture["source"]), capture["sha256"])
+                self.assertEqual(digest(ROOT / "assets" / (capture["captureId"] + ".png")), capture["sha256"])
+        catalog = json.loads((ROOT / "firmware-catalog.json").read_text())
+        config = next(a for a in catalog["artifacts"] if a["member"].endswith("j_config.xml"))
+        self.assertEqual(config["sha256"], profile["firmwareCopySha256"]["j_config.xml"])
+
     def test_profile_matches_working_firmware_and_captures(self):
         profile = json.loads((ROOT / "display-profile.json").read_text())
         vendor = ET.parse(ROOT / "working-backup" / "j_config.xml").getroot()

@@ -1,5 +1,37 @@
 # Clarity offline simulator and guarded guidance bridge
 
+## Step 2 repeatable checkpoint
+
+The four-layer implementation and remaining gaps are in [the scope report](INFOTAINMENT_TWIN_SCOPE.md#step-2-bounded-checkpoint--september-28-utc). Acceptance remains pending independent supervising Codex review. The receiver is an explicitly labeled ABI **model**, not execution of `jmcs` or its ARM proxy. Physical Navigation bounds remain unknown. All new interfaces are offline mocks; no production vehicle-bus connector is present.
+
+Run all offline tests, including the existing private-capture checks:
+
+```sh
+python3 research/simulator/check_offline.py
+```
+
+The actual browser check uses locally installed Chrome and Playwright in ignored scratch space. It reads private images locally and exports no screenshots, video, trace or raw pixels; it blocks HTTP/HTTPS requests. On this Mac:
+
+```sh
+npm install --prefix research/tmp/step-2/browser --no-audit --no-fund playwright
+CLARITY_PLAYWRIGHT_MODULE="$PWD/research/tmp/step-2/browser/node_modules/playwright" \
+CLARITY_BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+python3 research/simulator/check_offline.py --browser
+```
+
+Open `research/simulator/index.html` locally and select **Load September 25 casting session** (observed mirror), **Load head-unit Waze guidance** (observed Honda guidance), or **Load independent-screen model** (synthetic proposed second stream). The replay badge names the evidence category. Audio focus remains unknown in captured replays; continuity tests are explicitly modeled. Capture pairs and hashes are recorded in `display-profile.json`. Synthetic map/metadata fixtures do not contain captured iPhone streams.
+
+Regenerate the allowlisted firmware catalog from the complete working dataset without extracting files:
+
+```sh
+python3 research/simulator/catalog_firmware.py \
+  /Users/bmreyes24/ClarityLab/forensic/CLARITY_FORENSIC_20260925_211500_COMPLETE_WORKING \
+  research/tmp/step-2/firmware-catalog-review.json
+cmp research/simulator/firmware-catalog.json research/tmp/step-2/firmware-catalog-review.json
+```
+
+The catalog stores only archive/member names, byte counts and hashes. Raw runtime snapshots stay opaque. Eight state labels drive inferred app/connection transitions through `replayRuntimeSnapshots`, which labels its callback sequence and clock synthetic and its protocol/audio unknown. The callback offsets and singleton restriction are static evidence; method ordering, transport readiness and audio updates are modeled behavior. Stale guidance/stream TTL is a 15-second model policy, evaluated on each event or explicit `tick`. Route end, failed stream, disconnect and reconnect invalidate stream setup and reject late frames. Audio music/voice state is preserved through app switches, route end and stream stop, then released on disconnect in the model. Full Android/Tegra/QEMU boot is not a prerequisite.
+
 The [sanitized forensic storage fixture](forensic-storage-map.json) is generated from the verified working eMMC image and live mount inventory by `research/acquisition/catalog_storage.py`. Its nine GPT partitions, ext4 signatures, and mount/read-only states seed the firmware-catalog layer of the twin. It contains no filesystem contents and says nothing about display pixel bounds; those still come from display captures and physical photos. The image was read live, so writable filesystem contents are not an atomic snapshot. Run `python3 -m unittest discover -s research/simulator -p 'test_*.py'` to check the fixture's partition ordering and mount relationships.
 
 The [infotainment twin evidence map](INFOTAINMENT_TWIN_SCOPE.md) defines the supported scope, measured versus synthetic inputs, and the missing runtime observations. The next parked session's `twin-survey` captures can be compared offline with [`twin_survey_compare.py`](../scripts/twin_survey_compare.py) before adding them as replay fixtures. A hash or layer difference alone is not a decoded CarPlay secondary stream.

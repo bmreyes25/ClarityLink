@@ -36,16 +36,42 @@ def make_profile():
     for name in ("center-maps.png", "center-music.png", "cluster-navigation.png",
                  "center-20260925-native-maps.png", "cluster-20260925-native.png",
                  "center-20260925-cast-maps.png", "cluster-20260925-cast-maps.png",
-                 "center-20260925-music.png", "cluster-20260925-cast-music.png"):
+                 "center-20260925-music.png", "cluster-20260925-cast-music.png",
+                 "center-20260925-waze-route.png", "cluster-20260925-waze-route.png",
+                 "center-20260925-honda-home.png", "center-20260925-waze-ended.png",
+                 "cluster-20260925-waze-ended.png"):
         path = ROOT / "assets" / name
         size = png_size(path)
         if size != (width, height):
             raise ValueError(f"Unexpected {name} size: {size}")
         files[name] = {"sha256": sha256(path), "width": size[0], "height": size[1]}
+    pairs = [
+        ("observed-mirror-off", "20260925T150706Z-twin-off/twin-survey", "center-20260925-native-maps", "cluster-20260925-native"),
+        ("observed-mirror-maps", "20260925T150706Z-twin-on/twin-survey", "center-20260925-cast-maps", "cluster-20260925-cast-maps"),
+        ("observed-mirror-music", "20260925T150706Z-music-cast/music", "center-20260925-music", "cluster-20260925-cast-music"),
+        ("observed-honda-waze", "20260925-waze-headunit-route/twin-survey", "center-20260925-waze-route", "cluster-20260925-waze-route"),
+        ("observed-honda-home", "20260925-waze-background-home/twin-survey", "center-20260925-honda-home", "cluster-20260925-waze-route"),
+        ("observed-honda-end", "20260925-waze-route-ended/twin-survey", "center-20260925-waze-ended", "cluster-20260925-waze-ended"),
+    ]
+    provenance = []
+    for label, directory, center, cluster in pairs:
+        pair = {"id": label, "evidence": "observed paired captures, consecutive not atomic",
+                "timing": "sample tMs are replay order, not measured latency", "displays": {}}
+        for display_id, side, capture_id in [(0, "center", center), (1, "hdmi", cluster)]:
+            relative = f"research/captures/{directory}/display-{display_id}.png"
+            source = ROOT.parents[1] / relative
+            if sha256(source) != files[capture_id + ".png"]["sha256"]:
+                raise ValueError(f"Capture copy mismatch: {label}/{side}")
+            pair["displays"][side] = {"captureId": capture_id, "source": relative,
+                                      "sha256": files[capture_id + ".png"]["sha256"]}
+        provenance.append(pair)
     profile = {
         "source": "working copies of backed-up j_config.xml and Honda Hack meter_civic.xml; saved read-only display captures",
         "center": {"width": width, "height": height, "configuredMaxFps": fps},
         "clusterHdmiCapture": {"width": width, "height": height},
+        "physicalNavigationBounds": {"rectangle": None, "evidence": "unknown; photos qualitative only",
+                                     "calibrated": False, "source": "physicalClusterReferences"},
+        "pairedCaptureProvenance": provenance,
         "meterLayout": {"width": meter_width, "height": meter_height,
                         "placementOnPhysicalCluster": "user reports cast in the NE compass/Navigation area; exact pixel boundary unmeasured"},
         "physicalClusterReferences": {
