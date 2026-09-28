@@ -1,19 +1,28 @@
-# Media ownership graph
+# CarPlay media ownership graph
 
 ```text
-Receiver/ScreenSession
-  └─ ScreenStream callback path [CONFIRMED]
-      └─ mc_stream source endpoint [HIGH CONFIDENCE from callback + DWARF]
-          └─ mc_stream_link relationship [generic link behavior CONFIRMED;
-             active CarPlay link creation UNKNOWN]
-              └─ mc_stream_sink
-                  ├─ ops -> mc_stream_sink_ifc [type/layout CONFIRMED]
-                  │   ├─ alloc_buf +0x10 [role CONFIRMED]
-                  │   └─ process_data +0x14 [role CONFIRMED;
-                  │      active CarPlay target UNKNOWN]
-                  └─ priv [active type/owner UNKNOWN]
-                      ├─ MediaCodec decoder [UNKNOWN connection]
-                      └─ output Surface [UNKNOWN connection]
+ScreenSession
+  -> ScreenStream
+  -> mc_ScreenStreamStart
+  -> mc_dev_attach("CarPlay Screen", stream-associated context)
+  -> MediaCore device manager
+  -> matching registration / attach callback       UNKNOWN
+  -> concrete mc_stream_sink                       UNKNOWN
+  -> process_data +0x14                             UNKNOWN for this instance
+  -> H.264 / decoder                                UNKNOWN
+  -> Surface                                        UNKNOWN
 ```
 
-`mc_stream_link(src, sink)` stores reciprocal link pointers at `src+0x0c` and `sink+0x08` (the latter is beyond the 8-byte sink interface prefix), then invokes endpoint initialization operations. The direct call chain found is PBS pipeline construction (`create_pipeline` / `add_sink_stream_pair`), but no edge proves it builds the CarPlay screen path. A separate MediaCodec backend and surface setter are present in the binary without a proven join to the active sink. See `mc-stream-link.md`, `active-carplay-sink.md`, and `decoder-surface-binding.md`.
+Confirmed lower-level interface facts: the generic sink interface has `ops`/`priv`, and slot +0x14 is `process_data`; the screen callback pushes data through that interface. The `mc_dev_attach` call is made for each observed `mc_ScreenStreamStart` invocation, but there is no evidence yet that two screen starts can coexist or yield independent device instances.
+
+| Multiplicity question | Evidence-based verdict |
+|---|---|
+| Call `mc_dev_attach` twice | Structurally callable more than once; whether the manager accepts duplicate names/contexts is unknown |
+| Two device instances | Unknown |
+| Two sinks | Unknown |
+| Two decoders | Unknown |
+| Two Surfaces | Unknown |
+| Unique device private/context per attach | Unknown; call receives a stream-associated context, but exact type/identity semantics are unresolved |
+| Display-B media chain | Plausible as a shape only; unsupported by concrete registration/ownership evidence |
+
+No Display-B implementation should be based on this graph yet.

@@ -4,6 +4,8 @@ Step 11 update: see `step-reports/11-primary-screen-completion.md`. The local tr
 
 Step 14: `mc_stream_link` and all direct callers were traced. Calls are in generic PBS pipeline construction; the active CarPlay sink still is not identified because the CarPlay screen path reaches device attachment through indirect device/factory dispatch. See `step-reports/14-active-media-sink.md`, `research/carplay/mc-stream-link.md`, and `active-carplay-sink.md`.
 
+Step 15: `mc_ScreenStreamStart` calls `mc_dev_attach("CarPlay Screen", context)` at `0xBDC06`; the wrapper reaches `devmgr_dev_attach` -> `devmgr_dev_alloc` -> internal `dev_attach`. The matching registry entry and callback remain unknown, so the active sink, decoder, Surface, and instance multiplicity are unresolved. See `step-reports/15-carplay-device-attach.md`, `research/carplay/mc-dev-attach.md`, `device-manager.md`, and `primary-screen-end-to-end.md`.
+
 Step 13: DWARF resolves the media vtable role as `mc_stream_sink_ifc.process_data` (+0x14) and documents the MediaCodec backend context plus Surface setter/configuration API. The concrete CarPlay sink implementation is not tied to the backend. See `step-reports/13-media-vtable-decoder.md` and `research/carplay/media-vtable.md`.
 
 Step 12 supersedes the Step 11 listener/first-read limitation: exact local `jmcs` is present and its VA/file offset map is validated; see `research/carplay/jmcs-address-map.md` and `step-reports/12-jmcs-deep-slice.md`. Listener binds port 0, recovers the selected port with `getsockname`, writes it to `CFDictionarySetInt64`; accepted descriptor flows into `NetSocket_ReadInternal` -> `recv` (request 128 bytes). TCP grammar and media decoder linkage remain open.

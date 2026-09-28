@@ -1,7 +1,14 @@
-# Decoder and output binding evidence
+# CarPlay decoder and Surface binding
 
-The binary contains the Stagefright/MediaCodec backend, including `android_mediacodec_create` (`0x11d390`), `android_mediacodec_process_data` (`0x11c080`), `initialize_codec` (`0x11c7d4`), `android_mediacodec_set_surface` (`0x11d1c4`), and start/stop/destroy helpers. The backend context DWARF (`android_mediacodec_ctx_t`, 116 bytes) has `base` +0, `src` +64, `stopped` +68, `sfc` +72, `width` +76, `height` +80, `codec` +104, `in_buffers` +108, and `out_buffers` +112. This is a concrete per-context data layout for the backend implementation.
+The ELF has a MediaCodec surface setter (`android_mediacodec_set_surface`) and configures a `SurfaceTextureClient` during backend initialization. The active CarPlay attachment has not been joined to this backend, so the following remain unknown:
 
-`android_mediacodec_set_surface(ctx, void *surface)` stores the supplied pointer at context +72 and calls `initialize_codec` with that surface context. `initialize_codec` accepts a `surface_ctx_t` and passes a `SurfaceTextureClient` smart pointer through the MediaCodec configure interface. This proves that the backend has a replaceable surface-setting entry point; it does not prove that the CarPlay stream reaches it or that it accepts ClarityLink's intended Android Surface type.
+| Question | Result |
+|---|---|
+| Active CarPlay caller of surface setter | Unknown |
+| Surface creation site/type on CarPlay path | Unknown |
+| Surface owner/storage | Unknown |
+| Setter per decoder/device instance | Unknown |
+| Primary CarPlay Surface host/activity/view/display | Unknown |
+| Two Surfaces supported | Unknown |
 
-`android_mediacodec_process_data` contains calls to `MediaCodec::dequeueInputBuffer` and `MediaCodec::queueInputBuffer`; imported backend symbols also include decoder output operations. No call edge from the active CarPlay sink's `process_data` slot to this backend has yet been proven. Consequently codec, dimensions, active decoder cardinality, actual output creator/host, and per-stream binding remain unknown for CarPlay.
+Backend API availability does not establish that the screen path invokes the setter. Continue from the matched `CarPlay Screen` registration only. See `carplay-decoder.md`, `active-carplay-sink.md`, and `primary-screen-end-to-end.md`.

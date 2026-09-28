@@ -1,23 +1,15 @@
-# Display B interposer assessment
+# Display-B media interposer status
 
-**Status: Display B implementation is not ready.**
+No implementation is proposed. The primary CarPlay screen requests the device named `"CarPlay Screen"` from `mc_dev_attach`, but the matching registry entry, construction callback, concrete sink, decoder, and Surface are unresolved.
 
-The screen callback reaches a typed generic sink contract: `mc_stream_sink_ifc.process_data` (+0x14), called with a sink and `mc_stream_buf*`. `mc_stream_link(src, sink)` stores a reciprocal link and invokes endpoint initialization. Its direct callers are generic PBS pipeline helpers/builders; no direct CarPlay caller or resolved indirect factory edge identifies the active CarPlay sink.
-
-The binary contains a MediaCodec backend and replaceable surface setter, but neither is proven to be the sink reached by the active screen stream. No decoder cardinality or active Surface ownership claim can be made.
-
-| Structural question | Finding |
+| Design point | Status |
 |---|---|
-| Two screen-session objects | UNKNOWN |
-| Two TCP listeners | UNKNOWN; dynamic bind does not prove repeated setup |
-| Two ScreenStreams | UNKNOWN end-to-end |
-| Two concrete media sinks | UNKNOWN |
-| Two decoder instances | UNKNOWN for CarPlay |
-| Two active output Surfaces | UNKNOWN |
-| Context routes streams to separate displays | UNKNOWN |
-| Display B structurally possible | UNKNOWN |
-| Ready for implementation | NO |
+| Device duplication point | Unknown; candidate is the `mc_dev_attach` call in `mc_ScreenStreamStart`, but repeated attach semantics are unproven |
+| Sink duplication point | Unknown |
+| Decoder duplication point | Unknown |
+| Surface injection point | Unknown |
+| Primary-only assumptions in proven device path | Not yet audited beyond manager global; no claim of singleton backend is justified |
+| Two complete media paths structurally supported | Unknown |
+| Ready for Display-B implementation | No |
 
-Potential duplication remains screen-session and stream creation. The sink selection point is in the unresolved device/factory path; surface injection could use the backend setter only if that backend is proven to serve this stream and the Surface type is compatible.
-
-**Precise blocker:** the indirect device/factory registration supplying the concrete sink to the CarPlay stream is not resolved.
+The next action is to recover the `dev_attach` lookup/registration match, then follow that callback and its object ownership. Display-B negotiation remains outside this milestone.
