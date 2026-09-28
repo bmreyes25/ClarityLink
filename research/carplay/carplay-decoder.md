@@ -19,3 +19,5 @@ The `jmcs` ELF contains H.264 strings/helpers (`h264AVCC`, `h264AnnexB`, `H264Co
 | Two decoder/output objects | Unknown |
 
 **First confirmed video function:** none yet at the traced CarPlay callback edge. **Format:** H.264 is high-confidence as a local native capability, not yet proven at this particular callback. **Output Surface:** unknown. The precise blocker is a callback/object xref that joins `mc_ScreenStreamProcessData` or its indirect dispatch target to `create_h264_pipeline`/MediaCodec configure and its output-target construction.
+
+The observed `ScreenStream` context slot exists in the generic API (`ScreenStreamSetContext`/`GetContext`); Honda `mc_ScreenStreamInitialize` retrieves and replaces per-stream context and increments `g_screen_streams_cnt`. This establishes an instance-level callback context mechanism, but the context object's semantic contents and any display/session identity are not available in the tracked excerpts.

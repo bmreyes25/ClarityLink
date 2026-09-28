@@ -23,6 +23,7 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 - Unknown: a supported/maintainable ClarityLink mechanism to obtain Honda's externaldisplay root without HondaHack's private Xposed integration.
 - Not implemented: second CarPlay session, second H.264 stream, hardware renderer, or on-car test.
 - New trace artifacts: `research/carplay/control-plane-state-machine.md`, `screen-setup-input.md`, `screen-thread-event.md`, `video-callback-trace.md`, `carplay-decoder.md`, `primary-screen-end-to-end.md`, `display-b-interposer.md`, and `step-reports/10-control-media-breakthrough.md`.
+- Step 11 offline completion: listener creation/accept is confirmed, but bind address/port, port advertisement, accepted-fd first read, and TCP framing are not available in the tracked artifact excerpts. Callback-level records and `0x8e70c` dispatch are confirmed, but assigned target, H.264 call edge, decoder ownership, and output Surface remain unknown. Generic per-stream context exists; Display A/B identity is unknown. See `step-reports/11-primary-screen-completion.md`.
 
 ## Roadmap
 
@@ -31,7 +32,7 @@ An offline renderer prototype now exists in src/claritylink-renderer/. The Pytho
 | 1 | Evidence baseline | Complete |
 | 2 | Prove cluster/HondaHack output path | Complete: HondaHack uses a regular View in Honda's ExternalDisplay window; exact physical crop remains non-blocking and unproven |
 | 3 | Reusable ClarityLink renderer abstraction | Partial and sufficient for protocol work: synthetic host model/tests and API 17 View skeleton; root acquisition, crop, and zero-copy remain deferred |
-| 4 | Primary screen/session transport and callback trace | Partial: Setup dictionary family and TCP listener/accept event confirmed; upstream parser/schema, binding identity, callback-to-decoder link, and output Surface unresolved |
+| 4 | Primary screen/session transport and callback trace | Partial: TCP listener/accept and callback framing confirmed; endpoint, accepted-fd parser, H.264 linkage, decoder/Surface, and display binding unresolved |
 | 5 | Implement Display-B negotiation | Not ready; requires accepted descriptor/session evidence and a reversible implementation design |
 | 6 | Receive second CarPlay H.264 stream | Pending negotiated stream; existing decoder feasibility stands |
 | 7 | Connect decoder to ExternalDisplay renderer | Pending stream-to-frame lifecycle and renderer integration |

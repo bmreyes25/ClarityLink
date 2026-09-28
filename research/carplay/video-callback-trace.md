@@ -10,6 +10,8 @@ At call sites `0xbef86` and `0xbefe2`, arguments are: `r0` a callback object loa
 
 The start-code-like prefix and the presence elsewhere in this ELF of H.264/AVCC helper names support a **high-confidence H.264 framing lead**, but the exact first confirmed CarPlay H.264 function/decoder invocation is still not proven by a cross-reference from this callback. The H.264 helper strings and Android MediaCodec imports cannot by themselves be joined to this callback path.
 
+The containing callback object, allocation/assignment sites for its `+0x10` slot, and concrete target(s) assigned to that slot are not identified in the tracked evidence. The call instruction proves dispatch through `[object+0x10]`, not the target. This is the first missing edge for resolving the indirect callback without guessing.
+
 | Callback property | Finding |
 |---|---|
 | Stream/data/length args | stream/context-like pointer `r0`, data pointer `r1`, length `r2` |

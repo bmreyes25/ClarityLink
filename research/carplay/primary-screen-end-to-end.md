@@ -1,49 +1,45 @@
-# Primary screen end-to-end trace
+# Primary CarPlay screen end-to-end trace
 
-**Status: control path extended through TCP accept; H.264 decoder/output binding remains open.**
+**Status: PARTIAL.** Static/offline scope at commit `5bdab19`; no vehicle, ADB, firmware, or live capture work.
 
 ```text
-CONTROL INPUT                                    MEDIA / OUTPUT
-unknown dispatcher / session call               accepted session data
-        |                                                  |
-        v                                                  v
-AirPlayReceiverSessionSetup                ScreenStreamProcessData
-        |                                      global callback dispatch
-        +-- AirPlayReceiverSessionScreen_Setup             |
-        |   CFL dictionary value -> +0x10/+0x14            v
-        +-- ServerSocketOpen -> listener fd +0x1418    mc_ScreenStreamProcessData
-                      |                                      |
-                      v                                      v
-               _ScreenThread -> SocketAccept(select/accept) framed parser
-                      |                                      |
-                      v                                      v
-        AirPlayReceiverSessionScreen_StartSession      helper 0x8e70c
-                      |                                indirect callback [obj+0x10]
-                      v                                      |
-             ScreenStream create/start                     helper 0x8ea18
-                      |                                      |
-                      +---- session/stream binding ----------+? UNKNOWN
-                                                             |
-                       H.264/MediaCodec capability in jmcs   |
-                       linkage to callback UNKNOWN ----------+
-                                                             v
-                                                decoder / output Surface UNKNOWN
+CarPlay session setup
+  -> AirPlayReceiverSessionScreen_Setup                 CONFIRMED
+  -> ServerSocketOpen; listener fd stored at +0x1418    CONFIRMED
+  -> port/address retrieval and advertisement            UNKNOWN
+  -> iPhone connects / accepted fd                       HIGH CONFIDENCE
+  -> accepted-fd owner and first read                    UNKNOWN
+  -> TCP framing/parser                                  UNKNOWN
+  -> AirPlayReceiverSessionScreen_StartSession          CONFIRMED after accept
+  -> generic ScreenStream create/configure/start         CONFIRMED
+  -> ScreenStreamProcessData global callback             CONFIRMED
+  -> Honda mc_ScreenStreamProcessData                    CONFIRMED
+  -> callback record framing / 0x8e70c dispatch          CONFIRMED
+  -> concrete target assigned to [object+0x10]           UNKNOWN
+  -> H.264 boundary                                      UNKNOWN
+  -> decoder creation/ownership                          UNKNOWN
+  -> output Surface creation/binding                     UNKNOWN
 ```
 
-## Edge ledger
+`AirPlayReceiverSessionSetup` (`0x2854e1`) calls `ServerSocketOpen` (`0x2a0a35`) and stores its returned descriptor at outer receiver/session offset `+0x1418`. `_ScreenThread` (`0x283dad`) passes that descriptor to `SocketAccept` (`0x2a0481`), which uses `select()` then `accept()`. A successful return calls `AirPlayReceiverSessionScreen_StartSession` (`0x2883a9`). StartSession creates/configures/starts a generic `ScreenStream`.
 
-| Edge | Status | Evidence |
-|---|---|---|
-| `AirPlayReceiverSessionSetup` -> `AirPlayReceiverSessionScreen_Setup` | CONFIRMED | direct call site `0x28609c` |
-| Setup dictionary -> screen object `+0x10/+0x14` | CONFIRMED | `0x294598` -> `CFLDictionaryGetValue` and typed conversion |
-| Setup -> listener at outer `+0x1418` | CONFIRMED | `ServerSocketOpen` (`0x2a0a34`) returns fd stored in field |
-| listener -> `_ScreenThread` | CONFIRMED | `_ScreenThread` reads offset and calls `SocketAccept` (`0x2a0480`) |
-| `SocketAccept` -> incoming peer | CONFIRMED | imported `select()` then `accept()` |
-| successful accept -> `StartSession` | CONFIRMED | zero return branch calls `0x2883a8` at `0x283eb6` |
-| StartSession -> generic ScreenStream lifecycle | CONFIRMED | existing trace at `0x28e208` / configure / start |
-| ScreenStream -> Honda callback | CONFIRMED at generic ABI | global callback dispatch in `ScreenStreamProcessData` |
-| Honda callback -> `0x8e70c` framed dispatch | CONFIRMED | two call sites in `mc_ScreenStreamProcessData` |
-| callback -> H.264 pipeline/MediaCodec | UNKNOWN | same ELF has H.264 and MediaCodec APIs, but no proven object/call xref from this callback |
-| decoder -> output Surface | UNKNOWN | no CarPlay-specific output binding recovered |
+`ScreenStreamProcessData` (`0x28e2c9`) dispatches through a process-global callback. Honda `mc_ScreenStreamProcessData` (`0xbee91`) parses callback-level records and calls `0x8e70c`, which dispatches through an object slot at `+0x10`; the assigned target is not recovered. The callback-level record framing is not evidence of the accepted TCP framing.
 
-No shared `screenSession` context has yet been proven across Setup and media dispatch. The generic stream context API exists, but its assignment and semantic identity remain unresolved. Display B remains blocked by the missing link from accepted session/request through stream identity to independent decoder/output routing.
+The same ELF has H.264/AVCC helpers and Android MediaCodec imports, including `configure` with a `SurfaceTextureClient` parameter, but no proven call/object edge joins them to this callback. The display-specific Surface remains unknown.
+
+## Structural decision
+
+| Component | Two instances supported by evidence? |
+|---|---|
+| Screen session objects | UNKNOWN |
+| TCP listeners | UNKNOWN |
+| ScreenStreams | UNKNOWN end-to-end; generic APIs are instance-shaped |
+| Decoders | UNKNOWN |
+| Output Surfaces | UNKNOWN |
+| Callback can route streams | PARTIAL: stream argument/context API exist; display identity/target mapping unknown |
+
+The narrow saved-artifact search found generic screen registry and stream counters, but Honda initialization registers one `gMainScreen`; display info comes from `ScreenCopyMain`, and the Honda proxy callback registration is singleton. Existing audit finds no positive R15/view-area/safe-area implementation evidence. **Latent multi-screen support: PARTIAL** (generic primitives exist; car-specific negotiated support is not evidenced).
+
+**Raw TCP capture: HELPFUL** after resolving the listener endpoint locally. One short peer-to-head-unit TCP startup window could identify the accepted flow's application framing and role. It would not resolve the decoder/Surface edge unless payload delivery is correlated with the callback. No USB analyzer is presently indicated.
+
+**Ready for Display B implementation: NO.** Primary path is incomplete. Biggest blocker: the saved analysis lacks a proven accepted-fd reader-to-callback edge, including listener endpoint and TCP parser.
