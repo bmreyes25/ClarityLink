@@ -18,40 +18,73 @@ def evaluate(events: list[dict]) -> dict[str, object]:
         raise ValueError("invalid planned frame count")
     if start.get("width") != 800 or start.get("height") != 480 or start.get("fps") != 15:
         raise ValueError("trace is not the reviewed 800x480/15fps fixture")
+    codec_name = start.get("codec")
+    start_ns = start.get("mono_ns")
+    if not isinstance(start_ns, int) or start_ns < 0:
+        raise ValueError("start event requires monotonic nanosecond timestamp")
     inputs: dict[int, int] = {}
     outputs: dict[int, int] = {}
     format_ok = False
     eos = False
     errors = []
+    reported_drops = 0
     last_output_ns = -1
     last_input_ns = -1
+    last_event_ns = start_ns
     gaps_ms = []
+    format_events = []
+    eos_confirmed = False
+    eos_seen = False
     for event in events[1:]:
         kind = event.get("event")
         if kind == "input":
+            if eos_seen:
+                raise ValueError("input observed after EOS")
             pts, now = event.get("pts_us"), event.get("mono_ns")
             if not isinstance(pts, int) or pts < 0 or pts in inputs or not isinstance(now, int) or now < 0:
                 raise ValueError("invalid or duplicate input PTS/timestamp")
             if now <= last_input_ns:
                 raise ValueError("non-monotonic input timestamp")
+            if now <= last_event_ns:
+                raise ValueError("non-monotonic trace event timestamp")
             inputs[pts] = now
             last_input_ns = now
+            last_event_ns = now
         elif kind == "output":
+            if eos_seen:
+                raise ValueError("output observed after EOS drain marker")
             pts, now = event.get("pts_us"), event.get("mono_ns")
             if not isinstance(pts, int) or pts < 0 or pts in outputs or not isinstance(now, int) or now < 0:
                 raise ValueError("invalid output PTS/timestamp")
             if now <= last_output_ns:
                 raise ValueError("non-monotonic output timestamp")
+            if now <= last_event_ns:
+                raise ValueError("non-monotonic trace event timestamp")
+            if pts not in inputs:
+                raise ValueError("output PTS was not submitted before output")
             if last_output_ns >= 0:
                 gaps_ms.append((now - last_output_ns) / 1_000_000)
             last_output_ns = now
+            last_event_ns = now
             outputs[pts] = now
         elif kind == "format":
-            format_ok = event.get("width") == 800 and event.get("height") == 480
+            valid_format = event.get("width") == 800 and event.get("height") == 480
+            format_events.append(valid_format)
+            format_ok = all(format_events)
         elif kind == "eos":
+            if eos_seen:
+                raise ValueError("duplicate EOS marker")
+            eos_seen = True
+            if event.get("confirmed") is not True:
+                continue
             eos = True
+            eos_confirmed = True
         elif kind == "error":
             errors.append(str(event.get("message", "codec error")))
+        elif kind == "dropped":
+            reported_drops += 1
+        elif kind in {"metric", "thermal", "summary", "cleanup", "cleanup_warning"}:
+            continue
         else:
             raise ValueError(f"unknown trace event: {kind}")
     if len(inputs) > planned:
@@ -66,11 +99,17 @@ def evaluate(events: list[dict]) -> dict[str, object]:
     reasons = []
     if submitted != planned:
         reasons.append("submitted fewer than planned frames")
+    duration_ok = planned == 900 and start.get("duration_ms") == 60000 and submitted == 900
     if submitted > 1:
         input_times = list(inputs.values())
-        expected_span_ns = (planned - 1) * 1_000_000_000 / 15
-        if input_times[-1] - input_times[0] < expected_span_ns - 250_000_000:
+        if input_times[0] - start_ns > 250_000_000:
+            duration_ok = False
+            reasons.append("first input started too late")
+        if input_times[-1] - start_ns < 59_750_000_000:
+            duration_ok = False
             reasons.append("input run shorter than planned duration")
+    if not duration_ok:
+        reasons.append("not the declared 900-frame/60-second candidate run")
     if produced < required:
         reasons.append("output below 95% of submitted frames")
     if max_gap_ms is None or max_gap_ms > 250:
@@ -79,10 +118,19 @@ def evaluate(events: list[dict]) -> dict[str, object]:
         reasons.append("800x480 output format not confirmed")
     if not eos:
         reasons.append("EOS/drain not confirmed")
+    if not eos_confirmed or submitted != planned:
+        reasons.append("incomplete input or unconfirmed EOS drain")
+    if codec_name != "OMX.Nvidia.h264.decode":
+        reasons.append("NVIDIA hardware decoder identity not confirmed")
     if errors:
         reasons.append("codec error")
+    quality_ok = (submitted == planned and produced >= required and max_gap_ms is not None and
+                  max_gap_ms <= 250 and format_ok and eos_confirmed and not errors and
+                  codec_name == "OMX.Nvidia.h264.decode")
     return {
-        "decoder_gate": "PASS" if not reasons else "FAIL",
+        "decoder_gate": "PASS" if quality_ok and duration_ok else "FAIL",
+        "sample_quality_gate": "PASS" if quality_ok else "FAIL",
+        "full_duration_ok": duration_ok,
         "submitted": submitted,
         "produced": produced,
         "required_output": required,
@@ -90,6 +138,9 @@ def evaluate(events: list[dict]) -> dict[str, object]:
         "max_output_gap_ms": max_gap_ms,
         "format_ok": format_ok,
         "eos": eos,
+        "codec": codec_name or "unavailable",
+        "reported_drops": reported_drops,
+        "missing_output_pts": sorted(set(inputs) - set(outputs)),
         "errors": errors,
         "reasons": reasons,
         "carplay_picture_voice_verdict": "UNOBSERVED — separate parked observation required",

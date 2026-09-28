@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylab.carplaycoexistence">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:label="Clarity Coexistence Probe" android:allowBackup="false">
+        <!-- Explicitly addressable by adb shell; no intent filter or permissions requested. -->
+        <service android:name=".DecoderCoexistenceService" android:exported="true" />
+    </application>
+</manifest>
