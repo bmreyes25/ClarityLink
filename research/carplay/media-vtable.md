@@ -14,4 +14,4 @@ The recovered interface is `mc_stream_sink_ifc` (DWARF in `jmcs`, source path em
 
 `mc_stream_push_data` (`0x8ea18`) obtains the linked sink, reads its `ops` pointer, then calls entry +0x14 with `(sink, mc_stream_buf*)`. The function identity `process_data` is directly supported by the DWARF declaration and slot offset. This resolves the role of the indirect dispatch but not the target address for the active CarPlay stream.
 
-The Android adapter and MediaCodec backend are separate named code. Merely finding their symbols in the ELF does not identify this table's active implementation. The current evidence does not prove the table address, constructor write, or any concrete CarPlay slot target.
+The Android adapter and MediaCodec backend are separate named code. Merely finding their symbols in the ELF does not identify this table's active implementation. `mc_stream_link` direct callers are PBS helpers/builders. It receives the sink as an argument and does not choose or construct it. The active CarPlay sink’s table address, constructor/registration, and concrete slot target remain unresolved.

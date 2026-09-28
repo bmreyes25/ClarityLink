@@ -18,4 +18,4 @@ The same ELF contains a concrete Stagefright/MediaCodec backend. `android_mediac
 | Output interface | `surface_ctx_t`; configure takes `SurfaceTextureClient` smart pointer |
 | CarPlay output creator/host | unknown |
 
-The exact active sink initialization/assignment is the remaining join needed to prove the CarPlay-to-decoder path. See `media-vtable.md` and `decoder-surface-binding.md`.
+`mc_stream_link` semantics and direct PBS callers are now documented, but those generic pipeline construction functions are not proven to be the CarPlay screen builder. The missing join is the indirect device/factory registration that supplies the active sink. See `mc-stream-link.md`, `active-carplay-sink.md`, and `decoder-surface-binding.md`.
