@@ -1,31 +1,34 @@
 # Primary CarPlay screen end-to-end trace
 
-**Status: PARTIAL.** Static/offline scope at commit `5bdab19`; no vehicle, ADB, firmware, or live capture work.
+**Status: PARTIAL.** Static/offline analysis of the exact local `jmcs` ELF; no vehicle, ADB, firmware, or live capture work.
 
 ```text
-CarPlay session setup
-  -> AirPlayReceiverSessionScreen_Setup                 CONFIRMED
-  -> ServerSocketOpen; listener fd stored at +0x1418    CONFIRMED
-  -> port/address retrieval and advertisement            UNKNOWN
-  -> iPhone connects / accepted fd                       HIGH CONFIDENCE
-  -> accepted-fd owner and first read                    UNKNOWN
-  -> TCP framing/parser                                  UNKNOWN
-  -> AirPlayReceiverSessionScreen_StartSession          CONFIRMED after accept
-  -> generic ScreenStream create/configure/start         CONFIRMED
-  -> ScreenStreamProcessData global callback             CONFIRMED
-  -> Honda mc_ScreenStreamProcessData                    CONFIRMED
-  -> callback record framing / 0x8e70c dispatch          CONFIRMED
-  -> concrete target assigned to [object+0x10]           UNKNOWN
-  -> H.264 boundary                                      UNKNOWN
-  -> decoder creation/ownership                          UNKNOWN
-  -> output Surface creation/binding                     UNKNOWN
+AirPlayReceiverSessionSetup
+  -> AirPlayReceiverSessionScreen_Setup                      CONFIRMED
+  -> ServerSocketOpen(AF_INET, SOCK_STREAM, TCP, port=0)      CONFIRMED
+  -> getsockname() -> assigned port -> +0x2b8                 CONFIRMED
+  -> CFDictionarySetInt64(port)                                CONFIRMED
+  -> semantic dictionary key / external advertisement        UNKNOWN
+
+TCP listener (+0x1418 in _ScreenThread context)
+  -> select() -> accept()                                     CONFIRMED
+  -> accepted fd at _ScreenThread stack +0x10                 CONFIRMED
+  -> NetSocket_CreateWithNative; wrapper +4 stores native fd  CONFIRMED
+  -> AirPlayReceiverSessionScreen_ProcessFrames               CONFIRMED
+  -> vtable +0x14 -> NetSocket_ReadInternal -> recv(...128)   CONFIRMED
+  -> ScreenStreamProcessData -> mc_ScreenStreamProcessData    CONFIRMED
+  -> mc_stream_alloc_buf / mc_stream_push_data                CONFIRMED
+  -> linked media object vtable +0x14 concrete target         UNKNOWN
+  -> H.264 decoder and actual output Surface                   UNKNOWN
 ```
 
-`AirPlayReceiverSessionSetup` (`0x2854e1`) calls `ServerSocketOpen` (`0x2a0a35`) and stores its returned descriptor at outer receiver/session offset `+0x1418`. `_ScreenThread` (`0x283dad`) passes that descriptor to `SocketAccept` (`0x2a0481`), which uses `select()` then `accept()`. A successful return calls `AirPlayReceiverSessionScreen_StartSession` (`0x2883a9`). StartSession creates/configures/starts a generic `ScreenStream`.
+The `jmcs` address map and exact-file hash are in `jmcs-address-map.md`. The TCP `ServerSocketOpen` call in `AirPlayReceiverSessionSetup` requests port 0 and supplies output fields at session `+0x2b8` (assigned port) and `+0x2b4` (fd). The function binds a zero-initialized wildcard sockaddr using the session's address family, obtains the selected port using `getsockname()` and `SockAddrGetPort`, and passes that value to `CFDictionarySetInt64`. The dictionary key's semantic name and how this field is externally advertised are not established.
 
-`ScreenStreamProcessData` (`0x28e2c9`) dispatches through a process-global callback. Honda `mc_ScreenStreamProcessData` (`0xbee91`) parses callback-level records and calls `0x8e70c`, which dispatches through an object slot at `+0x10`; the assigned target is not recovered. The callback-level record framing is not evidence of the accepted TCP framing.
+The offset relationship between Setup's output fd field `+0x2b4` and `_ScreenThread`'s listener field `+0x1418` is not reconciled yet. The accept/read lifecycle itself is proven, but these fields are not asserted as identical locations.
 
-The same ELF has H.264/AVCC helpers and Android MediaCodec imports, including `configure` with a `SurfaceTextureClient` parameter, but no proven call/object edge joins them to this callback. The display-specific Surface remains unknown.
+The successful accepted fd is stored via `_ScreenThread`'s output pointer at `sp+0x10`, wrapped by `NetSocket_CreateWithNative`, and read through `NetSocket_ReadInternal`. The first request is 128 bytes into a screen-session buffer; this is a `recv()` request size, not proof of a 128-byte protocol header. Full TCP record semantics remain unknown.
+
+Honda's `mc_ScreenStreamProcessData` calls `mc_stream_alloc_buf` (`0x8e70c`, vtable slot `+0x10`) and `mc_stream_push_data` (`0x8ea18`, vtable slot `+0x14`). The linked object's actual table is not identified. `jmcs` also contains a real MediaCodec/H.264 backend (`android_mediacodec_create`, `android_mediacodec_process_data`, `initialize_codec`, surface functions), but no evidence-backed edge yet joins this callback's linked object to that backend.
 
 ## Structural decision
 
@@ -36,10 +39,10 @@ The same ELF has H.264/AVCC helpers and Android MediaCodec imports, including `c
 | ScreenStreams | UNKNOWN end-to-end; generic APIs are instance-shaped |
 | Decoders | UNKNOWN |
 | Output Surfaces | UNKNOWN |
-| Callback can route streams | PARTIAL: stream argument/context API exist; display identity/target mapping unknown |
+| Callback can route streams | PARTIAL: stream/context and linked-object interfaces exist; display identity/targets unknown |
 
-The narrow saved-artifact search found generic screen registry and stream counters, but Honda initialization registers one `gMainScreen`; display info comes from `ScreenCopyMain`, and the Honda proxy callback registration is singleton. Existing audit finds no positive R15/view-area/safe-area implementation evidence. **Latent multi-screen support: PARTIAL** (generic primitives exist; car-specific negotiated support is not evidenced).
+Generic screen registry and stream counters exist, but Honda initialization registers one `gMainScreen`, display info comes from `ScreenCopyMain`, and proxy callback registration is singleton. Latent multi-screen support remains **PARTIAL**; R15 support is not evidenced.
 
-**Raw TCP capture: HELPFUL** after resolving the listener endpoint locally. One short peer-to-head-unit TCP startup window could identify the accepted flow's application framing and role. It would not resolve the decoder/Surface edge unless payload delivery is correlated with the callback. No USB analyzer is presently indicated.
+**Raw TCP capture: NOT REQUIRED to resolve the first read**, which static analysis recovered. A capture remains **HELPFUL** only if subsequent offline analysis cannot resolve the accepted TCP record semantics or external port advertisement. The local bind port is dynamic, so any future capture would first need to observe the runtime endpoint. No USB analyzer is indicated.
 
-**Ready for Display B implementation: NO.** Primary path is incomplete. Biggest blocker: the saved analysis lacks a proven accepted-fd reader-to-callback edge, including listener endpoint and TCP parser.
+**Ready for Display B implementation: NO.** Static analysis is **not exhausted**: the exact binary, symbols, DWARF, and relocations are available. The main remaining static blocker is linking the CarPlay media object to the MediaCodec backend through its vtable construction.
