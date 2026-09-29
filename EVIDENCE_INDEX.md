@@ -1,3 +1,15 @@
+## Step 40 — Honda hook boundary (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Exact build | src/claritylink-honda/elf_identity.py, targets.py, research/carplay/honda-hook-fingerprints.md | Whole ELF and .text hashes, size, ELF32/little/ARM/ET_DYN verified against local ignored jmcs; no GNU build-id |
+| Setup ABI | research/carplay/honda-hook-abi.md, honda-hook-points.md | Setup r0=session, r1=request, r2=responseOut; caller at 0x28af72 checks status and passes response to synchronous serializer |
+| Candidate hook set | research/carplay/honda-hook-points.md, honda-hook-fingerprints.md | Narrow call-site candidates 0x28a158 (/info builder) and 0x28af72 (Setup); session start/teardown coordination needed before persistent mode |
+| Addressing | src/claritylink-honda/addressing.py, research/carplay/honda-runtime-addressing.md | Synthetic PT_LOAD/maps load-bias and Thumb-bit resolver; no live /proc read |
+| Mock hook lifecycle | src/claritylink-honda/mock_hooks.py, hook_gate.py, tests/honda/ | Exact gates, all-or-none mock activation, original-byte restore and retry; not a live writer |
+| Modes/readiness | src/claritylink-honda/modes.py, research/carplay/honda-hook-safety.md | OFF/NOOP/OBSERVE host semantics work; AUGMENT requires extra gates; trampoline/veneer and live rollback not ready |
+| Verification | step-reports/40-honda-hook-harness.md | 104 maintained tests pass (31 subtests); no live hook or Type111 test |
+
 ## Step 39 — Host-only Display-B interposer (2026-09-29)
 
 | Area | Primary evidence | Finding |

@@ -1,50 +1,53 @@
 # ClarityLink
 
-**Official project name: ClarityLink.** Make a genuine, independent second CarPlay display appear only in the factory Honda Clarity instrument-cluster Navigation region while normal CarPlay remains independently usable on the center screen. Preserve all other stock cluster UI. Apple Maps is first; Waze follows if supported.
+ClarityLink’s goal is to keep factory Honda CarPlay on the center display while adding an independent navigation display in the instrument cluster’s existing Navigation region. Apple Maps is the first target; Waze follows if supported. The project preserves the rest of the factory cluster UI.
 
-## Current status — 2026-09-28
+## Current status — Step 40 (offline)
 
-The HondaHack output path is traced to a normal Android View hosted in Honda's externaldisplay window hierarchy. Screen Casting captures Display 0 at 400×240 ARGB_8888, transfers frames through shared MemoryFile/PFD IPC, and places them in an ImageView. HondaHack's Xposed module inserts that view into Honda's InterfaceWindow main/interrupt root. Display 1 is the external HDMI output at 800×480 on layer stack 1.
+The project has moved from broad protocol recovery to validating a safe integration boundary around Honda’s exact jmcs build.
 
-An offline ClarityLink renderer prototype separates synthetic FrameSource, renderer, and output backend. Host tests cover 800×480 sizing, row stride, invalid frames, repeated submission, and backend clear/destroy lifecycle. The API 17 Android View backend is a skeleton: externaldisplay root acquisition and real viewport/hardware output remain unimplemented. No independent CarPlay second stream exists.
+- **CONFIRMED / strongly modeled:** stock Type110 Setup and media path; 128-byte screen framing; Type110 AES-CTR/KDF model; VideoConfig and H.264 conversion model.
+- **HOST IMPLEMENTED:** copy-on-write Display-B capability model; stock-first Setup response interposer; transactional rollback; fake listener; synthetic receiver path; redacted diagnostics; OFF/NOOP/OBSERVE semantics; ELF identity and mock hook transaction models.
+- **CURRENT:** exact-build and call-site fingerprints are verified offline; load-bias resolution is synthetic-testable. The ARM/Thumb call shim, original-call veneer, and executable rollback path are not implemented or validated, so the Honda hook harness is **NOT READY**.
+- **NOT PROVEN:** the iPhone requests Type111, accepts a project response, or uses the recovered Type110 KDF for Type111. No real secondary TCP stream, secondary H.264, or cluster rendering from CarPlay has been demonstrated.
 
-Exact physical Navigation bounds remain unknown. SurfaceFlinger reports full-frame Display 1 output without a smaller crop. HondaHack's 584×215 root and 584×191 local cast image region are not proven physical coordinates. The main protocol blocker is still the missing second-display Identification/session advertisement and descriptor.
+No vehicle, ADB, ptrace, live process memory, real listener, CAN, block device, or firmware write is part of Step 40.
 
-Display B static work is documented in `research/carplay/`. The offline model in `src/carplay-session-model/` emits deterministic JSON research fixtures with explicit unknown fields; it does not synthesize protocol bytes.
+## Intended architecture
 
-## Roadmap
+The target is two independent media paths in one authenticated CarPlay session. This is a design target; Type111 interoperability remains unproven.
 
-1. Evidence baseline — complete.
-2. Honda/cluster output path — complete enough; HondaHack View path traced to Display 1.
-3. Reusable ClarityLink renderer abstraction — partial and sufficient for protocol work.
-4. Second-display Identification/session reconstruction — current; primary model recovered, Display B model partial.
-5. Implement Display-B negotiation — blocked on descriptor/session evidence.
-6. Receive second CarPlay H.264 stream — pending accepted Display B.
-7. Connect decoder to ExternalDisplay renderer — pending.
-8. Offline integration and failure handling — pending.
-9. Minimal reversible parked-car test — pending reviewed design.
-10. Apple Maps cluster display with independent center display — pending.
-11. Waze validation — pending Apple Maps success.
-12. Packaging, recovery, and persistent implementation — pending.
+```mermaid
+flowchart LR
+    Phone[iPhone CarPlay session]
+    Phone -->|stock Type110| Honda[Honda stock Setup and listener]
+    Honda --> Center[Honda stock decoder]
+    Center --> CenterDisplay[Center display]
+    Phone -->|future Type111 / AltScreen| Clarity[ClarityLink additive path]
+    Clarity --> Listener[Project listener]
+    Listener --> Receiver[Project receiver and H.264 decoder]
+    Receiver --> External[Honda ExternalDisplay path]
+    External --> Cluster[Instrument-cluster Navigation region]
+```
 
-The current engineering focus is Display B negotiation. Do not spend time on exact physical crop, HondaHack capture, framebuffer access, renderer optimization, root acquisition, or zero-copy input unless a protocol finding directly requires it.
+**Design invariant:** Honda Type110 remains stock. ClarityLink delegates to Honda first and adds project-owned behavior only after a valid stock result. Project failure returns the original stock result and releases only project resources. The generic mc_dev_attach("CarPlay Screen") registry investigation is fallback-only, not the primary Display-B architecture.
+
+## Project plan
+
+See [ROADMAP.md](ROADMAP.md) for phases, evidence labels, and current gates.
 
 ## Start here
 
 | Purpose | File |
 |---|---|
 | Current state | [PROJECT_STATE.md](PROJECT_STATE.md) |
-| One next action | [NEXT_ACTION.md](NEXT_ACTION.md) |
+| Next concrete task | [NEXT_ACTION.md](NEXT_ACTION.md) |
 | Evidence index | [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) |
-| HondaHack path | [research/hondahack/hondahack-display-path.md](research/hondahack/hondahack-display-path.md) |
-| Static trace | [research/hondahack/hondahack-static-analysis.md](research/hondahack/hondahack-static-analysis.md) |
-| Renderer interface | [research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md](research/hondahack/CLARITYLINK_OUTPUT_INTERFACE.md) |
-| Milestone report | [step-reports/05c-hondahack-display-path.md](step-reports/05c-hondahack-display-path.md) |
-| CarPlay protocol | [research/iap2-identification.md](research/iap2-identification.md) |
-| Physical safe-area evidence | [research/navigation-safe-area.md](research/navigation-safe-area.md) |
-| Primary display/session trace | [research/carplay/primary-display-session.md](research/carplay/primary-display-session.md) |
-| Display B candidate model | [research/carplay/second-display-session.md](research/carplay/second-display-session.md) |
-| Descriptor schema evidence | [research/carplay/identification-schema.md](research/carplay/identification-schema.md) |
-| Session-model tests | [tests/carplay-session-model/test_model.py](tests/carplay-session-model/test_model.py) |
+| Step 40 report | [step-reports/40-honda-hook-harness.md](step-reports/40-honda-hook-harness.md) |
+| Honda hook points | [research/carplay/honda-hook-points.md](research/carplay/honda-hook-points.md) |
+| Hook fingerprints | [research/carplay/honda-hook-fingerprints.md](research/carplay/honda-hook-fingerprints.md) |
+| Runtime address model | [research/carplay/honda-runtime-addressing.md](research/carplay/honda-runtime-addressing.md) |
+| Host interposer | [research/carplay/display-b-interposer.md](research/carplay/display-b-interposer.md) |
+| Screen transport | [research/carplay/honda-screen-framing.md](research/carplay/honda-screen-framing.md) |
 
-Raw captures, APKs, firmware, forensic images, and sensitive data stay local and ignored. No direct framebuffer access or vehicle writes are part of current work.
+Historical firmware, renderer, and protocol research remains under research/. Raw captures, APKs, firmware, forensic images, and sensitive data stay local and ignored.
