@@ -1,7 +1,5 @@
 # Next action
 
-**Prove the exact registry entry that wins for `"CarPlay Screen"`.** Continue from [Step 16](step-reports/16-carplay-registration-match.md): trace relevant `devmgr_app_register` callers and their interface initializers, identify comparator candidates and evaluate the exact key, then follow the proven interface slot +4 attach callback to sink construction and `process_data`. Continue toward H.264, MediaCodec, and Surface only from that callback.
+**Recover the exact device-manager registration state used by `mc_dev_attach("CarPlay Screen", ...)`.** The static local `jmcs` ELF proves generic unsigned max-score selection and two direct `devmgr_app_register` routes, but does not identify the runtime candidate node/interface/context or insertion order. Search existing offline snapshots for the manager list at attach time; otherwise identify the service/IPC producer that installs the callback table. Do not trace downstream sink/decoder/Surface or proceed to Display B until the winner and slot `+4` callback are proven.
 
-Do not use the vehicle or ADB. Do not implement Display B or infer registration based on nearby strings. The generic lookup and current evidence limits are in [device-registration.md](research/carplay/device-registration.md), [mc-dev-attach.md](research/carplay/mc-dev-attach.md), and [primary-screen-end-to-end.md](research/carplay/primary-screen-end-to-end.md).
-
-Raw captures, APKs, firmware, forensic images, vendor binaries, and decompiler databases stay local and ignored. No model implementation or vehicle work is part of the next offline slice.
+See [Step 17](step-reports/17-carplay-registration-winner.md), [match semantics](research/carplay/device-match-semantics.md), and [device registration](research/carplay/device-registration.md). Offline only; no vehicle or ADB.

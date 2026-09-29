@@ -19,3 +19,7 @@
 The generic manager allocates a `0x20`-byte record, creates a secure pointer to it with `j_secure_ptr_create` (`0x123DB4`), stores that pointer at record `+0x0c`, and writes it through the second `mc_dev_attach` argument. The selected entry pointer is retained in the per-attach record after attach success. This is evidence for a per-attach manager record, not proof that the concrete media device, sink, decoder, or Surface is independent. The generic manager object itself is reached through a global pointer by `mc_dev_attach`.
 
 `media_dev_attach` and `media_dev_attach_cb` are real generic media symbols, and media registration plumbing is present. Neither is attributed to the `CarPlay Screen` key absent a recovered successful comparator result and registration initializer.
+
+## Step 17 status — winner remains unresolved (2026-09-28)
+
+The offline pass confirms generic registration and ranking only. `dev_attach` selects the strictly highest unsigned slot `+0` result (initial best 0; ties retain the earlier node), then dispatches slot `+4`. The concrete list entry/interface/context installed for `"CarPlay Screen"` is not statically recoverable from the local `jmcs` artifact. Therefore this note does not assign an active backend, sink, decoder, or Surface. See [device-match-semantics.md](device-match-semantics.md) and [Step 17](../../step-reports/17-carplay-registration-winner.md). The exact blocker is runtime registration state (or its producer), not absent `jmcs`/DWARF. Display-B readiness remains **No**.
