@@ -48,3 +48,9 @@ Step 27 closes the central dataflow gap. `_connectionHandleMessage` (`0x28a30c`,
 The immediate post-Setup/pre-serializer caller window is now the smallest structural augmentation candidate, and caller ownership is evidenced by the cleanup. That does not prove live-hook safety or iPhone support for Type 111. Display capability signaling remains unresolved: `CopyDisplaysInfo` still returns one main-screen dictionary, and no relation to this Setup response is established. Do not implement negotiation yet. See `step-reports/27-honda-setup-send-path.md` and `research/carplay/honda-setup-response.md`.
 
 See `honda-setup-response.md`, `honda-display-descriptor.md`, `honda-dataport-field.md`, `honda-response-serializer.md`, `honda-hook-abi.md`, and `display-b-fixture.md`.
+
+## Step 28 capability-gating update (2026-09-29)
+
+`CopyDisplaysInfo` now has recovered literal keys: `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, and `uuid`. It builds one mutable dictionary from one `ScreenCopyMain()` result; the `uuid` property is inserted through the numeric setter in this function. A generated-disassembly search found no direct call site. Its parent, serializer, and phone-facing phase remain unknown. No second display descriptor array or AltScreen-like field is evidenced.
+
+The Type-110 SETUP response remains confirmed phone-facing (Step 27), but incoming type parsing, Type-111 acceptance, display-to-stream correlation, and feature bit semantics are unknown. The current evidence does not support negotiation implementation or a live test. See `honda-display-capabilities.md`, `honda-copy-displays-info.md`, `honda-identification-receiver-info.md`, `honda-alt-screen-gating.md`, `honda-stream-type-dispatch.md`, and `display-stream-correlation.md`.

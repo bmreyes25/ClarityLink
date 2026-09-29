@@ -1,16 +1,7 @@
-# AltScreen control plane
+# AltScreen control plane and Honda status
 
-Apple WWDC19 documents vehicle-selected content types for cluster streams and parallel map plus maneuver-card video. It does not publish the private UI command schema.
+Apple WWDC19 is high-level evidence that the vehicle selects instrument-cluster content and that multiple simultaneous video streams can serve main and cluster displays. It does not specify the private control messages. xcertplay/Harman evidence for display UUIDs, `altScreen`, 110/111, `suggestUI`/`showUI`, URLs, and per-stream setup is prior-art implementation evidence only.
 
-xcertplay's pinned `AirPlaySession.kt` handles AirPlay SETUP stream lists and capability features; it is independent receiver evidence, not the control-plane source for all implementations. Harman's `alt111` profile uses `maps:/car/instrumentcluster`; its code/config also references `/map`. URL selection and `suggestUI` / `showUI` semantics are implementation/reverse-engineering evidence, not Apple documentation. No exact Honda control messages or versions were found in the tracked Honda notes.
+Honda Step 28 establishes a local single-screen descriptor builder with `features` and `uuid` fields, but no caller, enclosing message, serializer, or phone-facing control-plane edge. No Honda `altScreen`, secondary role, second UUID, UI suggestion/selection, or view-area field is confirmed. The numeric UUID insertion is especially in need of data-type clarification. Thus the minimum known gating sequence is architectural, not a recovered Honda protocol transcript: advertise a distinct secondary display/capability; phone selects/proposes cluster UI; phone requests its stream with display correlation; receiver accepts/routes it; response supplies the independent stream port.
 
-| Identifier / command | Role | Sender / timing | Confidence |
-|---|---|---|---|
-| `maps:/car/instrumentcluster` | generic cluster context | receiver profile / UI selection | observed in open implementation |
-| `maps:/car/instrumentcluster/map` | map view selection | UI context transition | open-source/reverse-engineered; Honda unknown |
-| `maps:/car/instrumentcluster/instructioncard` | instruction card selection | UI context transition | open-source/reverse-engineered; Honda unknown |
-| `suggestUI` | candidate UI contexts | phone/receiver interaction varies by generation | exact Honda direction/timing unknown |
-| `showUI` | selected screen UUID and UI context | control-plane selection | exact Honda schema unknown |
-| `forceKeyFrame` | request fresh video frame | receiver-to-sender control in xcertplay's command helper; default empty params targets main stream | per-display selector and Type-111 behavior unknown |
-
-Do not build this state machine into Honda code until a Honda trace or target-compatible source confirms the command direction, payload, and routing.
+Control-plane direction, timing, schema, and correlation remain UNKNOWN for Honda. Do not implement guessed prior-art messages or fields.

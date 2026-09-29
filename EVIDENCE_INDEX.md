@@ -1,3 +1,7 @@
+## Step 28 — Honda display capability gating (2026-09-29)
+
+`AirPlayReceiverSessionScreen_CopyDisplaysInfo` returns one mutable dictionary from one `ScreenCopyMain()` object. Recovered keys: `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, `uuid`; numeric `uuid` setter path and masked `features` semantics need clarification. No display array/loop exists in this function. Generated disassembly contains no direct call to it; indirect caller remains possible. No parent message, serializer, protocol phase, or phone-facing edge is established. Request-side type parsing, Type-111 acceptance, and display/stream correlation remain unknown. No live work or code was performed. See `step-reports/28-honda-display-capability-gating.md`, `research/carplay/honda-display-capabilities.md`, `honda-copy-displays-info.md`, `honda-identification-receiver-info.md`, `honda-alt-screen-gating.md`, `honda-stream-type-dispatch.md`, `display-stream-correlation.md`, and `altscreen-control-plane.md`.
+
 # ClarityLink evidence index — 2026-09-29
 
 ## Step 27 — Honda SETUP response send path (2026-09-29)

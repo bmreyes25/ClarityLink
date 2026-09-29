@@ -1,3 +1,9 @@
+## Step 28 — Honda display capability gating (2026-09-29)
+
+Step 28 recovers the local `AirPlayReceiverSessionScreen_CopyDisplaysInfo` result but does not connect it to the phone. The routine returns one mutable dictionary populated from one `ScreenCopyMain()` result. Literal fields are `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, and `uuid`; the `uuid` property is inserted through the numeric setter, so its representation still needs confirmation. The `features` value is masked, but bit meanings are unknown. It contains no display array/loop. A generated-disassembly search found no direct call site; indirect use remains possible. Parent container, caller, serializer, protocol phase, and phone-facing status remain unknown.
+
+Incoming SETUP type parsing and Type-111 acceptance are also unknown. Display UUID-to-stream correlation is unresolved. Prior-art supports the architecture but does not establish Honda behavior. Negotiation implementation and live testing are not ready. No vehicle, ADB, ptrace, hook, firmware patch, or Type-111 response change was performed. See `step-reports/28-honda-display-capability-gating.md` and the seven Step 28 notes under `research/carplay/`.
+
 # ClarityLink project state — 2026-09-29
 
 ## Step 27 — Honda SETUP response phone send path
