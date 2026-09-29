@@ -125,7 +125,7 @@ The matching source constants are unchanged. Synthetic tests pass, including 128
 ## Reproducibility identifiers
 
 ```text
-SOURCE COMMIT: milestone commit (recorded in final task result)
+SOURCE COMMIT: f3815ca (ARM reader source and build configuration)
 SOURCE SHA256 (reader.c): 7ebd3506b5accb518e846cd29e458e7788bfd1a835eede8b05bdbe7f082a7f80
 BINARY SHA256: c418c8622e6d2a490f5a53074a0364fdbffcd8ff12ce3c7f061eadf5d442e8ec
 NDK: 23.2.8568313
