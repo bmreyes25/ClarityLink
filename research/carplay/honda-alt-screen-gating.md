@@ -1,30 +1,16 @@
-# Honda AltScreen gating: Step 28 findings
+# Honda AltScreen gating — Step 29
 
-## Evidence boundary
+Honda's local main-display dictionary includes numeric `features`, but its source mask semantics are unresolved and no AltScreen meaning is established. Its `uuid` key is populated numerically from a property on the one main-screen object. No caller or phone-facing capability message is recovered. Separately, the SETUP response builder emits the stock type-110 stream entry with a dynamic `dataPort`; incoming type parsing is unresolved.
 
-Apple WWDC19 documents simultaneous CarPlay video streams for a main display and instrument cluster and vehicle-selected cluster content. It does not publish the private descriptor schema or a complete iPhone gate sequence. Pinned xcertplay and Harman MHI2 prior-art evidence defines a main/alternate distinction (110/111), multiple display identities/capability concepts, and Type-111 receiver handling; it is implementation evidence for those projects, not Honda behavior. Honda's recovered SETUP response is phone-facing and has a stock Type-110 stream. Honda's `CopyDisplaysInfo` builder returns one local dictionary, but its caller and phone-facing route are not established.
+Consequently, whether an iPhone may issue type 111 without a second-display descriptor is **UNKNOWN** for Honda. A design expectation that a phone needs a descriptor is not evidence of Honda's behavior or of the phone's private protocol. No Type-111 request acceptance/rejection/default branch is recovered.
 
-## Minimum supported sequence
-
-| Stage | Status |
+| Question | Status |
 |---|---|
-| Receiver exposes an additional display identity/capability | Prior-art supported; Honda unknown |
-| iPhone recognizes/selects alternate display and proposes secondary UI | Apple documents multi-stream cluster use at high level; exact gate/schema unknown |
-| Phone issues secondary setup/request with display correlation | Prior-art supported; Honda unknown |
-| Receiver accepts Type 111 and provisions a distinct listener/port | Harman prior-art supported; Honda unknown |
-| SETUP response includes Type 111 and its dataPort | Honda supports stock Type 110 only; Type 111 unknown |
+| Does Honda advertise a second display? | Unknown; local builder only proves one main-screen dictionary |
+| Does `features` signal AltScreen? | Unknown |
+| Is second-display advertisement required before type 111? | Unknown |
+| Would Honda accept or reject type 111? | Unknown |
+| Minimum capability hook | Unknown; phone-facing builder/caller unlocated |
+| Minimum Setup hook | Structural post-Setup/pre-serializer response window at caller `0x28af72` → `0x28afba`; protocol need and runtime safety unknown |
 
-`features` exists in Honda's local descriptor dictionary; no AltScreen-like bit/token is identified. No supported claim that type 111 alone is sufficient. Since display-to-stream correlation is unresolved, **TYPE111_WITHOUT_DISPLAY_ADVERTISEMENT: LIKELY INSUFFICIENT** as a conservative protocol inference, not an Apple-published rule. A full alternate-display implementation may require capability advertisement plus request parser/dispatcher changes in addition to response augmentation.
-
-## Two-stage design gate
-
-Stage A would require first proving the display-info dictionary reaches a phone-facing parent/serializer, then locating a mutable parent collection/schema. Neither is established. Stage B's response mutation point is structurally known after stock Setup and before serialization; Type-111 request acceptance, port/listener lifecycle, stream/display binding, and live-hook safety are not.
-
-```text
-CAPABILITY HOOK REQUIRED: UNKNOWN (likely required by prior-art architecture; Honda gate unknown)
-SETUP HOOK REQUIRED: YES for a ClarityLink-owned secondary port if Honda stock code does not provide one; Type-111 acceptance unknown
-READY FOR STRUCTURED DISPLAY-B NEGOTIATION IMPLEMENTATION: NO
-READY FOR LIVE NEGOTIATION TEST: NO
-```
-
-Earliest unambiguous future success signal, after an authorized controlled test is separately planned: a second SETUP request carrying a contextualized alternate type/display identity, or a second listener connection demonstrably correlated to the advertised secondary UUID. A raw TCP connect alone is weaker unless the endpoint and purpose are identified.
+**Ready for negotiation implementation:** no. **Ready for live experiment:** no. Do not implement or hook on this evidence.

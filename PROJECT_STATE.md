@@ -4,6 +4,10 @@ Step 28 recovers the local `AirPlayReceiverSessionScreen_CopyDisplaysInfo` resul
 
 Incoming SETUP type parsing and Type-111 acceptance are also unknown. Display UUID-to-stream correlation is unresolved. Prior-art supports the architecture but does not establish Honda behavior. Negotiation implementation and live testing are not ready. No vehicle, ADB, ptrace, hook, firmware patch, or Type-111 response change was performed. See `step-reports/28-honda-display-capability-gating.md` and the seven Step 28 notes under `research/carplay/`.
 
+## Step 29 — display caller and SETUP parser (2026-09-29)
+
+Offline pass retained the Step 27 confirmed Setup response-to-binary-plist/HTTP send path and Step 28 local display-dictionary result, but recovered neither requested bridge. Tracked artifacts omit the matching `jmcs` ELF/relocation/data/DWARF evidence for indirect `CopyDisplaysInfo` references and omit the relevant dispatcher/Setup request-read disassembly. Thus its phone-facing use, incoming stream `type` key/conversion/dispatch, Type-111 behavior, request multiplicity, and display-to-stream binding remain unknown. No hooks or implementation were made; no live interaction occurred. Negotiation and first live experiment are not ready. See `step-reports/29-display-caller-and-stream-parser.md` and its eight focused notes.
+
 # ClarityLink project state — 2026-09-29
 
 ## Step 27 — Honda SETUP response phone send path

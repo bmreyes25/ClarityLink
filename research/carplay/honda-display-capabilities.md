@@ -1,5 +1,9 @@
 # Honda display capability advertisement
 
+## Step 29 update
+
+The indirect caller search remains unresolved. The tracked checkout has symbol metadata and generated excerpts but not the matching `jmcs` ELF, relocation/data image, or complete DWARF/interface evidence needed to identify pointer storage, callback slot, initializer, indirect caller, parent container, or serializer. Therefore phone-facing use remains unknown. The previously documented single local dictionary and fields remain the confirmed scope. See `copy-displays-indirect-calls.md` and `honda-display-uuid-flow.md`.
+
 ## Evidence result
 
 Honda's `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`jmcs` VA `0x287ae1`) returns one mutable dictionary for `ScreenCopyMain()` / registry element zero. Recovered keys are `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, and `uuid`; see [`honda-copy-displays-info.md`](honda-copy-displays-info.md) for insertion/source details. This proves a local display-info builder, not a phone-facing capability advertisement.
