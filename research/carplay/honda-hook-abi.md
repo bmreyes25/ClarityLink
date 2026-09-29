@@ -1,31 +1,27 @@
-# Honda stock-delegating hook ABI assessment
+# Honda Setup response hook ABI (recovered call site)
 
-## Candidates
+## Setup call
 
-| Candidate | Stock first? | Primary behavior | Append ability | Risk / verdict |
-|---|---|---|---|---|
-| A. `AirPlayReceiverSessionSetup` entry (`0x2854e0`) | yes, by calling original | Can preserve stock status and output if wrapper is transparent | Could alter output only after original if output pointer and ownership are understood | **High risk now**: exact signature, out-object ownership, reentrancy and callback timing incomplete |
-| B. immediately after original returns | yes | Best conceptual preservation point | Output pointer likely contains response dictionary, but full parameter mapping/ownership missing | **Promising, not safe yet** |
-| C. `CopyDisplaysInfo` builder (`0x287ae0`) | yes, call original first | Main-only dictionary remains intact | No multi-display collection evidenced; this is not the SETUP stream array | **Poor fit** |
-| D. `_AddResponseStream` (`0x284db8`) | invoked by stock builder | Existing stream append behavior retained | Natural stream-entry location; but adding second response without second request semantics is unproven | **Potential smallest structural hook**; ABI of internal helper and request eligibility need recovery |
-| E. generic serializer pre-call | unknown | Could preserve fields if actual object is setup response | Session response serializer not identified | **Not currently targetable** |
-
-## Function ABI currently known
-
-`AirPlayReceiverSessionSetup` is an ARM EABI/Thumb function returning `OSStatus` in `r0`. Entry disassembly saves `r0` as session, `r1` as request dictionary, and stores `r2` as an output pointer at `[sp+0x50]`; the function writes the response dictionary through that pointer at `0x286260`. It later invokes a completion callback indirectly at `0x2862b0` with status/context; this callback is not passed the response dictionary. DWARF has the function return type and source line but no formal parameter DIEs in this ELF, so the complete parameter declaration and ownership semantics remain **UNKNOWN**.
-
-The response dictionary is released on local failure/cleanup paths; its lifetime when published to the caller and passed to the callback is not fully established. Setup builds it as mutable. `CFDictionarySetValue` and `_AddResponseStream` retain/copy behavior follows Honda's CF implementation conventions, but hook-safe retain/release at the callback boundary is **UNKNOWN**.
+`_connectionHandleMessage` at `0x28af6a–0x28af72` calls `AirPlayReceiverSessionSetup` (`0x2854e0`):
 
 ```text
-HOOK TARGET: none approved from static evidence
-BEST FUTURE INVESTIGATION TARGET: post-Setup response out-parameter/callback boundary, once caller and ownership are mapped
-CALLING CONVENTION: ARM EABI AAPCS32 (Thumb); exact formal signature incomplete
-RETURN: OSStatus in r0
-THREAD CONTEXT: unknown
-ERROR SEMANTICS: status codes and error-output path exist; complete interposer semantics unknown
-SAFE TO APPEND: UNKNOWN
+r0 = receiver session object, loaded from [r10 + 0xf4]
+r1 = request CF dictionary
+r2 = pointer to response slot at caller sp + 0x54
+r0 on return = OSStatus
 ```
 
-## Minimal hook-surface conclusion
+The response slot is read only after a zero status. Setup writes the response dictionary through its saved `r2` at `0x286260`. The caller immediately installs session properties, passes the same response pointer to `_requestSendPlistResponse` at `0x28afba`, and releases it at `0x28b052` after serialization. AAPCS32 ARM/Thumb is used. The actual machine call-site ABI and caller cleanup are recovered even though the ELF lacks formal parameter DIEs.
 
-The response already has `streams: CFArray` and per-entry `type`/`dataPort` fields. This is the strongest potential extension boundary. The safest conceptual shape remains “call stock, preserve the original object and its primary stream entry, then add a separate ClarityLink entry before the proven serializer.” However, no serializer relation, callback ownership guarantee, iPhone acceptance behavior, secondary descriptor construction, or Type-111 handling is established. Therefore the proposed hook is **not yet proven feasible** and no hook is implemented.
+## Candidate windows
+
+| Candidate | Stock first | Response available | Mutable | Ownership understood | Primary behavior preserved | Assessment |
+|---|---|---|---|---|---|---|
+| A. Setup wrapper | yes if it delegates to original | through out pointer on return | yes before serializer | yes for this caller path | possible, untested | medium/high risk: full indirect call population and reentrancy unknown |
+| B. caller after Setup | yes | yes, `sp+0x54` | yes until helper call | yes, +1 caller ownership | best structural fit; can preserve existing primary entry | **smallest structural candidate; live-hook feasibility remains unknown** |
+| C. pre-serializer wrapper | stock response already built | yes | yes | caller owns it | possible | wrapper target known, but changes all plist responses unless narrowly gated by request/context |
+| D. response-builder helper `_AddResponseStream` | called by stock | response and new entry available | yes | CF collection semantics plausible | unknown | broad internal ABI/request selection and protocol semantics unknown |
+
+The Setup return path gives the latest evidenced point with the stock response complete and serializer not yet started: immediately after the call at `0x28af72`, before `_requestSendPlistResponse` at `0x28afba`. This is a candidate, not a safe hook decision. Thread/reentrancy details, whether Setup's output callback has side effects relevant to ordering, Type-111 requirements, and display capability negotiation remain unresolved.
+
+Appending to the mutable CFArray uses normal CF retain semantics: the primary entry object/value is not rewritten by append, and array ordering places the new value after the existing one. The offline fixture separately asserts primary-field preservation/order, but this does not prove serializer acceptance or phone behavior.

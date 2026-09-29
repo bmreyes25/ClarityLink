@@ -1,6 +1,6 @@
 # Next action
 
-**Offline: trace the caller and registered session delegate for `AirPlayReceiverSessionSetup` through the actual phone-facing serializer and network send.** Step 26 recovered Honda's mutable SETUP response dictionary, `streams` CFArray, stock `type=110`, and per-entry dynamic `dataPort`; it did not identify the transport encoder, out-object ownership, or safe hook ABI. Recover those exact edges before choosing or implementing any interposer. Keep the `mc_dev_attach("CarPlay Screen")` registry fallback-only and keep ptrace paused.
+**Offline: resolve Honda's display capability advertisement and alternate-screen request gating, then determine whether the phone can request Type 111.** Step 27 proves Setup's exact mutable response reaches binary-plist serialization and the HTTP send path, and recovers the caller-owned response lifetime. The latest structural mutation candidate is immediately after Setup and before `_requestSendPlistResponse`; do not implement a live hook or negotiation until capability signaling, Type-111 schema/security, and request gating are evidenced. Keep the `mc_dev_attach("CarPlay Screen")` registry fallback-only and keep ptrace paused.
 
 See `research/carplay/honda-altscreen-gap-analysis.md`, `research/carplay/claritylink-display-b-architecture.md`, and `step-reports/25-altscreen-prior-art-pivot.md`.
 

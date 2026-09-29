@@ -1,27 +1,21 @@
 # Honda response serializer boundary
 
-## Recovered serializer candidates
+## Setup-specific serializer
 
-Honda `jmcs` includes generic property-list serialization. `_requestSendPlistResponse` (`0x289f60`) takes a property-list object in `r2`, calls `CFPropertyListCreateData` (`0x28e6fc`), obtains bytes and length from the returned `CFData`, calls `HTTPMessageSetBody` (`0x29d01c`), and releases the temporary data. It sets an HTTP response status and reports an error through an output pointer.
+The phone-facing caller `_connectionHandleMessage` (`0x28a30c`) passes its Setup output slot (`sp+0x54`) directly to `_requestSendPlistResponse` (`0x289f60`) as the property-list object argument (`r2`) at `0x28afba`.
 
-This proves a local HTTP plist serializer ABI for that helper, **not** that it serializes `AirPlayReceiverSessionSetup` responses. No reference/call edge from the setup response delegate to `_requestSendPlistResponse`, `CFPropertyListCreateData`, `CFBinaryPlistCreateData`, or a network write was recovered in the bounded offline trace.
+The helper initializes an HTTP 200 response, calls `CFPropertyListCreateData` with format value `0xc8`, obtains byte pointer and length from the returned `CFData`, and calls `HTTPMessageSetBody`. The implementation's content-type constant is `application/x-apple-binary-plist`; value `0xc8` is the binary plist format. It releases its temporary `CFData` after body installation.
 
-| ABI property | `_requestSendPlistResponse` | CarPlay SETUP response |
-|---|---|---|
-| Input object | generic CF-style plist object | mutable dictionary published by Setup |
-| Output | serialized CFData copied into HTTPMessage body | unknown encoder/output |
-| Format | `CFPropertyListCreateData` with format argument `0xc8`; exact format enum confirmation is outside this trace | unknown |
-| Ownership | returned CFData locally held then `CFRelease`d after body setter | unknown at callback boundary |
-| Mutability before serialization | input object is supplied to serializer; helper itself does not mutate it | Setup's local dictionary is mutable before callback; callback mutation contract unknown |
-| Network write | HTTPMessage body is prepared; downstream send is not part of this helper | unknown |
+## Boundary and limits
 
-## Finding
+This is no longer a generic-helper-only inference: a direct call edge connects Setup's exact output object to the serializer. Thus the same response dictionary containing the `streams` array and stock type-110/dataPort entry reaches serialized response bytes. The enclosing dispatcher sends the HTTP response through `HTTPConnectionSendResponse` (`0x29dbe4`). `_HTTPConnectionRunStateMachine` (`0x29d698`) calls `SocketWriteData` (`0x2a01c0`), which issues `writev@plt` on the connection descriptor and tracks partial writes. Static tracing reaches the TCP write syscall.
 
 ```text
-SERIALIZER: _requestSendPlistResponse (0x289f60), generic HTTP plist path only
-SETUP RESPONSE SERIALIZER: UNKNOWN
-PRE-SERIALIZATION RESPONSE MUTABLE: local response accumulator YES; hook-visible mutability UNKNOWN
-HOOK AT SERIALIZER PRE-CALL: not selected; no proven serializer/call edge for this response
+SERIALIZER: _requestSendPlistResponse (0x289f60)
+INPUT: Setup output CF-style dictionary, same caller stack slot
+OUTPUT: binary property-list CFData installed as HTTP message body
+FORMAT: binary plist (format argument 0xc8; application/x-apple-binary-plist)
+STATUS: HTTP 200 on successful body construction
+SETUP RESPONSE PHONE-FACING: CONFIRMED static call/dataflow
+PRE-SERIALIZER MUTATION WINDOW: exists synchronously after Setup returns; hook safety still unproven
 ```
-
-Do not install an interposer at this generic HTTP helper based only on its plist behavior.

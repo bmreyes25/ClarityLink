@@ -41,4 +41,10 @@ The exact local `jmcs` ELF disassembly adds a concrete Honda structure: `AirPlay
 
 The response dictionary is published through an output pointer. The separate completion callback receives status/context, not the response dictionary. The output-pointer caller, serializer, network write, formal C signature, and ownership contract remain unknown. `_requestSendPlistResponse` (`0x289f60`) serializes a generic plist to CFData for an HTTP response but has no proven call edge from CarPlay Setup. The response-augmentation shape is plausible but not established as safe. No hook or live negotiation is implemented.
 
+## Step 27 — Setup response send path (offline, 2026-09-29)
+
+Step 27 closes the central dataflow gap. `_connectionHandleMessage` (`0x28a30c`, `AirTunesServer.c`) calls `AirPlayReceiverSessionSetup` at `0x28af72` with `(session, requestDictionary, &response)` in `(r0, r1, r2)`. On success, the same response pointer is passed to `_requestSendPlistResponse` (`0x289f60`) at `0x28afba`. That helper creates a binary plist (`CFPropertyListCreateData`, format `0xc8`), installs its bytes/length as the body of an HTTP 200 response (`application/x-apple-binary-plist`), and the dispatcher calls `HTTPConnectionSendResponse` (`0x29dbe4`). It then releases the response object after synchronous serialization. The stock `streams` array and type-110/dataPort entry are therefore confirmed to reach the phone-facing response serialization/send path.
+
+The immediate post-Setup/pre-serializer caller window is now the smallest structural augmentation candidate, and caller ownership is evidenced by the cleanup. That does not prove live-hook safety or iPhone support for Type 111. Display capability signaling remains unresolved: `CopyDisplaysInfo` still returns one main-screen dictionary, and no relation to this Setup response is established. Do not implement negotiation yet. See `step-reports/27-honda-setup-send-path.md` and `research/carplay/honda-setup-response.md`.
+
 See `honda-setup-response.md`, `honda-display-descriptor.md`, `honda-dataport-field.md`, `honda-response-serializer.md`, `honda-hook-abi.md`, and `display-b-fixture.md`.

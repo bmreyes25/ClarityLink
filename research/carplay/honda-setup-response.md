@@ -1,63 +1,45 @@
-# Honda CarPlay SETUP response trace
+# Honda SETUP response: Setup to phone-facing HTTP send
 
-**Scope:** offline static analysis of the local ignored `extracted/system-vendor/system/bin/jmcs` ELF. No vehicle, ADB, firmware modification, or interposer work. The binary hash and address conventions are in [jmcs-address-map.md](jmcs-address-map.md).
+**Evidence:** local `extracted/system-vendor/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; static ARM/Thumb disassembly. No vehicle, ADB, ptrace, firmware patch, or live hook was used.
 
-## Result
-
-Honda's `AirPlayReceiverSessionSetup` (`0x2854e0`, Thumb symbol `0x2854e1`) is a status-returning routine. It receives a dictionary-like request, constructs mutable CF-style dictionaries, creates a TCP listener, and on success adds a stream dictionary to a response-like local container before invoking the registered session callback. This is a concrete Honda SETUP response model, but the callback's phone-facing transport encoder is not yet identified. Therefore it is **not proven** that this local response dictionary is the object serialized and sent to the iPhone.
+## Proven path
 
 ```text
-request CFDictionary-like object
+incoming HTTP request
+  -> _connectionHandleMessage (0x28a30c), AirTunesServer.c
+  -> parse request body as CF property-list dictionary
   -> AirPlayReceiverSessionSetup (0x2854e0)
-  -> create mutable response dictionary (0x28557e)
-  -> create mutable stream dictionary (0x286086)
-  -> insert type=110 and dataPort=<dynamic port> (0x28614a..0x286160)
-  -> _AddResponseStream (0x284db8): append stream dict to "streams" CFArray
-  -> store response dict through output pointer (0x286260)
-  -> completion callback receives status/context (0x2862b0; not the response object)
-  -> caller consuming output dictionary / transport serializer: unresolved
+       r0 = receiver session
+       r1 = request CF dictionary
+       r2 = &response CF object (caller stack slot)
+  -> response CF dictionary with streams CFArray
+  -> _requestSendPlistResponse (0x289f60), same response pointer
+  -> CFPropertyListCreateData(format 0xc8) -> CFData bytes and length
+  -> HTTPMessageSetBody
+  -> HTTPHeader_Commit
+  -> HTTPConnectionSendResponse (0x29dbe4)
+  -> HTTP connection's queued send state / network write
 ```
 
-### ABI and observed objects
+The critical call-site sequence is at `0x28af6a–0x28afba`: Setup receives `&sp+0x54`; on `OSStatus == 0`, that same slot is loaded into `r2` for `_requestSendPlistResponse`. After the helper returns, `_connectionHandleMessage` releases the response at `0x28b04e–0x28b054`. The helper serializes synchronously before returning. Setup stores its dictionary through its caller-provided pointer at `0x286260` and invokes its completion callback separately.
 
-| Item | Finding | Confidence |
-|---|---|---|
-| Setup request | CF-style dictionary; Setup reads typed values and nested dictionaries/arrays via `CFDictionaryGet*` helpers | **HONDA CONFIRMED** for local type family; upstream wire parser edge incomplete |
-| Setup response accumulator | mutable CF-style dictionary at local stack slot `sp+0x28` | **HONDA CONFIRMED** |
-| Stream entry | mutable CF-style dictionary | **HONDA CONFIRMED** |
-| Stream collection | CFArray under key `streams`; helper `_AddResponseStream` creates mutable array if absent and appends the entry | **HONDA CONFIRMED** |
-| Stream type | integer `110` inserted under key `type` | **HONDA CONFIRMED** |
-| Stream port | dynamically bound TCP port inserted under key `dataPort` | **HONDA CONFIRMED** |
-| Completion callback | delegate callback receives status and callback context; response dictionary is not passed in its arguments | **HONDA CONFIRMED** |
-| Callback serializer / transport write | not mapped from the delegate slot to an encoder/network write | **UNKNOWN** |
-| Primary display descriptor in SETUP response | no descriptor insertion edge proven; this routine adds a stream response entry | **UNKNOWN** |
+## Request/response facts
 
-The exact instruction sites are `CFDictionaryCreateMutable` at `0x28557e` and `0x286086`, key/value insertions at `0x286152` and `0x286160`, `_AddResponseStream` at `0x286168`, and output/callback dispatch at `0x286260` and `0x2862b0`. `_AddResponseStream` at `0x284db8` calls `CFDictionaryGetTypedValue` for `streams`, `CFArrayCreateMutable`, `CFArrayAppendValue`, and `CFDictionarySetValue`.
+`_connectionHandleMessage` is the phone-facing HTTP request dispatcher for this path. It consumes an HTTP message, obtains/parses a property-list request dictionary, calls Setup, then prepares the HTTP response. The server's registration edge into `_connectionHandleMessage` is outside this call slice; the exact route token/path is not asserted here. Setup failure skips plist serialization and follows the status response path.
 
-### End-to-end boundary
+`_requestSendPlistResponse` initializes HTTP status 200, calls `CFPropertyListCreateData` with format value `0xc8` (the binary plist format used by this implementation), reads `CFData` bytes and length, and passes both to `HTTPMessageSetBody`. The binary-plist content type constant resolves to `application/x-apple-binary-plist`. `HTTPConnectionSendResponse` commits the HTTP header and records the response/message body in the connection's outgoing state. `_HTTPConnectionRunStateMachine` (`0x29d698`) calls `SocketWriteData` (`0x2a01c0`), which calls `writev@plt` on the connection descriptor and handles partial writes by advancing the iovec. The static path therefore reaches the TCP write syscall; runtime packet segmentation is not observed.
 
-`AirPlayReceiverSessionSetup` returns an `OSStatus`, not a response object. Its caller-visible response path uses an output pointer (argument initially in `r2`, saved at entry) to publish the locally built dictionary. A later completion callback receives status and callback context; the disassembly does not pass it the response dictionary. Exact C prototype parameters are absent from the available DWARF subprogram DIE, so the complete public ABI signature and ownership contract are not reconstructed. The generated AAPCS32 code shows ordinary ARM EABI register/stack argument passing.
+## Confidence
 
-`_requestSendPlistResponse` (`0x289f60`) is a separate generic HTTP helper. It accepts a CF-style plist object, invokes `CFPropertyListCreateData` (`0x28e6fc`), obtains `CFData` bytes/length, and calls `HTTPMessageSetBody` (`0x29d01c`); it releases the temporary serialized `CFData`. No static call/reference proves that this helper is the session delegate used by `AirPlayReceiverSessionSetup`. Do not identify it as the CarPlay SETUP serializer without that edge.
+| Claim | Result |
+|---|---|
+| Setup has a phone-request caller | **CONFIRMED**: direct call from `_connectionHandleMessage` |
+| `streams` response reaches serializer | **CONFIRMED**: same output pointer passed as serializer input |
+| Serializer and wire representation | **CONFIRMED**: binary property list in HTTP response body |
+| Response ownership | **CONFIRMED caller-owned +1 in observed path**: caller releases after serializer returns |
+| Exact HTTP server callback registration edge | **UNKNOWN** in this bounded trace |
+| TCP write syscall | **CONFIRMED**: HTTP state machine -> `SocketWriteData` -> `writev@plt` |
+| Runtime packet segmentation/bytes | **UNKNOWN**: no live transaction capture |
+| iPhone acceptance of an appended Type-111 entry | **UNKNOWN** |
 
-### Direct answers
-
-```text
-REQUEST OBJECT TYPE: CF-style property-list dictionary (local parser/input edge incomplete)
-RESPONSE OBJECT TYPE: mutable CF-style dictionary
-DISPLAY CONTAINER TYPE: CopyDisplaysInfo returns one CF-style dictionary; SETUP stream entries are a CFArray
-RESPONSE BUILDER: AirPlayReceiverSessionSetup + _AddResponseStream
-SERIALIZER: unknown for this session response; separate HTTP plist helper exists at 0x289f60
-RETURN PATH: response dictionary out-parameter -> caller (unknown consumer); separate completion callback receives status/context
-PRE-SERIALIZATION RESPONSE MUTABLE: yes within Setup; mutation by an interposer at delegate time unknown
-PHONE-FACING SERIALIZATION PROVEN: no
-```
-
-The main display's local values (800×480, 30 FPS, high-fidelity touch, and 153×92 mm) are configuration evidence only. No recovered SETUP stream entry includes those geometry values. Primary UUID source/value and response-level display list remain unknown. The stream array shows Honda's response representation can contain multiple stream dictionaries structurally; it does **not** prove that Honda will accept a Type-111 request, support more than one display descriptor, or tolerate an extra entry.
-
-## Sources
-
-- Local ELF: `extracted/system-vendor/system/bin/jmcs` (ignored; do not stage); see [address map](jmcs-address-map.md).
-- Existing listener trace: [screen-tcp-listener.md](screen-tcp-listener.md).
-- Local display construction: [primary-display-session.md](primary-display-session.md).
-- Prior art only: [stream-type-111.md](stream-type-111.md), [altscreen-data-port.md](altscreen-data-port.md).
+The response is mutable after Setup returns and until the synchronous plist serialization call begins. The call site leaves a narrow post-Setup/pre-serializer interval, but thread/reentrancy implications and Type-111 protocol correctness are still unknown. This identifies a candidate mutation location, not authorization to implement a live hook.
