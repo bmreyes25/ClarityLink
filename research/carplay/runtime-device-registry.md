@@ -40,4 +40,24 @@ A precise CarPlay Screen match result also requires callback return values. If l
 - Live observation required: **YES**.
 - Device-manager address / registry head / entry count: **not available from saved artifacts**.
 - Winner / match score / slot +4: **unresolved**.
-- Live actions performed in this pass: **none**.
+- Live actions performed during the offline capture audit: **none**.
+
+
+## Live read-only attempt (2026-09-29)
+
+ADB to `192.168.86.102:5555` connected; `adb devices -l` reported the Clarity device, and `su -c id` returned root. `pidof` is absent from this head unit, so `ps | grep '[j]mcs'` identified PID **26577**. The iPhone remained disconnected.
+
+| Fact | Live result |
+|---|---|
+| `jmcs` process | PID `26577`, `/system/bin/jmcs`, root, 20 threads |
+| Load base | `0x4008f000` from executable mapping `4008f000-403cf000`, file offset 0 |
+| Key mapping | `libcarplay_proxy.so` at `0x40bb2000`; all 45 mapped `.so` paths were enumerated from `/proc/26577/maps` |
+| Current debug logs | `logcat -d -s MC MCS` empty; broad read-only filter for `devmgr`, `dev_attach`, `CarPlay Screen`, and device attach/registration terms also returned no lines |
+| Registry populated with iPhone disconnected | **UNKNOWN**; runtime manager pointer could not be read |
+| iPhone connection required | **UNKNOWN**; no candidate state was visible to establish whether the request registration is present before CarPlay startup |
+
+DWARF identifies global `mc_devs` at static VA `0x35acbc` as `devmgr_h`. Adding the live load base gives the candidate manager-handle cell at runtime address **`0x403e9cbc`**. A read-only four-byte attempt through `/proc/26577/mem` at this exact address failed with `Operation not permitted`; the earlier historical `/proc` mappings remain readable, but process memory is not. The manager pointer, then list head at manager `+0x08`, were therefore not recovered. No raw memory was obtained or retained.
+
+No on-device `gdbserver`, `lldb-server`, or `strace` is available; host `lldb` is present but no target server exists. `debuggerd` exists, but is not suitable for an arbitrary bounded memory read and may create a tombstone; it was not invoked. No software was installed and no debugger attached.
+
+**Live result:** owner and ASLR load base confirmed; registry head, entry count, candidates, scores, winner, and slot `+4` remain unresolved. The car has not been modified; no files or settings were written. The live session can stop and the car may be turned off; no useful next step requires keeping it powered with the current tools.

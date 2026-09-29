@@ -1,5 +1,5 @@
 # Next action
 
-**Wait for the user to make the parked Clarity available and reply READY.** The existing runtime captures identify `/system/bin/jmcs` and historical module mappings but do not contain its device-manager list or callback table. No live action has been performed. After READY, start with existing read-only logs and process metadata, then make only the smallest bounded read-only registry observation needed to recover the entry list and callback pointers.
+**Provide an existing ptrace-capable, read-only memory inspection endpoint for the head unit, or an approved equivalent that does not install software or write a tombstone.** ADB/root confirmed `jmcs` PID 26577 and load base `0x4008f000`; the DWARF-derived manager-handle cell is runtime `0x403e9cbc`, but the kernel denies `/proc/26577/mem` reads. No debugger server is installed, and current logs expose no registry data. The iPhone remains disconnected; do not connect it until this access blocker is resolved.
 
 See [Step 18](step-reports/18-runtime-registration-resolution.md) and [runtime registry evidence](research/carplay/runtime-device-registry.md).

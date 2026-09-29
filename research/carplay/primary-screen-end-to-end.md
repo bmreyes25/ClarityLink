@@ -43,3 +43,7 @@ The offline pass confirms generic registration and ranking only. `dev_attach` se
 ## Step 18 status — saved runtime captures insufficient (2026-09-28)
 
 The offline capture audit found `/system/bin/jmcs` process/maps/status/fd snapshots and older CarPlay logs, but no registry head, candidate nodes, callback tables, contexts, or match results. `media_dev_attach` log messages are generic and are not proven to come from `mc_dev_attach("CarPlay Screen", ...)`. Registry owner is `jmcs`; known list-head field is manager `+0x08`, but its absolute runtime address and list contents are unavailable. Live observation is required to continue. See [runtime registry audit](runtime-device-registry.md) and [Step 18](../../step-reports/18-runtime-registration-resolution.md). No live action was performed.
+
+## Step 18 live result (2026-09-29)
+
+Read-only ADB confirmed `jmcs` PID `26577`, load base `0x4008f000`, and 45 mapped shared libraries. Current relevant logcat queries were empty. DWARF maps `mc_devs` static `0x35acbc` to candidate runtime cell `0x403e9cbc`; reading four bytes from `/proc/26577/mem` was denied (`Operation not permitted`). Manager pointer/list, winner, and slot `+4` remain unresolved. iPhone stayed disconnected. See [runtime registry evidence](runtime-device-registry.md) and [Step 18](../../step-reports/18-runtime-registration-resolution.md).

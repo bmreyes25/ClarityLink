@@ -31,6 +31,19 @@ First use existing read-only jmcs logs and process metadata/mappings. If these d
 - Runtime address/list/scores/winner/slot +4: **not yet available**.
 - Active sink, decoder, Surface, and multi-instance feasibility: **unknown**.
 - Display-B readiness: **No**.
-- Live work performed: **none**.
+- Live work performed during the offline capture audit: **none**.
 
-**Action required before any live work:** Park and power the Clarity, reconnect ADB, and reply READY.
+## Live session result (2026-09-29)
+
+ADB connected at `192.168.86.102:5555`; root succeeded. `pidof` is unavailable; `ps` found `/system/bin/jmcs` PID `26577`. The executable mapping begins at runtime `0x4008f000`, and the process has 45 mapped `.so` files, including `libcarplay_proxy.so`, `libmedia.so`, `libstagefright.so`, and `libgui.so`. The iPhone remained disconnected.
+
+Current `MC`/`MCS` log queries and a targeted term filter returned no lines. DWARF identifies `mc_devs` (static `0x35acbc`, type `devmgr_h`), whose candidate runtime cell is `0x403e9cbc`. A read-only four-byte `/proc/26577/mem` read of that exact cell returned `Operation not permitted`. Therefore the manager pointer and registry head at manager `+0x08` could not be recovered. Registry populated with iPhone disconnected and iPhone requirement both remain **unknown**.
+
+No `gdbserver`, `lldb-server`, or `strace` exists on the head unit. Host LLDB has no target server. `debuggerd` was not invoked because it may write a tombstone; no debugger was attached. No software, settings, callback table, or process memory was changed. The iPhone was not connected.
+
+### Decision gate
+
+- Live vehicle data complete: **NO**.
+- Car may be turned off: **YES**; current tools cannot read the manager cell, and no further action is useful while the car remains powered.
+- Winner / score / attach callback: **unresolved**.
+- Next concrete requirement: an already-available ptrace-capable, read-only memory inspection endpoint that does not write a tombstone or install software. With current tools, the exact four-byte manager-handle read is blocked. Do not connect the iPhone until read access to this cell is available; CarPlay startup cannot resolve the present access restriction.
