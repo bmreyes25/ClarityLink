@@ -70,6 +70,10 @@ Only after the offline analysis, if at least one possible winning callback requi
 
 Abort on PID/base mismatch, null global, pointer outside readable ranges, target exit, short read, cycle, >128 nodes, or denied attach/read. At most one clean retry after fixing a non-invasive operator/tool mistake. Never repeat stop/attach attempts to overcome permission denial; never restart `jmcs`.
 
+## Reader implementation status (Step 22)
+
+Source and offline procedure: [runtime-registry-reader.md](runtime-registry-reader.md). Synthetic tests pass. Maximum is 10,272 requested bytes if both permitted consistency attempts each need two passes (5,136 in the normal single-attempt case). No target memory writes or pauses are implemented. This Mac has no Android ARMv7 sysroot, so target build and syscall ABI remain unverified; target kernel support remains unknown. Do not execute until the ARMv7 binary is built and reviewed.
+
 ## Readiness
 
-`READY TO PERFORM BOUNDED LIVE READ: NO` for this milestone. Remaining pre-execution work: implement/review a tiny ARMv7 reader and output parser, and confirm the chosen read syscall and permissions on the target. The design requires a parked car for execution, but not for this design work.
+`READY TO PERFORM BOUNDED LIVE READ: NO`. Remaining pre-execution work: build with a verified Android ARMv7 toolchain/sysroot, inspect the target binary's imports, then separately approve a parked-session read. The design requires a parked car for execution, but not for this design work.

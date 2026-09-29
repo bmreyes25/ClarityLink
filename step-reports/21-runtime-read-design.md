@@ -13,7 +13,7 @@ Design a bounded read-only observation of the `mc_devs` registry. Documentation 
 - Complete manager size is unknown. Manager `+0x0c` maintains the append tail-link; `+0x10` is also accessed but is not needed to locate the list.
 - Saved ARM disassembly shows node `+0x04` stores prior incoming-link location, not candidate context. The callback receives the interface pointer as its second/context argument. Registration appends at tail; list traversal is chronological registration order and is the tie order.
 - Initial collection should not call `mc_dev_attach` or capture scores. Resolve pointers and evaluate slot `+0` statically against `"CarPlay Screen"` first. Live score capture is conditional on demonstrated dependence on unavailable mutable state.
-- `process_vm_readv` is the preferred first method if supported/permitted; support on this Android target is unknown. A ptrace PEEKDATA reader is a reviewed fallback only; all stopped threads must be resumed. No debugger server, injection, patch, target write, restart, or tombstone is allowed.
+- `process_vm_readv` is the preferred first method if supported/permitted; support on this Android target is unknown. The Step 22 implementation has no automatic ptrace fallback. Unsupported or denied reads stop. No debugger server, injection, patch, target write, restart, or tombstone is allowed.
 - iPhone remains disconnected for the first observation. Candidate presence in that state is still unknown.
 
 ## Decision gate
@@ -34,4 +34,4 @@ Design a bounded read-only observation of the `mc_devs` registry. Documentation 
 - [Runtime layout](../research/carplay/runtime-registry-layout.md)
 - [Runtime registry evidence/status](../research/carplay/runtime-device-registry.md)
 
-The next concrete task is to implement/review the minimal ARMv7 reader and confirm target syscall permissions. The car remains off until that separately reviewed execution step.
+The reader source and offline review are in [Step 22](../../step-reports/22-registry-reader-implementation.md). ARMv7 target build and target syscall permission/support remain unverified; do not execute on the car until separately reviewed.

@@ -1,8 +1,8 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 21
+## Current milestone — Step 22
 
-Designed the minimum read-only runtime observation of `mc_devs`. The first future capture reads only the pointer cell, manager list head, bounded registry nodes, interface pointers, and callback slots `+0/+4`; callback addresses and the `CarPlay Screen` matcher behavior are resolved offline before deciding whether any live score observation is needed. Offline ARM disassembly confirms node `+0x04` is list bookkeeping, callback context aliases the interface pointer, and nodes append in insertion order. `process_vm_readv` is preferred if supported/permitted; target support is unknown. No reader was implemented or executed. The design is **not ready for live execution** until the small reader and target permissions are reviewed. iPhone starts disconnected; execution requires a parked vehicle. See `step-reports/21-runtime-read-design.md` and `research/carplay/runtime-registry-read-plan.md`.
+Implemented and synthetically reviewed the bounded `process_vm_readv` runtime registry reader plus offline resolver. No vehicle, ADB, jmcs process, iPhone, or live memory was touched. No target writes, signals, callbacks, process pause, or ptrace fallback exist. Synthetic tests pass; maximum requested bytes across two two-pass consistency attempts is 10,272. The Mac lacks an Android ARMv7 sysroot/compiler, so ARMv7 binary and syscall ABI remain unverified; target syscall support is unknown. **Not ready for vehicle execution.** Next: build with verified ARMv7 Android toolchain and audit imports. See `step-reports/22-registry-reader-implementation.md` and `research/carplay/runtime-registry-reader.md`.
 
 ## Goal
 

@@ -1,7 +1,7 @@
 # Next action
 
-**Implement and review a one-shot ARMv7 bounded reader for the `mc_devs` registry.** Step 21's offline ARM disassembly confirms node `+0x04` is list bookkeeping; callback context aliases the interface pointer, and tail append means traversal order is insertion order. The first observation remains registry-only: no live scores initially; resolve slot `+0/+4` offline and evaluate the matcher before considering any second-stage observation. Do not connect to port 5000, alter logging/configuration, or instrument/patch `jmcs`.
+**Build and audit the reader with a verified Android ARMv7 toolchain/sysroot.** Step 22 source and synthetic review are complete, but the target build and process_vm_readv ABI remain unverified. Do not execute on the vehicle yet. After a target binary passes static review, separately review a parked session; unsupported or denied syscall means stop, with no ptrace fallback.
 
 Live execution is a later parked-car action after the reader and target permissions are reviewed. Initial iPhone state is disconnected. `process_vm_readv` is preferred if target support and permissions allow; otherwise stop and separately review a ptrace reader. No method has been executed for this design milestone.
 
-See [Step 21](step-reports/21-runtime-read-design.md), [runtime read plan](research/carplay/runtime-registry-read-plan.md), [runtime layout](research/carplay/runtime-registry-layout.md), and [runtime registry status](research/carplay/runtime-device-registry.md).
+See [Step 22](step-reports/22-registry-reader-implementation.md), [reader guide](research/carplay/runtime-registry-reader.md), [runtime read plan](research/carplay/runtime-registry-read-plan.md), [runtime layout](research/carplay/runtime-registry-layout.md), and [runtime registry status](research/carplay/runtime-device-registry.md).
