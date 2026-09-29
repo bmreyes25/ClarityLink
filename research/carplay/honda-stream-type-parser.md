@@ -2,7 +2,7 @@
 
 ## Step 30 clarification
 
-The invalid-type path for 111 begins at 0x2861f6 within AirPlayReceiverSessionSetup (0x2854e0). Exact external error/status mapping and all effects in a multi-entry request remain unresolved; do not claim a particular HTTP status. The narrow conceptual intercept is at the per-entry type dispatch, before the stock accepted cases/default. This is not a validated live hook ABI. See honda-type111-rejection.md.
+Step 37 refined the control flow: Type 111 reaches the unknown-type logging block at 0x2861f6, then the loop advances at 0x286220. This is not an accepted Type111 setup case, but it is also not proven to abort the whole Setup request. Its response/status depends on the remaining setup path and other stream entries. Do not claim a particular HTTP status or atomic-failure behavior. The per-entry dispatch remains a conceptual analysis point, not a validated live hook ABI. See `type111-step38-contract.md`.
 
 ## Exact extraction and dispatch
 

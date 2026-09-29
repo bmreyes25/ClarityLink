@@ -1,6 +1,6 @@
 # AltScreen transport and presentation are separate planes
 
-**Step 36 update, 2026-09-29.** Honda ELF evidence is authoritative for Honda; public classic AirPlay and pinned MHI2 are comparison evidence.
+**Step 37 update, 2026-09-29.** Honda ELF evidence is authoritative for Honda; public classic AirPlay and pinned MHI2 are comparison evidence.
 
 ## Transport / media security
 
@@ -15,7 +15,7 @@ SETUP Type-110 streamConnectionID
  -> mc_ScreenStreamProcessData record parser -> transformed media buffer -> sink
 ```
 
-Step 36 proves Honda's fixed header and length boundary by control flow, not merely by the 128-byte read constant. It also recovers body-only AES-CTR with a persistent stream context and message branches 0/1/2/4/5. Type 0 is a probable VideoFrame; type 1 is a probable config branch passed as CF data; 2/4/5 are skipped; 3 is unrecognized in this function. Type-1 body format, full type semantics, and complete AU/sink contract remain partly unknown. The callback's length-mode parser and Annex-B prefix synthesis are documented separately.
+Steps 36–37 prove Honda's fixed header, length boundary, and body-only AES-CTR with a persistent stream context. Opcode 0 sends one decrypted body to the media callback; opcode 1's CFData callback parses an avcC-like SPS/PPS array, derives `(byte4 & 3)+1`, stores width at per-stream context `+0x14`, and stores converted config for one-time prefixing on a later opcode-0 media buffer. Widths 1/2/4 are handled by the normal callback path; width 3 is derived but has no parser branch. Callback context `+0x11` selects an alternate direct-body path whose active value remains unknown. Zero-run normalization and timestamp units remain unresolved. The offline synthetic Type110 receiver core is implemented with explicit mode and injected crypto inputs; it is not a live Type111 receiver.
 
 ## Presentation / UI ownership
 
@@ -28,4 +28,4 @@ No direct UUID-to-stream crypto binding has been found. Honda PlatformControl/Se
 
 ## Type-111 consequence
 
-The screen header/framing parser can be reused as a family candidate for a future ClarityLink Type-111 stream, since Honda Type-110 now matches the classic 128-byte body-length/discriminator structure and MHI2 Type-111 uses the legacy ScreenStream family. Honda Type-111 negotiation/crypto acceptance remains unproven. The offline parser and CTR state model preserve this boundary; neither is a complete receiver or H.264 decoder. See `honda-screen-header.md`, `honda-screen-crypto.md`, `mc-screenstream-input.md`, and `type111-transport-model.md`.
+The header/config/media components are a strong family-reuse candidate for future ClarityLink Type 111, since Honda Type110 and MHI2 Type111 use the legacy ScreenStream family. Honda Type111 crypto, Setup, and acceptance remain unproven. The Type110-compatible offline core exists, but not key derivation, a production AES provider, decoder integration, or live listener. See `honda-screen-header.md`, `honda-screen-crypto.md`, `honda-video-config.md`, `honda-h264-format.md`, `mc-screenstream-input.md`, and `type111-transport-model.md`.

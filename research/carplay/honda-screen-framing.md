@@ -23,7 +23,8 @@ loop:
       AES_CTR_Update(ctx=session+0xc8, input=body, length=body_len, output=body)
     switch message_type:
       0 -> ScreenStreamProcessData(stream, body, body_len, timestamp, zero flags)
-      1 -> update config-related session properties; pass body bytes as CF data property
+      1 -> update config-related session properties; nonempty body as CF data property
+             -> callback parses avcC-like SPS/PPS and stores derived NAL width
       2, 4, 5 -> no media/config dispatch; release body and continue
       other (including 3) -> log/unrecognized path; release/return status
   separate scheduled/control wake path can recv up to 64 bytes and handles
@@ -50,7 +51,7 @@ The selected descriptor is stored on the per-thread NetSocket at +4. `NetSocket_
 | Value | Exact path in Honda | Semantics supported |
 |---:|---|---|
 | `0` | Decrypt body if screen crypto active, then call generic `ScreenStreamProcessData` at `0x2880a2` with stream `session+0x1ec`, body pointer, body length, converted timestamp, and zeroed trailing flags | **Probable match to AirPlay VideoFrame**; call path carries media bytes |
-| `1` | Decrypt body if active; load header float fields at +16/+20; set two CF double properties; if body nonempty pass its bytes as a CF data property | **Probable match to VideoConfig**; Honda code does not parse avcC/SPS/PPS |
+| `1` | Decrypt body if active; load header float fields at +16/+20; set two CF double properties; if body nonempty pass bytes as a CF data property; callback converts avcC-like SPS/PPS and stores NAL width | **Honda-confirmed config path; avcC-like** |
 | `2` | No body/config dispatch; body is released; returns to loop | **Probable heartbeat match**, supported by empty-body-compatible handling, but Honda semantics are not explicitly named |
 | `3` | Falls to unrecognized/log path | **Not handled as a ForceKeyFrame opcode here** |
 | `4` | No dispatch, release/continue | **Probable Ignore match** |
@@ -58,6 +59,10 @@ The selected descriptor is stored on the per-thread NetSocket at +4. `NetSocket_
 | other | unrecognized/log path | Unknown |
 
 This is a partial match to the public classic field positions and public opcode family. The code compares types 0,1,2,4,5, but not 3. Public CarPlay references may describe newer/different opcode sets; they are not substituted for this Honda switch.
+
+## Opcode-1 to opcode-0 linkage (Step 37)
+
+The ScreenStream property callback for the opcode-1 data property is `mc_ScreenStreamSetProperty` (`0xbe6fc`). It calls Honda's `H264ConvertAVCCtoAnnexBHeader` (`0x29f28c`), which parses SPS/PPS arrays and derives `(byte4 & 3) + 1`. The callback stores the width at per-stream context `+0x14`; `mc_ScreenStreamProcessData` reads that exact offset to select the 1/2/4-byte prefix parser. The converted Annex-B SPS/PPS are stored at context `+0x08` and prepended once to the next type-0 media output. See `honda-video-config.md` and `honda-h264-format.md` for the field-level trace and unsupported width 3 behavior.
 
 ## Complete frame rule
 

@@ -1,33 +1,33 @@
-# ClarityLink Type-111 transport model — Step 36
+# ClarityLink Type-111 transport model — Step 37
 
-**Status:** offline envelope and CTR state models are implemented; executable Type-111 receiver remains not ready.
+## Reusable offline media core
 
-## Transport candidate
+Honda Type-110 media path is now modeled offline:
 
 ```text
-SETUP descriptor (Honda Type-111 schema remains unknown)
- -> keep streamConnectionID and established session master material
- -> derive per-screen key/IV
- -> separate listener/accepted transport generation
- -> read plaintext 128-byte header
- -> LE32 body length; byte opcode at offset 4; exact body read
- -> AES-CTR decrypt body in-place with per-stream continuous state
- -> type 0 -> timestamped ScreenStream media callback / ClarityLink H.264 extractor
- -> type 1 -> VideoConfig/config-property path
- -> other message handling per proven switch
+incremental ScreenStream envelope
+  -> optional injected continuous CTR body update
+  -> opcode 1: avcC-like SPS/PPS -> Annex-B parameter sets + NAL width
+  -> opcode 0: length-prefixed records -> one Annex-B media buffer
+                  with pending parameter sets prepended once
+  -> timestamp_raw event
 ```
 
-Honda Type-110 now confirms fixed 128-byte header, body length at offset 0, low message byte at offset 4, timestamp-like data at +8, and body-only AES-CTR. Type 111 is still rejected by Honda stock dispatch, so same behavior on Honda Type-111 is not directly proven.
+The code is `HondaScreenReceiverCore` in `src/claritylink-transport/receiver_core.py`. It does not open sockets, derive session keys, pick a Type111 SETUP response, or decode/render. The CTR provider remains injected. Timestamp output remains the raw LE64 header value because Honda's converter timebase is not recovered.
 
-## Compatibility findings
+## Type111 compatibility assessment
 
-- **Header family compatibility:** YES as a reusable *family parser*: Honda Type-110 agrees with the classic 128-byte/LE32 length/early discriminator layout; pinned MHI2 Type-111 uses that same legacy ScreenStream family. Honda's own Type-111 negotiation is not tested or accepted by stock code.
-- **VideoConfig compatibility:** UNKNOWN for a Honda Type-111. Honda Type-110 type 1 is config-like and matches public avcC prior art, but Honda does not parse or validate avcC in this path.
-- **H.264 compatibility:** UNKNOWN at the access-unit/keyframe level. The Honda callback's mode-specific length records and Annex-B conversion are partly recovered, but type-1-to-decoder and complete-AU semantics are unresolved.
-- **Crypto compatibility:** UNKNOWN for Honda Type-111. Honda Type-110's AES-CTR update state and derivation inputs are recovered; MHI2 demonstrates using the stock screen derivation plus CTR for Type 111 on its target. Honda's type 111 is rejected before this path.
+| Component | Honda Type110 | MHI2 Type111 prior art | ClarityLink reuse status |
+|---|---|---|---|
+| 128-byte envelope, LE32 body length, opcode | Honda-confirmed | matching family documented in pinned source | **YES as parser candidate**; Honda Type111 itself untested |
+| Body AES-CTR and continuous state | Honda-confirmed Type110 | MHI2 reports CTR on its Type111 | **UNKNOWN for Honda Type111**; keep primitive injectable |
+| Config as avcC-like | Honda helper parses this layout | MHI2 source/docs identify avcC | **LIKELY reusable**, pending Type111 target verification |
+| NAL width and Annex-B | Honda Type110 links avcC width to 1/2/4 callback branches; width 3 unsupported | MHI2 Type111 implements AVCC to Annex-B | **LIKELY reusable**, callback zero-run transform still needs exact modeling |
+| Access-unit boundary and timestamp | one ScreenStream message becomes one media buffer; AU semantics high-confidence, converter/timebase unknown | prior-art receiver emits frame samples | **UNKNOWN for Honda Type111** |
+| Type111 SETUP contract/listener lifecycle | stock Setup doesn't accept a Type111 handler; unrecognized entries take a log-and-continue path in inspected loop | MHI2 has target-specific interposer | **Type111-specific and unresolved** |
 
-## Implemented offline boundary
+Honda Setup (`0x2854e0`) reads each `streams[]` element's `type` at `0x28590e`. Type 100/101/110 have cases; Type 111 reaches the unknown-type log at `0x2861f6` and then increments the array index/continues at `0x286220`. This proves no Type111 setup branch. It does **not** prove an immediate transaction error; exact overall result depends on surrounding stream entries and later setup state.
 
-`src/claritylink-transport/screen_parser.py` parses the fixed Honda header and body-size framing incrementally, preserving unknown header bytes and raw wire body. The body remains ciphertext when security is active. The local max-body setting is an allocation-safety policy, not a protocol maximum. `crypto_model.py` models the proven continuous CTR counter/partial-block state using an injected AES block encryptor; it embeds no session keys and includes no derivation function.
+## Step 38 boundary
 
-The parser and CTR-state model do not claim to parse avcC, emit complete H.264 access units, implement Setup/listeners, or provide a real AES backend. A self-contained Type-111 receiver therefore remains **NO**.
+Before any Type111 listener/interposer implementation, recover the Type111 SETUP/security contract and error/rollback behavior. Preserve non-111 entries through stock handling and do not mutate live behavior in this step. Required function map and field checklist: `type111-step38-contract.md`.

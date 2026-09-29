@@ -17,6 +17,21 @@ The screen payload call at `AirPlayReceiverSessionScreen_ProcessFrames` `0x28808
 
 It runs only when security-enabled byte `screen_session+0x1e4` is set, after the header and complete body have been read and after header timestamp processing, but before opcode dispatch. Therefore **header encrypted: NO; body encrypted: YES when screen security is active**. For type 0, plaintext body reaches `ScreenStreamProcessData`; for type 1 it reaches the config data-property path. No header bytes enter AES_CTR_Update.
 
+## Per-opcode CTR accounting
+
+The single `AES_CTR_Update` call is before the message switch, so dispatch opcode does not control crypto. When security is enabled, body bytes for every opcode are passed to CTR:
+
+| Opcode | Body decrypted when security enabled? | CTR update | Bytes consumed |
+|---:|---|---|---|
+| 0 | yes | yes | declared body length |
+| 1 | yes | yes | declared body length; avcC-like data follows |
+| 2 | yes | yes | declared body length, then body is dropped |
+| 3 / unknown | yes | yes | declared body length, then unknown path |
+| 4 | yes | yes | declared body length, then body is dropped |
+| 5 | yes | yes | declared body length, then body is dropped |
+
+With security disabled, no CTR update is made for any opcode. A zero-length body calls through the common logic with length zero (or skips the body allocation); the CTR primitive consumes no keystream bytes. In particular, a protected opcode-1 body advances the same session CTR state before Honda parses the configuration, so the following opcode-0 body begins at the correct continuous position.
+
 ## AES_CTR implementation and state
 
 `AES_CTR_Init` (`0x28d9b4`) calls `AES_set_encrypt_key(key, 128, ctx)`, copies 16 IV bytes to context +0xf4, zeroes the stream-byte position at +0x114, and clears state flag +0x118. `AES_CTR_Update` (`0x28d9dc`) accepts arbitrary byte length, XORs source with generated AES counter-block bytes, writes output, retains partial-block position +0x114 between calls, and advances the 16-byte counter when a block is consumed. The counter increment propagates from context byte +0x103 back toward +0xf4, so the last/high-address byte of the copied IV is the least significant counter byte (big-endian 128-bit counter arithmetic). The active init sets the context mode flag to zero, so it stores the updated offset after calls.
