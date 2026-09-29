@@ -72,8 +72,8 @@ Abort on PID/base mismatch, null global, pointer outside readable ranges, target
 
 ## Reader implementation status (Step 23)
 
-Source and offline procedure: [runtime-registry-reader.md](runtime-registry-reader.md). Synthetic tests pass. Maximum is 10,272 requested bytes if both permitted consistency attempts each need two passes (5,136 in the normal single-attempt case). No target memory writes or pauses are implemented. ARMv7/API 17 build and ABI header audit pass with official NDK r23c; the ARM EABI syscall number is 376. The likely Linux 3.1.10 Honda kernel predates upstream support, so target kernel support remains unknown pending vendor/backport evidence or a future one-shot result. Build/ELF/import/safety details are in [registry-reader-armv7-build.md](registry-reader-armv7-build.md). No emulator or vehicle execution occurred.
+Source and procedure: [runtime-registry-reader.md](runtime-registry-reader.md). Synthetic tests pass. Maximum is 10,272 requested bytes for two maximum two-pass attempts. The ARMv7/API 17 build and ABI header audit pass with NDK r23c; ARM EABI syscall number is 376. Step 24's single live request returned `ENOSYS` on the current Honda kernel, with zero bytes read. The reader was removed, and no retry/fallback occurred. Build and live results: [registry-reader-armv7-build.md](registry-reader-armv7-build.md), [Step 24](../../step-reports/24-registry-reader-live-unsupported.md). No emulator was used.
 
 ## Readiness
 
-`BINARY READY FOR A SEPARATELY AUTHORIZED PARKED-SESSION ATTEMPT: YES`. `KERNEL SUPPORT: UNKNOWN`; `LIVE READ PERFORMED: NO`. The exact prepared sequence and failure meanings are in [runtime-registry-reader.md](runtime-registry-reader.md). An `ENOSYS`, permissions failure, PID change, invalid address, or short read means stop with no fallback. The parked session itself has not been authorized or performed.
+`PROCESS_VM_READV LIVE RESULT: ENOSYS`. Do not repeat the reader. `REGISTRY CONTENTS: NOT RECOVERED`. Next action is offline design/review of a separate read-only ptrace approach. Any live attach requires its own review; stop/resume recovery is the primary safety question.

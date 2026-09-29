@@ -144,6 +144,6 @@ COMPILER: Android clang 12.0.9 (8481493)
 | API 17 symbol audit | PASS against saved firmware exports |
 | Safety audit | PASS |
 | Synthetic tests | PASS |
-| Ready for separately authorized vehicle attempt | YES |
+| Live attempt | STOPPED: target returned `ENOSYS`; executable removed; no retry |
 
-The expected first live result may be `ENOSYS`; that is a kernel compatibility result, not a reason to retry through another mechanism. No future vehicle command in the companion reader guide has been run.
+The first live attempt returned `ENOSYS` on the 4-byte `mc_devs` cell request. This is the target's observed unsupported result and is not a reason to retry through another mechanism. Runtime details are in `step-reports/24-registry-reader-live-unsupported.md`. The target executable was removed and ADB disconnected. No ptrace fallback has been designed or run.

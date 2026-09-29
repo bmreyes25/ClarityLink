@@ -14,7 +14,7 @@ It checks node cycles and the 128-entry limit, validates every address before re
 
 Synthetic tests cover empty, one/multiple entries, insertion order, 128 and 129 entries, null manager, invalid head/interface, one- and multi-node cycles, changed snapshot, short read, `EPERM`, `ENOSYS`, and `ESRCH`. `make test safety` passes. The ARM binary contains no target write, signal, ptrace, debuggerd, injection, or `/proc/<pid>/mem` path. Its only writes are output to its own stdout/stderr. It has not been run under ARM emulation or on the vehicle.
 
-The ARMv7/API 17 build, ELF/ISA, saved-firmware dependencies, and API symbol checks pass. Toolchain, build command, and SHA-256 values are in [`registry-reader-armv7-build.md`](registry-reader-armv7-build.md). Target syscall support and runtime permission remain UNKNOWN. The binary is ready for a separately authorized parked-session attempt; `ENOSYS` or any other failure means stop without escalation.
+The ARMv7/API 17 build, ELF/ISA, saved-firmware dependencies, and API symbol checks pass. Toolchain, build command, and SHA-256 values are in [`registry-reader-armv7-build.md`](registry-reader-armv7-build.md). One parked attempt was performed: current `jmcs` PID 19905's `mc_devs` cell was read-attempted once and the kernel returned `READ_STATUS=UNSUPPORTED` (`ENOSYS`). No target bytes or JSON were obtained. The process survived, the executable was removed, and ADB was disconnected. Do not retry this reader or automatically switch to another access method; see [Step 24](../../step-reports/24-registry-reader-live-unsupported.md).
 
 ## Future parked-session procedure (prepared only; not executed)
 

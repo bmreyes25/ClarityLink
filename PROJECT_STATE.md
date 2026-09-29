@@ -1,8 +1,8 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 23
+## Current milestone — Step 24
 
-Built and audited the bounded C registry reader for `armeabi-v7a` / Android API 17 with official NDK r23c (23.2.8568313), checksum verified. ARM EABI `process_vm_readv` syscall number 376 is verified from the exact NDK header and compile-time asserted. ELF, ARMv7 ISA, saved firmware dependencies, API imports, bounded reads, and safety checks pass; synthetic tests pass. The Honda kernel's syscall support remains UNKNOWN because the likely 3.1.10 kernel may lack it. No vehicle, ADB, jmcs process, iPhone, emulator, or live memory was touched. **Binary is ready for a separately authorized parked-session attempt; no vehicle execution is authorized by this offline milestone.** See `step-reports/23-registry-reader-armv7-build.md`, `research/carplay/registry-reader-armv7-build.md`, and `research/carplay/runtime-registry-reader.md`.
+The audited NDK r23c/API 17 ARMv7 reader was used for one parked attempt with the iPhone disconnected. Fresh process identity/maps were verified; the live load bias was `0x40001000` and the `mc_devs` cell was `0x4035bcbc` in a readable `rw-p` mapping. The sole 4-byte `process_vm_readv` request returned `READ_STATUS=UNSUPPORTED` (`ENOSYS`); no target data was read and no JSON snapshot was produced. The same PID 19905 remained `/system/bin/jmcs`; the temporary reader was removed and ADB disconnected. No retry, ptrace, debugger, target write, or process suspension occurred. **Do not retry the `process_vm_readv` reader.** Next: offline design/review of a separate bounded read-only ptrace approach; do not attach until its stop/resume behavior is separately approved. See `step-reports/24-registry-reader-live-unsupported.md` and `research/captures/registry-reader-live-20260929/` (local ignored capture).
 
 ## Goal
 

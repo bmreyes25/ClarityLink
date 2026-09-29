@@ -1,7 +1,5 @@
 # Next action
 
-**Review and authorize a separate parked-session attempt with the audited ARMv7/API 17 registry reader.** Keep the iPhone disconnected and use the prepared procedure in `research/carplay/runtime-registry-reader.md`. The binary and static safety gates pass; actual Honda-kernel `process_vm_readv` support remains UNKNOWN. If the one-shot result is `ENOSYS`, permission denied, PID changed, `EFAULT`, or short read, stop with no fallback.
+**Design a minimal read-only ptrace registry reader offline.** The one authorized `process_vm_readv` attempt returned `ENOSYS`, the process remained alive, the temporary executable was removed, and ADB was disconnected. Do not retry `process_vm_readv` or perform a live ptrace attach as part of the design step.
 
-No vehicle, ADB, emulator, or live memory operation was part of Step 23. Do not execute the prepared commands until that distinct parked-session action is authorized.
-
-See [Step 23](step-reports/23-registry-reader-armv7-build.md), [build audit](research/carplay/registry-reader-armv7-build.md), [reader and future procedure](research/carplay/runtime-registry-reader.md), and [read plan](research/carplay/runtime-registry-read-plan.md).
+The design must specify exactly which thread(s) would stop, how reads use only PEEK operations, how every stopped thread is guaranteed resumed on success/failure/interruption, permission preconditions, a strict read budget, and a recovery path if detach/resume fails. Compare alternatives against the already captured fresh maps and `mc_devs` static offset. See [Step 24](step-reports/24-registry-reader-live-unsupported.md), [reader audit](research/carplay/registry-reader-armv7-build.md), and [local ignored capture](research/captures/registry-reader-live-20260929/).
