@@ -22,7 +22,7 @@ Only the reader executable was pushed to `/data/local/tmp/jmcs-registry-reader` 
 Observed output:
 
 ```text
-reader exit status: 0
+ADB shell/su wrapper status: 0 (legacy wrapper status is not treated as the reader result)
 stdout: READ_STATUS=UNSUPPORTED
 stderr: [empty]
 ```
