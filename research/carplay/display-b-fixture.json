@@ -1,0 +1,61 @@
+{
+  "fixture_kind": "structured-offline-model-not-wire-data",
+  "unknown_honda_fields": [
+    "primary_uuid_value_and_source",
+    "primary_pixel_geometry_wire_mapping",
+    "display_descriptor_container_on_phone_response",
+    "setup_response_serializer_and_network_write",
+    "secondary_descriptor_schema",
+    "secondary_security_context"
+  ],
+  "local_primary_config_only": {
+    "width": 800,
+    "height": 480,
+    "max_fps": 30,
+    "touch": "hifi",
+    "physical_width_mm": 153,
+    "physical_height_mm": 92,
+    "evidence": "Honda j_config.xml; phone-facing mapping unknown"
+  },
+  "stock_primary_response": {
+    "streams": [
+      {
+        "type": 110,
+        "dataPort": "FIXTURE_ONLY_PRIMARY_PORT_A",
+        "display_uuid": "FIXTURE_ONLY_PRIMARY_UUID_A",
+        "geometry": {"width": 800, "height": 480, "mapping": "local-config-only"},
+        "confidence": "synthetic fixture values; Honda primary UUID and dataPort value unknown"
+      }
+    ],
+    "unknown_fields": {"descriptor_schema": "unknown", "feature_tokens": "unknown", "serializer": "unknown"}
+  },
+  "augmented_response": {
+    "streams": [
+      {
+        "type": 110,
+        "dataPort": "FIXTURE_ONLY_PRIMARY_PORT_A",
+        "display_uuid": "FIXTURE_ONLY_PRIMARY_UUID_A",
+        "geometry": {"width": 800, "height": 480, "mapping": "local-config-only"},
+        "confidence": "synthetic fixture values; Honda primary UUID and dataPort value unknown"
+      },
+      {
+        "type": 111,
+        "role": "secondary-cluster-candidate",
+        "dataPort": "FIXTURE_ONLY_SECONDARY_PORT_B",
+        "display_uuid": "FIXTURE_ONLY_SECONDARY_UUID_B",
+        "geometry": {"width": null, "height": null, "mapping": "unknown"},
+        "confidence": "prior-art analog for type 111; no Honda secondary descriptor evidence"
+      }
+    ],
+    "unknown_fields": {"descriptor_schema": "unknown", "feature_tokens": "unknown", "serializer": "unknown"}
+  },
+  "fixture_constraints": {
+    "primary_entry_unchanged": true,
+    "primary_uuid_unchanged": true,
+    "primary_port_unchanged": true,
+    "secondary_uuid_differs": true,
+    "secondary_port_differs": true,
+    "only_secondary_stream_entry_added": true,
+    "type_111_is_prior_art_analog_only": true
+  }
+}

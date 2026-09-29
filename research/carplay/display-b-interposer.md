@@ -1,5 +1,13 @@
 # Display-B media interposer status
 
+## Step 26 — Honda response boundary update (2026-09-29)
+
+Honda's SETUP response builder now has a recovered local structure: mutable dictionary containing `streams: CFArray`, whose stock entry contains `type=110` and dynamic `dataPort`. Setup publishes the response through an output pointer; its separate completion callback receives status/context, not the response object. This proves a mutable local response accumulator and an array of stream response entries, but not that the caller serializes that exact object for the phone or that an extra entry is accepted.
+
+`AirPlayReceiverSessionScreen_CopyDisplaysInfo` remains a separate one-dictionary/main-screen builder. No Honda display descriptor collection or capability/features container has been demonstrated. `AirPlayReceiverSessionSetup` is a tempting stock-delegating hook because its response output is created there; its complete formal ABI, output ownership, and execution thread are unknown. No best hook can be called safe yet. The generic `_requestSendPlistResponse` serializer is not connected to this response in evidence.
+
+Current decision: registry research remains fallback-only, but **Display-B negotiation code is not ready**. The precise blocker is tracing the Setup output-pointer caller to its phone-facing serializer/network send while recovering response ownership and caller ABI. See `honda-hook-abi.md` and `honda-response-serializer.md`.
+
 ## Step 25 — AltScreen prior-art pivot (2026-09-29)
 
 Apple's WWDC19 material confirms the product model of parallel H.264 cluster streams; xcertplay source assigns 110 to main and 111 to alternate display; the Harman MHI2 project contains a Type-111 native receiver/interposer. See `prior-art-altscreen.md`, `stream-type-111.md`, and `honda-altscreen-gap-analysis.md`.

@@ -1,4 +1,8 @@
-# ClarityLink evidence index — 2026-09-28
+# ClarityLink evidence index — 2026-09-29
+
+## Step 26 — Honda Setup response ABI (2026-09-29)
+
+Local ignored `jmcs` disassembly proves the Setup response accumulator is a mutable CF-style dictionary; stock stream response is represented by a `streams` CFArray whose entry has Honda-inserted `type=110` and dynamic `dataPort`. `_AddResponseStream` is at `0x284db8`; Setup is at `0x2854e0`; dataPort insertion is at `0x286160`. `CopyDisplaysInfo` (`0x287ae0`) separately returns one main-screen dictionary from `ScreenCopyMain` and does not loop. Setup publishes its response through an output pointer; its separate completion callback receives status/context, not the response. The output-pointer caller, serializer/network write, full formal ABI, and ownership remain unknown. Generic HTTP plist serializer `0x289f60` has no proven Setup call edge. Local geometry is not established as wire descriptor content. Type 111 and `altScreen` remain prior-art/unknown for Honda. Fixture uses explicitly synthetic UUID/port labels and preservation tests. Details: `research/carplay/honda-setup-response.md`, `honda-display-descriptor.md`, `honda-dataport-field.md`, `honda-response-serializer.md`, `honda-hook-abi.md`, `display-b-fixture.md`, and `step-reports/26-honda-setup-response-abi.md`.
 
 ## Step 25 — AltScreen prior art pivot (2026-09-29)
 
