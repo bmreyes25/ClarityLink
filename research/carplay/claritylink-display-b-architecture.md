@@ -1,5 +1,9 @@
 # ClarityLink Display B architecture — Step 29
 
+## Step 31 decision update
+
+`AirPlayCopyServerInfo` is global only in the regular symbol table and is not a dynamic export. No normal ELF consumer was found among the 45 mapped shared libraries; no runtime lookup key was found. The only recovered plist send chain remains tied to SETUP. Therefore Hook A has no identified phone-facing insertion point, and Hook B remains an unvalidated conceptual per-entry diversion. Two-hook sufficiency, display-stream binding, and readiness remain UNKNOWN/NO as detailed in [Step 31](../../step-reports/31-airplay-server-info-consumer.md).
+
 ## Step 30 decision
 
 The local capability half is now better established: AirPlayCopyServerInfo queries displays, inserts the returned one-element CFMutableArray into its mutable result dictionary, and returns a CFLDictionaryRef. The missing edge is still decisive: no caller, serializer, or phone-facing send path for this server-info dictionary is proven. The separate SETUP response proof cannot fill this gap.

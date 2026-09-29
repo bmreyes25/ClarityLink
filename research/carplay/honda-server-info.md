@@ -1,5 +1,9 @@
 # Honda AirPlayCopyServerInfo — Step 30
 
+## Step 31 consumer search update
+
+`AirPlayCopyServerInfo` is GLOBAL in `.symtab`, but absent from `.dynsym`; it is not a normal dynamic export. Dynamic symbol scans of the 45 mapped shared libraries found no matching import/export or relocation. `jmcs` uses `dlopen`/`dlsym` for generic loader support, but no `AirPlayCopyServerInfo` runtime lookup literal or lookup call was evidenced. `/info` is present as a string, but has no recovered handler edge. Thus phone-facing consumption remains UNKNOWN. See [consumer search](airplay-server-info-consumers.md).
+
 **Evidence:** authoritative local jmcs ELF, SHA-256 cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232. Offline static analysis only.
 
 ## Function and contract

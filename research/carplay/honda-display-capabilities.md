@@ -1,5 +1,7 @@
 # Honda display capabilities — Step 30
 
+Step 31 additionally finds `AirPlayCopyServerInfo` absent from dynsym and no consumers among the 45 mapped shared libraries. The local array/dictionary are mutable, but no phone-facing serializer or mutation boundary is known.
+
 AirPlayReceiverSessionPlatformCopyProperty (0x28d328) handles displays by creating a mutable CFArray, calling AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0) once, and appending its returned main-display dictionary. AirPlayCopyServerInfo (0x282cd4) requests that property and inserts the returned array under displays in its mutable result dictionary. This confirms local descriptor construction and insertion; phone-facing delivery is still unknown.
 
 The main descriptor's evidenced fields from the prior focused disassembly are edid, features, maxFPS, widthPhysical, heightPhysical, widthPixels, heightPixels, and uuid. Numeric fields are inserted with numeric CF setters; precise runtime values and complete semantic typing are not established here. uuid is inserted via numeric setter and must not be assumed to be a UUID string. features is a masked numeric value; bit meanings remain unknown. edid source/encoding and descriptor-to-wire semantics remain unverified.

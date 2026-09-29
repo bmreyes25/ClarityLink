@@ -1,5 +1,7 @@
 # Honda display-to-stream correlation — Step 30
 
+Step 31 update: the server-info object still has no proven phone-facing consumer. No new evidence binds display `uuid`, `streamConnectionID`, Type 111, or a screen identifier. Display-to-stream binding and any required additional control-plane component remain UNKNOWN.
+
 The confirmed Setup parser reads streams[] entries and integer type. Honda's Type-110 response entry contains type and a locally allocated dataPort. The recovered Setup flow does not establish a copied display UUID, streamID, streamConnectionID, or other per-stream correlation field. The local main-display descriptor contains a uuid key, but its insertion is numeric and no flow connects it to the Setup request or response.
 
 | Candidate binding | Honda finding |

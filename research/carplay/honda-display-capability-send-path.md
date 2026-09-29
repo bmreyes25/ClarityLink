@@ -1,5 +1,9 @@
 # Honda display capability send path — Step 30
 
+## Step 31 consumer search
+
+The builder is not dynsym-exported, and no normal ELF import was found among the 45 mapped shared libraries. Generic `dlopen`/`dlsym` use has no matching runtime lookup key. Reverse tracing confirms that the known plist/HTTP/writev path carries SETUP output only. `DISPLAYS_PHONE_FACING` and the phone-facing mutation point remain UNKNOWN. See [consumer search](airplay-server-info-consumers.md).
+
 ## Proven local path
 
 ```text
