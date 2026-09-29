@@ -1,18 +1,19 @@
-# Honda display UUID flow — Step 29
+# Honda display UUID flow — Step 33
 
-## Step 30 update
+The main display descriptor's `uuid` value is read from a property on the object returned by `ScreenCopyMain()` inside `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`). The builder inserts the value under `uuid` via `CFDictionarySetInt64`; it is therefore represented as a numeric CF value in this observed construction path. The source property’s underlying storage type, generation, stability, and scope are unknown.
 
-AirPlayCopyServerInfo (0x282cd4) requests the session property displays through AirPlayReceiverSessionPlatformCopyProperty and inserts its returned array into the mutable server-info dictionary. The display builder inserts uuid with a numeric CF setter. This still does not reveal a string UUID representation or any flow from that value into SETUP. The server-info serializer/send path and phone-facing status remain UNKNOWN. See honda-server-info.md and honda-display-capability-send-path.md.
+Step 32 proves this descriptor is nested in `serverInfo["displays"]` and the same server-info object reaches `_requestSendPlistResponse` for `/info`. Phone-facing serialization is confirmed statically.
 
-`AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) obtains the main-screen object through `ScreenCopyMain()` and reads its `uuid` property. It inserts that value under key `uuid` using `CFDictionarySetInt64`. The direct caller, `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`), places the returned dictionary into the one-element array for property `displays`.
+In the analyzed Setup path, no display UUID is read from a Type-110 stream dictionary, copied into its response, used in the Type-110 crypto derivation, or compared with `streamConnectionID`. The Setup path reads a distinct 64-bit `streamConnectionID` and supplies it to `AirPlay_DeriveAESKeySHA512ForScreen`. No UUID/connection-ID association structure was recovered.
 
-This establishes flow only as far as a local property array. `AirPlayCopyServerInfo` may aggregate platform properties, but the key/argument edge for `displays` and any serializer/send consumer are not proven. SETUP does not read this display UUID in the recovered request path, and its response stream entry contains type and dataPort without this UUID.
-
-| Question | Finding |
+| Property | Finding |
 |---|---|
-| UUID source | Property on `ScreenCopyMain()` result |
-| Local representation | Numeric CFDictionary setter; actual property type/value unknown |
-| Static/generated or session-scoped | Unknown |
-| Local container | `displays` property returns one-element CFArray |
-| Phone-facing control message | Unknown |
-| Present/correlated in SETUP | No UUID read/write found in analyzed Setup path |
+| Source object | `ScreenCopyMain()` result |
+| Source property | `uuid` accessor/property; backing representation unknown |
+| Descriptor insertion | numeric `CFDictionarySetInt64` under `uuid` |
+| Phone-facing | Confirmed via `/info` server-info serializer path |
+| Static, generated, or session-scoped | Unknown |
+| Used by Honda SETUP | No use found in analyzed Type-110 path |
+| Bound to `streamConnectionID` | No link found |
+
+Do not invent a UUID string or assert that it selects the screen stream. See `stream-connection-id.md` and `display-stream-correlation.md`.

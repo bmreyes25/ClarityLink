@@ -1,31 +1,24 @@
-# ClarityLink Display B architecture — Step 29
+# ClarityLink Display B architecture — Step 33
 
-## Step 32 decision update
+## Evidence-supported split
 
-Hook A now has a proven static seam: `_requestProcessInfo` receives the mutable `AirPlayCopyServerInfo` object and passes it to the `/info` plist serializer. The Honda binary contains no literal or construction evidence for `FeatureKey`, `altScreen`, `viewAreas`, or `enabledFeatures`; modern prior art suggests Setup capability augmentation may be another logical change, but it does not establish Honda's requirement. Hook B must therefore be researched as capability handling plus type-111 support. Two-hook sufficiency and live readiness remain UNKNOWN/NO pending Setup schema, stream binding, and ABI evidence. See [Step 32](../../step-reports/32-airplay-info-phone-path.md).
+1. Honda's `/info` response contains `displays[]`; its current array has the one main-screen descriptor. The object is mutable between `AirPlayCopyServerInfo` return (`0x28a156`) and plist serialization (`0x28a19c`). This is a static mutation window, not a validated hook.
+2. Honda SETUP handles type 110 and rejects 111. Type-110 reads `streamConnectionID` as uint64, uses it to derive and install per-screen AES key/IV, opens a per-stream ephemeral listener, and returns `{type: 110, dataPort}`.
+3. The `/info` descriptor's numeric `uuid` property has no recovered link to `streamConnectionID`, screen setup, or stream type. No Honda binding structure containing both was found.
 
-## Step 31 decision update
+## Current architecture decision
 
-`AirPlayCopyServerInfo` is global only in the regular symbol table and is not a dynamic export. No normal ELF consumer was found among the 45 mapped shared libraries; no runtime lookup key was found. The only recovered plist send chain remains tied to SETUP. Therefore Hook A has no identified phone-facing insertion point, and Hook B remains an unvalidated conceptual per-entry diversion. Two-hook sufficiency, display-stream binding, and readiness remain UNKNOWN/NO as detailed in [Step 31](../../step-reports/31-airplay-server-info-consumer.md).
+An added Display B descriptor plus a future Type-111 handler are **not yet demonstrated sufficient** for a secondary TCP connection test. The open link is how the iPhone chooses a secondary-screen stream and how the Honda/ClarityLink side identifies that stream as Display B. A distinct connection ID may be needed for key derivation, based on the stock Type-110 pattern, but Type-111 parity is unknown.
 
-## Step 30 decision
-
-The local capability half is now better established: AirPlayCopyServerInfo queries displays, inserts the returned one-element CFMutableArray into its mutable result dictionary, and returns a CFLDictionaryRef. The missing edge is still decisive: no caller, serializer, or phone-facing send path for this server-info dictionary is proven. The separate SETUP response proof cannot fill this gap.
-
-Type 111 is rejected at the Setup invalid-type branch beginning 0x2861f6. A per-entry dispatch intercept could conceptually preserve stock handling for 100/101/110, but live ABI and response/error behavior are not yet validated. Display UUID-to-stream binding remains unknown.
-
-**Decision:** TWO_HOOK_ARCHITECTURE_SUFFICIENT = UNKNOWN; PRIMARY_PATH_PRESERVABLE = structurally plausible but unproven; OFFLINE_NEGOTIATION_IMPLEMENTATION_READY = NO; LIVE_NEGOTIATION_TEST_READY = NO. First recover the server-info consumer and phone-facing serializer boundary, then resolve Type-111 request/response correlation and ownership. See Step 30 report.
-
-## Evidence state
-
-`CopyDisplaysInfo` builds a main-screen dictionary. `AirPlayReceiverSessionPlatformCopyProperty` handles the `displays` property by putting that dictionary into a one-item array. `AirPlayCopyServerInfo` invokes the property-copy routine, but the precise displays argument and any phone-facing serializer/send edge remain unproven.
-
-SETUP parses the request body as a property list, reads a `streams` array, and dispatches each integer `type`: 100/101 audio and 110 screen. Type 111 follows the invalid-type path. Type 110 opens a dynamic listener and produces the response stream entry containing type and `dataPort`. No UUID, stream ID, or connection ID binds this response to the advertised display dictionary.
-
-| Hook candidate | Evidence and status |
+| Question | Current answer |
 |---|---|
-| Capability advertisement | No confirmed phone-facing boundary |
-| SETUP request dispatch | `AirPlayReceiverSessionSetup`, type comparisons at `0x28590e` onward; Type 111 invalid path |
-| SETUP response mutation | `_connectionHandleMessage` post-Setup/pre-serializer window remains structural; cannot by itself enable rejected Type 111 |
+| Server-info augmentor offline model | Ready as a boundary/schema model; exact Display-B values remain unproven |
+| Type-111 offline request/response model | Not ready as a complete contract; only evidence-labeled sketches |
+| Can a second descriptor alone induce Type 111? | Unknown |
+| Does display UUID bind to stream ID? | No Honda evidence found |
+| Must mode/UI control precede Type-111? | Unknown; prior-art separates media from UI ownership |
+| Is Type-110 crypto behavior reusable for 111? | Unknown; do not assume |
+| Partial stock Setup delegation | Structurally plausible, semantics unknown |
+| Live negotiation test ready | No |
 
-**Ready for negotiation implementation:** NO. **Ready for live experiment:** NO. Next work must identify the exact `displays` argument in `AirPlayCopyServerInfo` and trace its output to wire serialization, then determine a safe offline design for the explicit type rejection and correlation gap.
+No hooks, code, or live test are part of this architecture note. Next offline work should recover the screen UUID's source/layout and complete the accepted-socket-to-screen-session binding, then inspect prior-art commits/history for a clearly versioned Type-111 schema and feature-token requirement. Honda evidence remains authoritative for Honda behavior.

@@ -1,18 +1,18 @@
-# Offline Type-111 response model — evidence-bounded
+# Type-111 SETUP response model — Step 33
 
-This is a protocol sketch, not an implementation or serialized payload.
+Evidence-bounded protocol sketch only:
 
 ```text
-request entry:
-  type: 111                    # prior-art convention; Honda currently rejects it
-  remaining request fields: UNKNOWN
-
-candidate response entry:
-  type: 111                    # prior-art convention, not Honda-confirmed
-  dataPort: CLARITYLINK_PORT_B # analogous to Honda Type-110 response; unproven for 111
-  additional fields: UNKNOWN
+candidate response stream:
+  type: 111                  # prior-art convention; Honda does not accept 111
+  dataPort: <allocated TCP port> # analogous to Honda Type 110, unproven for 111
+  streamConnectionID: ?      # Honda Type 110 builder does not echo it
+  display UUID: ?             # no Honda evidence it belongs in response
+  other fields: UNKNOWN
 ```
 
-Honda-confirmed template: a Type-110 SETUP request is dispatched to stock screen setup; the response entry contains type=110 and a dynamically allocated dataPort, then the Setup response object is sent through the binary-plist HTTP serializer. Honda does not currently accept type 111 through this dispatcher. Request/response identifier copying and display UUID binding are unknown.
+Honda's Type-110 code derives per-screen AES key/IV from the request `streamConnectionID`, installs the crypto context, opens a TCP listener, then constructs a response entry with type 110 and the assigned `dataPort`. In the inspected response-building instructions, no identifier echo was seen. That is not proof that a Type-111 response must omit the identifier; Type 111 is not natively supported by this binary.
 
-This model is not ready for a complete interoperable offline handler: response parity, listener lifecycle/transport details, error semantics, phone correlation, and capability negotiation remain unresolved. It is a placeholder for a future fixture after the schema is proven.
+The outer Setup response is synchronously encoded as a binary plist and sent in the HTTP response. Exact Type-111 response fields, security requirements, port lifecycle, and whether the phone correlates entries by array order/type/ID are unknown.
+
+**Readiness:** not a complete interoperable model. Only an analogous `{type, dataPort}` skeleton is supported, and the Type-111 port/crypto behavior remains receiver-specific and unproven.

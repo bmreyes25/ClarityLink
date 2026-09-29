@@ -1,3 +1,15 @@
+## Step 33 — display ↔ stream connection binding (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Stream identifier | `research/carplay/stream-connection-id.md`, `honda-screen-session-binding.md` | Type-110 reads `streamConnectionID` as uint64 and passes it to screen AES key/IV derivation; persistence/accepted-socket mapping remain partial |
+| Display identity | `research/carplay/honda-display-uuid-flow.md` | Phone-facing numeric `uuid` property from `ScreenCopyMain`; no use found in analyzed SETUP path |
+| Correlation | `research/carplay/display-stream-correlation.md` | No UUID ↔ connection-ID structure found; display-to-stream binding UNKNOWN |
+| Type 111 models | `research/carplay/type111-request-model.md`, `type111-response-model.md`, `honda-type111-intercept.md` | Honda rejects 111; request, response, crypto, and partial delegation remain unproven |
+| Architecture | `research/carplay/claritylink-display-b-architecture.md` | Offline server-info boundary model ready; complete Type-111 model/live connection test not ready |
+
+Step report: `step-reports/33-stream-connection-binding.md`.
+
 ## Step 30 — AltScreen negotiation loop (2026-09-29)
 
 | Area | Primary evidence | Finding |

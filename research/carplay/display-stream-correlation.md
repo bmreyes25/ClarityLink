@@ -1,19 +1,38 @@
-# Honda display-to-stream correlation — Step 30
+# Honda display-to-stream correlation — Step 33
 
-Step 32 confirms the `displays` array reaches the `/info` binary-plist response. It does not recover how the advertised display is associated with SETUP. Honda contains `streamConnectionID` and `inScreenStreamConnectionID` strings, but their binding dataflow remains untraced.
+**Evidence scope:** identity-verified `jmcs` ELF, offline static analysis. SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`. No vehicle, ADB, ptrace, firmware patch, live hook, or Type-111 implementation.
 
-Step 31 update: the server-info object still has no proven phone-facing consumer. No new evidence binds display `uuid`, `streamConnectionID`, Type 111, or a screen identifier. Display-to-stream binding and any required additional control-plane component remain UNKNOWN.
+Step 32 proves `/info` returns the exact server-info object containing `displays[]` to the phone-facing binary-plist response path. Step 33 establishes that the stock Type-110 setup reads a per-stream `streamConnectionID` and uses it in screen-stream security setup. It does **not** establish a relation between that ID and the display descriptor's `uuid`.
 
-The confirmed Setup parser reads streams[] entries and integer type. Honda's Type-110 response entry contains type and a locally allocated dataPort. The recovered Setup flow does not establish a copied display UUID, streamID, streamConnectionID, or other per-stream correlation field. The local main-display descriptor contains a uuid key, but its insertion is numeric and no flow connects it to the Setup request or response.
+## Evidence-bounded model
 
-| Candidate binding | Honda finding |
+```text
+GET /info
+  -> serverInfo["displays"][0] = main screen descriptor
+       uuid comes from a numeric property on ScreenCopyMain()
+
+SETUP streams[i]
+  -> type = 110
+  -> streamConnectionID: uint64_t
+  -> AirPlay_DeriveAESKeySHA512ForScreen(masterKey, 16, ID, key, IV)
+  -> AirPlayReceiverSessionScreen_SetSecurityInfo(key, IV)
+  -> ServerSocketOpen(..., port 0, ...)
+  -> response stream { type: 110, dataPort: assigned port }
+```
+
+The SETUP stream path contains no demonstrated read of display `uuid`; the `/info` display builder contains no demonstrated `streamConnectionID`. No structure with both values has been identified. Therefore an advertised second descriptor is not yet proven sufficient to cause a Type-111 request or to bind that request to the descriptor.
+
+| Candidate relation | Honda result |
 |---|---|
-| Display UUID → requested stream | Unknown; no flow recovered |
-| Stream type 110 → main screen setup | Confirmed by dispatch |
-| Type 111 → alternate display | Rejected by this Honda dispatcher |
-| streamConnectionID / streamID copy-through | Not found in analyzed Setup slice |
-| Session/connection context | Session exists, but no display association established |
+| Request stream -> 64-bit streamConnectionID | Confirmed in inlined `_ScreenSetup` within `AirPlayReceiverSessionSetup` |
+| streamConnectionID -> screen crypto | Confirmed; used in screen key/IV derivation |
+| streamConnectionID -> listener/response | Same Type-110 branch creates the listener and response entry; explicit echo/copy-through not observed |
+| display UUID -> SETUP stream | No link found in analyzed paths |
+| display UUID -> crypto/session identity | No link found |
+| Type 111 -> cluster display | Honda rejects type 111 at invalid-type branch `0x2861f6` |
 
-Pinned prior art: xcertplay uses separate main/alternate display descriptors and stream types 110/111; it conditionally enables altScreen. Harman's MHI2 implementation has native Type-111 handling. These implementations establish their own receiver-specific behavior only. Pinned evidence does not establish that display UUID alone triggers a Type-111 request or document a universally required mode/UI correlation message (modes, showUI, suggestUI, etc.).
+## Decision
 
-**Conclusion:** DISPLAY_STREAM_BINDING = UNKNOWN. Honda evidence does not show that adding a second descriptor by itself is sufficient to cause or associate a secondary stream. Do not invent final descriptor values or Type-111 wire fields.
+`DISPLAY_TO_STREAM_BINDING = UNKNOWN`. The ID's proven role is per-screen cryptographic derivation, not display selection. A candidate future model may carry a distinct Type-111 `streamConnectionID` for a separate stream/security context, but this remains a hypothesis from other receivers, not a Honda-confirmed request/response schema. A second `/info` descriptor by itself is **not proven sufficient**.
+
+Prior-art repositories describe Type-111 streams and control/UI state, but their receiver-specific behavior cannot fill the missing Honda edge. Their current-source evidence is summarized separately in `prior-art-altscreen.md`; no version-history conclusion about when feature tokens became required is asserted here.
