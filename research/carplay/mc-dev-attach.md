@@ -1,30 +1,32 @@
 # CarPlay `mc_dev_attach` trace
 
-**Status: attachment call and requested name confirmed; backend selection unresolved.** Offline analysis of the local `jmcs` ELF at the base commit. The local binary is ignored and is not included in Git.
+**Status: caller, manager traversal, and callback ABI dataflow partially recovered; exact registry winner unresolved.** Offline analysis only.
 
-## Exact CarPlay call
+## Exact caller
 
 | Field | Finding |
 |---|---|
-| Caller | `mc_ScreenStreamStart` (`0xBDC06`) |
-| Binary | `extracted/system-vendor/system/bin/jmcs`, SHA-256 in `jmcs-address-map.md` |
-| Call | `bl 0x81630 <mc_dev_attach>` |
-| First argument | Pointer to exact NUL-terminated string `"CarPlay Screen"` (literal at ELF VA `0x2E0340`) |
-| Second argument | `r8`, loaded from the screen-stream-related object at `[r6 + 0x78]`; exact C type/semantic role unresolved |
-| Extra mode/config | No third argument at this wrapper call. Nearby value `1` initializes the stream object and is not passed in a register to `mc_dev_attach` |
-| Return | Zero/nonzero status convention at this call site; nonzero takes the error path |
-| Return storage | On success, zero is stored at `[r6]`; the attached device output, if any, is not established from this store |
+| Caller | `mc_ScreenStreamStart` (`0xBD628` function start) |
+| Call instruction | `0xBDC06` -> `mc_dev_attach` (`0x81630`) |
+| Argument 0 | Exact string `"CarPlay Screen"`, literal VA `0x2E0340` |
+| Argument 1 | Stream-associated pointer loaded from `[r6 + 0x78]`; `devmgr_dev_alloc` writes a newly created secure pointer through this value, so the generic path treats it as output storage. API-level type and owner remain unknown |
+| Return handling | Zero follows success path; nonzero is error path |
 
-The stream object is populated with related pointers before the call. That is evidence of a per-stream context, but not proof that the manager/device/sink/decoder are per-stream.
+## Dispatch dataflow
 
-## Wrapper and manager path
+`mc_dev_attach` loads the global manager and tail-calls `devmgr_dev_attach(manager, key, context)`. `devmgr_dev_attach` calls `devmgr_dev_alloc`, then invokes internal `dev_attach` while holding manager synchronization. The manager scan starts at `manager +0x08`; each list entry has an interface pointer at `+0x08`. Interface slot `+0x00` is called as a candidate scoring/comparison callback. A strict greater-than comparison keeps the highest-scoring entry. The selected entry is passed to `dev_attach_to_app`.
 
-`mc_dev_attach` (`0x81630`) loads the MediaCore device-manager global and tail-calls `devmgr_dev_attach` (`0x82858`) with the manager plus the two caller arguments. `devmgr_dev_attach` checks manager state and the second argument, calls `devmgr_dev_alloc` (`0x825F0`), then calls internal `dev_attach` (`0x81FF4`) under the manager lock. `dev_attach` walks registered entries, invokes each entry's first interface operation as a comparator against the secure device key, and passes the selected entry into `dev_attach_to_app` (`0x81E64`). The winning comparator, registration entry, and callback target remain unresolved.
+`devmgr_dev_alloc` creates a `0x20`-byte record and calls `j_secure_ptr_create` (`0x123DB4`), stores the returned pointer at record `+0x0c`, and writes it through the caller-supplied output slot. Thus the second argument to `mc_dev_attach` is used as output storage in the generic manager path. `dev_attach_to_app(device, entry)` loads the entry interface, invokes slot `+0x04`, and supplies `[device +0x0c]`, `device +0x14`, and the interface pointer in r0-r2. On successful attach it stores the selected entry at `device +0x08`. The concrete output/context meaning and selected callback remain unknown.
 
-## Signature confidence
+## Registration API evidence
 
-The wrapper-level ABI is consistent with `mc_dev_attach(arg0, arg1)`; the manager implementation receives `(manager, arg0, arg1)`. No reliable DWARF prototype was recovered in this pass, so source-level types, ownership semantics, and an `out` parameter interpretation remain unknown. Do not rename the arguments beyond their observed values.
+`devmgr_app_register` (`0x8307C`) is the registration call used by `mc_media_dev_register_devmgr` (`0x3CF7C`) and `mc_iodev_set_cbs` (`0x4B99C`). The generic media callbacks `media_dev_attach` (`0x3E03C`) and `media_dev_attach_cb` (`0x24380C`) exist, but static evidence does not connect their registration entry to this exact key.
 
-## Decision
+## Unresolved
 
-The requested device name is **CarPlay Screen**. The highest-priority unresolved edge is the `dev_attach` registry lookup from this name to a registration entry and callback. See `device-manager.md`, `active-carplay-sink.md`, and `step-reports/15-carplay-device-attach.md`.
+- Entry whose comparison callback returns the selected score for `"CarPlay Screen"`.
+- Comparator implementation and matching identity/alias.
+- Concrete attach callback and meaning/ownership of context argument.
+- Concrete sink, active `process_data`, decoder, Surface, and detach callback.
+
+Do not infer the match from nearby strings or generic media symbol names. See [Step 16](../../step-reports/16-carplay-registration-match.md).

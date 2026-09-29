@@ -1,15 +1,16 @@
 # Display-B media interposer status
 
-No implementation is proposed. The primary CarPlay screen requests the device named `"CarPlay Screen"` from `mc_dev_attach`, but the matching registry entry, construction callback, concrete sink, decoder, and Surface are unresolved.
+No implementation is proposed. Static analysis confirms that the primary screen requests `"CarPlay Screen"`, and the generic device manager selects a registry entry by callback score before calling that entry's attach slot. The winning entry for this key, its concrete sink, decoder, Surface, and ownership are unresolved.
 
 | Design point | Status |
 |---|---|
-| Device duplication point | Unknown; candidate is the `mc_dev_attach` call in `mc_ScreenStreamStart`, but repeated attach semantics are unproven |
+| Device duplication point | Unknown; `mc_dev_attach` call is per observed screen start, but repeated attach semantics are unproven |
 | Sink duplication point | Unknown |
 | Decoder duplication point | Unknown |
 | Surface injection point | Unknown |
-| Primary-only assumptions in proven device path | Not yet audited beyond manager global; no claim of singleton backend is justified |
+| Hardcoded one-screen/device/decoder/Surface assumption | Not established in the traced dispatch slice |
+| Global assumptions | `mc_dev_attach` obtains manager through a global pointer; effect on independent instances unknown |
 | Two complete media paths structurally supported | Unknown |
 | Ready for Display-B implementation | No |
 
-The next action is to recover the `dev_attach` lookup/registration match, then follow that callback and its object ownership. Display-B negotiation remains outside this milestone.
+The highest-priority media blocker is the exact registration entry selected for `"CarPlay Screen"`, including its comparator result and attach callback. Display-B negotiation is a separate unresolved gate.

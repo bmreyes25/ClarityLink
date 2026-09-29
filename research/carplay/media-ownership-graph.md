@@ -4,25 +4,27 @@
 ScreenSession
   -> ScreenStream
   -> mc_ScreenStreamStart
-  -> mc_dev_attach("CarPlay Screen", stream-associated context)
-  -> MediaCore device manager
-  -> matching registration / attach callback       UNKNOWN
-  -> concrete mc_stream_sink                       UNKNOWN
-  -> process_data +0x14                             UNKNOWN for this instance
-  -> H.264 / decoder                                UNKNOWN
-  -> Surface                                        UNKNOWN
+  -> mc_dev_attach("CarPlay Screen", stream-associated context)  CONFIRMED
+  -> devmgr_dev_attach -> devmgr_dev_alloc -> dev_attach           CONFIRMED
+  -> registry list, slot-0 ranking callback                         CONFIRMED generic mechanism
+  -> selected registration for this key                              UNKNOWN
+  -> selected slot-4 attach callback                                 UNKNOWN for this key
+  -> concrete device/sink                                             UNKNOWN
+  -> process_data +0x14                                               UNKNOWN for this instance
+  -> H.264 / decoder                                                  UNKNOWN
+  -> Surface                                                         UNKNOWN
 ```
 
-Confirmed lower-level interface facts: the generic sink interface has `ops`/`priv`, and slot +0x14 is `process_data`; the screen callback pushes data through that interface. The `mc_dev_attach` call is made for each observed `mc_ScreenStreamStart` invocation, but there is no evidence yet that two screen starts can coexist or yield independent device instances.
+The generic manager has a per-attach allocation record and stores the selected entry in it after successful attach. The manager pointer is reached globally. Neither fact proves independent concrete device, sink, decoder, or Surface instances. The second argument at the callsite is stream-associated, but its identity and handling by the concrete callback are not known.
 
-| Multiplicity question | Evidence-based verdict |
+| Multiplicity question | Verdict |
 |---|---|
-| Call `mc_dev_attach` twice | Structurally callable more than once; whether the manager accepts duplicate names/contexts is unknown |
+| Can call `mc_dev_attach` twice | Structurally callable; duplicate-key behavior unknown |
 | Two device instances | Unknown |
-| Two sinks | Unknown |
-| Two decoders | Unknown |
+| Two sink instances | Unknown |
+| Two decoder instances | Unknown |
 | Two Surfaces | Unknown |
-| Unique device private/context per attach | Unknown; call receives a stream-associated context, but exact type/identity semantics are unresolved |
-| Display-B media chain | Plausible as a shape only; unsupported by concrete registration/ownership evidence |
+| Unique attach context per stream | Unknown |
+| Display-B media chain | Plausible as a conceptual graph only; unsupported by concrete ownership evidence |
 
 No Display-B implementation should be based on this graph yet.

@@ -1,7 +1,7 @@
 # Next action
 
-**Resolve the matching `CarPlay Screen` device registration.** The active call is now confirmed at `mc_ScreenStreamStart` (`0xBDC06`) with exact name `"CarPlay Screen"`; `mc_dev_attach` enters `devmgr_dev_attach` -> `devmgr_dev_alloc` -> `dev_attach`. Decode the lookup in `dev_attach` (`0x81FF4`) and the narrowly relevant registry population/registration path, then follow the matched callback to concrete sink construction and its +0x14 `process_data` target. Continue from that target toward H.264, MediaCodec, and Surface.
+**Prove the exact registry entry that wins for `"CarPlay Screen"`.** Continue from [Step 16](step-reports/16-carplay-registration-match.md): trace relevant `devmgr_app_register` callers and their interface initializers, identify comparator candidates and evaluate the exact key, then follow the proven interface slot +4 attach callback to sink construction and `process_data`. Continue toward H.264, MediaCodec, and Surface only from that callback.
 
-Do not use the vehicle yet. The precise static gap and current evidence are in `step-reports/15-carplay-device-attach.md`, `research/carplay/device-manager.md`, and `research/carplay/active-carplay-sink.md`.
+Do not use the vehicle or ADB. Do not implement Display B or infer registration based on nearby strings. The generic lookup and current evidence limits are in [device-registration.md](research/carplay/device-registration.md), [mc-dev-attach.md](research/carplay/mc-dev-attach.md), and [primary-screen-end-to-end.md](research/carplay/primary-screen-end-to-end.md).
 
-Raw captures, APKs, firmware, forensic images, and vendor binaries stay local and ignored. No model implementation or vehicle work is part of the next offline slice.
+Raw captures, APKs, firmware, forensic images, vendor binaries, and decompiler databases stay local and ignored. No model implementation or vehicle work is part of the next offline slice.
