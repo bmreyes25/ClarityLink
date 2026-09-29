@@ -1,5 +1,7 @@
 # ClarityLink evidence index — 2026-09-28
 
+Step 20: static symbol/DWARF and call-path audit found no safe pre-existing devmgr dump/list or candidate match trace. The manager loop does not log score/interface/winner; raising log level cannot expose missing callsites. No CLI diagnostics or devmgr Binder/IPC dump identified. `jmcs`-owned TCP port-5000 runtime listeners remain statically unattributed; ScreenSession's traced listener asks for port 0. See `step-reports/20-jmcs-diagnostic-discovery.md`, `research/carplay/jmcs-diagnostics.md`, and `research/carplay/port-5000.md`.
+
 Step 11 update: see `step-reports/11-primary-screen-completion.md`. The local tracked corpus does not include the detailed listener/parser disassembly slice needed for port, first read, or TCP framing. No H.264/decoder/Surface edge has been proven from the callback path.
 
 Step 14: `mc_stream_link` and all direct callers were traced. Calls are in generic PBS pipeline construction; the active CarPlay sink still is not identified because the CarPlay screen path reaches device attachment through indirect device/factory dispatch. See `step-reports/14-active-media-sink.md`, `research/carplay/mc-stream-link.md`, and `active-carplay-sink.md`.
@@ -31,3 +33,4 @@ Step 12 supersedes the Step 11 listener/first-read limitation: exact local `jmcs
 | Live evidence availability | captures under ignored research/captures/hondahack-display-path/20260928T152742Z | Factory Navigation, Advanced Meter, Screen Casting snapshots and SHA-256 list saved locally | None for these three states |
 
 Raw evidence, APKs, firmware, forensic images, and sensitive device identifiers are excluded from Git. Sanitized conclusions are recorded in the research and step reports.
+# Step 19: the disconnected read-only `/proc` baseline confirms `jmcs` PID `26577`, base `0x4008f000`, 45 mapped `.so` paths, and two process-owned listeners on port 5000. The known generic registration entry points are in `jmcs`; `libcarplay_proxy.so` does not import the device-manager APIs. The listener role and runtime registry winner remain unresolved. Raw `/proc` metadata is in an ignored local capture; derived evidence is in `step-reports/19-jmcs-proc-differential.md`, `research/carplay/jmcs-runtime-sockets.md`, and `research/carplay/jmcs-module-inventory.md`.

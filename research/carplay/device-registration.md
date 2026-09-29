@@ -44,6 +44,10 @@ See [device-manager.md](device-manager.md), [mc-dev-attach.md](mc-dev-attach.md)
 
 The offline pass confirms generic registration and ranking only. `dev_attach` selects the strictly highest unsigned slot `+0` result (initial best 0; ties retain the earlier node), then dispatches slot `+4`. The concrete list entry/interface/context installed for `"CarPlay Screen"` is not statically recoverable from the local `jmcs` artifact. Therefore this note does not assign an active backend, sink, decoder, or Surface. See [device-match-semantics.md](device-match-semantics.md) and [Step 17](../../step-reports/17-carplay-registration-winner.md). The exact blocker is runtime registration state (or its producer), not absent `jmcs`/DWARF. Display-B readiness remains **No**.
 
+### Step 20 diagnostic audit
+
+Offline review of the exact symbolized ELF/DWARF found no supported `devmgr` dump/list/enumeration function or read-only match-trace interface. `dev_attach`'s callback loop does not log candidate scores, interface pointers, or slot `+4`; manager lifecycle logs cannot reconstruct them. Generic `dump*` symbols do not traverse this registry. See [jmcs-diagnostics.md](jmcs-diagnostics.md) and [Step 20](../../step-reports/20-jmcs-diagnostic-discovery.md). No runtime diagnostic was invoked.
+
 ## Step 18 status — saved runtime captures insufficient (2026-09-28)
 
 The offline capture audit found `/system/bin/jmcs` process/maps/status/fd snapshots and older CarPlay logs, but no registry head, candidate nodes, callback tables, contexts, or match results. `media_dev_attach` log messages are generic and are not proven to come from `mc_dev_attach("CarPlay Screen", ...)`. Registry owner is `jmcs`; known list-head field is manager `+0x08`, but its absolute runtime address and list contents are unavailable. Live observation is required to continue. See [runtime registry audit](runtime-device-registry.md) and [Step 18](../../step-reports/18-runtime-registration-resolution.md). No live action was performed.
