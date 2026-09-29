@@ -49,3 +49,7 @@ MHI2's source establishes/starts its separate Type-111 receiver as transport sta
 ## Conclusion
 
 The AltScreen approach is a credible architecture candidate, and `mc_dev_attach("CarPlay Screen")` is not a conceptual dependency if ClarityLink receives a separate negotiated stream and owns its decoder. The missing display UUID↔`streamConnectionID` mapping is no longer the primary transport blocker: the ID participates in per-screen crypto, while UUID/capability belongs to display/presentation signaling in current evidence. Honda still needs Type-111 schema/security compatibility, accepted socket/framing ownership, and a safe stock delegation design recovered. No live test is ready.
+
+## Step 38 source correction: Setup delegation order
+
+At pinned MHI2 source commit c2f811f1a5c84dae3a62f4cf9b4a9e65fc3f7b3c, mibr_session_setup calls call_stock_setup(s, request, &stockResp) with the original request before scanning its Type111 descriptor. It clones the Type111 entry for response augmentation and sets dataPort plus streamID=111; unknown peer fields are preserved. clone_without_111 is called from the teardown path when forwarding remaining streams, not from Setup. This supersedes earlier local wording that described filtered stock Setup. Honda's static no-error Type111 skip now independently supports original-request Setup delegation, though Honda response schema/phone acceptance remain unknown.

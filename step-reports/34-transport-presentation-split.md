@@ -73,3 +73,7 @@ Next: recover the Honda screen parser and listener/session ownership from `Proce
 ## Verification
 
 Documentation-only changes; no tests run. `git diff --check` is run before commit.
+
+## Step 38 correction to MHI2 Setup summary
+
+The pinned MHI2 source was rechecked at its actual mibr_session_setup implementation. It passes the original request to stock first, then scans the original Type111 descriptor, initializes the project receiver, and appends a cloned descriptor with dataPort and streamID=111. Its clone_without_111 helper is used by the Type111-aware teardown path when delegating remaining entries to stock. Earlier Step 34 text saying Setup uses a filtered stock clone was incorrect; see research/carplay/prior-art-altscreen.md and type111-transport-model.md.

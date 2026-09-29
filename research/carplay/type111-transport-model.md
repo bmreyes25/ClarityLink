@@ -1,33 +1,9 @@
-# ClarityLink Type-111 transport model — Step 37
+# Type-111 transport model — Step 38
 
-## Reusable offline media core
+Honda Type-110 gives a proven reusable primitive set: nonzero uint64 `streamConnectionID`; 16-byte session master material; `AirPlay_DeriveAESKeySHA512ForScreen`; independent AES-CTR initialization; an ephemeral TCP listener; a `{type:110,dataPort}` response; and the ScreenStream media path from Steps 36–37. Honda does not dispatch Type 111 into any of these handlers.
 
-Honda Type-110 media path is now modeled offline:
+The Type-111 target remains a project-owned session over the same authenticated CarPlay session. MHI2 prior-art reads its Type-111 ID, derives a separate screen key/IV from stock session security material using the stock screen KDF, opens an independent listener, and returns a cloned descriptor with `dataPort` and `streamID=111`. Its Setup path calls stock with the original request; its explicit `clone_without_111` helper is used while forwarding teardown to stock.
 
-```text
-incremental ScreenStream envelope
-  -> optional injected continuous CTR body update
-  -> opcode 1: avcC-like SPS/PPS -> Annex-B parameter sets + NAL width
-  -> opcode 0: length-prefixed records -> one Annex-B media buffer
-                  with pending parameter sets prepended once
-  -> timestamp_raw event
-```
+Honda Setup statically logs/skips 111 and continues. This makes stock-original delegation the best-supported offline strategy. After stock success, copy the response and append a prior-art-shaped Type-111 response while preserving all request/stock unknown fields. Honda response shape and Honda Type-111 KDF compatibility remain unknown.
 
-The code is `HondaScreenReceiverCore` in `src/claritylink-transport/receiver_core.py`. It does not open sockets, derive session keys, pick a Type111 SETUP response, or decode/render. The CTR provider remains injected. Timestamp output remains the raw LE64 header value because Honda's converter timebase is not recovered.
-
-## Type111 compatibility assessment
-
-| Component | Honda Type110 | MHI2 Type111 prior art | ClarityLink reuse status |
-|---|---|---|---|
-| 128-byte envelope, LE32 body length, opcode | Honda-confirmed | matching family documented in pinned source | **YES as parser candidate**; Honda Type111 itself untested |
-| Body AES-CTR and continuous state | Honda-confirmed Type110 | MHI2 reports CTR on its Type111 | **UNKNOWN for Honda Type111**; keep primitive injectable |
-| Config as avcC-like | Honda helper parses this layout | MHI2 source/docs identify avcC | **LIKELY reusable**, pending Type111 target verification |
-| NAL width and Annex-B | Honda Type110 links avcC width to 1/2/4 callback branches; width 3 unsupported | MHI2 Type111 implements AVCC to Annex-B | **LIKELY reusable**, callback zero-run transform still needs exact modeling |
-| Access-unit boundary and timestamp | one ScreenStream message becomes one media buffer; AU semantics high-confidence, converter/timebase unknown | prior-art receiver emits frame samples | **UNKNOWN for Honda Type111** |
-| Type111 SETUP contract/listener lifecycle | stock Setup doesn't accept a Type111 handler; unrecognized entries take a log-and-continue path in inspected loop | MHI2 has target-specific interposer | **Type111-specific and unresolved** |
-
-Honda Setup (`0x2854e0`) reads each `streams[]` element's `type` at `0x28590e`. Type 100/101/110 have cases; Type 111 reaches the unknown-type log at `0x2861f6` and then increments the array index/continues at `0x286220`. This proves no Type111 setup branch. It does **not** prove an immediate transaction error; exact overall result depends on surrounding stream entries and later setup state.
-
-## Step 38 boundary
-
-Before any Type111 listener/interposer implementation, recover the Type111 SETUP/security contract and error/rollback behavior. Preserve non-111 entries through stock handling and do not mutate live behavior in this step. Required function map and field checklist: `type111-step38-contract.md`.
+Offline negotiation/crypto models now exist under `src/claritylink-negotiation/`. They use synthetic secrets and injected stock/listener callbacks; they create no socket, alter no Honda process, and do not prove a live Type-111 receiver.

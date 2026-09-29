@@ -57,3 +57,7 @@ Do not record or persist live key/IV bytes. The accepted socket is owned by a `N
 ### Type-111 consequence
 
 `TYPE111_CRYPTO_REUSE=UNKNOWN` for Honda interoperability, and `YES` only for reuse of the same *stock derivation primitive* given a valid session master key and Type-111 ID. Honda rejects 111 before this path today. MHI2 demonstrates a receiver-specific approach: observe stock session crypto setup, then invoke the same screen derivation function with the Type-111 ID. That is strong prior art, not proof of Honda’s expected Type-111 stream-ID lifecycle.
+
+## Step 38: representation used by the screen KDF
+
+DWARF formals and the helper call chain now prove the serialization detail: the uint64 value is formatted with `%llu` and appended as unsigned decimal ASCII to `AirPlayStreamKey` and `AirPlayStreamIV`. Each salt plus the 16-byte session master material is SHA-512 hashed separately; first 16 bytes form key and IV. This is Honda Type110 evidence. MHI2 uses this helper for its Type111 generation; Honda Type111 compatibility remains unknown. The offline implementation accepts synthetic inputs only.

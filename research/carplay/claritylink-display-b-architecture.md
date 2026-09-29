@@ -1,52 +1,47 @@
-# ClarityLink Display B architecture — Step 37 update
+# ClarityLink Display B architecture — Step 38
 
-**Status:** offline transport/media core established for the Honda Type-110 ScreenStream family. Type-111 SETUP/security contract and live interposition are not implemented.
+**Status:** Honda media path and mixed SETUP loop are statically recovered; offline Setup/security models exist. Honda's Type-111 response/phone-trigger contract and live interposition safety remain open.
 
 ## Separate planes
 
 ```text
 PRESENTATION
-/info -> Honda display descriptor -> ClarityLink capability augmentation (future)
-      -> suggestUI / showUI / stopUI / ViewArea (future)
+/info -> Honda display descriptor -> future ClarityLink capability augmentation
+      -> suggestUI / showUI / stopUI / ViewArea (later)
 
 SETUP / TRANSPORT
-incoming streams[] -> future ClarityLink Type111 split/interposer
-                    -> Honda handles preserved 100/101/110 entries
-                    -> keep Honda response
-                    -> ClarityLink Type111 listener + merged response (future)
-Type111 socket -> ScreenReceiverCore -> config + timestamped Annex-B buffers
+original streams[] -> Honda handles 100/101/110 and skips unsupported 111
+                    -> stock response remains intact
+                    -> ClarityLink prepares separate Type111 state
+                    -> append cloned Type111 response before serializer
+Type111 socket -> independent CTR -> ScreenReceiverCore -> VideoConfig/H264
 ```
 
-Display UUID remains presentation identity. `streamConnectionID` remains the transport/security identity; no direct UUID binding is required by current evidence.
+Display UUID remains presentation/capability identity. `streamConnectionID` is the per-screen crypto input. No UUID-to-ID binding is required by the proven transport path.
 
-## Media receiver boundary
+## Honda mixed-Setup result
 
-Honda Type110 evidence now closes the type-1 config-to-type-0 data link: avcC-like config yields converted SPS/PPS and NAL width; next type-0 callback uses that width, builds one media buffer, and prepends pending parameter sets. The offline core is a Type110 compatibility model; MHI2 shows a similar Type111 family, but Honda's Type111 contract has not been accepted or tested.
+The unsupported branch at `0x2861f6` only logs; it does not write the Setup status or mutate/clear response entries. It continues at `0x286220`. If supported entries and final `AirPlayReceiverSessionPlatformControl` succeed, Setup returns success. This supports passing the original mixed request to Honda, preserving stock response, and appending project output afterward. Supported-stream failures still follow existing Setup rollback.
 
-## Primary path preservation contract for future changes
+## Primary path preservation
 
-Any future interposer must preserve, when ClarityLink is disabled or Type111 handling fails:
+When Type111 handling is disabled or fails, retain the original Honda response and leave Type100/101/110 entries, ports, key/IV, listeners, center display and audio untouched. Fail softly by returning the stock response after cleaning project-owned partial state. Phone behavior when its requested Type111 descriptor is omitted remains unknown.
 
-- Honda main display descriptor and UUID
-- Honda Type100, Type101, and Type110 entries and response fields
-- Honda primary listener and dataPort
-- Honda primary key/IV and screen crypto state
-- Honda center display and CarPlay audio
-- no CAN writes, block-device writes, or firmware flashing
+## Security and ownership
 
-Observable disabled-mode behavior should remain byte/structure-equivalent to stock wherever the serialized protocol permits exact comparison.
-
-## Mixed request, error and rollback design questions
-
-Honda Setup logs and skips unsupported Type111 entries in its per-entry loop at `0x2861f6` -> `0x286220`; this does not yet prove the complete response or transaction status. Future code should retain the original request, pass unchanged supported entries to stock, and append Type111 output only after listener/key setup succeeds. Step 38 must prove whether the transaction is atomic, whether a failed secondary can be omitted while primary succeeds, how listener cleanup works, and which response object owns the merge window. Do not implement a rollback strategy until those behaviors are traced.
+The Type-110 derivation contract is implemented offline with synthetic input. Type111 reuse of Honda's helper is MHI2 prior-art, not Honda proof. Any parallel Type111 stream needs its own key/IV, CTR position, listener/socket, parser/config state and generation; never modify Honda screen object crypto. Keep all secret values in memory and out of logs/persistent storage.
 
 ## Readiness
 
 | Component | Status |
 |---|---|
-| Offline Honda Type110 media model | READY with injected crypto provider; timebase and byte-normalization caveat remain |
-| Type111 Setup contract | NOT READY |
-| Type111 security/key integration | NOT READY |
-| Live interposer | NOT READY |
-| Cluster renderer/decoder connection | NOT READY |
-| Presentation controls | NOT READY |
+| Honda Type110 media model | READY offline with documented normalization/timebase limits |
+| Honda mixed stream Setup analysis | READY static; Type111 skip is non-fatal absent other errors |
+| Offline Type111 response augmentation | READY as explicit MHI2-shaped model, not Honda wire proof |
+| Offline Type110 screen KDF | READY synthetic-only |
+| Honda Type111 KDF compatibility | UNKNOWN |
+| First Type111 request trigger | UNKNOWN |
+| Live interposer / listener / car test | NOT READY / not performed |
+| Decoder, cluster rendering, presentation controls | later milestones |
+
+Step 39 should build/review the host-only interposer and lifecycle around this transaction model. It must not attempt live deployment.

@@ -1,3 +1,15 @@
+## Step 38 — Honda Type111 Setup and security contract (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Mixed SETUP | research/carplay/honda-mixed-stream-setup.md, honda-type111-rejection.md | Unsupported 111 logs and continues without error/status/response mutation. Overall Setup succeeds conditionally on all supported handlers and final PlatformControl; valid stock response entries survive; no 111 rollback |
+| Delegation | research/carplay/honda-type111-intercept.md, type111-transport-model.md | Original-request stock delegation is supported by Honda CFG; append only after stock success |
+| Type111 descriptor/response | research/carplay/type111-request-model.md, type111-response-model.md | Honda proves only generic type and Type110 fields. Pinned MHI2 source reads streamConnectionID, clones the full descriptor and sets dataPort/streamID=111; Honda Type111 schema remains unknown |
+| KDF | research/carplay/type111-security-contract.md, screen-crypto.md, stream-connection-id.md | Honda Type110 KDF uses unsigned decimal ID text in separate AirPlayStreamKey/IV salts, SHA512(salt || 16-byte master), first 16 digest bytes |
+| Response ownership/lifecycle | research/carplay/honda-setup-response.md, type111-lifecycle.md, type111-rollback.md | Mutable response streams array permits structural append. Project Type111 teardown must be independently owned; Honda only handles stock 100/101/110 |
+| Offline model/tests | src/claritylink-negotiation/, tests/negotiation/test_setup_contract.py, step-reports/38-type111-setup-security-contract.md | Stock-first transaction, synthetic KDF and lifecycle models; 29 transport + 18 negotiation tests pass; no live listener/hook or real key |
+| Readiness | step-reports/38-type111-setup-security-contract.md | Offline model ready; Honda Type111 response acceptance, phone trigger and Type111 KDF compatibility remain unknown; live TCP test not ready |
+
 ## Step 37 — Honda VideoConfig to media buffer (2026-09-29)
 
 | Area | Primary evidence | Finding |
@@ -19,7 +31,7 @@
 | MHI2 Type 111 | `research/carplay/prior-art-altscreen.md`, `type111-request-model.md`, `type111-response-model.md` | Pinned current source `c2f811f...` clones descriptors, preserves unknown fields, derives per-screen crypto from stock session material + ID, and separates Type-111 transport from UI control; target-specific evidence only |
 | Control plane | `research/carplay/honda-platform-control.md`, `transport-vs-presentation.md` | Honda control symbols and mode/UI helpers exist; exact suggest/show/stop/ViewArea semantics remain unknown; matching strings absent |
 | Display correlation | `research/carplay/display-stream-correlation.md`, `claritylink-display-b-architecture.md` | UUID reclassified presentation/capability identity; no Honda UUID-to-stream-ID or crypto link demonstrated |
-| Delegation | `research/carplay/honda-type111-intercept.md` | Safest conceptual strategy is stock request clone without Type 111, stock handles normal streams, then append cloned Type-111 response; mixed-stream behavior still unproven |
+| Delegation | `research/carplay/honda-type111-intercept.md` | Step 34 strategy was tentative; Step 38 proves Honda non-fatal skip and recommends passing original request, then appending after stock success |
 | Feature tokens | `research/carplay/prior-art-altscreen.md` | Modern token requirement is version-dependent; whether Type 111 predates tokens remains unknown |
 | Decision | `step-reports/34-transport-presentation-split.md` | Offline executable transport implementation NO; live transport test NO; biggest blocker is Honda Type-111 contract plus safe mixed-stream delegation |
 

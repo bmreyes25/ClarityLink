@@ -1,5 +1,5 @@
 # Next action
 
-**Step 38 — recover the Type-111 SETUP/security contract offline.** Trace how Honda handles Type 111 alongside supported stream entries, identify security/session inputs available to a ClarityLink receiver, and resolve Type-110 mixed-entry failure and rollback behavior before defining the offline Type-111 request/response model. The unsupported-type loop continues, but response semantics are still unknown.
+**Step 39 — complete the host-only interposer/lifecycle model.** Build on the Step 38 stock-first Setup transaction: model the /info secondary descriptor and feature advertisement, add an abstract listener boundary, connect project-owned state to SessionStart/partial and full teardown, and cover serializer/send failure cleanup. Preserve unknown peer fields and keep Type111 response identity labeled MHI2 prior-art until Honda/iPhone behavior is established. No live hook or vehicle work.
 
-Do not use the vehicle, ADB, ptrace, firmware patches, live hooks, on-car Type-111, cluster rendering, or unrelated control-plane work. Keep evidence Honda-first and use MHI2 only for comparison. Start with `research/carplay/type111-step38-contract.md` and update the Type-111 research plus focused step report when recovered.
+Start with research/carplay/step38 contract notes and step-reports/38-type111-setup-security-contract.md. Keep the phone-side Type111 request trigger and Honda Type111 crypto compatibility as explicit unresolved gates for any later live TCP test.

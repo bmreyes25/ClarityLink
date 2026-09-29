@@ -1,24 +1,7 @@
-# Honda request stream type parser — Step 29
+# Honda SETUP stream type parser — Step 38
 
-## Step 30 clarification
+Honda AirPlayReceiverSessionSetup reads streams[] as typed dictionaries and fetches integer key type at 0x28590e. Type 100/101 route to audio, type 110 to screen setup, and all other values including 111 enter the unsupported log block at 0x2861f6.
 
-Step 37 refined the control flow: Type 111 reaches the unknown-type logging block at 0x2861f6, then the loop advances at 0x286220. This is not an accepted Type111 setup case, but it is also not proven to abort the whole Setup request. Its response/status depends on the remaining setup path and other stream entries. Do not claim a particular HTTP status or atomic-failure behavior. The per-entry dispatch remains a conceptual analysis point, not a validated live hook ABI. See `type111-step38-contract.md`.
+The unsupported block only logs. It does not set the local Setup status, remove response entries, mutate screen/audio state, or jump to rollback. It falls through to the common index increment/continue at 0x286220. After the loop, common AirPlayReceiverSessionPlatformControl runs; its return value controls whether Setup assigns the response and returns success. Thus 111 is non-fatal if other stream handlers and final PlatformControl succeed. It is not a supported handler and does not generate a stock response.
 
-## Exact extraction and dispatch
-
-`AirPlayReceiverSessionSetup` reads `streams` as a CFArray, iterates its elements, and extracts each element's `type` with `CFDictionaryGetInt64` at `0x28590e`. The value is an integer held in the per-iteration local register/dataflow.
-
-Dispatch accepts type 100 and 101 into audio setup branches and type 110 into the screen branch. Values below 100 and all other values—including 111—reach the invalid-type log/error path beginning at `0x2861f6`, followed by common cleanup/return. No generic screen setup is performed for 111. Exact external status mapping is not asserted here.
-
-| Result | Evidence |
-|---|---|
-| Request key | `streams[]` element key `type` |
-| Value type | Integer via `CFDictionaryGetInt64` |
-| Dispatch | `AirPlayReceiverSessionSetup` (`0x2854e0`) |
-| Accepted values | 100, 101, 110 |
-| Type 110 target | `AirPlayReceiverSessionScreen_Setup`, call at `0x28609c` |
-| Type 111 | Explicitly falls through invalid-type branch |
-| Request model | Array, per-entry loop |
-| Multiple entries | Iteration and per-entry response append are implemented; duplicate/type-combination constraints unresolved |
-
-The response stream for type 110 includes type 110 and a dynamic listener `dataPort`. No request UUID, stream ID, or `streamConnectionID` correlation is established.
+A separate nonzero error from a recognized stream invokes cleanup. Do not conflate those error paths with the no-error unsupported Type111 path. See honda-mixed-stream-setup.md for CFG and stream-order analysis.

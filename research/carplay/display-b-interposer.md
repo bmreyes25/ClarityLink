@@ -1,52 +1,18 @@
-# Display-B media interposer status
+# Display-B interposer readiness — Step 38
 
-## Step 30 negotiation status (2026-09-29)
+**Current recommendation:** model stock-original Setup delegation. Honda statically logs/skips unsupported Type 111 without modifying Setup status/state/response; valid 100/101/110 processing continues. On success, ClarityLink can copy/augment the mutable response before its existing serializer runs. This is structurally supported and materially simpler than filtering the request or intercepting the per-entry dispatcher.
 
-AirPlayCopyServerInfo's local output is now characterized as a mutable server-info dictionary containing displays=[main] from a mutable array. This does not prove that it is phone-facing: its caller/serializer/send edge remains unknown. Hook A has no defensible location yet.
+The response augmentation itself is feasible: Honda's `streams` CFArray is mutable and owned through a mutable response dictionary, and the caller serializes the returned object synchronously. Honda Type-111 field schema, actual iPhone request trigger, and live hook/thread safety remain unknown.
 
-Honda's per-entry Setup dispatcher rejects Type 111 at the invalid-type path beginning 0x2861f6. The dispatch point is a conceptual Type-111-only interception candidate, while 100/101/110 could remain delegated stock. Exact hook ABI, error object ownership, secondary listener response schema, and request/display correlation remain unproven. No live hook is ready.
+`src/claritylink-negotiation/` contains a pure offline stock-first transaction, prior-art descriptor-copy model, synthetic Type-110 screen KDF model, and lifecycle state. It does not bind sockets or invoke Honda.
 
-**Readiness:** offline negotiation implementation NO; live negotiation test NO; two-hook sufficiency UNKNOWN. The next concrete task is recovering the AirPlayCopyServerInfo consumer and serializer path, including indirect callers and request registration.
-
-## Step 26 — Honda response boundary update (2026-09-29)
-
-Honda's SETUP response builder now has a recovered local structure: mutable dictionary containing `streams: CFArray`, whose stock entry contains `type=110` and dynamic `dataPort`. Setup publishes the response through an output pointer; its separate completion callback receives status/context, not the response object. This proves a mutable local response accumulator and an array of stream response entries, but not that the caller serializes that exact object for the phone or that an extra entry is accepted.
-
-`AirPlayReceiverSessionScreen_CopyDisplaysInfo` remains a separate one-dictionary/main-screen builder. No Honda display descriptor collection or capability/features container has been demonstrated. `AirPlayReceiverSessionSetup` is a tempting stock-delegating hook because its response output is created there; its complete formal ABI, output ownership, and execution thread are unknown. No best hook can be called safe yet. The generic `_requestSendPlistResponse` serializer is not connected to this response in evidence.
-
-Current decision: registry research remains fallback-only, but **Display-B negotiation code is not ready**. The precise blocker is tracing the Setup output-pointer caller to its phone-facing serializer/network send while recovering response ownership and caller ABI. See `honda-hook-abi.md` and `honda-response-serializer.md`.
-
-## Step 25 — AltScreen prior-art pivot (2026-09-29)
-
-Apple's WWDC19 material confirms the product model of parallel H.264 cluster streams; xcertplay source assigns 110 to main and 111 to alternate display; the Harman MHI2 project contains a Type-111 native receiver/interposer. See `prior-art-altscreen.md`, `stream-type-111.md`, and `honda-altscreen-gap-analysis.md`.
-
-This changes the investigation priority: resolving the runtime winner for `mc_dev_attach("CarPlay Screen")` is **not a conceptual prerequisite** if ClarityLink can receive an independent Type-111 stream. It is **fallback only**. However, Honda has only one evidenced registered main screen, `CopyDisplaysInfo` selects `ScreenCopyMain`, and `libcarplay_proxy` has a singleton callback registration. No Honda source evidence yet proves a capability array can be extended or a second SETUP response returned. Therefore no interposer is ready to implement and the old registry blocker is not declared bypassed on this Honda build.
-
-Recommended architecture is hybrid: leave the Honda primary path untouched; first identify its phone-facing descriptor/SETUP response and hook ABI; if safely extensible, return a ClarityLink-owned Type-111 listener port and decoder. Keep primary-backend registry work as fallback. Ptrace remains paused.
-
-No implementation is proposed. Static analysis confirms that the primary screen requests `"CarPlay Screen"`, and the generic device manager selects a registry entry by callback score before calling that entry's attach slot. The winning entry for this key, its concrete sink, decoder, Surface, and ownership are unresolved.
-
-| Design point | Status |
+| Readiness | Status |
 |---|---|
-| Device duplication point | Unknown; `mc_dev_attach` call is per observed screen start, but repeated attach semantics are unproven |
-| Sink duplication point | Unknown |
-| Decoder duplication point | Unknown |
-| Surface injection point | Unknown |
-| Hardcoded one-screen/device/decoder/Surface assumption | Not established in the traced dispatch slice |
-| Global assumptions | `mc_dev_attach` obtains manager through a global pointer; effect on independent instances unknown |
-| Two complete media paths structurally supported | Unknown |
-| Ready for Display-B implementation | No |
+| Offline Setup augmentation model | READY (MHI2 response shape explicitly labeled prior-art) |
+| Offline Type-110 KDF model | READY with synthetic inputs |
+| Type-111 KDF reuse on Honda | UNKNOWN |
+| Complete live Type-111 receiver | NO |
+| Two hooks sufficient for first TCP accept | UNKNOWN; phone-side request trigger and response acceptance are the missing gate |
+| Live test | NO |
 
-The highest-priority media blocker is the exact registration entry selected for `"CarPlay Screen"`, including its comparator result and attach callback. Display-B negotiation is a separate unresolved gate.
-
-## Step 17 status — winner remains unresolved (2026-09-28)
-
-The offline pass confirms generic registration and ranking only. `dev_attach` selects the strictly highest unsigned slot `+0` result (initial best 0; ties retain the earlier node), then dispatches slot `+4`. The concrete list entry/interface/context installed for `"CarPlay Screen"` is not statically recoverable from the local `jmcs` artifact. Therefore this note does not assign an active backend, sink, decoder, or Surface. See [device-match-semantics.md](device-match-semantics.md) and [Step 17](../../step-reports/17-carplay-registration-winner.md). The exact blocker is runtime registration state (or its producer), not absent `jmcs`/DWARF. Display-B readiness remains **No**.
-
-## Step 18 status — saved runtime captures insufficient (2026-09-28)
-
-The offline capture audit found `/system/bin/jmcs` process/maps/status/fd snapshots and older CarPlay logs, but no registry head, candidate nodes, callback tables, contexts, or match results. `media_dev_attach` log messages are generic and are not proven to come from `mc_dev_attach("CarPlay Screen", ...)`. Registry owner is `jmcs`; known list-head field is manager `+0x08`, but its absolute runtime address and list contents are unavailable. Live observation is required to continue. See [runtime registry audit](runtime-device-registry.md) and [Step 18](../../step-reports/18-runtime-registration-resolution.md). No live action was performed.
-
-## Step 18 live result (2026-09-29)
-
-Read-only ADB confirmed `jmcs` PID `26577`, load base `0x4008f000`, and 45 mapped shared libraries. Current relevant logcat queries were empty. DWARF maps `mc_devs` static `0x35acbc` to candidate runtime cell `0x403e9cbc`; reading four bytes from `/proc/26577/mem` was denied (`Operation not permitted`). Manager pointer/list, winner, and slot `+4` remain unresolved. iPhone stayed disconnected. See [runtime registry evidence](runtime-device-registry.md) and [Step 18](../../step-reports/18-runtime-registration-resolution.md).
+Earlier entries below retain historical status. Step 38 supersedes their claim that unsupported Type111's overall transaction effect was unknown and the filtered clone was the preferred Setup plan. No live hook or vehicle action occurred.

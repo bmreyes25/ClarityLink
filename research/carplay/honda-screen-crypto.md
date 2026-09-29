@@ -41,3 +41,7 @@ With security disabled, no CTR update is made for any opcode. A zero-length body
 No padding is added or removed by the CTR implementation. This does not define any future ClarityLink Setup/key-derivation ABI. No real/session key or IV is stored in this note.
 
 **Offline status:** The byte-level AES_Decrypt operation contract and counter continuity are now recovered. An offline CTR state model with injected key/IV and AES block primitive is justified. This repository implements only the state model; its tests use a deterministic toy block function and do not validate AES output against a known-answer vector. Honda's SHA512 screen-key derivation input serialization remains a separate proof requirement before implementing that derivation.
+
+## Step 38: exact screen key derivation
+
+AirPlay_DeriveAESKeySHA512ForScreen has DWARF formals (inMasterKeyPtr, inMasterKeyLen, inScreenStreamConnectionID, outKey, outIV). The caller passes session +0x1b8, length 16, and the uint64 ID. Its local formats are exact: %s%llu with prefixes AirPlayStreamKey and AirPlayStreamIV, so the ID is unsigned decimal ASCII, including its full uint64 domain. AirPlay_DeriveAESKeySHA512 hashes each salt string followed by master material, separately, and copies the first 16 bytes of each SHA-512 digest to outputs. Both formatted salts are securely zeroed/freed; Setup zeroes its temporary key and IV after installation. This completes the Type-110 KDF contract. Type111 reuse in Honda remains unproven.
