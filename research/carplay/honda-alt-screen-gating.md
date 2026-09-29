@@ -1,16 +1,16 @@
 # Honda AltScreen gating — Step 29
 
-Honda's local main-display dictionary includes numeric `features`, but its source mask semantics are unresolved and no AltScreen meaning is established. Its `uuid` key is populated numerically from a property on the one main-screen object. No caller or phone-facing capability message is recovered. Separately, the SETUP response builder emits the stock type-110 stream entry with a dynamic `dataPort`; incoming type parsing is unresolved.
+Honda's local main-display builder emits one dictionary inside the `displays` property array. `features` is numeric but its bit meanings are unknown. No evidence proves an AltScreen bit or a second display descriptor.
 
-Consequently, whether an iPhone may issue type 111 without a second-display descriptor is **UNKNOWN** for Honda. A design expectation that a phone needs a descriptor is not evidence of Honda's behavior or of the phone's private protocol. No Type-111 request acceptance/rejection/default branch is recovered.
+SETUP's request parser reads each `streams[]` element's integer `type`. It accepts 100, 101, and 110; type 111 reaches the explicit invalid-type path. Thus Honda does not accept 111 generically through the current Setup dispatch. Whether the iPhone would send 111 without a prior second-display descriptor is still **unknown**; Honda's capability serializer and phone-facing advertisement have not been traced.
 
 | Question | Status |
 |---|---|
-| Does Honda advertise a second display? | Unknown; local builder only proves one main-screen dictionary |
-| Does `features` signal AltScreen? | Unknown |
-| Is second-display advertisement required before type 111? | Unknown |
-| Would Honda accept or reject type 111? | Unknown |
-| Minimum capability hook | Unknown; phone-facing builder/caller unlocated |
-| Minimum Setup hook | Structural post-Setup/pre-serializer response window at caller `0x28af72` → `0x28afba`; protocol need and runtime safety unknown |
+| Second display advertised to phone? | Unknown; local property array contains one main display |
+| `features` indicates AltScreen? | Unknown |
+| Is descriptor required before phone sends 111? | Unknown |
+| Honda behavior for request type 111 | Rejected by invalid-type dispatch path |
+| Capability hook | Unknown; phone-facing serializer boundary unresolved |
+| SETUP hook | Structural post-Setup/pre-serializer window exists, but would not make request type 111 accepted without changing dispatch |
 
-**Ready for negotiation implementation:** no. **Ready for live experiment:** no. Do not implement or hook on this evidence.
+Negotiation implementation and live experiment are not ready. No code, patch, or hook was made.

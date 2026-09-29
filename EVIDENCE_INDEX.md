@@ -1,3 +1,12 @@
+## Step 29 — display property caller, SETUP parser, and binary identity
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Acquisition identity | `research/carplay/jmcs-acquisition-identity.md`, `research/carplay/jmcs-address-map.md` | Exact `system/bin/jmcs` member extracted from immutable acquisition; SHA/ELF/symbol/address evidence matches analyzed image |
+| Display property | `research/carplay/copy-displays-indirect-calls.md`, `honda-display-capabilities.md` | Direct caller builds a one-element `displays` property array; wire serializer/send edge remains unknown |
+| Setup request | `research/carplay/honda-setup-request.md`, `honda-stream-type-parser.md` | Body parsed as plist; `streams[]` entry integer `type`; 100/101 audio, 110 screen, 111 invalid-type path |
+| Correlation/gating | `research/carplay/display-stream-correlation.md`, `honda-alt-screen-gating.md` | No UUID/ID correlation; whether phone requires second descriptor remains unknown |
+
 ## Step 29 — caller/parser recovery boundary (2026-09-29)
 
 Step 29 was offline-only. Available tracked artifacts do not include the matching `jmcs` ELF/relocations/data/DWARF needed to recover indirect `CopyDisplaysInfo` function-pointer storage, nor the `_connectionHandleMessage`/Setup request-read disassembly needed to identify an incoming stream-type key or Type-111 branch. The Step 28 dictionary remains local-only; the Step 27 response send path remains confirmed. Type-111 behavior, multiplicity, UUID correlation, and second-display advertisement requirement are UNKNOWN. No implementation or live work. See `step-reports/29-display-caller-and-stream-parser.md` and the eight linked research notes.

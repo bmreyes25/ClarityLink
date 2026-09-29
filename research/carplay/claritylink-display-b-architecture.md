@@ -1,18 +1,15 @@
-# ClarityLink Display B architecture — Step 29 update
+# ClarityLink Display B architecture — Step 29
 
-## State of evidence
+## Evidence state
 
-The lower response path remains confirmed: `_connectionHandleMessage` calls `AirPlayReceiverSessionSetup`, whose response contains a `streams` array with stock `type=110` and dynamic `dataPort`; the caller passes that same response to the binary-plist HTTP serializer. The caller's post-Setup/pre-serializer interval remains a structural response mutation candidate.
+`CopyDisplaysInfo` builds a main-screen dictionary. `AirPlayReceiverSessionPlatformCopyProperty` handles the `displays` property by putting that dictionary into a one-item array. `AirPlayCopyServerInfo` invokes the property-copy routine, but the precise displays argument and any phone-facing serializer/send edge remain unproven.
 
-The display capability builder is separate in current evidence. `AirPlayReceiverSessionScreen_CopyDisplaysInfo` returns one dictionary from one main-screen object, with `edid`, `features`, `maxFPS`, physical/pixel dimensions, and numeric-setter `uuid`. Its indirect caller, interface slot, parent, serializer, and protocol phase remain unlocated. The request-side stream parser remains unknown; therefore Type-111 generic acceptance is not established.
+SETUP parses the request body as a property list, reads a `streams` array, and dispatches each integer `type`: 100/101 audio and 110 screen. Type 111 follows the invalid-type path. Type 110 opens a dynamic listener and produces the response stream entry containing type and `dataPort`. No UUID, stream ID, or connection ID binds this response to the advertised display dictionary.
 
-## Correlation and design gate
+| Hook candidate | Evidence and status |
+|---|---|
+| Capability advertisement | No confirmed phone-facing boundary |
+| SETUP request dispatch | `AirPlayReceiverSessionSetup`, type comparisons at `0x28590e` onward; Type 111 invalid path |
+| SETUP response mutation | `_connectionHandleMessage` post-Setup/pre-serializer window remains structural; cannot by itself enable rejected Type 111 |
 
-No evidence joins display UUID, stream type, stream ID, connection ID, session ID, or `dataPort`. Do not implement display negotiation or infer that type 111 is accepted. A future hook plan requires (1) the actual capability boundary and message schema, and (2) request parser/type handling plus the relation between request identity and response stream/listener.
-
-| Potential hook | Current candidate | Status |
-|---|---|---|
-| Capability advertisement | None identified | Unknown |
-| SETUP response | `_connectionHandleMessage`, after Setup returns and before `_requestSendPlistResponse` (`0x28af72`–`0x28afba`) | Structural candidate only; no implementation |
-
-**Negotiation implementation ready:** no. **Live negotiation experiment ready:** no. Offline evidence acquisition is the next action; no vehicle, ADB, ptrace, patch, hooks, or Type-111 implementation in Step 29.
+**Ready for negotiation implementation:** NO. **Ready for live experiment:** NO. Next work must identify the exact `displays` argument in `AirPlayCopyServerInfo` and trace its output to wire serialization, then determine a safe offline design for the explicit type rejection and correlation gap.

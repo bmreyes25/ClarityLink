@@ -6,7 +6,9 @@ Incoming SETUP type parsing and Type-111 acceptance are also unknown. Display UU
 
 ## Step 29 — display caller and SETUP parser (2026-09-29)
 
-Offline pass retained the Step 27 confirmed Setup response-to-binary-plist/HTTP send path and Step 28 local display-dictionary result, but recovered neither requested bridge. Tracked artifacts omit the matching `jmcs` ELF/relocation/data/DWARF evidence for indirect `CopyDisplaysInfo` references and omit the relevant dispatcher/Setup request-read disassembly. Thus its phone-facing use, incoming stream `type` key/conversion/dispatch, Type-111 behavior, request multiplicity, and display-to-stream binding remain unknown. No hooks or implementation were made; no live interaction occurred. Negotiation and first live experiment are not ready. See `step-reports/29-display-caller-and-stream-parser.md` and its eight focused notes.
+After verifying the exact offline `jmcs` binary from the immutable forensic acquisition against the known hash, ELF identity, symbols, and address map, the analysis recovered a direct caller for `CopyDisplaysInfo`: `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`). Its `displays` property returns a one-element CFArray around the main-display dictionary. `AirPlayCopyServerInfo` calls the property copier, but the exact displays key and phone-facing serializer/send path remain unknown.
+
+The Setup body is parsed as a property list; Setup reads `streams[]` and integer `type`. Values 100/101 route to audio, 110 to screen setup, and 111 to the invalid-type path. Type 110 creates a dynamic listener and response entry `type=110`/`dataPort`, which reaches the confirmed binary-plist HTTP response path. Display UUID-to-stream binding remains unknown; features meaning and whether a second-display advertisement is required remain unknown. No code, hooks, patches, vehicle, ADB, or ptrace were used. Negotiation/live experiment remain gated. See `step-reports/29-display-caller-and-stream-parser.md` and `research/carplay/jmcs-acquisition-identity.md`.
 
 # ClarityLink project state — 2026-09-29
 

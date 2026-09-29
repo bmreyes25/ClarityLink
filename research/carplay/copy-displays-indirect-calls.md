@@ -1,22 +1,34 @@
-# `CopyDisplaysInfo` indirect caller search — Step 29
+# `CopyDisplaysInfo` caller and capability path — Step 29
 
-## Result
+## Direct caller resolved
 
-The tracked checkout does not contain the `jmcs` ELF, relocation tables, DWARF DIEs for the function-pointer interface, or a complete disassembly image suitable for a pointer-storage search. It contains generated disassembly excerpts, symbol metadata, and string maps. Those artifacts identify `AirPlayReceiverSessionScreen_CopyDisplaysInfo` at VA `0x287ae1` / file offset `0x287ae0`, but expose no callback registration, stored function pointer, initializer, ops table, or indirect call site that can be tied to its signature.
+The matching ELF has one direct call site to `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (Thumb symbol `0x287ae1`, instruction VA/file offset `0x287ae0`):
 
-| Requested item | Evidence-backed result |
+- Caller: `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`).
+- Call: `0x28d370`.
+- Property selector: literal `displays` (comparison at `0x28d33a–0x28d346`).
+- Container: caller creates a mutable CFArray, invokes the builder once, appends the returned dictionary (`CFArrayAppendValue`, `0x28d382`), and returns that array through its output pointer (`0x28d666–0x28d66a`). Thus this property path returns a one-element array containing the main display dictionary.
+- The generic property fallback at `0x28d654` invokes a different callback in the object at offset `+0x28`; it is not the display builder call. No stored function pointer/callback-table route to `CopyDisplaysInfo` was needed to explain this call.
+
+The direct caller is a platform property-copy routine. An `AirPlayCopyServerInfo` builder (`0x282cd4`) calls this property-copy routine at `0x282e34`, `0x282f38`, and `0x283134` while building a server-info dictionary. The exact property argument and downstream registration/serialization/send path for the `displays` value have not been demonstrated. Do not yet label it a phone-facing message.
+
+| Requested item | Finding |
 |---|---|
-| Function pointer storage | Unknown; no relocation/data image or xref index in tracked artifacts |
-| Callback table / slot | Unknown |
-| Initializer | Unknown |
-| Interface type / neighboring slots | Unknown; no usable DWARF function-pointer type or table layout |
-| Indirect callers | Unknown; no full instruction/reference corpus available for signature matching |
-| Phone-facing caller | Not established |
+| Function-pointer storage / callback table / slot | None required for this direct call; no indirect storage evidence ties to this function |
+| Direct caller | `AirPlayReceiverSessionPlatformCopyProperty`, `0x28d328` |
+| Initializer / interface type | Unresolved for the platform property object |
+| Relevant parent | `AirPlayCopyServerInfo`, candidate container builder; exact displays-key edge unproven |
+| Phone-facing message / serializer / socket | Unknown |
 
-The Step 28 result remains the local routine: it returns one dictionary built from one `ScreenCopyMain()` result. Absence of a visible direct caller in the saved disassembly is not proof that the routine is unreachable or unused indirectly.
+## Dataflow
 
-## Search boundary and next evidence needed
+```text
+CopyDisplaysInfo (0x287ae0)
+  -> one main-screen dictionary
+  -> PlatformCopyProperty("displays")
+  -> one-element CFArray
+  -> possible AirPlayCopyServerInfo aggregation (not yet keyed to this property)
+  -> serializer / transport: UNKNOWN
+```
 
-The needed artifact is the exact `jmcs` ELF (or complete raw `.text`, `.data`, `.rodata`, relocations, and DWARF for the matching build). With that, search literal function-pointer relocations/address literals, data initializers and constructor writes, then trace candidate indirect calls and compare ARM EABI argument/return dataflow to the routine's signature. Do not infer an interface from the function name or neighboring symbols alone.
-
-**Conclusion:** indirect caller unresolved; phone-facing capability path unresolved.
+The full ELF is available in the ignored offline analysis copy recorded in `jmcs-acquisition-identity.md`; do not modify the immutable acquisition.

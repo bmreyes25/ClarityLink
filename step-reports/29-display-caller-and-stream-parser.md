@@ -2,78 +2,50 @@
 
 **Date:** 2026-09-29  
 **Starting commit:** `09ee0bf`  
-**Scope:** offline-only review of tracked Honda `jmcs` artifacts and Steps 26–28. No vehicle, ADB, ptrace, firmware patch, hooks, Type-111 implementation, or return to the `mc_dev_attach` registry.
+**Scope:** offline-only analysis. No vehicle, ADB, ptrace, firmware patch, hooks, or Type-111 implementation.
 
-## Outcome
+## Acquisition identity gate
 
-This pass did not close either requested unknown. The tracked checkout has symbol metadata, generated disassembly and function excerpts, but not the matching `jmcs` ELF or the raw relocation/data/DWARF material needed to search pointer storage and callback tables. The saved request-side disassembly slice also does not include `_connectionHandleMessage` or the request reads/control flow within `AirPlayReceiverSessionSetup`. The documented Step 27 caller/send and Step 28 descriptor findings remain valid, but cannot be extended into the missing caller/parser edges from the available primary artifacts.
+Located `/system/bin/jmcs` in the immutable complete acquisition archive, without changing the source. The archive and extracted analysis copy are documented in `research/carplay/jmcs-acquisition-identity.md`. The copied ELF SHA-256 matches the previously analyzed image; ELF class/endian/type/machine, load layout, symbols, and VA-to-file-offset mapping match saved static/runtime address evidence. The user’s identity gate therefore passed before continuing Step 29.
 
-The material outcomes are negative in a bounded, useful sense: no evidence currently supports treating `CopyDisplaysInfo` as phone-facing; no Honda evidence currently supports generic Type-111 acceptance or explicit rejection. Those are still unknown, not unreachable/unsupported conclusions.
+## Findings
 
-## A. Display capability path
+### Display path
 
-```text
-AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0)
-  -> ScreenCopyMain() once
-  -> one local mutable dictionary (edid/features/maxFPS/dimensions/uuid)
-  -> caller / parent / protocol message / serializer / send: UNKNOWN
-```
+`AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) has a direct caller: `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`), call at `0x28d370`. For property `displays`, the caller makes a mutable array, invokes the builder once, appends its dictionary, and returns a one-element CFArray. The dictionary describes `ScreenCopyMain()` and includes EDID, features, maxFPS, dimensions, and numeric-setter `uuid`. `AirPlayCopyServerInfo` (`0x282cd4`) calls the platform property-copy routine, but the exact displays property argument/key and the serializer/send edge are not proven. The phone-facing capability message remains unknown.
 
-The available artifacts do not expose function-pointer relocations, `.data` initializers, callback table entries, constructor writes, interface type/slot, or indirect callers. The numeric `features` masking and numeric-setter `uuid` insertion remain as recorded in Step 28; bit meanings, runtime type/value, lifetime, and wire status are unknown. No display list or second descriptor is proven. The SETUP send path remains a separate confirmed response path.
+### SETUP request/type path
 
-## B. SETUP request path
+`_connectionHandleMessage` decodes the body through `CFCreateWithPlistBytes` (`0x29354c`), which wraps the bytes as CFData and calls `CFPropertyListCreateWithData`. It passes the parsed request dictionary to `AirPlayReceiverSessionSetup` (`0x2854e0`) at `0x28af72`. Top-level reads include `osBuildVersion`, `modelCode`, `udid`, and `streams`. Setup iterates the `streams` CFArray and reads each entry’s integer `type` via `CFDictionaryGetInt64` at `0x28590e`. Exact HTTP method/path routing and body ownership are unresolved.
 
-```text
-HTTP request -> _connectionHandleMessage (0x28a30c)
-  -> parsed request-body property-list dictionary (outer handoff confirmed)
-  -> AirPlayReceiverSessionSetup (0x2854e0), call 0x28af72
-  -> request keys / stream loop / type dispatch: UNKNOWN
-```
+The dispatcher routes type 100/101 to audio setup and type 110 to screen setup. Other values, including 111, reach the invalid-type path at `0x2861f6`; Type 111 is not generically accepted. Type 110 calls `AirPlayReceiverSessionScreen_Setup` at `0x28609c`, opens the dynamic listener, and appends a response entry with `type=110` and its `dataPort`. This confirms request type 110 through the established response serializer/send path.
 
-Step 27 confirms the same Setup response output is passed to `_requestSendPlistResponse` (`0x289f60`) at `0x28afba`, then sent as a binary-plist HTTP response. That does not expose which request keys Setup reads. Incoming `type`, value conversion, request stream multiplicity, type-110 request routing, and Type-111 default/rejection/generic handling remain unknown.
-
-## Cross-correlation and prior-art comparison
-
-| Field / concept | Prior art | Honda evidence | Match |
-|---|---|---|---|
-| `type` | xcertplay uses 110/111; Harman has a Type-111 route | Honda response writes type 110; request parser unavailable | Response-side analog only |
-| UUID | Prior art has display identities | Honda local main dictionary inserts `uuid` numerically | Partial local concept; representation and wire use unknown |
-| `dataPort` | Prior art returns a per-stream port | Honda response stream entry has dynamic `dataPort` | Honda response-side match |
-| `streamConnectionID` | Present in prior-art protocol structures | No Honda Setup read/write correlation recovered | Unknown |
-| Display role/list | Prior art has alternate display signaling | Honda builder returns one main-screen dictionary | No Honda secondary role/list proof |
-
-Do not transfer prior-art acceptance, key names, or semantics onto Honda.
+Setup handles a stream array with per-element processing and appends response entries. It is structurally multi-entry; duplicate and combination constraints remain unknown. The recovered Setup path does not read or emit the display UUID, stream ID, or `streamConnectionID`. No display-to-stream identity binding is established.
 
 ## Decision gate
 
 ```text
-COPYDISPLAYSINFO INDIRECT CALLER: UNKNOWN; no stored pointer/table/caller recovered from tracked evidence
-PHONE-FACING DISPLAY MESSAGE: UNKNOWN
-DISPLAY SERIALIZER: UNKNOWN for CopyDisplaysInfo output; Setup response serializer is _requestSendPlistResponse (0x289f60)
-DISPLAY UUID FLOW: ScreenCopyMain result property -> local `uuid` numeric-setter insertion; onward flow UNKNOWN
-FEATURES MEANING: numeric masked property; bit meanings/value UNKNOWN
-SETUP REQUEST STREAM KEY: UNKNOWN
-STREAM TYPE PARSER: UNKNOWN
-TYPE110 PATH: PARTIAL; stock response type=110/dataPort and phone-facing send confirmed; request-side path unknown
-TYPE111 BEHAVIOR: UNKNOWN
-REQUEST STREAM MODEL: UNKNOWN
-DISPLAY-TO-STREAM BINDING: UNKNOWN
+COPYDISPLAYSINFO INDIRECT CALLER: AirPlayReceiverSessionPlatformCopyProperty, direct call at 0x28d370
+PHONE-FACING DISPLAY MESSAGE: UNKNOWN; local `displays` property array is proven, wire path is not
+DISPLAY SERIALIZER: UNKNOWN for displays; Setup response serializer is _requestSendPlistResponse
+DISPLAY UUID FLOW: ScreenCopyMain property -> local dictionary -> one-item displays array; further flow unknown
+FEATURES MEANING: integer/masked value; meaning and bits unknown
+SETUP REQUEST STREAM KEY: streams[] element key `type`
+STREAM TYPE PARSER: CFDictionaryGetInt64 in AirPlayReceiverSessionSetup at 0x28590e
+TYPE110 PATH: CONFIRMED; screen setup -> dynamic listener -> response type=110/dataPort -> existing HTTP binary-plist send path
+TYPE111 BEHAVIOR: REJECTED by invalid-type dispatch
+REQUEST STREAM MODEL: ARRAY; per-element loop; multi-entry mechanics present
+DISPLAY-TO-STREAM BINDING: type 110 selects screen setup, but no display UUID/ID correlation found
 SECOND DISPLAY ADVERTISEMENT REQUIRED: UNKNOWN
-CAPABILITY HOOK: none identified
-SETUP HOOK: structural candidate at _connectionHandleMessage after Setup (0x28af72) and before serializer (0x28afba); not protocol-validated or implemented
+CAPABILITY HOOK: unknown; phone-facing serializer boundary not recovered
+SETUP HOOK: structural candidate in _connectionHandleMessage after Setup and before response serialization (0x28af72–0x28afba); insufficient to make Type 111 accepted
 READY FOR NEGOTIATION IMPLEMENTATION: NO
 READY FOR FIRST LIVE NEGOTIATION EXPERIMENT: NO
-BIGGEST BLOCKER: missing matching jmcs ELF plus complete caller/request-parser disassembly, preventing both indirect-reference recovery and incoming type dispatch analysis
+BIGGEST BLOCKER: exact phone-facing serialization of the `displays` property and its relationship to a second screen
 ```
 
-### Hook assessment
+## Evidence files and verification
 
-No capability hook can be specified because the phone-facing capability boundary is unknown. A post-Setup/pre-serializer response mutation window exists as a structural Setup candidate, preserving stock Setup execution, but no request acceptance or Display-B correlation is established. No code or hooks were written.
+Updated the eight focused research notes, plus `PROJECT_STATE.md`, `EVIDENCE_INDEX.md`, and `NEXT_ACTION.md`. Added the acquisition identity record. No tests were run because no code/model changed. `git diff --check` was run before commit. The extracted analysis binary is ignored and was not staged; the immutable acquisition source was not modified.
 
-## Artifacts and verification
-
-Added the eight focused notes named in the milestone: `copy-displays-indirect-calls.md`, `honda-display-capabilities.md`, `honda-display-uuid-flow.md`, `honda-setup-request.md`, `honda-stream-type-parser.md`, `display-stream-correlation.md`, `honda-alt-screen-gating.md`, and `claritylink-display-b-architecture.md`. Updated `PROJECT_STATE.md`, `EVIDENCE_INDEX.md`, and `NEXT_ACTION.md`.
-
-No tests were run because no code/model changed. `git diff --check` is required and will be run before commit. No `jmcs` binary was modified or accessed live.
-
-**Next concrete task:** acquire/locate the exact offline `jmcs` ELF matching the saved VA map, then generate a complete ARM/Thumb xref/disassembly slice for CopyDisplaysInfo references and `_connectionHandleMessage` through Setup request reads. Until then, negotiation remains gated.
+**Next concrete task:** trace `AirPlayCopyServerInfo` argument values to identify the `displays` property key and follow that returned value to its serializer/send consumer.

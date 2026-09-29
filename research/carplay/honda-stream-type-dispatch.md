@@ -1,21 +1,17 @@
-# Honda stream type request dispatch
+# Honda stream type request dispatch — Step 29
 
-## Step 29 update
+The incoming request body is decoded as a property list by `CFCreateWithPlistBytes` (`0x29354c`). `_connectionHandleMessage` passes the resulting request dictionary to `AirPlayReceiverSessionSetup` (`0x2854e0`). Setup reads `streams` as a CFArray and loops over its entries. Each entry's `type` is retrieved as an integer with `CFDictionaryGetInt64` at `0x28590e`.
 
-The request-side parser was not recovered from the tracked primary artifacts. The checkout lacks the matching `jmcs` ELF and a complete `_connectionHandleMessage` / `AirPlayReceiverSessionSetup` request-read slice. Incoming key, conversion, dispatch and default behavior remain unknown. This means Type 111 cannot be classified as generic, rejected, ignored, or routed elsewhere. See `honda-setup-request.md` and `honda-stream-type-parser.md`.
-
-The confirmed SETUP response path establishes the returned stock stream dictionary has `type=110` and dynamic `dataPort`, and is serialized phone-facing (Step 27). This does not establish how request stream types are parsed or routed.
-
-The tracked Step 26–27 disassembly slices recover response construction and the `_connectionHandleMessage` call into Setup, but do not include a complete request-side parser/control-flow trace for the incoming `streams[].type`. No contextual evidence found in the tracked research identifies a Type-111 comparison, accepted-type switch, generic fallback, or error path. The user-provided `type=111` scenario remains a hypothesis.
+Dispatch in Setup handles values 100 and 101 through audio setup, and 110 through `AirPlayReceiverSessionScreen_Setup` (`0x28609c`). Values below 100 and unrecognized values—including 111—reach the invalid-type log/error path at `0x2861f6` and common cleanup. Honda's Type-111 behavior is therefore rejected by this dispatcher; no generic setup fallback was found. Exact external status mapping is not asserted.
 
 ```text
-KEY: request key "type" is not recovered in Honda parser evidence
-CONVERSION: unknown
-SWITCH / COMPARISON: unknown
-KNOWN VALUES: response-side 110 only
-DEFAULT BEHAVIOR: unknown
-HONDA TYPE DISPATCH: unknown
-TYPE111 WOULD REACH GENERIC SETUP: unknown
+KEY: streams[] element key `type`
+CONVERSION: CFDictionaryGetInt64 -> integer
+KNOWN ACCEPTED TYPES: 100, 101, 110
+TYPE 110: screen setup, dynamic listener, response type=110/dataPort
+TYPE 111: invalid-type path
+REQUEST MODEL: array, per-entry loop
+DEFAULT: invalid type path
 ```
 
-Do not infer acceptance from `_AddResponseStream` or from the fact a response array can structurally hold multiple entries. Recover the parser from `_connectionHandleMessage`'s request dictionary and follow its stream loop/dispatch before designing Stage B.
+The SETUP handler appends a response entry per processed stream. This proves multi-entry mechanics, not that every duplicate or combination is accepted. The exact HTTP method/path route remains unresolved. See `honda-setup-request.md` and `honda-stream-type-parser.md`.

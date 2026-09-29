@@ -1,17 +1,14 @@
 # Honda display UUID flow — Step 29
 
-`AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) obtains the main-screen object via `ScreenCopyMain()` and reads the `uuid` property from that object. The function inserts the value under literal key `uuid` using `CFDictionarySetInt64`. This establishes a property-to-local-dictionary flow, and that the insertion is numeric at this call site. It does not establish the runtime value, UUID representation, stability, or whether the property is a session identifier versus a display identity.
+`AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) obtains the main-screen object through `ScreenCopyMain()` and reads its `uuid` property. It inserts that value under key `uuid` using `CFDictionarySetInt64`. The direct caller, `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`), places the returned dictionary into the one-element array for property `displays`.
 
-No tracked caller or consumer is recovered. The returned dictionary has not been connected to a parent object, serializer, message, or socket. The Setup response evidence independently establishes stream entry `type=110` and dynamic `dataPort`; it does not read, emit, or correlate the display `uuid` in the evidence currently available.
+This establishes flow only as far as a local property array. `AirPlayCopyServerInfo` may aggregate platform properties, but the key/argument edge for `displays` and any serializer/send consumer are not proven. SETUP does not read this display UUID in the recovered request path, and its response stream entry contains type and dataPort without this UUID.
 
 | Question | Finding |
 |---|---|
-| UUID source | `ScreenCopyMain()` result's `uuid` property |
-| Local representation | Integer setter (`CFDictionarySetInt64`); actual property type/value unconfirmed |
-| Static or generated | Unknown |
-| Session-scoped | Unknown |
-| Emitted in another control message | Unknown |
-| Present in SETUP request/response | Unknown from request; absent from the recovered stock response stream fields documented so far |
-| Correlated with stream type/ID/port | Unknown |
-
-Do not relabel this numeric property as a conventional string UUID without new type/runtime evidence. The exact next offline requirement is the matching ELF and caller/consumer xrefs; a later protocol capture would be a separate evidence step.
+| UUID source | Property on `ScreenCopyMain()` result |
+| Local representation | Numeric CFDictionary setter; actual property type/value unknown |
+| Static/generated or session-scoped | Unknown |
+| Local container | `displays` property returns one-element CFArray |
+| Phone-facing control message | Unknown |
+| Present/correlated in SETUP | No UUID read/write found in analyzed Setup path |

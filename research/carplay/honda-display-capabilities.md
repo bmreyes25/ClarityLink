@@ -1,25 +1,19 @@
-# Honda display capability advertisement
-
-## Step 29 update
-
-The indirect caller search remains unresolved. The tracked checkout has symbol metadata and generated excerpts but not the matching `jmcs` ELF, relocation/data image, or complete DWARF/interface evidence needed to identify pointer storage, callback slot, initializer, indirect caller, parent container, or serializer. Therefore phone-facing use remains unknown. The previously documented single local dictionary and fields remain the confirmed scope. See `copy-displays-indirect-calls.md` and `honda-display-uuid-flow.md`.
-
-## Evidence result
-
-Honda's `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`jmcs` VA `0x287ae1`) returns one mutable dictionary for `ScreenCopyMain()` / registry element zero. Recovered keys are `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, and `uuid`; see [`honda-copy-displays-info.md`](honda-copy-displays-info.md) for insertion/source details. This proves a local display-info builder, not a phone-facing capability advertisement.
-
-Search of the available `jmcs` generated disassembly found the function definition but no direct call instruction referring to it. Indirect callback/function-pointer use cannot be excluded. The output's enclosing response, caller, phase, serializer, transport, and send path are unresolved. It is not proven to participate in SETUP, Identification, ReceiverInfo, or feature discovery. The Honda receiver initializes one `gMainScreen`; this builder does not enumerate a screen registry or construct an array.
+# Honda display capability path — Step 29
 
 ## Findings
 
+`AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) obtains `ScreenCopyMain()` once and returns a mutable dictionary with `edid`, `features`, `maxFPS`, physical/pixel dimensions, and `uuid`. Its direct caller is `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`). When the requested property is literal `displays`, that caller invokes the builder once and appends its dictionary to a newly created CFArray, returning a one-element array.
+
+This proves a local platform property container, but not a phone-facing message. `AirPlayCopyServerInfo` (`0x282cd4`) calls the platform property-copy routine three times while building a server-info dictionary; the exact argument/key corresponding to `displays`, and the further serializer/send chain, remain unproven. No second display descriptor is produced by this observed path.
+
 | Question | Finding |
 |---|---|
-| Container | One returned dictionary locally; parent/wire container unknown |
-| Display list | None constructed in this function |
-| Feature field | `features` numeric value derived through masks; bit meanings unknown |
-| Primary UUID | `uuid` key receives a numeric property value; source/lifetime/session scope unknown |
-| Secondary/AltScreen field | None identified in this function; receiver-wide absence not established |
-| Phone-facing | Unknown; no caller/serializer edge recovered |
-| Extensible | Not demonstrated; dictionary is mutable, but no parent display collection is established |
+| Local container | One-element CFArray for property `displays` |
+| Direct caller | `AirPlayReceiverSessionPlatformCopyProperty`, `0x28d328` |
+| Potential parent | `AirPlayCopyServerInfo`, exact displays-key edge unknown |
+| Phone-facing / serializer | Unknown |
+| `features` meaning | Integer value derived through masks; bit meanings and actual value unknown |
+| UUID | Main-screen property inserted using numeric setter; encoding/stability unknown |
+| Secondary display | Not built in this branch; receiver-wide absence not established |
 
-Honda capability signaling therefore cannot yet be augmented at a known phone-facing boundary. Preserve stock primary values if a future caller/send edge is recovered. See `honda-identification-receiver-info.md`, `honda-alt-screen-gating.md`, and `step-reports/28-honda-display-capability-gating.md`.
+Do not infer that `features` means AltScreen or that this property is serialized to the iPhone. See `copy-displays-indirect-calls.md` and `honda-display-uuid-flow.md`.
