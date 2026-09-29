@@ -1,3 +1,14 @@
+## Step 39 — Host-only Display-B interposer (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| `/info` augmentation | `src/claritylink-interposer/server_info.py`, `research/carplay/display-b-interposer.md` | Copy-on-write additive display model; unknown fields preserved; no session resource created by advertisement |
+| Stock-first Setup | `src/claritylink-interposer/setup_interposer.py`, `research/carplay/type111-response-model.md` | Exact original request object delegated; stock response copied and appended only after project setup; minimal and prior-art clone profiles are configurable |
+| Ownership/rollback | `src/claritylink-interposer/transaction.py`, `listener.py`, `research/carplay/type111-rollback.md` | Fake port-0 listener, ordered idempotent cleanup, serializer failure rollback; no OS listener |
+| Lifecycle/security | `src/claritylink-interposer/lifecycle_coord.py`, `models.py`, `research/carplay/type111-lifecycle.md`, `type111-security-contract.md` | ACTIVE only after modeled stock SessionStart; redacted/wiped secret buffers; Type111 KDF remains unverified |
+| Hook safety | `research/carplay/honda-hook-abi.md`, `hook-safety-contract.md` | Data-only binary/prologue exact-match gate; no verified prologue contract or hook harness |
+| Verification | `tests/interposer/`, `tests/integration/test_display_b_flow.py`, `step-reports/39-host-interposer.md` | 83 maintained tests pass across `tests/` and renderer tests (31 subtests); focused set 62 pass; no live compatibility claim |
+
 ## Step 38 — Honda Type111 Setup and security contract (2026-09-29)
 
 | Area | Primary evidence | Finding |

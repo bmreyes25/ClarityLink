@@ -18,3 +18,9 @@ The offline implementation models that prior-art response shape only, clearly la
     # opaque request fields copied unchanged
 }
 ```
+
+## Step 39 host response profiles
+
+`ClarityLinkType111ResponseBuilder` offers a minimal `{type:111,dataPort}` profile and a prior-art clone profile that copies every opaque request descriptor field, replaces `dataPort`, and can optionally set `streamID=111`. Custom fields are explicit profile configuration. No profile is claimed accepted by Honda/iOS.
+
+Response merging deep-copies the stock response and replaces `streams` with a cloned append-only list, so list and tuple sources are supported. Stock order, ports, unknown fields, and input objects remain preserved.

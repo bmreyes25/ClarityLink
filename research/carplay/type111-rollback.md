@@ -19,3 +19,9 @@ The fail-soft omission behavior after ClarityLink failure has MHI2 source preced
 ## Offline transaction model
 
 `run_stock_first_setup` injects stock Setup, project preparation, and project rollback callbacks. It never opens sockets. Stock failure skips preparation. Project-setup and response-merge failures preserve a deep copy of the stock response and call project rollback. Tests cover the path without mutating stock input dictionaries.
+
+## Step 39 host rollback implementation
+
+`ClarityLinkType111Transaction` owns cleanup callbacks and invokes them in reverse acquisition order. Rollback is idempotent. The current staged host sequence is synthetic security material, fake listener, response construction/append, and injected publisher. Any project-side exception returns the already-produced stock response and cleans project resources. The transaction never invokes Honda rollback.
+
+Publisher failure rolls back even after a candidate response dictionary exists. `/info` augmentation is a pure transient copy, so publisher failure there cannot leave persistent state. Runtime timing relative to Honda's real plist serializer is unverified.

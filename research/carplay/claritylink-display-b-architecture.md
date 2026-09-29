@@ -45,3 +45,11 @@ The Type-110 derivation contract is implemented offline with synthetic input. Ty
 | Decoder, cluster rendering, presentation controls | later milestones |
 
 Step 39 should build/review the host-only interposer and lifecycle around this transaction model. It must not attempt live deployment.
+
+## Step 39 host implementation
+
+The implementation separates `server_info.py`, `setup_interposer.py`, `listener.py`, `transaction.py`, `models.py`, and `lifecycle_coord.py`. All use injected dependencies and synthetic data. The media receiver remains the existing `HondaScreenReceiverCore` from `src/claritylink-transport/`.
+
+A prepared generation owns its synthetic derived key and IV containers, fake listener, optional accepted socket, receiver instance, generation number, and streamConnectionID. The host lifecycle changes the generation to ACTIVE only after successful modeled stock SessionStart. Teardown closes only project resources.
+
+The response publisher is an injected serializer boundary. A false result or exception triggers project rollback and returns the unmodified stock response. Actual Honda serializer timing and CF ownership still require runtime adapter validation.

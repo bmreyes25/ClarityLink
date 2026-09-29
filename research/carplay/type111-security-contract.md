@@ -23,3 +23,9 @@ Offline code is in `src/claritylink-negotiation/screen_kdf.py`; it has synthetic
 ## Secret handling
 
 Use only in-memory material. Never persist or log master material, derived key, IV, or decrypted payload. Logs may include state transitions, generation, port, sizes, status and (only if privacy policy permits) the streamConnectionID. Wipe temporary salt and key/IV buffers after installing/initializing their owning crypto context. Clear project CTR and receiver state at teardown.
+
+## Step 39 host security boundary
+
+The host `ScreenSecurityProvider` boundary is injected. Tests use only synthetic 16-byte material and the recovered Type110 KDF model (`screen_kdf.py`) keyed by unsigned decimal streamConnectionID. Derived key and IV are wrapped in `SecretBytes`, whose representation is redacted and whose buffer is best-effort zeroed on cleanup.
+
+Honda's use of this KDF for Type110 is recovered; Type111 compatibility remains UNVERIFIED. No real session key, live key, CTR state, or AES implementation is added here. The existing receiver crypto is injectable and a validated provider must be supplied by future runtime work.

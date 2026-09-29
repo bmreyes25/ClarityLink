@@ -23,3 +23,9 @@ Honda `AirPlayReceiverSessionTearDown` loops through entries and handles 100/101
 The MHI2 source explicitly distinguishes Type-111-only teardown from stock 110 and whole-session teardown. It clears Type-111 state on explicit 111 teardown and whole-session teardown, and filters 111 from the request passed to stock teardown when other entries remain. This is comparative behavior only.
 
 Step 39 should hook/model the session lifecycle so project teardown runs exactly once for Type111-only or whole-session teardown, while 110-only teardown leaves Type111 alive only if the target protocol proves the same session remains valid. Honda's intended partial teardown semantics for unknown 111 are not evidence of how iPhone handles it.
+
+## Step 39 host lifecycle implementation
+
+Project state transitions: CREATED → SECURITY_READY → LISTENER_READY → RESPONSE_READY → COMMITTED. The committed response yields a PREPARED project generation; it becomes ACTIVE only after successful modeled stock SessionStart. Failed stock start and explicit project teardown close the fake listener, accepted test socket, secret buffers, and receiver reference.
+
+Repeated teardown is safe. Honda Type110 is outside the project object graph. A new streamConnectionID requires tearing down the old generation and preparing fresh key/IV/listener/receiver state. This is a project-owned host lifecycle policy; Honda Type111-specific partial teardown remains unknown.

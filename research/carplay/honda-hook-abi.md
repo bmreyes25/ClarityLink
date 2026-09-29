@@ -25,3 +25,9 @@ The response slot is read only after a zero status. Setup writes the response di
 The Setup return path gives the latest evidenced point with the stock response complete and serializer not yet started: immediately after the call at `0x28af72`, before `_requestSendPlistResponse` at `0x28afba`. This is a candidate, not a safe hook decision. Thread/reentrancy details, whether Setup's output callback has side effects relevant to ordering, Type-111 requirements, and display capability negotiation remain unresolved.
 
 Appending to the mutable CFArray uses normal CF retain semantics: the primary entry object/value is not rewritten by append, and array ordering places the new value after the existing one. The offline fixture separately asserts primary-field preservation/order, but this does not prove serializer acceptance or phone behavior.
+
+## Step 39 gate model and remaining ABI evidence
+
+The host gate uses exact `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` as the known binary identity from prior offline analysis. Static notes identify `_requestProcessInfo` around `0x28a018`, its server-info return at `0x28a156`, serializer boundary at `0x28a19c`, and `AirPlayReceiverSessionSetup` at `0x2854e0`.
+
+Step 39 implements only data models for binary/function identity and all-or-nothing group eligibility. Exact entry instruction bytes, register/stack argument contract, ARM/Thumb resume semantics, object retain/release ownership, SessionStart/TearDown safe interception points, and executable prologue fingerprints are not yet populated in code. Do not enable hooks from these addresses alone. Step 40 must revalidate against the exact ELF and disassembly before a harness exists.

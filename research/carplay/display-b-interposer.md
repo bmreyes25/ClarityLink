@@ -16,3 +16,11 @@ The response augmentation itself is feasible: Honda's `streams` CFArray is mutab
 | Live test | NO |
 
 Earlier entries below retain historical status. Step 38 supersedes their claim that unsupported Type111's overall transaction effect was unknown and the filtered clone was the preferred Setup plan. No live hook or vehicle action occurred.
+
+## Step 39 host implementation
+
+Host-only semantic implementation lives in `src/claritylink-interposer/`. It models pure copy-on-write `/info` augmentation and stock-first Setup response augmentation. It contains no process memory access, trampoline, or live socket creation.
+
+`ClarityLinkServerInfoAugmentor` preserves unknown keys and existing descriptors, returns an unchanged copy when disabled, and avoids adding a duplicate configured descriptor. Descriptor fields carry explicit provenance; absent values remain absent. Experimental feature tokens are profile data and default empty.
+
+`ClarityLinkSetupInterposer` passes the exact original request object to the injected stock delegate. It does not inspect Type100/101/110 for mutation. If stock fails, no project resource is created. Project failures return the stock response unchanged.
