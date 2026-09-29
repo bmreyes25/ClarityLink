@@ -1,5 +1,7 @@
 # Honda SETUP Type 111 rejection — Step 30
 
+Step 32 targeted the SETUP response for the modern `FeatureKey`, `altScreen`, `viewAreas`, and `enabledFeatures` markers. None occurs as a literal in this `jmcs` ELF, and no such string-token response array is evidenced in the recovered SETUP construction. This is not evidence that modern prior-art tokens are universally required; it means Honda support cannot be assumed. Type 111 remains rejected at `0x2861f6`; no implementation was made.
+
 Step 31 status: no Type-111 implementation or live ABI validation was attempted. Existing static result stands: 111 reaches the invalid-type path near `0x2861f6`; exact external status, complete failure response state, and whether earlier entries' effects persist are unknown. The whole-array loop prevents claiming independent partial delegation without evidence. See [Step 31](../../step-reports/31-airplay-server-info-consumer.md).
 
 AirPlayReceiverSessionSetup (0x2854e0) reads each streams[] element's integer type with CFDictionaryGetInt64 at 0x28590e. The recovered dispatch routes 100/101 to audio setup and 110 to AirPlayReceiverSessionScreen_Setup at 0x28609c. Type 111 follows the invalid-type path beginning at 0x2861f6 rather than screen setup.

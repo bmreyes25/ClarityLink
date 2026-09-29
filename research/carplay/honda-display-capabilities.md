@@ -1,5 +1,7 @@
 # Honda display capabilities — Step 30
 
+Step 32 confirms that the exact dictionary returned by `AirPlayCopyServerInfo` is the object serialized for the `/info` response. Consequently the locally constructed `displays` array is phone-facing in static code flow. A mutable insertion window exists from the return at `0x28a156` to serializer call `0x28a19c` in `_requestProcessInfo`; executable hook safety remains unvalidated.
+
 Step 31 additionally finds `AirPlayCopyServerInfo` absent from dynsym and no consumers among the 45 mapped shared libraries. The local array/dictionary are mutable, but no phone-facing serializer or mutation boundary is known.
 
 AirPlayReceiverSessionPlatformCopyProperty (0x28d328) handles displays by creating a mutable CFArray, calling AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0) once, and appending its returned main-display dictionary. AirPlayCopyServerInfo (0x282cd4) requests that property and inserts the returned array under displays in its mutable result dictionary. This confirms local descriptor construction and insertion; phone-facing delivery is still unknown.

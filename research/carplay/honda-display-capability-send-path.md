@@ -1,5 +1,19 @@
 # Honda display capability send path — Step 30
 
+## Step 32: complete path
+
+```text
+_connectionHandleMessage /info dispatch (0x28b678–0x28b68e)
+ -> _requestProcessInfo (0x28a018)
+ -> AirPlayCopyServerInfo (0x282cd4; call 0x28a156)
+ -> same result passed to _requestSendPlistResponse (0x289f60; call 0x28a19c)
+ -> binary plist format 0xc8
+ -> HTTPConnectionSendResponse (0x29dbe4; caller 0x28b790)
+ -> SocketWriteData (0x2a01c0) -> writev@plt
+```
+
+This closes the static network edge: the nested `serverInfo["displays"]` value reaches the phone-facing response serializer. See [Step 32](../../step-reports/32-airplay-info-phone-path.md).
+
 ## Step 31 consumer search
 
 The builder is not dynsym-exported, and no normal ELF import was found among the 45 mapped shared libraries. Generic `dlopen`/`dlsym` use has no matching runtime lookup key. Reverse tracing confirms that the known plist/HTTP/writev path carries SETUP output only. `DISPLAYS_PHONE_FACING` and the phone-facing mutation point remain UNKNOWN. See [consumer search](airplay-server-info-consumers.md).

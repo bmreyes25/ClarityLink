@@ -1,5 +1,7 @@
 # AirPlay server-info consumer search — Step 31
 
+> **Superseded by Step 32:** the consumer was recovered as `_requestProcessInfo` (`0x28a018`). The corrected phone-facing path and revised conclusions are in [Step 32](../../step-reports/32-airplay-info-phone-path.md). The remainder of this Step 31 record documents its search boundary and is not the current status.
+
 **Scope:** offline static inspection of the identity-verified `jmcs` ELF and shared libraries from this acquisition. No vehicle, ADB, ptrace, or runtime hook activity.
 
 ## Symbol visibility and external consumers

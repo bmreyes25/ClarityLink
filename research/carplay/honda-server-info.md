@@ -1,5 +1,9 @@
 # Honda AirPlayCopyServerInfo — Step 30
 
+## Step 32: phone-facing consumer recovered
+
+`_requestProcessInfo` (`0x28a018`) calls `AirPlayCopyServerInfo` at `0x28a156`; the returned dictionary is passed unchanged in `r2` to `_requestSendPlistResponse` at `0x28a19c`. `_connectionHandleMessage` selects the info handler via the `/info` suffix branch and later calls `HTTPConnectionSendResponse` at `0x28b790`. The serializer synchronously creates the binary plist body (format `0xc8`); `_requestProcessInfo` releases the same dictionary at `0x28a1da` after serialization. Therefore the `displays` array is phone-facing in the static dataflow. The structurally mutable window is return at `0x28a156` through serializer entry at `0x28a19c`. Details: [Step 32](../../step-reports/32-airplay-info-phone-path.md).
+
 ## Step 31 consumer search update
 
 `AirPlayCopyServerInfo` is GLOBAL in `.symtab`, but absent from `.dynsym`; it is not a normal dynamic export. Dynamic symbol scans of the 45 mapped shared libraries found no matching import/export or relocation. `jmcs` uses `dlopen`/`dlsym` for generic loader support, but no `AirPlayCopyServerInfo` runtime lookup literal or lookup call was evidenced. `/info` is present as a string, but has no recovered handler edge. Thus phone-facing consumption remains UNKNOWN. See [consumer search](airplay-server-info-consumers.md).
