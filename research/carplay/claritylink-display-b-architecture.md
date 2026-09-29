@@ -1,5 +1,13 @@
 # ClarityLink Display B architecture — Step 29
 
+## Step 30 decision
+
+The local capability half is now better established: AirPlayCopyServerInfo queries displays, inserts the returned one-element CFMutableArray into its mutable result dictionary, and returns a CFLDictionaryRef. The missing edge is still decisive: no caller, serializer, or phone-facing send path for this server-info dictionary is proven. The separate SETUP response proof cannot fill this gap.
+
+Type 111 is rejected at the Setup invalid-type branch beginning 0x2861f6. A per-entry dispatch intercept could conceptually preserve stock handling for 100/101/110, but live ABI and response/error behavior are not yet validated. Display UUID-to-stream binding remains unknown.
+
+**Decision:** TWO_HOOK_ARCHITECTURE_SUFFICIENT = UNKNOWN; PRIMARY_PATH_PRESERVABLE = structurally plausible but unproven; OFFLINE_NEGOTIATION_IMPLEMENTATION_READY = NO; LIVE_NEGOTIATION_TEST_READY = NO. First recover the server-info consumer and phone-facing serializer boundary, then resolve Type-111 request/response correlation and ownership. See Step 30 report.
+
 ## Evidence state
 
 `CopyDisplaysInfo` builds a main-screen dictionary. `AirPlayReceiverSessionPlatformCopyProperty` handles the `displays` property by putting that dictionary into a one-item array. `AirPlayCopyServerInfo` invokes the property-copy routine, but the precise displays argument and any phone-facing serializer/send edge remain unproven.

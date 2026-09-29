@@ -1,3 +1,16 @@
+## Step 30 — AltScreen negotiation loop (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Server-info builder | research/carplay/honda-server-info.md | DWARF signature recovered; requests displays and inserts it in mutable result dictionary |
+| Capability send path | research/carplay/honda-display-capability-send-path.md | Local insertion confirmed; serializer/network send and phone-facing status UNKNOWN |
+| Display data | research/carplay/honda-display-capabilities.md, honda-display-uuid-flow.md | One main-display array entry; mutable container; descriptor wire semantics and UUID correlation unresolved |
+| Type 111 | research/carplay/honda-type111-rejection.md, honda-stream-type-parser.md | 100/101/110 stock dispatch, 111 invalid path at 0x2861f6; exact external status unresolved |
+| Offline models | research/carplay/type111-response-model.md, display-stream-correlation.md | Type-111 response only sketched from prior art; binding UNKNOWN |
+| Decision | research/carplay/claritylink-display-b-architecture.md, display-b-interposer.md | Two-hook sufficiency UNKNOWN; implementation/test readiness NO |
+
+Step report: step-reports/30-close-altscreen-negotiation-loop.md.
+
 ## Step 29 — display property caller, SETUP parser, and binary identity
 
 | Area | Primary evidence | Finding |

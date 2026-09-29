@@ -1,5 +1,13 @@
 # Display-B media interposer status
 
+## Step 30 negotiation status (2026-09-29)
+
+AirPlayCopyServerInfo's local output is now characterized as a mutable server-info dictionary containing displays=[main] from a mutable array. This does not prove that it is phone-facing: its caller/serializer/send edge remains unknown. Hook A has no defensible location yet.
+
+Honda's per-entry Setup dispatcher rejects Type 111 at the invalid-type path beginning 0x2861f6. The dispatch point is a conceptual Type-111-only interception candidate, while 100/101/110 could remain delegated stock. Exact hook ABI, error object ownership, secondary listener response schema, and request/display correlation remain unproven. No live hook is ready.
+
+**Readiness:** offline negotiation implementation NO; live negotiation test NO; two-hook sufficiency UNKNOWN. The next concrete task is recovering the AirPlayCopyServerInfo consumer and serializer path, including indirect callers and request registration.
+
 ## Step 26 — Honda response boundary update (2026-09-29)
 
 Honda's SETUP response builder now has a recovered local structure: mutable dictionary containing `streams: CFArray`, whose stock entry contains `type=110` and dynamic `dataPort`. Setup publishes the response through an output pointer; its separate completion callback receives status/context, not the response object. This proves a mutable local response accumulator and an array of stream response entries, but not that the caller serializes that exact object for the phone or that an extra entry is accepted.

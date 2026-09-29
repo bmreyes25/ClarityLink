@@ -1,19 +1,18 @@
-# Honda display capability path — Step 29
+# Honda display capabilities — Step 30
 
-## Findings
+AirPlayReceiverSessionPlatformCopyProperty (0x28d328) handles displays by creating a mutable CFArray, calling AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0) once, and appending its returned main-display dictionary. AirPlayCopyServerInfo (0x282cd4) requests that property and inserts the returned array under displays in its mutable result dictionary. This confirms local descriptor construction and insertion; phone-facing delivery is still unknown.
 
-`AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) obtains `ScreenCopyMain()` once and returns a mutable dictionary with `edid`, `features`, `maxFPS`, physical/pixel dimensions, and `uuid`. Its direct caller is `AirPlayReceiverSessionPlatformCopyProperty` (`0x28d328`). When the requested property is literal `displays`, that caller invokes the builder once and appends its dictionary to a newly created CFArray, returning a one-element array.
+The main descriptor's evidenced fields from the prior focused disassembly are edid, features, maxFPS, widthPhysical, heightPhysical, widthPixels, heightPixels, and uuid. Numeric fields are inserted with numeric CF setters; precise runtime values and complete semantic typing are not established here. uuid is inserted via numeric setter and must not be assumed to be a UUID string. features is a masked numeric value; bit meanings remain unknown. edid source/encoding and descriptor-to-wire semantics remain unverified.
 
-This proves a local platform property container, but not a phone-facing message. `AirPlayCopyServerInfo` (`0x282cd4`) calls the platform property-copy routine three times while building a server-info dictionary; the exact argument/key corresponding to `displays`, and the further serializer/send chain, remain unproven. No second display descriptor is produced by this observed path.
+| Field | Honda evidence | Type/value | Phone-facing |
+|---|---|---|---|
+| edid | Main descriptor dictionary | CF object/value details unresolved | Unknown |
+| features | Numeric setter; source g_screen_features, mask logic in builder | Integer; bits unresolved | Unknown |
+| maxFPS | Main descriptor dictionary | Numeric; exact value/source unresolved | Unknown |
+| widthPhysical, heightPhysical | Main descriptor dictionary | Numeric; physical units/value unresolved | Unknown |
+| widthPixels, heightPixels | Main descriptor dictionary | Numeric; exact values unresolved | Unknown |
+| uuid | Main descriptor dictionary; numeric setter | Numeric representation; semantic UUID form unresolved | Unknown |
 
-| Question | Finding |
-|---|---|
-| Local container | One-element CFArray for property `displays` |
-| Direct caller | `AirPlayReceiverSessionPlatformCopyProperty`, `0x28d328` |
-| Potential parent | `AirPlayCopyServerInfo`, exact displays-key edge unknown |
-| Phone-facing / serializer | Unknown |
-| `features` meaning | Integer value derived through masks; bit meanings and actual value unknown |
-| UUID | Main-screen property inserted using numeric setter; encoding/stability unknown |
-| Secondary display | Not built in this branch; receiver-wide absence not established |
+The returned displays array is CFMutableArray (constructed with CFArrayCreateMutable), and the server-info dictionary is mutable during construction. This establishes structural possibility of appending another local dictionary, not protocol acceptance or safe interposition.
 
-Do not infer that `features` means AltScreen or that this property is serialized to the iPhone. See `copy-displays-indirect-calls.md` and `honda-display-uuid-flow.md`.
+See honda-display-descriptor.md, honda-server-info.md, and honda-display-capability-send-path.md.

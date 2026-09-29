@@ -1,5 +1,9 @@
 # Honda request stream type parser — Step 29
 
+## Step 30 clarification
+
+The invalid-type path for 111 begins at 0x2861f6 within AirPlayReceiverSessionSetup (0x2854e0). Exact external error/status mapping and all effects in a multi-entry request remain unresolved; do not claim a particular HTTP status. The narrow conceptual intercept is at the per-entry type dispatch, before the stock accepted cases/default. This is not a validated live hook ABI. See honda-type111-rejection.md.
+
 ## Exact extraction and dispatch
 
 `AirPlayReceiverSessionSetup` reads `streams` as a CFArray, iterates its elements, and extracts each element's `type` with `CFDictionaryGetInt64` at `0x28590e`. The value is an integer held in the per-iteration local register/dataflow.
