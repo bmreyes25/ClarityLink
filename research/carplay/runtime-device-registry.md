@@ -74,6 +74,14 @@ Step 20 statically confirmed that the recovered ScreenSession listener helper bi
 
 The status snapshot reports `TracerPid: 0`. This Android image has no `/proc/sys/kernel/yama/ptrace_scope` path, and `getenforce` is unavailable. The earlier exact `/proc/26577/mem` read denial remains unexplained; these probes do not establish that Yama or SELinux caused it.
 
+## Minimum read design (Step 21, 2026-09-29)
+
+The first future live escalation is registry-only: read the global pointer cell, manager head, bounded node links/interface pointers, and interface slots `+0/+4`; stop and resolve callbacks offline. Do not initially call or trace `mc_dev_attach`, capture match scores, connect the iPhone, or instrument `dev_attach`. See [runtime read plan](runtime-registry-read-plan.md), [known layout](runtime-registry-layout.md), and [Step 21](../../step-reports/21-runtime-read-design.md).
+
+Offline ARM disassembly now establishes node `+0x04` as list bookkeeping (the prior incoming-link location), not context. The callback receives the interface pointer as its second/context argument. Registration appends at the tail, so traversal order is chronological insertion order. Historical base/cell are guards only; future PID and maps must be rediscovered. `process_vm_readv` is preferred if available/permitted on target; support is unknown. Ptrace reading is a reviewed fallback only. No reader was implemented or executed.
+
+With N nodes and unique interfaces U, confirmed requested words require `8 + 12N + 8U` bytes (worst case `8 + 20N`, <=2,568 at cap 128). Context is an alias of the already-read interface pointer, so no extra bytes are needed. Slot `+0` callbacks are to be evaluated offline against `"CarPlay Screen"`; live scores are needed only if a specific unavailable runtime dependency prevents static reproduction. Initial iPhone state: disconnected. Ready to execute: **NO**; implement/review the reader and check target permissions first.
+
 ### Differential decision
 
 - Disconnected maps/socket baseline: **captured**.

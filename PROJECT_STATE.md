@@ -1,4 +1,8 @@
-# ClarityLink project state — 2026-09-28
+# ClarityLink project state — 2026-09-29
+
+## Current milestone — Step 21
+
+Designed the minimum read-only runtime observation of `mc_devs`. The first future capture reads only the pointer cell, manager list head, bounded registry nodes, interface pointers, and callback slots `+0/+4`; callback addresses and the `CarPlay Screen` matcher behavior are resolved offline before deciding whether any live score observation is needed. Offline ARM disassembly confirms node `+0x04` is list bookkeeping, callback context aliases the interface pointer, and nodes append in insertion order. `process_vm_readv` is preferred if supported/permitted; target support is unknown. No reader was implemented or executed. The design is **not ready for live execution** until the small reader and target permissions are reviewed. iPhone starts disconnected; execution requires a parked vehicle. See `step-reports/21-runtime-read-design.md` and `research/carplay/runtime-registry-read-plan.md`.
 
 ## Goal
 

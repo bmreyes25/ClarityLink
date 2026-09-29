@@ -1,5 +1,9 @@
 # ClarityLink evidence index — 2026-09-28
 
+## Step 21 — minimum `mc_devs` observation design (2026-09-29)
+
+Registry-only first observation is designed; no live score capture initially. Known chain: `mc_devs` cell -> manager -> manager `+0x08` list head -> node (`+0` next, `+4` list bookkeeping, `+8` interface) -> interface `+0/+4` callbacks. Static disassembly confirms context aliases the interface pointer and tail append makes traversal order insertion order. Node allocation is `0x0c`; estimated maximum target memory is `8 + 20N` bytes (2,568 at a 128-node cap). `process_vm_readv` preferred if supported/permitted; target support unknown. Initial iPhone state disconnected. Not ready for execution until reader review. See `step-reports/21-runtime-read-design.md`, `research/carplay/runtime-registry-read-plan.md`, `research/carplay/runtime-registry-layout.md`, and `research/carplay/runtime-device-registry.md`.
+
 Step 20: static symbol/DWARF and call-path audit found no safe pre-existing devmgr dump/list or candidate match trace. The manager loop does not log score/interface/winner; raising log level cannot expose missing callsites. No CLI diagnostics or devmgr Binder/IPC dump identified. `jmcs`-owned TCP port-5000 runtime listeners remain statically unattributed; ScreenSession's traced listener asks for port 0. See `step-reports/20-jmcs-diagnostic-discovery.md`, `research/carplay/jmcs-diagnostics.md`, and `research/carplay/port-5000.md`.
 
 Step 11 update: see `step-reports/11-primary-screen-completion.md`. The local tracked corpus does not include the detailed listener/parser disassembly slice needed for port, first read, or TCP framing. No H.264/decoder/Surface edge has been proven from the callback path.
