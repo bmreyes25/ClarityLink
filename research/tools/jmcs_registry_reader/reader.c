@@ -12,8 +12,12 @@
 #include <sys/stat.h>
 #include <limits.h>
 #include <sys/syscall.h>
+#if defined(__ANDROID__)
+#include <asm/unistd.h>
+#endif
 
 #define MAX_ENTRIES 128u
+#define MAX_ATTEMPTS 2u
 #define MAX_MAPS 4096u
 #define MAX_TARGET_BYTES (2u * 2u * (8u + 20u * MAX_ENTRIES))
 typedef struct { uint32_t lo, hi; } Range;
@@ -34,6 +38,12 @@ static ssize_t target_read(pid_t pid, uint32_t addr, void *dst, size_t len) {
     memcpy(dst,fake_mem+addr,len); return (ssize_t)len;
 }
 #else
+#if defined(__arm__) && defined(__ANDROID__)
+/* Verified from NDK r23c sysroot usr/include/arm-linux-androideabi/asm/unistd-eabi.h:
+ * __NR_SYSCALL_BASE is 0 and __NR_process_vm_readv is base + 376 (ARM EABI).
+ */
+_Static_assert(__NR_process_vm_readv == 376, "unexpected ARM EABI syscall header value");
+#endif
 static ssize_t target_read(pid_t pid, uint32_t addr, void *dst, size_t len) {
 #if defined(SYS_process_vm_readv)
     struct iovec local={dst,len}, remote={(void *)(uintptr_t)addr,len};
@@ -94,7 +104,7 @@ int main(int argc,char**argv){pid_t pid=0;uint32_t cell=0;const char*maps=NULL;
  if(pid<=0||!ptr_ok(cell)){fprintf(stderr,"ABORT=invalid_arguments\n");return 2;} if(!target_ok(pid)){fprintf(stderr,"ABORT=target_not_/system/bin/jmcs_or_pid_missing\n");return 2;}
  char proc[64];snprintf(proc,sizeof proc,"/proc/%d/maps",pid);Context c={.pid=pid};if(maps_file(&c,proc)){fprintf(stderr,"ABORT=live_maps_unreadable\n");return 2;}
  if(maps){Context saved={0};if(maps_file(&saved,maps)){fprintf(stderr,"ABORT=saved_maps_unreadable\n");return 2;}Range live[MAX_MAPS];size_t nl=c.nmaps;memcpy(live,c.maps,nl*sizeof(Range));c.nmaps=0;for(size_t i=0;i<nl;i++)for(size_t j=0;j<saved.nmaps;j++){uint32_t lo=live[i].lo>saved.maps[j].lo?live[i].lo:saved.maps[j].lo,hi=live[i].hi<saved.maps[j].hi?live[i].hi:saved.maps[j].hi;if(lo<hi)add_range(&c,lo,hi);}}
- Snapshot a,b;int consistent=0;for(int attempt=0;attempt<2;attempt++){if(walk(&c,cell,&a))return 1;if(walk(&c,cell,&b))return 1;if(same(&a,&b)){consistent=1;break;}}
+ Snapshot a,b;int consistent=0;for(unsigned attempt=0;attempt<MAX_ATTEMPTS;attempt++){if(walk(&c,cell,&a))return 1;if(walk(&c,cell,&b))return 1;if(same(&a,&b)){consistent=1;break;}}
  if(!consistent){fprintf(stderr,"STATUS=INCONSISTENT_SNAPSHOT\nTARGET_BYTES_REQUESTED=%zu\nTARGET_BYTES_READ=%zu\n",c.requested,c.read);return 1;}
  printf("{\"pid\":%d,\"method\":\"process_vm_readv\",\"mc_devs_cell\":\"0x%08" PRIx32 "\",\"manager\":\"0x%08" PRIx32 "\",\"registry_head\":\"0x%08" PRIx32 "\",\"consistent\":true,\"entries\":[",pid,cell,a.manager,a.head);
  for(size_t i=0;i<a.n;i++){Entry*e=&a.e[i];printf("%s{\"index\":%zu,\"node\":\"0x%08" PRIx32 "\",\"next\":\"0x%08" PRIx32 "\",\"bookkeeping\":\"0x%08" PRIx32 "\",\"interface\":\"0x%08" PRIx32 "\",\"matcher\":\"0x%08" PRIx32 "\",\"attach\":\"0x%08" PRIx32 "\",\"matcher_module\":\"%s\",\"attach_module\":\"%s\"}",i?",":"",i,e->node,e->next,e->bookkeeping,e->iface,e->matcher,e->attach,module(&c,e->matcher),module(&c,e->attach));}

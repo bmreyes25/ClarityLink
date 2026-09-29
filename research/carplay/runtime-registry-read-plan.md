@@ -70,10 +70,10 @@ Only after the offline analysis, if at least one possible winning callback requi
 
 Abort on PID/base mismatch, null global, pointer outside readable ranges, target exit, short read, cycle, >128 nodes, or denied attach/read. At most one clean retry after fixing a non-invasive operator/tool mistake. Never repeat stop/attach attempts to overcome permission denial; never restart `jmcs`.
 
-## Reader implementation status (Step 22)
+## Reader implementation status (Step 23)
 
-Source and offline procedure: [runtime-registry-reader.md](runtime-registry-reader.md). Synthetic tests pass. Maximum is 10,272 requested bytes if both permitted consistency attempts each need two passes (5,136 in the normal single-attempt case). No target memory writes or pauses are implemented. This Mac has no Android ARMv7 sysroot, so target build and syscall ABI remain unverified; target kernel support remains unknown. Do not execute until the ARMv7 binary is built and reviewed.
+Source and offline procedure: [runtime-registry-reader.md](runtime-registry-reader.md). Synthetic tests pass. Maximum is 10,272 requested bytes if both permitted consistency attempts each need two passes (5,136 in the normal single-attempt case). No target memory writes or pauses are implemented. ARMv7/API 17 build and ABI header audit pass with official NDK r23c; the ARM EABI syscall number is 376. The likely Linux 3.1.10 Honda kernel predates upstream support, so target kernel support remains unknown pending vendor/backport evidence or a future one-shot result. Build/ELF/import/safety details are in [registry-reader-armv7-build.md](registry-reader-armv7-build.md). No emulator or vehicle execution occurred.
 
 ## Readiness
 
-`READY TO PERFORM BOUNDED LIVE READ: NO`. Remaining pre-execution work: build with a verified Android ARMv7 toolchain/sysroot, inspect the target binary's imports, then separately approve a parked-session read. The design requires a parked car for execution, but not for this design work.
+`BINARY READY FOR A SEPARATELY AUTHORIZED PARKED-SESSION ATTEMPT: YES`. `KERNEL SUPPORT: UNKNOWN`; `LIVE READ PERFORMED: NO`. The exact prepared sequence and failure meanings are in [runtime-registry-reader.md](runtime-registry-reader.md). An `ENOSYS`, permissions failure, PID change, invalid address, or short read means stop with no fallback. The parked session itself has not been authorized or performed.

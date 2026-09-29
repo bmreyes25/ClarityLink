@@ -12,11 +12,20 @@ The source contains no target-write API, `ptrace`, signal, debuggerd, register, 
 
 It compares manager/head and node address, next, and interface across immediate complete passes. There are at most two snapshot attempts (four walks). An inconsistent final result is discarded. A candidate list is capped at 128; null/unaligned/invalid addresses and cycles abort. Requested/read byte counts are cumulative across attempts. Worst case: `2 attempts × 2 passes × (8 + 20×128) = 10,272` bytes requested/read; a single successful attempt uses at most 5,136 bytes. No page-sized reads occur.
 
-## Build
+## Verified ARMv7/API 17 build
 
-`make test` runs the synthetic backend, which never accesses another process. `make jmcs-registry-reader` builds a host binary only on a Linux host with headers that define the syscall ABI. `make armv7 ARM_CC=<compiler>` requests PIE ARMv7 output, but requires an installed compiler/sysroot whose headers define the target syscall ABI. No ARMv7 Android compiler/sysroot is configured in the current environment, so target build compatibility remains unverified.
+The source builds with official Android NDK r23c (23.2.8568313), the last NDK generation supporting API 17. The macOS DMG SHA-1 matched the official Android NDK Unsupported Downloads archive. The universal compiler was run natively as arm64 on Apple Silicon; Rosetta was installed but not required. The target is exactly `armv7a-linux-androideabi17` / `armeabi-v7a`.
 
-Intended ABI is 32-bit ARM EABI (armeabi-v7a). The dynamic build requires the Android Bionic libc providing `syscall`, procfs, and the usual C runtime; a static build is not selected because availability/compatibility with the actual Honda Android userspace is unverified. `process_vm_readv` was added to mainline Linux after the likely 3.1-era target kernel; it may be absent unless backported. Its target availability and caller permission are unknown. Unsupported/denied means stop.
+```sh
+make test safety
+make armv7 NDK_ROOT=/path/to/android-ndk-r23c
+```
+
+`NDK_ROOT` is the extracted NDK directory, not the app bundle or DMG. Build output is `jmcs_registry_reader`; repository ignore rules exclude generated tools/binaries. The actual build command and binary/source SHA-256 values are recorded in [`registry-reader-armv7-build.md`](../../carplay/registry-reader-armv7-build.md).
+
+The ARM EABI syscall number is taken from that NDK's `sysroot/usr/include/arm-linux-androideabi/asm/unistd-eabi.h`: `__NR_SYSCALL_BASE` is 0 and `__NR_process_vm_readv` is base + 376. The Android ARM build contains a compile-time assertion for 376. This verifies the build ABI only; it does not establish syscall support in the Honda kernel. On `ENOSYS`, permission failure, PID loss, invalid address, or short read, the reader stops with no fallback.
+
+The saved Honda firmware contains `/system/bin/linker`, `libc.so`, and `libdl.so`, and every undefined imported symbol was found in the saved target `libc.so`. The executable is dynamically linked to `libdl.so` and `libc.so`. It has not been executed under ARM emulation or on the vehicle.
 
 ## Invocation shape (future only; do not execute in this milestone)
 

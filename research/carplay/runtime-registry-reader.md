@@ -1,71 +1,87 @@
 # One-shot runtime registry reader
 
-Date: 2026-09-29. Implementation and offline review only. The binary has not been built for the target ABI or run on the vehicle.
+Date: 2026-09-29. The reader was built and audited offline for ARMv7/API 17. It has not been run on the vehicle.
 
 ## Implementation
 
 Source is in [`research/tools/jmcs_registry_reader`](../tools/jmcs_registry_reader/). It accepts `--pid`, `--mc-devs-cell`, and optional `--maps`. It verifies `/proc/<pid>/cmdline` is `/system/bin/jmcs`, parses readable maps, reads only 32-bit pointer fields, and emits compact JSON. It never evaluates matcher or attach callbacks.
 
-`process_vm_readv` uses only `SYS_process_vm_readv`/`__NR_process_vm_readv` from the build headers. Missing definitions stop the build; no number is hardcoded. `ENOSYS`, permission denial, missing PID, `EFAULT`, `EINVAL`, short reads, and invalid mapping are distinct failures. There is no ptrace or other fallback. A nonmatching command line aborts before memory access.
+`process_vm_readv` uses only the ARM EABI `__NR_process_vm_readv` from NDK r23c headers. The exact header declares `__NR_SYSCALL_BASE=0` and syscall number 376; the Android ARM compile has a static assertion. This proves the build ABI, not that the likely Linux 3.1.10 Honda kernel implements or backported it. Target support remains UNKNOWN. `ENOSYS`, permission denial, missing PID, `EFAULT`, `EINVAL`, short reads, and invalid mapping are distinct failures. There is no ptrace or other fallback. A nonmatching command line aborts before memory access.
 
 It checks node cycles and the 128-entry limit, validates every address before reading it, preserves traversal order, and compares manager/head/node/next/interface across two passes. An inconsistent snapshot gets at most one further attempt (four passes total), then is discarded. Maximum bytes are 10,272 for two maximum-sized attempts; a single complete attempt requests at most 5,136.
 
 ## Review results
 
-Synthetic tests cover empty, one/multiple entries, insertion order, 128 and 129 entries, null manager, invalid head/interface, one- and multi-node cycles, changed snapshot, short read, `EPERM`, `ENOSYS`, and `ESRCH`. `make safety` on the synthetic binary found no forbidden imports. Source has no `process_vm_writev`, ptrace, signal, debuggerd, `/proc/<pid>/mem`, or memory-write path. Its only writes are diagnostic/JSON output to its own stdout/stderr.
+Synthetic tests cover empty, one/multiple entries, insertion order, 128 and 129 entries, null manager, invalid head/interface, one- and multi-node cycles, changed snapshot, short read, `EPERM`, `ENOSYS`, and `ESRCH`. `make test safety` passes. The ARM binary contains no target write, signal, ptrace, debuggerd, injection, or `/proc/<pid>/mem` path. Its only writes are output to its own stdout/stderr. It has not been run under ARM emulation or on the vehicle.
 
-Host system is macOS and has no Android ARMv7 sysroot/compiler. A cross-build attempt failed at missing target headers; the reader deliberately refuses a syscall number unavailable from those headers. Consequently ARMv7 build is FAIL/unverified, process_vm_readv ABI is unverified here, and target syscall availability is UNKNOWN (the likely 3.1-era kernel may predate mainline support). The vehicle gate is NO.
+The ARMv7/API 17 build, ELF/ISA, saved-firmware dependencies, and API symbol checks pass. Toolchain, build command, and SHA-256 values are in [`registry-reader-armv7-build.md`](registry-reader-armv7-build.md). Target syscall support and runtime permission remain UNKNOWN. The binary is ready for a separately authorized parked-session attempt; `ENOSYS` or any other failure means stop without escalation.
 
-The likely future temporary directory is `/data/local/tmp`, based on Android convention only; writable/executable policy is not established from available evidence. Verify that during a separately authorized parked session. Never use `/system`.
+## Future parked-session procedure (prepared only; not executed)
 
-## Future parked-session procedure (not executed)
+The old PID/base/cell are historical reconstruction data only. Static cell VA `0x35acbc` is supported by ELF/DWARF evidence. Historical arithmetic matches: `0x403e9cbc - 0x4008f000 = 0x35acbc`. Always derive a fresh load bias, PID, and cell using current maps and the exact saved ELF.
 
-The addresses and PID must be rediscovered every time. Set the Mac-side paths first:
+Set host paths and identity:
 
 ```sh
 ADB=adb
-SERIAL='<approved-device-serial>'
+SERIAL='<current approved device serial>'
 JMCS_ELF='<saved exact jmcs ELF matching this vehicle build>'
-READER='./jmcs-registry-reader-armv7'
+READER='research/tools/jmcs_registry_reader/jmcs_registry_reader'
 OUT='./registry-reader.json'
+ERR='./registry-reader.stderr'
+MAPS='./jmcs-maps.txt'
 ```
 
-1. Rediscover and verify the process:
+1. Connect, use the already established `su -c` root path, confirm root, rediscover the process, and require exactly one `/system/bin/jmcs` row. `pidof` was unavailable in the prior session; inspect `ps` and do not reuse PID 26577. If the known root path is unavailable, stop rather than trying another escalation.
 
 ```sh
-PID="$($ADB -s "$SERIAL" shell pidof jmcs | tr -d '\r')"
-test -n "$PID"
-$ADB -s "$SERIAL" shell "tr '\000' '\n' < /proc/$PID/cmdline"
-$ADB -s "$SERIAL" shell "cat /proc/$PID/maps" > jmcs-maps.txt
+"$ADB" connect "$SERIAL"
+"$ADB" -s "$SERIAL" shell su -c id
+"$ADB" -s "$SERIAL" shell su -c ps
+PID='<fresh PID from current ps output>'
+"$ADB" -s "$SERIAL" shell su -c "cat /proc/$PID/cmdline" > ./jmcs-cmdline.bin
+"$ADB" -s "$SERIAL" shell su -c "cat /proc/$PID/maps" > "$MAPS"
 ```
 
-Confirm the cmdline is exactly `/system/bin/jmcs`. Derive the load bias from the current maps and `PT_LOAD` entries in the exact ELF (map file offset must match the segment's page-aligned file offset; bias is mapping start minus the segment's page-aligned virtual address). Recheck the ELF build identity. Calculate `CELL = LOAD_BIAS + 0x35acbc`; `0x35acbc` is the proven static VA. Do not reuse any old PID/base/cell. Confirm the cell lies in a readable current mapping.
-
-Use the checked-in address helper to derive the current load bias and cell from that exact ELF and maps snapshot:
+Require the cmdline bytes to equal `/system/bin/jmcs` plus its terminal NUL. Recheck the exact ELF identity. Derive load bias from current maps and `PT_LOAD` entries (mapping file offset must match the segment's page-aligned file offset; bias is mapping start minus the segment's page-aligned virtual address). Then derive the cell:
 
 ```sh
-eval "$(python3 research/tools/runtime_registry_address.py jmcs-maps.txt "$JMCS_ELF")"
+eval "$(python3 research/tools/runtime_registry_address.py "$MAPS" "$JMCS_ELF")"
 CELL="$MC_DEVS_CELL"
 ```
 
-The helper must report one unique bias; otherwise stop and resolve the ELF/maps mismatch offline. Confirm `CELL` lies in a readable range in `jmcs-maps.txt` before continuing.
+The helper must report one unique bias. Confirm `CELL` is inside a readable range in current maps. If any identity, mapping, or calculation check fails, stop.
 
-2. Push and execute once, then collect only JSON:
+2. Confirm the iPhone is disconnected. Push, chmod, execute exactly once and collect only the small JSON:
 
 ```sh
 REMOTE=/data/local/tmp/jmcs-registry-reader
 REMOTE_OUT=/data/local/tmp/jmcs-registry-reader.json
-$ADB -s "$SERIAL" push "$READER" "$REMOTE"
-$ADB -s "$SERIAL" shell chmod 700 "$REMOTE"
-$ADB -s "$SERIAL" shell "sh -c '$REMOTE --pid $PID --mc-devs-cell $CELL > $REMOTE_OUT'"
-$ADB -s "$SERIAL" pull "$REMOTE_OUT" "$OUT"
+"$ADB" -s "$SERIAL" push "$READER" "$REMOTE"
+"$ADB" -s "$SERIAL" shell su -c "chmod 700 $REMOTE"
+"$ADB" -s "$SERIAL" shell su -c "sh -c '$REMOTE --pid $PID --mc-devs-cell $CELL > $REMOTE_OUT'" 2>"$ERR"
+"$ADB" -s "$SERIAL" pull "$REMOTE_OUT" "$OUT"
+cat "$OUT"
+cat "$ERR"
 ```
 
-The executable is invoked once; then:
+3. Verify the same PID is still `/system/bin/jmcs`, remove both remote temporary files, and turn the vehicle off:
 
 ```sh
-$ADB -s "$SERIAL" shell rm -f "$REMOTE" "$REMOTE_OUT"
-$ADB -s "$SERIAL" shell pidof jmcs
+"$ADB" -s "$SERIAL" shell su -c "cat /proc/$PID/cmdline"
+"$ADB" -s "$SERIAL" shell su -c "ps | grep '[j]mcs'"
+"$ADB" -s "$SERIAL" shell su -c "rm -f $REMOTE $REMOTE_OUT"
 ```
 
-Verify the final `pidof` reports the same still-running process. If `/data/local/tmp` is not both writable and executable, stop and review a safe location. If the syscall is unsupported/denied, stop; never switch to ptrace, suspend jmcs, use debuggerd, weaken kernel policy, or restart the process as part of this reader.
+If `/data/local/tmp` is not writable and executable, stop and review a safe location. If the syscall is unsupported or denied, stop; never switch to ptrace, suspend `jmcs`, use debuggerd, weaken kernel policy, or restart the process as part of this reader. The sequence above is a prepared plan and has not been run.
+
+### Read outcome meanings
+
+| Result | Meaning | Next action |
+|---|---|---|
+| `SUCCESS` | Complete bounded read with matching immediate snapshots | Keep JSON and resolve addresses offline. |
+| `ENOSYS` / `READ_STATUS=UNSUPPORTED` | Kernel does not implement the syscall, unless vendor evidence indicates otherwise | Stop and document unsupported. |
+| `EPERM` / `EACCES` | Permission or policy blocks the read | Stop; no escalation. |
+| `ESRCH` | PID exited or changed | Stop; rediscovery requires a separately reviewed session. |
+| `EFAULT` | Kernel rejected an address or read range | Stop; inspect address and map evidence offline. |
+| Short read | Requested bytes were not fully returned | Discard snapshot and stop. |

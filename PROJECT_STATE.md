@@ -1,8 +1,8 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 22
+## Current milestone — Step 23
 
-Implemented and synthetically reviewed the bounded `process_vm_readv` runtime registry reader plus offline resolver. No vehicle, ADB, jmcs process, iPhone, or live memory was touched. No target writes, signals, callbacks, process pause, or ptrace fallback exist. Synthetic tests pass; maximum requested bytes across two two-pass consistency attempts is 10,272. The Mac lacks an Android ARMv7 sysroot/compiler, so ARMv7 binary and syscall ABI remain unverified; target syscall support is unknown. **Not ready for vehicle execution.** Next: build with verified ARMv7 Android toolchain and audit imports. See `step-reports/22-registry-reader-implementation.md` and `research/carplay/runtime-registry-reader.md`.
+Built and audited the bounded C registry reader for `armeabi-v7a` / Android API 17 with official NDK r23c (23.2.8568313), checksum verified. ARM EABI `process_vm_readv` syscall number 376 is verified from the exact NDK header and compile-time asserted. ELF, ARMv7 ISA, saved firmware dependencies, API imports, bounded reads, and safety checks pass; synthetic tests pass. The Honda kernel's syscall support remains UNKNOWN because the likely 3.1.10 kernel may lack it. No vehicle, ADB, jmcs process, iPhone, emulator, or live memory was touched. **Binary is ready for a separately authorized parked-session attempt; no vehicle execution is authorized by this offline milestone.** See `step-reports/23-registry-reader-armv7-build.md`, `research/carplay/registry-reader-armv7-build.md`, and `research/carplay/runtime-registry-reader.md`.
 
 ## Goal
 
