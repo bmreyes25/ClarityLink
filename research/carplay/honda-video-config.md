@@ -1,21 +1,21 @@
-# Honda VideoConfig — Step 35
+# Honda VideoConfig — Step 36
 
-## Honda evidence
+## Honda branch and payload handoff
 
-The exact Honda callback and media helper analysis does **not** identify a VideoConfig message value or prove that a named VideoConfig reaches `mc_ScreenStreamProcessData`. `mc_ScreenStreamProcessData` (`0xbee91`) parses callback-level length-prefixed records and transforms certain payloads, including adding four-byte start-code-like prefixes. The concrete linked sink is reached through `mc_stream_push_data`, but neither its concrete consumer nor codec-config handling is connected to this callback by current xrefs.
+`AirPlayReceiverSessionScreen_ProcessFrames` dispatches header byte `+4 == 1` after reading the full header/body and, when enabled, decrypting the body. This branch loads header bytes `+16` and `+20` as binary32 floats, converts each to a CF double property, and—when the body length is nonzero—passes the body pointer and exact body length to `CFObjectSetPropertyData`. It does not call `ScreenStreamProcessData` in this branch and does not parse the config body in this function.
 
-| Field | Honda finding |
+This is a **probable VideoConfig branch** because it performs stream-property updates and sends a distinct configuration-like data blob, matching the public screen-packet family. The CF property names and downstream consumer have not been resolved from this call path.
+
+| Field | Honda result |
 |---|---|
-| Message type/value | Unknown |
-| Codec | H.264 is a strong lead from callback transformations and H.264/AVCC helpers elsewhere, but a specific Honda VideoConfig record is not proven |
-| Width / height | Unknown |
-| SPS / PPS | Extraction and ownership unknown |
-| Profile / level / timescale / frame rate | Unknown |
-| NAL length size / AVCC vs Annex B in wire payload | Unknown |
-| Decoder extradata path | Unknown; concrete sink implementation not joined to callback |
+| Discriminator | 1 byte at header offset 4, value 1 enters this branch |
+| Header values | float32 at offsets 16 and 20; each converted to a CF double property; semantic names unknown |
+| Body | Body-size bytes at header offset 0; decrypted in-place first when session crypto is enabled; passed as CF data property without local parsing |
+| Codec | H.264/AVC is probable by protocol family, not proven by Honda body inspection |
+| avcC marker/SPS/PPS/NAL length size | Not parsed or validated by ProcessFrames; content format remains unknown |
+| Profile / level / dimensions / FPS | Two floats are consumed, but meanings unknown; no SPS-derived values are recovered |
+| Decoder extradata / SPS/PPS destination | Consumer of the property is not joined to this call path |
 
-## Prior-art comparison, not Honda facts
+## Public/prior-art comparison
 
-Pinned MU1440 MHI2 `STREAM111_PROTOCOL.md` treats VideoConfig's body as an AVC decoder configuration record (`avcC`) and extracts SPS, PPS, and NAL length size. Its receiver code parses avcC SPS/PPS, accepts optional opaque trailing data, creates Annex-B parameter-set bytes, and associates a codec generation. This supports a testable prior-art hypothesis, not a field map for Honda.
-
-**Readiness:** `ClarityLinkVideoConfig` cannot yet have proven Honda fields; preserve future unknown config bytes as opaque until Honda discriminator and body boundary are established.
+The [classic AirPlay screen packet reference](https://openairplay.github.io/airplay-spec/screen_mirroring/stream_packets.html) identifies type 1 as codec data and describes an `avcC` body. Pinned MHI2 MU1440 `STREAM111_PROTOCOL.md` likewise treats VideoConfig as avcC and extracts SPS/PPS and NAL length size. Honda's type-1 path matches the separate config branch but hands off opaque data; it does not prove avcC. `VIDEOCONFIG_FORMAT=UNKNOWN (avcC is a strong family hypothesis)`.

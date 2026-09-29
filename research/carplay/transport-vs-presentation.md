@@ -1,29 +1,31 @@
 # AltScreen transport and presentation are separate planes
 
-**Step 35 update, 2026-09-29.** Honda ELF is authoritative for Honda. MHI2 and xcertplay are implementation prior art.
+**Step 36 update, 2026-09-29.** Honda ELF evidence is authoritative for Honda; public classic AirPlay and pinned MHI2 are comparison evidence.
 
 ## Transport / media security
 
 ```text
-SETUP stream descriptor -> type dispatch -> streamConnectionID
- -> session master key + ID -> per-screen key/IV
- -> dedicated listener -> accepted NetSocket -> read/decrypt
- -> screen framing -> VideoConfig/H.264 -> media sink
+SETUP Type-110 streamConnectionID
+ -> receiver session key material + ID -> per-screen key/IV
+ -> listener -> accepted per-thread NetSocket
+ -> exact 128-byte plaintext header
+ -> LE32 body size at +0, discriminator byte at +4
+ -> read body exactly, AES-CTR decrypt in place if security is enabled
+ -> type 0 timestamped ScreenStreamProcessData
+ -> mc_ScreenStreamProcessData record parser -> transformed media buffer -> sink
 ```
 
-Honda Type-110 confirms derivation inputs (16-byte session master material and uint64 ID), AES-CTR screen payload processing, dedicated listener and accepted `NetSocket`. It does **not** yet establish Honda's encrypted TCP frame header, message types, VideoConfig body, or access-unit boundaries. The downstream callback parses its own records and synthesizes four-byte start-code-like prefixes in some paths, but the final sink and decoder are unjoined.
+Step 36 proves Honda's fixed header and length boundary by control flow, not merely by the 128-byte read constant. It also recovers body-only AES-CTR with a persistent stream context and message branches 0/1/2/4/5. Type 0 is a probable VideoFrame; type 1 is a probable config branch passed as CF data; 2/4/5 are skipped; 3 is unrecognized in this function. Type-1 body format, full type semantics, and complete AU/sink contract remain partly unknown. The callback's length-mode parser and Annex-B prefix synthesis are documented separately.
 
 ## Presentation / UI ownership
 
 ```text
 /info display descriptor and UUID -> phone display/UI selection
- -> future suggestUI/showUI/stopUI/ViewArea control -> presentation ownership
+ -> suggestUI/showUI/stopUI/ViewArea control -> presentation ownership
 ```
 
 No direct UUID-to-stream crypto binding has been found. Honda PlatformControl/SessionControl symbols exist while exact command semantics remain unknown. MHI2 keeps transport and UI operations separate on its target; Honda ordering remains unknown.
 
-## Consequence for Type 111
+## Type-111 consequence
 
-Do not require UUID-to-streamConnectionID mapping to model the media socket. A listener can bind a peer connection to its transport generation. However, the Type-111 negotiation contract and Honda wire framing/crypto compatibility remain blockers. MHI2's Type-111 implementation is evidence of feasibility on MU1440 only. Do not encode its 128-byte frame header as Honda fact.
-
-**Step 35 gate:** transport/presentation split remains supported; Honda parser and independent crypto implementation are not ready. See `type111-transport-model.md` and the Step 35 report.
+The screen header/framing parser can be reused as a family candidate for a future ClarityLink Type-111 stream, since Honda Type-110 now matches the classic 128-byte body-length/discriminator structure and MHI2 Type-111 uses the legacy ScreenStream family. Honda Type-111 negotiation/crypto acceptance remains unproven. The offline parser and CTR state model preserve this boundary; neither is a complete receiver or H.264 decoder. See `honda-screen-header.md`, `honda-screen-crypto.md`, `mc-screenstream-input.md`, and `type111-transport-model.md`.

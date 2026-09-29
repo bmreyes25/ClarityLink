@@ -1,22 +1,27 @@
-# Honda H.264 wire format and access units — Step 35
+# Honda H.264 wire format and media path — Step 36
 
-## Honda evidence
+## From ScreenStream message to callback
 
-`mc_ScreenStreamProcessData` walks callback-level length-prefixed records (with multiple branch-dependent length widths/byte orders) and emits four-byte start-code-like prefixes during at least some payload transformations. That is evidence of H.264 Annex-B conversion work in the callback, but it does not prove the socket's incoming payload is AVCC, prove which records are H.264 access units, or establish an access-unit completeness boundary. The callback reaches `mc_stream_alloc_buf` and `mc_stream_push_data`; the final sink and decoder/configuration calls remain unresolved.
+For message type 0, ProcessFrames sends the decrypted body as one call to `ScreenStreamProcessData` (callsite `0x2880a2`) with stream object `[screen_session+0x1ec]`, body pointer, body length, converted presentation time, and zeroed trailing metadata. The generic wrapper dispatches via the registered callback table to Honda `mc_ScreenStreamProcessData` (`0xbee91`). Message type 1 takes a separate CF-property path and does not go through this callback in ProcessFrames.
 
-| Property | Honda result |
-|---|---|
-| Ciphertext body decrypt mode | AES-CTR (screen path) |
-| Incoming media format | Unknown; AVCC/length-prefixed is a lead, not established for this Honda callback |
-| NAL length field width / endianness | Unknown at Honda socket/media boundary |
-| Annex-B prefixes | Four-byte prefix synthesis is observed in downstream callback branches; exact applicability/data flow is partial |
-| Keyframe signaling | Unknown; no proven Honda transport flag or NAL inspection branch identified |
-| Frame timestamp/duration/index | Unknown at TCP boundary; generic `mc_stream_buf.timestamp` exists, but this callback does not prove how it is sourced |
-| Complete access-unit boundary | Unknown |
-| Concrete MediaCodec consumer | Not connected by current xrefs |
+`mc_ScreenStreamProcessData` walks length-delimited items using the selected per-stream parser mode at callback context `+0x14`:
 
-## Prior-art comparison
+| Mode value | Input length prefix observed |
+|---:|---|
+| 1 | one-byte length |
+| 2 | two-byte big-endian length |
+| 4 | four-byte big-endian length |
 
-Pinned MU1440 MHI2 documents decrypted VideoFrame bodies as AVCC length-prefixed H.264, uses the NAL-length-size from avcC, identifies IDR by NAL type 5, and converts NALs to Annex-B for its local consumer. Those are MHI2 implementation details and cannot be used to fill Honda's unknowns.
+The parser walks/validates records and in its conversion loop writes the exact four bytes `00 00 00 01` before output record data. It allocates a media buffer sized from the transformed output, sets `mc_stream_buf.data_size` to the produced-byte count, copies the callback timestamp to `mc_stream_buf.timestamp` at +16, then calls `mc_stream_push_data` (`0x8ea18`). This proves downstream Annex-B start-code synthesis for this record-conversion path; the exact NAL classes and whether all stream modes use the same transformed path are not established.
 
-**PROCESS_DATA_INPUT:** generic stream/context-like object, pointer to callback data, byte length. After callback parsing, `mc_stream_push_data` passes a constructed media buffer to linked sink `process_data`; the concrete buffer bytes, size, and timestamp are record-branch-specific and final sink remains unknown. `mc_stream_buf` layout includes `data_size` at +8 and `timestamp` at +16.
+## What remains unknown
+
+- The body is length-delimited per the per-stream parser mode, but Honda's intended mode for this stream generation is not statically tied to the actual callback context.
+- The four-byte prefix is an Annex-B start code. The following bytes are parsed length-delimited record bytes, but it is not proven from this path whether one record is one NAL, a complete AU, or another wrapped unit.
+- No proof that the callback extracts SPS/PPS or detects NAL type 5 as keyframe.
+- No Honda avcC parser is connected to the type-1 config body.
+- The concrete `mc_stream_sink_ifc.process_data` implementation and decoder remain unidentified.
+
+**HONDA_VIDEO_WIRE_FORMAT:** length-prefixed callback records using mode-selected 1/2/4-byte big-endian lengths, followed by downstream Annex-B prefix synthesis in the converter branch. Calling the incoming type-0 body “AVCC” is premature; 4-byte mode is structurally similar, but stream-mode ownership and AU semantics remain unresolved.
+
+**KEYFRAME:** unknown for Honda. Public classic AirPlay docs do not establish Honda's implementation.

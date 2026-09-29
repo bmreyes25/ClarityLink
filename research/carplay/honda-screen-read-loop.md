@@ -1,39 +1,33 @@
-# Honda Type-110 accepted socket read loop — Step 35
+# Honda Type-110 accepted socket read loop — Step 36
 
-**Evidence scope:** exact offline Honda `jmcs` ELF SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; no live session, key bytes, ADB, or ptrace.
+**Evidence:** exact local Honda `jmcs` ELF SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; offline only.
 
-## Ownership and first read
+## Owner and reads
 
 ```text
 _ScreenThread (0x283dad)
-  -> SocketAccept(listener from thread context +0x1418, timeout 10 s)
-  -> accepted native fd returned through stack +0x10
-  -> NetSocket_CreateWithNative(&stack+0x0c, fd)
-       NetSocket object +4 = native fd
-       method slot +0x14 = NetSocket_ReadInternal (0x2a0055)
-  -> AirPlayReceiverSessionScreen_ProcessFrames (0x287d8d)
-  -> NetSocket_ReadInternal -> recv(fd, screen-session buffer +0x48, 0x80, flags)
+ -> SocketAccept(listener, 10 s)
+ -> accepted fd via stack +0x10
+ -> NetSocket_CreateWithNative; NetSocket +4 = accepted native fd
+ -> AirPlayReceiverSessionScreen_ProcessFrames (0x287d8d)
+ -> NetSocket_ReadInternal (method slot +0x14, 0x2a0055)
+ -> recv(fd, buffer, remaining count, flags)
 ```
 
-| Requested item | Recovered value |
+For the protocol header, ProcessFrames calls the reader with `min=0x80`, `remaining/capacity=0x80`, and destination `screen_session+0x48`. ReadInternal loops after short positive recv results until all 128 requested bytes are filled. It returns an error on EOF before the minimum is satisfied. Then ProcessFrames reads `body_size = LE32(buffer+0)`, allocates that many bytes, and calls ReadInternal with minimum and capacity equal to body_size and destination equal to the allocation. Thus the header-complete condition is successful completion of the exact 128-byte read; the body-complete condition is successful completion of exact declared body length.
+
+| Item | Recovered |
 |---|---|
-| Owner object | Per-thread `NetSocket` wrapper during processing; native fd at wrapper +4 |
-| Read function | `NetSocket_ReadInternal` (`0x2a0055`) through vtable/method slot +0x14 |
-| Buffer | Screen-session object buffer at +0x48 |
-| Initial request size | 128 bytes (`0x80` maximum), not a demonstrated header length |
-| State object | ProcessFrames local receive state plus screen-session buffer; persistent connection ID fields are not fully reconciled |
+| NetSocket owner | `_ScreenThread` local wrapper; native fd at wrapper +4 |
+| header buffer | screen session +0x48, 128 bytes |
+| body buffer | allocation of offset-0 length |
+| partial read | yes, accumulated in ReadInternal |
+| EOF | short-before-minimum produces error; handler cleanup/return |
+| read timeout | no specific socket-read timeout established |
+| accept timeout | 10 seconds in `SocketAccept`; separate from body/header reads |
+| reconnect | no reconnect loop in this thread path |
+| body max check | no protocol maximum check observed before malloc in this function; ClarityLink's local parser imposes a documented configurable safety cap |
 
-## Loop behavior supported by the artifacts
+The function also calls `memset(sp+0x6c,0,0x80)` to initialize a `select()` fd_set. That is an unrelated 128-byte constant and must not be conflated with the packet header.
 
-The read loop requests the remaining portion of a requested buffer and treats short positive reads as partial progress, invoking the read method again for the remaining count. The native path reaches `recv()` on the wrapped accepted fd. The thread uses a 10-second listener-accept timeout before it owns a peer socket. On thread cleanup it deletes/releases the NetSocket wrapper.
-
-
-| Behavior | Evidence / limit |
-|---|---|
-| Partial read | ReadInternal tracks remaining requested bytes and retries until satisfied or an error/status occurs. The exact retry/error mapping is not fully recorded in the saved excerpts. |
-| EOF | Not characterized beyond the read method returning a nonzero status into ProcessFrames cleanup/error handling. |
-| Timeout | 10 seconds is proven for `SocketAccept`'s `select`; do not apply this as a proven socket-read timeout. |
-| Reconnect | No reconnect loop is established; `_ScreenThread` accepts one fd for its processing generation and cleanup releases its wrapper. |
-| Fixed packet size | Unknown. A 128-byte `recv` request is only a maximum read request. |
-
-**Evidence:** `research/carplay/accepted-fd-dataflow.md`, `research/carplay/screen-tcp-framing.md`, ELF disassembly function `AirPlayReceiverSessionScreen_ProcessFrames` at VA `0x287d8d`, `_ScreenThread` at `0x283dad`, and `NetSocket_ReadInternal` at `0x2a0055`.
+See `honda-screen-header.md` for field offsets and `honda-screen-framing.md` for the state machine.
