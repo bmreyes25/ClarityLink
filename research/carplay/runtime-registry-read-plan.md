@@ -77,3 +77,12 @@ Source and procedure: [runtime-registry-reader.md](runtime-registry-reader.md). 
 ## Readiness
 
 `PROCESS_VM_READV LIVE RESULT: ENOSYS`. Do not repeat the reader. `REGISTRY CONTENTS: NOT RECOVERED`. Next action is offline design/review of a separate read-only ptrace approach. Any live attach requires its own review; stop/resume recovery is the primary safety question.
+
+
+## Step 24 — ptrace implementation result (2026-09-29)
+
+The single `process_vm_readv` attempt returned ENOSYS and is closed; do not retry that path. A separate C `PTRACE_PEEKDATA` reader now exists, with NDK r23c/API17 ARMv7 build and passing synthetic backend tests. NDK values: ATTACH 16, PEEKDATA 2, DETACH 17. The binary is limited to these ptrace requests; a successful attach routes every ordinary result through one detach attempt. It performs two comparable traversals, max 128 entries / 5,136 target bytes.
+
+Important limitation: PTRACE_ATTACH stops one task, not all process threads. Other `jmcs` threads continue sharing and mutating the address space; two matching passes are best-effort consistency only and cannot exclude ABA mutation. Detach failure is reported as `CRITICAL_DETACH_FAILURE`; no retry occurs, but the old vendor-kernel auto-detach-on-tracer-exit behavior was not demonstrated. Unexpected observed stop signals are forwarded unchanged; no synthetic signal is generated.
+
+**Not ready for a live attempt:** first review the single-thread stop, signal race, non-atomic snapshot, and detach-failure limits. This milestone was offline; no ADB or vehicle operation occurred. Details/build hash/tests: [ptrace reader audit](ptrace-registry-reader.md), [Step 24 report](../../step-reports/24-ptrace-registry-reader.md).

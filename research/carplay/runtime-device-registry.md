@@ -91,3 +91,8 @@ With N nodes and unique interfaces U, confirmed requested words require `8 + 12N
 - Registry head, entries, match scores, winner, and attach callback: **unresolved**.
 - Direct process memory still required: **yes**, unless a pre-existing diagnostic/trace endpoint can expose the exact manager list and match results. Do not retry with a debugger or `debuggerd` as part of this capture.
 - Live data collection complete: **yes** for this bounded `/proc` snapshot; **car may be turned off**.
+
+
+## Ptrace follow-up (Step 24, 2026-09-29)
+
+The one process_vm_readv attempt on PID 19905 returned `ENOSYS`; it read zero bytes and was removed. No retry is planned. The bounded ptrace alternative is implemented and audited offline, but not ready for live execution pending review. It stops only one task; sibling threads can mutate the registry, so its two-pass equality check is not an atomic snapshot. No target writes/register changes, breakpoints, or callback execution exist. See [ptrace reader](ptrace-registry-reader.md) and [Step 24](../../step-reports/24-ptrace-registry-reader.md).

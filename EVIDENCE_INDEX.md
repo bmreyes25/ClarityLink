@@ -54,3 +54,8 @@ Step 12 supersedes the Step 11 listener/first-read limitation: exact local `jmcs
 
 Raw evidence, APKs, firmware, forensic images, and sensitive device identifiers are excluded from Git. Sanitized conclusions are recorded in the research and step reports.
 # Step 19: the disconnected read-only `/proc` baseline confirms `jmcs` PID `26577`, base `0x4008f000`, 45 mapped `.so` paths, and two process-owned listeners on port 5000. The known generic registration entry points are in `jmcs`; `libcarplay_proxy.so` does not import the device-manager APIs. The listener role and runtime registry winner remain unresolved. Raw `/proc` metadata is in an ignored local capture; derived evidence is in `step-reports/19-jmcs-proc-differential.md`, `research/carplay/jmcs-runtime-sockets.md`, and `research/carplay/jmcs-module-inventory.md`.
+
+
+## Step 24 — ptrace reader (offline)
+
+`research/tools/jmcs_ptrace_registry_reader/` contains the source, synthetic tests, and r23c ARMv7/API17 build recipe. SHA-256: `1fa1fc980637af5c586b0897ef46ae8c5639c12ac5028ff8d3d0a76e7b672bad`. Tests and static binary audits pass. `process_vm_readv` is closed after its one ENOSYS result. Ptrace live readiness remains NO pending review of single-thread pause, sibling-thread races, signal handling, and detach failure. No live operation occurred. See `research/carplay/ptrace-registry-reader.md`, `step-reports/24-ptrace-registry-reader.md`.

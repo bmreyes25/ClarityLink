@@ -87,3 +87,10 @@ The primary blocker is the iPhone-facing Display B descriptor/session/stream neg
 # Current runtime-registration status (2026-09-29)
 
 Step 19 captured a read-only disconnected `/proc` baseline for `jmcs` PID `26577`. The process maps `libcarplay_proxy.so`, `libmedia.so`, Stagefright, and graphics modules; focused offline symbol review places the generic device-manager registration routes in `jmcs`, with no separate CarPlay device-manager plugin identified. `jmcs` owns IPv4 and IPv6 listeners on port 5000, but neither is proven to be the ScreenSession listener. The live registry, per-candidate scores, winning entry, and slot `+4` remain unavailable. No connected snapshot is needed for the current producer search; no debugger or memory inspection was used in this step. The car may be turned off. See `step-reports/19-jmcs-proc-differential.md`, `research/carplay/jmcs-runtime-sockets.md`, and `research/carplay/runtime-device-registry.md`.
+
+
+## Step 24 — ptrace registry reader design (2026-09-29)
+
+The one live process_vm_readv attempt returned ENOSYS on jmcs PID 19905; no memory bytes were read, same PID survived, tool removed, ADB disconnected, iPhone disconnected. Do not retry. A separate bounded PTRACE_PEEKDATA ARMv7/API17 reader was implemented and audited offline. NDK r23c headers verify ATTACH=16, PEEKDATA=2, DETACH=17; synthetic tests pass and the exact ELF/dependency/symbol/ISA/source audits pass. Maximum 128 entries and 5,136 target bytes over two consistency walks. Binary hash: `1fa1fc980637af5c586b0897ef46ae8c5639c12ac5028ff8d3d0a76e7b672bad`.
+
+This is not yet cleared for a live test: ptrace attaches one task while siblings continue, so two equal passes are not atomic; signal and detach-failure behavior have residual limits. No vehicle/ADB use occurred in Step 24. See `research/carplay/ptrace-registry-reader.md` and `step-reports/24-ptrace-registry-reader.md`.
