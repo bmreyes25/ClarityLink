@@ -1,5 +1,9 @@
 # ClarityLink evidence index — 2026-09-28
 
+## Step 25 — AltScreen prior art pivot (2026-09-29)
+
+Apple WWDC19 officially documents multiple simultaneous H.264 cluster streams and vehicle-selected instrument-cluster content, with R15 required for the described new feature set. Pinned xcertplay source (`3753867f0dd0e5c03490b987fb9df49b8ac96472`) defines main type 110 and alternate type 111, distinct display UUIDs, a display list, `altScreen`, and per-stream `dataPort` setup responses. Pinned Harman source (`c2f811f1a5c84dae3a62f4cf9b4a9e65fc3f7b3c`) implements a Type-111 receiver/interposer on MHI2. Honda still shows one `gMainScreen`, `ScreenCopyMain`, and singleton proxy registration; no compatible descriptor/SETUP extension is proven. `mc_dev_attach` is fallback-only in the strategy, not yet bypassed on Honda. No ptrace, vehicle, or code implementation occurred. Details: `research/carplay/prior-art-altscreen.md`, `stream-type-111.md`, `altscreen-capabilities.md`, `altscreen-control-plane.md`, `altscreen-data-port.md`, `honda-altscreen-gap-analysis.md`, `claritylink-display-b-architecture.md`, and `step-reports/25-altscreen-prior-art-pivot.md`.
+
 ## Step 24 — single live registry-reader attempt (2026-09-29)
 
 Using the reviewed ARMv7/API17 binary with iPhone disconnected, fresh `/system/bin/jmcs` PID 19905 and maps were verified. Current load bias `0x40001000`; static VA `0x35acbc` derived cell `0x4035bcbc` in readable `rw-p` memory. The single 4-byte `process_vm_readv` call returned `READ_STATUS=UNSUPPORTED` (`ENOSYS`); no target bytes were read and no registry JSON exists. PID 19905 remained `/system/bin/jmcs`, temporary reader removed, ADB disconnected. No retry or fallback. Raw cmdline/maps and reader output are local/ignored in `research/captures/registry-reader-live-20260929/`. See `step-reports/24-registry-reader-live-unsupported.md`.

@@ -1,5 +1,13 @@
 # Display-B media interposer status
 
+## Step 25 — AltScreen prior-art pivot (2026-09-29)
+
+Apple's WWDC19 material confirms the product model of parallel H.264 cluster streams; xcertplay source assigns 110 to main and 111 to alternate display; the Harman MHI2 project contains a Type-111 native receiver/interposer. See `prior-art-altscreen.md`, `stream-type-111.md`, and `honda-altscreen-gap-analysis.md`.
+
+This changes the investigation priority: resolving the runtime winner for `mc_dev_attach("CarPlay Screen")` is **not a conceptual prerequisite** if ClarityLink can receive an independent Type-111 stream. It is **fallback only**. However, Honda has only one evidenced registered main screen, `CopyDisplaysInfo` selects `ScreenCopyMain`, and `libcarplay_proxy` has a singleton callback registration. No Honda source evidence yet proves a capability array can be extended or a second SETUP response returned. Therefore no interposer is ready to implement and the old registry blocker is not declared bypassed on this Honda build.
+
+Recommended architecture is hybrid: leave the Honda primary path untouched; first identify its phone-facing descriptor/SETUP response and hook ABI; if safely extensible, return a ClarityLink-owned Type-111 listener port and decoder. Keep primary-backend registry work as fallback. Ptrace remains paused.
+
 No implementation is proposed. Static analysis confirms that the primary screen requests `"CarPlay Screen"`, and the generic device manager selects a registry entry by callback score before calling that entry's attach slot. The winning entry for this key, its concrete sink, decoder, Surface, and ownership are unresolved.
 
 | Design point | Status |

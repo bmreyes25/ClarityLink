@@ -1,8 +1,12 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 24
+## Current milestone — Step 25
 
-The audited NDK r23c/API 17 ARMv7 reader was used for one parked attempt with the iPhone disconnected. Fresh process identity/maps were verified; the live load bias was `0x40001000` and the `mc_devs` cell was `0x4035bcbc` in a readable `rw-p` mapping. The sole 4-byte `process_vm_readv` request returned `READ_STATUS=UNSUPPORTED` (`ENOSYS`); no target data was read and no JSON snapshot was produced. The same PID 19905 remained `/system/bin/jmcs`; the temporary reader was removed and ADB disconnected. No retry, ptrace, debugger, target write, or process suspension occurred. **Do not retry the `process_vm_readv` reader.** Next: offline design/review of a separate bounded read-only ptrace approach; do not attach until its stop/resume behavior is separately approved. See `step-reports/24-registry-reader-live-unsupported.md` and `research/captures/registry-reader-live-20260929/` (local ignored capture).
+Step 25 completed offline prior-art review and pivots Display-B investigation toward a hybrid AltScreen architecture. Apple WWDC19 documents multiple H.264 cluster streams; xcertplay source maps 110 to main and 111 to alternate display; Harman MHI2 source includes a Type-111 receiver/interposer. Honda evidence still shows one initialized main screen, `ScreenCopyMain` display-info construction, and singleton proxy screen callback registration. No Honda Type-111 descriptor, serialized setup response, or safe hook is proven. Therefore `mc_dev_attach("CarPlay Screen")` is no longer a conceptual prerequisite, but remains a fallback if the Honda negotiation boundary cannot be safely extended. **Do not implement or execute ptrace. Do not implement Honda interposition yet.** See `step-reports/25-altscreen-prior-art-pivot.md` and `research/carplay/claritylink-display-b-architecture.md`.
+
+Step 24's bounded `process_vm_readv` attempt returned `ENOSYS`; its full evidence below remains current.
+
+The audited NDK r23c/API 17 ARMv7 reader was used for one parked attempt with the iPhone disconnected. Fresh process identity/maps were verified; the live load bias was `0x40001000` and the `mc_devs` cell was `0x4035bcbc` in a readable `rw-p` mapping. The sole 4-byte `process_vm_readv` request returned `READ_STATUS=UNSUPPORTED` (`ENOSYS`); no target data was read and no JSON snapshot was produced. The same PID 19905 remained `/system/bin/jmcs`; the temporary reader was removed and ADB disconnected. No retry, ptrace, debugger, target write, or process suspension occurred. **Do not retry the `process_vm_readv` reader.** The new next action is offline Honda descriptor/SETUP serializer recovery; ptrace is paused fallback work. See `step-reports/24-registry-reader-live-unsupported.md` and `research/captures/registry-reader-live-20260929/` (local ignored capture).
 
 ## Goal
 

@@ -2,6 +2,10 @@
 
 **Status: attachment dispatch mechanism narrowed; selected registration and media continuation unresolved.** Offline static analysis only.
 
+## Step 25 architecture update
+
+Prior art supports a separate secondary stream (xcertplay constants 110/111; Apple WWDC19 multiple H.264 streams). If Honda's session SETUP can be safely augmented, the Type-111 path can terminate in a ClarityLink-owned listener/decoder and bypass the runtime `mc_dev_attach("CarPlay Screen")` winner. That bypass is conditional, not yet proven on Honda. Keep the Honda primary flow unchanged; its one-main-screen display-info construction and singleton proxy registration are concrete compatibility risks. See `honda-altscreen-gap-analysis.md` and `claritylink-display-b-architecture.md`.
+
 ```text
 AirPlayReceiverSessionSetup
   -> AirPlayReceiverSessionScreen_Setup                       CONFIRMED
