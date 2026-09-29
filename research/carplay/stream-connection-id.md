@@ -1,4 +1,4 @@
-# Honda `streamConnectionID` trace — Step 33
+# Honda `streamConnectionID` trace — Step 34
 
 **Binary:** `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` (matches the same-acquisition vendor copy).
 
@@ -38,3 +38,22 @@ SETUP stream dict --[uint64 streamConnectionID]--> _ScreenSetup local
 ```
 
 `REQUEST_TO_SESSION_BINDING = PARTIAL`: request-to-crypto context is confirmed; persistent ID storage and a display UUID association are not.
+
+## Step 34 dependency classification
+
+The recovered Honda call signature and call site establish these inputs to the stock screen derivation:
+
+```text
+receiver session master key (16 bytes)
+streamConnectionID (uint64)
+    -> AirPlay_DeriveAESKeySHA512ForScreen
+    -> 16-byte screen key + 16-byte IV outputs
+```
+
+The stream `type` selects the setup branch before this call; it is not passed to the derivation function. Therefore `TYPE_IN_CRYPTO=NO` for the recovered Type-110 call contract. This means the derivation primitive is not type-keyed; it does **not** prove Honda will accept Type 111 or that its lifecycle, listener, or response contract is otherwise compatible. No UUID or separate session ID is present among the proven direct derivation arguments. The enclosing authenticated receiver session supplies the master key, so this is session-scoped material plus a per-stream ID, not ID-only derivation.
+
+Do not record or persist live key/IV bytes. The accepted socket is owned by a `NetSocket` wrapper local to `_ScreenThread`; no named persistent `streamConnectionID` field has been proven. A listener created for one setup entry is a practical transport binding for a connection arriving on that port, but the exact listener-field-to-thread-context layout remains unreconciled.
+
+### Type-111 consequence
+
+`TYPE111_CRYPTO_REUSE=UNKNOWN` for Honda interoperability, and `YES` only for reuse of the same *stock derivation primitive* given a valid session master key and Type-111 ID. Honda rejects 111 before this path today. MHI2 demonstrates a receiver-specific approach: observe stock session crypto setup, then invoke the same screen derivation function with the Type-111 ID. That is strong prior art, not proof of Honda’s expected Type-111 stream-ID lifecycle.

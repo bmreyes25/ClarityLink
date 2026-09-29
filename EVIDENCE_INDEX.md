@@ -1,3 +1,16 @@
+## Step 34 — AltScreen transport/presentation split (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Honda screen crypto | `research/carplay/screen-crypto.md`, `stream-connection-id.md` | Type-110 derivation inputs are session master material (16 bytes) plus `streamConnectionID` (`uint64`); type is dispatch-only, not a derivation input; no UUID input observed |
+| Socket/framing | `research/carplay/honda-screen-framing.md`, `accepted-fd-dataflow.md`, `screen-tcp-framing.md` | Accepted fd is owned by per-thread `NetSocket`; dedicated listener binds the transport endpoint, but persistent object offsets and Honda TCP grammar remain partial/unknown |
+| MHI2 Type 111 | `research/carplay/prior-art-altscreen.md`, `type111-request-model.md`, `type111-response-model.md` | Pinned current source `c2f811f...` clones descriptors, preserves unknown fields, derives per-screen crypto from stock session material + ID, and separates Type-111 transport from UI control; target-specific evidence only |
+| Control plane | `research/carplay/honda-platform-control.md`, `transport-vs-presentation.md` | Honda control symbols and mode/UI helpers exist; exact suggest/show/stop/ViewArea semantics remain unknown; matching strings absent |
+| Display correlation | `research/carplay/display-stream-correlation.md`, `claritylink-display-b-architecture.md` | UUID reclassified presentation/capability identity; no Honda UUID-to-stream-ID or crypto link demonstrated |
+| Delegation | `research/carplay/honda-type111-intercept.md` | Safest conceptual strategy is stock request clone without Type 111, stock handles normal streams, then append cloned Type-111 response; mixed-stream behavior still unproven |
+| Feature tokens | `research/carplay/prior-art-altscreen.md` | Modern token requirement is version-dependent; whether Type 111 predates tokens remains unknown |
+| Decision | `step-reports/34-transport-presentation-split.md` | Offline executable transport implementation NO; live transport test NO; biggest blocker is Honda Type-111 contract plus safe mixed-stream delegation |
+
 ## Step 33 — display ↔ stream connection binding (2026-09-29)
 
 | Area | Primary evidence | Finding |

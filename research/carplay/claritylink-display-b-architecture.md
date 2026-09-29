@@ -1,24 +1,55 @@
-# ClarityLink Display B architecture — Step 33
+# ClarityLink Display B architecture after Step 34
 
-## Evidence-supported split
+## Transport plane
 
-1. Honda's `/info` response contains `displays[]`; its current array has the one main-screen descriptor. The object is mutable between `AirPlayCopyServerInfo` return (`0x28a156`) and plist serialization (`0x28a19c`). This is a static mutation window, not a validated hook.
-2. Honda SETUP handles type 110 and rejects 111. Type-110 reads `streamConnectionID` as uint64, uses it to derive and install per-screen AES key/IV, opens a per-stream ephemeral listener, and returns `{type: 110, dataPort}`.
-3. The `/info` descriptor's numeric `uuid` property has no recovered link to `streamConnectionID`, screen setup, or stream type. No Honda binding structure containing both was found.
+```text
+Type-111 SETUP request
+  -> preserve peer descriptor and unknown fields
+  -> read per-stream streamConnectionID
+  -> use authenticated stock session security context
+  -> stock per-screen key derivation (Honda compatibility unproven)
+  -> own Type-111 listener and response data port
+  -> accept on that dedicated listener
+  -> Honda-compatible decrypt/framing -> H.264
+```
 
-## Current architecture decision
+Honda proves this pattern for Type 110 through an ephemeral listener and a `{type:110,dataPort}` response. MHI2 source supplies evidence for a target-specific Type-111 implementation using stock session crypto material and a cloned request descriptor. Neither proves Honda Type 111.
 
-An added Display B descriptor plus a future Type-111 handler are **not yet demonstrated sufficient** for a secondary TCP connection test. The open link is how the iPhone chooses a secondary-screen stream and how the Honda/ClarityLink side identifies that stream as Display B. A distinct connection ID may be needed for key derivation, based on the stock Type-110 pattern, but Type-111 parity is unknown.
+## Presentation plane
 
-| Question | Current answer |
+```text
+/info display descriptor and UUID
+  -> capability/display negotiation
+  -> suggestUI candidate list
+  -> showUI / stopUI / ViewArea state
+  -> cluster UI ownership
+```
+
+Honda's numeric display UUID has no demonstrated mapping to `streamConnectionID`. Keep the UUID in the advertised display/capability model; do not require it to identify the transport socket. The phone's ability to request Type 111 may still depend on presentation-plane advertisement/capabilities.
+
+## Minimal Type-111-compatible setup model (hypothesis)
+
+1. Preserve the original SETUP root request and every unrecognized field.
+2. Clone its stream array into stock and ClarityLink subsets, retaining every non-111 stream in the stock subset.
+3. Let stock process normal 100/101/110 streams unchanged.
+4. For Type 111, use the request's actual connection ID and established stock session security context with the target-compatible stock derivation mechanism.
+5. Bind a separate listener and append a response entry derived by cloning the requested descriptor, changing only fields proven necessary for the response.
+6. Keep transport generation, socket, crypto context, and cleanup state owned by one Type-111 session record.
+7. Defer UI ownership/rendering commands while proving only connection plus valid decrypted screen header/VideoConfig.
+
+Unknowns remain explicit: exact Honda Type-111 fields, whether request uses `type` or another key, response identity field (`type` versus `streamID`), phone correlation behavior, derivation parity, listener ownership/teardown, frame envelope and VideoConfig encryption boundary, and whether Honda/iOS version requires feature tokens.
+
+## Readiness
+
+| Component | Status |
 |---|---|
-| Server-info augmentor offline model | Ready as a boundary/schema model; exact Display-B values remain unproven |
-| Type-111 offline request/response model | Not ready as a complete contract; only evidence-labeled sketches |
-| Can a second descriptor alone induce Type 111? | Unknown |
-| Does display UUID bind to stream ID? | No Honda evidence found |
-| Must mode/UI control precede Type-111? | Unknown; prior-art separates media from UI ownership |
-| Is Type-110 crypto behavior reusable for 111? | Unknown; do not assume |
-| Partial stock Setup delegation | Structurally plausible, semantics unknown |
-| Live negotiation test ready | No |
+| Server-info augmentor | READY as offline boundary only; descriptor values/capability semantics need evidence |
+| Type-111 setup model | READY as a labeled hypothesis, not wire contract or implementation |
+| Crypto model | PARTIAL; derivation dependencies clear, Honda Type-111 compatibility unknown |
+| Screen framer | NOT READY; Honda TCP/record grammar not recovered |
+| Offline implementation | NO; no handler/code should be implemented from assumed schema |
+| Live transport test | NO |
 
-No hooks, code, or live test are part of this architecture note. Next offline work should recover the screen UUID's source/layout and complete the accepted-socket-to-screen-session binding, then inspect prior-art commits/history for a clearly versioned Type-111 schema and feature-token requirement. Honda evidence remains authoritative for Honda behavior.
+## First success gate
+
+Keep primary CarPlay stock; observe phone Type-111; return a compatible response and listener; accept phone TCP; confirm a valid secondary header or VideoConfig after decryption. This would prove transport. `suggestUI`, `showUI`, rendering, and ViewArea are later presentation work. Transport-before-UI is demonstrated in MHI2's architecture/lifecycle evidence, but remains unproven for Honda.

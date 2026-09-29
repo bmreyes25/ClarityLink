@@ -1,4 +1,4 @@
-# Honda display-to-stream correlation — Step 33
+# Honda display-to-stream correlation — Step 34
 
 **Evidence scope:** identity-verified `jmcs` ELF, offline static analysis. SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`. No vehicle, ADB, ptrace, firmware patch, live hook, or Type-111 implementation.
 
@@ -36,3 +36,9 @@ The SETUP stream path contains no demonstrated read of display `uuid`; the `/inf
 `DISPLAY_TO_STREAM_BINDING = UNKNOWN`. The ID's proven role is per-screen cryptographic derivation, not display selection. A candidate future model may carry a distinct Type-111 `streamConnectionID` for a separate stream/security context, but this remains a hypothesis from other receivers, not a Honda-confirmed request/response schema. A second `/info` descriptor by itself is **not proven sufficient**.
 
 Prior-art repositories describe Type-111 streams and control/UI state, but their receiver-specific behavior cannot fill the missing Honda edge. Their current-source evidence is summarized separately in `prior-art-altscreen.md`; no version-history conclusion about when feature tokens became required is asserted here.
+
+## Reclassification
+
+The display UUID is best classified as **PRESENTATION/CAPABILITY IDENTITY** in current evidence, with a possible additional role in input/display association not explored here. It is not demonstrated as a transport binding or a cryptographic input. A dedicated data listener and its assigned port provide a natural media-transport association for the accepted socket, while the display descriptor tells the phone about a display/presentation target. The wire protocol may correlate those independently; Honda's phone-side relation is not recovered.
+
+`LISTENER_IS_STREAM_BINDING=YES` at the network endpoint level (a TCP peer connecting to listener B is connected to listener B's socket generation). Persistent linkage from Honda's Setup object fields to `_ScreenThread` ownership remains partial. The listener association answers how the socket can be assigned to a transport without UUID; it does not answer how the phone chose that Type-111 stream.
