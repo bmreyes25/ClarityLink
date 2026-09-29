@@ -1,3 +1,11 @@
+# ClarityLink project state — 2026-09-29
+
+## Current milestone — Step 35
+
+Step 35 traced the offline Honda Type-110 accepted socket into `AirPlayReceiverSessionScreen_ProcessFrames`, read through a per-thread `NetSocket`, and confirmed the screen payload cipher is AES-CTR. The callback `mc_ScreenStreamProcessData` parses downstream length-prefixed records and synthesizes four-byte start-code-like prefixes in some branches, then allocates/pushes a media buffer to a sink interface. The exact Honda TCP frame header/boundary, message values, VideoConfig, H.264 access-unit format, timestamp/keyframe semantics, and concrete decoder sink remain unknown.
+
+Pinned MHI2 MU1440 prior art describes a 128-byte header, LE body size/opcode, avcC VideoConfig, AVCC H.264, and IDR detection. Those are target-specific and are not treated as Honda protocol facts. Honda's derivation inputs are known, but CTR state progression and exact update boundaries are insufficiently recovered for an offline crypto implementation. No ClarityLink parser/crypto/Type-111 transport code is ready; no live test is ready. The next action is focused offline analysis of the exact Honda `ProcessFrames` AES-CTR call arguments and callback record branches, followed by source-to-byte mapping for VideoConfig and sink buffer construction. See `step-reports/35-screen-framing-and-h264.md` and the seven Step 35 `research/carplay/` notes.
+
 ## Step 30 — close AltScreen negotiation loop (2026-09-29)
 
 Offline analysis of the identity-verified jmcs ELF recovers AirPlayCopyServerInfo's DWARF signature and local capability insertion. It returns CFLDictionaryRef, accepts a session, requested-properties array, MAC address, and optional error output. It queries session property displays through AirPlayReceiverSessionPlatformCopyProperty and inserts that exact result into its mutable dictionary. The property callback returns a one-element mutable array containing the main display dictionary. This proves local construction/insertion, but the builder's caller, serializer, network send, request path, and phone-facing status remain UNKNOWN.

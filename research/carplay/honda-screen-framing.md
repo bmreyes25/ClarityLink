@@ -1,25 +1,39 @@
-# Honda screen-stream framing — Step 34
+# Honda Type-110 screen framing — Step 35
 
-This note separates the TCP receive boundary from the downstream screen-record parser.
+This note distinguishes TCP reads, encrypted screen transport, downstream `mc_ScreenStreamProcessData` records, and prior-art framing. Honda evidence is authoritative for Honda; MU1440 protocol details are not silently transferred to this target.
 
-## Accepted connection
+## Proven Honda receive chain
 
-Honda creates the Type-110 listener during `AirPlayReceiverSessionSetup`. `_ScreenThread` waits in `SocketAccept` on a listener fd held in its thread context; on success, the accepted fd is wrapped by `NetSocket_CreateWithNative`. That `NetSocket` wrapper owns the accepted native fd while `_ScreenThread` calls `AirPlayReceiverSessionScreen_ProcessFrames`. The initial read requests up to 128 bytes into screen-session buffer `+0x48` through `NetSocket_ReadInternal`/`recv`; partial reads are handled. The wrapper is released on thread cleanup.
+```text
+_ScreenThread
+ -> SocketAccept -> accepted fd -> NetSocket_CreateWithNative
+ -> AirPlayReceiverSessionScreen_ProcessFrames
+ -> ReadInternal/recv into screen-session buffer (+0x48), up to 128 bytes
+ -> screen AES-CTR update (screen security state initialized by SetSecurityInfo)
+ -> ScreenStreamProcessData
+ -> registered callback mc_ScreenStreamProcessData (0xbee91)
+ -> callback parses its own length-prefixed record forms and transforms some payloads
+ -> mc_stream_alloc_buf (0x8e70c) -> mc_stream_push_data (0x8ea18)
+ -> linked sink process_data interface at +0x14
+```
 
-The connection is associated with the listener it arrived on. That gives a transport-level binding to that setup/listener generation without needing a display UUID at the socket layer. Honda's static artifacts do not yet reconcile Setup's listener output at session `+0x2b4` with `_ScreenThread`'s context `+0x1418`, so exact long-lived object ownership remains partial.
+The TCP request size is not a packet/header size. The callback receives `(stream/context-like pointer, data pointer, length)` in `r0/r1/r2`. Its `+0x14` state selects among parsing branches; the code reads length-prefixed records using more than one width/byte order and writes four-byte start-code-like prefixes while transforming some records. This is downstream evidence, not the encrypted TCP envelope grammar.
 
-## Framing boundary
+## Honda TCP/frame boundary fields
 
-The TCP byte grammar is not yet recovered. A 128-byte *read request* is not evidence of a 128-byte packet header. Likewise, `mc_ScreenStreamProcessData`'s callback-level length-prefixed records are downstream and must not be mislabeled as the TCP envelope.
+| Offset | Size | Endian | Meaning | Evidence |
+|---|---:|---|---|---|
+| — | — | — | Honda TCP screen header / opcode / payload length / sequence / timestamp / flags | Unknown in current exact-binary analysis |
+| — | — | — | Honda transport message discriminator (including VideoConfig) | Unknown |
+| — | — | — | Whether one plaintext frame spans multiple reads or one read contains multiple frames | Unknown |
+| — | — | — | Length/padding/alignment rule at encrypted socket layer | Unknown |
 
-| Item | Honda evidence |
-|---|---|
-| listener | ephemeral TCP listener from Type-110 setup |
-| accepted-fd owner | native fd stored in per-thread `NetSocket` wrapper |
-| first receive | `recv`, requested maximum 128 bytes; may be partial |
-| TCP header fields / size | Unknown |
-| timestamp / payload length / encryption boundary | Unknown at TCP framing layer |
-| screen-record parser | downstream `ProcessFrames` then stream-data processing; full record format not recovered in this repository |
-| VideoConfig / H.264 extraction | not fully recovered for this exact Honda binary |
+## Comparison only: pinned MU1440 MHI2 implementation
 
-MHI2's documented 128-byte ScreenStream header and VideoConfig handling belongs to its exact MU1440 target, and must not be copied as Honda fact. The first useful Type-111 framing milestone is recovering Honda's parser after `ProcessFrames` with exact record offsets and crypto boundary, without saving key material.
+Pinned MHI2 `docs/research/STREAM111_PROTOCOL.md` describes a **128-byte ScreenStream header**, little-endian 32-bit body size at offset 0, opcode at offset 4, and opcode-specific body; it identifies VideoConfig and VideoFrame classes. This is MU1440/AirPlay 210.81-era evidence. It is not a recovered Honda header, even though Honda's initial read also asks for up to 128 bytes.
+
+## Decision
+
+`FRAME_BOUNDARY_RULE(Honda)=UNKNOWN`. The downstream parser is partially understood, but no justified ClarityLink parser can yet turn Honda ciphertext/plaintext socket data into reliable `VideoConfig` or H.264 objects. A parser hard-coding MHI2's 128-byte header would be a prior-art profile, not a Honda-compatible implementation.
+
+**References:** `research/carplay/accepted-fd-dataflow.md`, `research/carplay/video-callback-trace.md`, `research/carplay/media-object.md`, `research/carplay/screen-tcp-framing.md`, pinned MHI2 `docs/research/STREAM111_PROTOCOL.md`.
