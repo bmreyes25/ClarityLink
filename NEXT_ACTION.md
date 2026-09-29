@@ -1,5 +1,5 @@
 # Next action
 
-**Recover the exact device-manager registration state used by `mc_dev_attach("CarPlay Screen", ...)`.** The static local `jmcs` ELF proves generic unsigned max-score selection and two direct `devmgr_app_register` routes, but does not identify the runtime candidate node/interface/context or insertion order. Search existing offline snapshots for the manager list at attach time; otherwise identify the service/IPC producer that installs the callback table. Do not trace downstream sink/decoder/Surface or proceed to Display B until the winner and slot `+4` callback are proven.
+**Wait for the user to make the parked Clarity available and reply READY.** The existing runtime captures identify `/system/bin/jmcs` and historical module mappings but do not contain its device-manager list or callback table. No live action has been performed. After READY, start with existing read-only logs and process metadata, then make only the smallest bounded read-only registry observation needed to recover the entry list and callback pointers.
 
-See [Step 17](step-reports/17-carplay-registration-winner.md), [match semantics](research/carplay/device-match-semantics.md), and [device registration](research/carplay/device-registration.md). Offline only; no vehicle or ADB.
+See [Step 18](step-reports/18-runtime-registration-resolution.md) and [runtime registry evidence](research/carplay/runtime-device-registry.md).
