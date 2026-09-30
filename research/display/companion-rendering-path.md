@@ -21,3 +21,7 @@ Thus the existing host is a **rendering destination**, not a proven companion pl
 | Decode and render in a separate ordinary app window on Display 1 | Not established; system Display 1 ownership/composition and safe area/permission constraints remain unknown |
 
 No patch, hook, IPC, decoder, or display operation was created in this milestone.
+
+## Step 42B architecture decision
+
+The selected target keeps Type 110 and Type 111 session/control ownership beside the Honda receiver in `jmcs`, then adds a narrowly scoped renderer adapter in the ExternalDisplay host. This is a target design only: neither a supported Type111 handler nor a supported frame handoff exists today. Current active work remains the offline digital twin. The Xposed View path is prior-art evidence for host composition, not authorization or a ClarityLink API.

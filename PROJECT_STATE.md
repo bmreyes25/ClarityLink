@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42B — architecture selected; implementation remains offline-only
+
+Selected target: keep the authenticated CarPlay control/session and Type111 handling in `jmcs`, delegating stock Type 110 unchanged, and add a narrow renderer adapter in the ExternalDisplay host. No supported proxy interception/key-transfer seam or ExternalDisplay frame handoff is currently proven. This is a target design, not a ready integration. The active executable workstream remains the digital twin; `LD_PRELOAD` is parked. No model/code change was justified because Type111 schema, display correlation, and security fields remain unknown or MHI2-derived. Companion and live Type111 work remain NOT READY. See [Step 42B](step-reports/42b-type111-architecture-decision.md), [architecture comparison](research/architecture/type111-architecture-options.md), and [digital twin boundaries](research/simulator/digital-twin-architecture.md).
+
 ## Step 42A — correlation and handoff audit complete (offline)
 
 Honda `/info`'s phone-facing `displays` property is an array, but its stock builder calls `ScreenCopyMain()` once and appends one dictionary. Recovered keys are `edid`, numeric `features`, `maxFPS`, physical/pixel dimensions, and a numerically inserted `uuid`; exact runtime values/meaning are not all established. Type 110 reads nonzero uint64 `streamConnectionID` for the Honda screen KDF, opens its own listener and responds `{type:110,dataPort}`. No UUID↔ID binding was found. Type 111 reaches an unsupported/default log path and is skipped without a Type111 response; this is nonfatal under the successful common Setup path, not support.

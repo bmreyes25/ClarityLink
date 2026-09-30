@@ -1,3 +1,13 @@
+## Step 42B — architecture decision (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Architecture comparison | `research/architecture/type111-architecture-options.md`, `research/architecture/type111-active-architecture.md` | Target architecture is jmcs control/session integration plus ExternalDisplay-host renderer adapter; current executable work remains the digital twin |
+| Security access | `research/carplay/type111-security-access-matrix.md`, `research/carplay/type111-proxy-feasibility.md` | Honda Type 110 session/KDF state is jmcs-owned; no existing supported transfer to an independent proxy was found; Type111 fields remain unknown/MHI2 hypothesis |
+| Rendering | `research/display/type111-render-path-options.md`, `research/display/companion-rendering-path.md` | ExternalDisplay owns the View host, but no supported companion frame/Surface handoff was found; Xposed path is prior art only |
+| Twin boundaries | `research/simulator/digital-twin-architecture.md` | Synthetic tests validate model invariants only, not Honda/iPhone compatibility or runtime/deployment behavior |
+| Decision and next task | `step-reports/42b-type111-architecture-decision.md`, `NEXT_ACTION.md` | jmcs entry, Honda Type111 schema/security/correlation, and renderer handoff block live work; LD_PRELOAD remains parked |
+
 ## Step 42A — Type111 correlation and companion handoff audit (2026-09-30)
 
 | Area | Primary evidence | Finding |
