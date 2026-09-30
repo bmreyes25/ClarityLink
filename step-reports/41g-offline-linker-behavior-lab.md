@@ -84,4 +84,4 @@ BIGGEST BLOCKER: no isolated ARM user-mode/guest environment, and Honda linker b
 
 ## Validation
 
-Documentation only; no code tests apply. `git diff --check` is required. No temporary Honda binary or generated ARM test binary is committed. The temporary linker and init copies used for static inspection were deleted after the analysis.
+This report was followed by a synthetic probe build; see [Step 41G runtime probe](41g-runtime-preload-probe.md). No temporary Honda binary or generated ARM test binary is committed. Temporary linker and init copies used for static inspection were deleted. `git diff --check` applies to the combined follow-up.

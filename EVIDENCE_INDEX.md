@@ -1,3 +1,13 @@
+## Step 41G runtime probe and offline Type111 model validation (2026-09-30)
+
+| Area | Evidence | Finding |
+|---|---|---|
+| Synthetic probe source/build | `src/claritylink-probes/preload/`, `tests/preload-probe/`, `research/deployment/runtime-preload-probe.md` | API 17 ARMv7 executable + preload source built with local NDK r23c; three artifact checks pass. Binaries were temporary and removed. No ARM runtime execution, device staging, or jmcs load occurred. |
+| Runtime behavior | `step-reports/41g-runtime-preload-probe.md` | No qemu-user/ARM guest; absolute path, constructor execution, separator parsing, and missing preload behavior remain UNKNOWN. Future standalone parked probe plan does not clear jmcs-specific gates. |
+| Existing Type111 models | `research/carplay/type111-offline-pipeline-status.md` | Negotiation 18, transport/parser/crypto 29, display/session 12, renderer 8, plus one host-only integration smoke passed. These are synthetic host models, not Honda wire acceptance. |
+| Remaining protocol evidence | Same status note | Type111 response fields, display-stream correlation, KDF/key reuse, and physical ExternalDisplay receiver handoff are not established. Continue with source/capture evidence; no guessed fields. |
+| Readiness | `NEXT_ACTION.md`, `PROJECT_STATE.md` | jmcs no-op load NOT READY; Type111 live NOT READY; offline evidence audit and companion API inventory are next. |
+
 ## Step 41D — SELinux and preload-path evidence audit (2026-09-30)
 
 | Area | Primary evidence | Finding |

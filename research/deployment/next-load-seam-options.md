@@ -1,6 +1,6 @@
 # Next jmcs load/stream seam options
 
-Step 41G leaves the Honda `LD_PRELOAD` behavior **UNKNOWN**: static strings and data tables do not prove behavior, and no isolated ARM user-mode/guest lab is present offline. It is not an active deployment path. This note compares alternatives without implementing or deploying any of them.
+Step 41G leaves the Honda `LD_PRELOAD` behavior **UNKNOWN**: static strings and data tables do not prove behavior, and no isolated ARM user-mode/guest lab is present offline. A synthetic API 17 ARMv7 compatibility probe has since been built and statically validated, but not executed. A future standalone parked probe can inform linker/path behavior for its own test process; it cannot establish jmcs's service-specific secure-exec or mapping state. Preload remains a hypothesis, not an active deployment path. This note compares alternatives without implementing or deploying any of them.
 
 | Candidate | What it changes/needs | Can it receive Type111 without jmcs? | Current evidence/risk | Decision |
 |---|---|---|---|---|

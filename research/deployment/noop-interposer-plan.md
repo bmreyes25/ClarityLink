@@ -6,4 +6,6 @@ If those facts are proven and a separate deployment review authorizes it, the na
 
 Step 41G further downgrades the seam to **UNKNOWN / parked hypothesis**: no safe isolated ARM test lab is available in the current offline workspace, and the bounded static pass did not recover the necessary data/control flow. Do not spend another open-ended pass on strings alone.
 
+The later Step 41G runtime-probe follow-up built a separate synthetic API 17 ARMv7 executable and constructor-only library and validated their ELF metadata offline. It did not run them. A future standalone probe from `/data/local/tmp` may test the head-unit linker under a separately authorized parked-car milestone, but even a pass will not prove jmcs's root service environment, SELinux domain, `AT_SECURE`, or executable mapping. This does not change the jmcs gate.
+
 Current gate: **NOT READY**. Current blockers: Honda linker secure-mode, absolute path, and failure behavior plus jmcs mapping access from `/data/local/tmp` are unknown. A boot-ramdisk service edit is required for the candidate `setenv` seam and must be treated as a persistent change with its own review.
