@@ -4,4 +4,6 @@ This document records a gate, not live instructions. A future parked-car loader 
 
 If those facts are proven and a separate deployment review authorizes it, the narrowly scoped objective is: jmcs starts; ClarityLink initializes without changing behavior; stock center CarPlay remains normal; one bounded harmless marker confirms initialization; rollback is prepared before the change. No negotiation mutation, second stream, cluster rendering, CAN, or persistent key logging belongs in that test.
 
+Step 41G further downgrades the seam to **UNKNOWN / parked hypothesis**: no safe isolated ARM test lab is available in the current offline workspace, and the bounded static pass did not recover the necessary data/control flow. Do not spend another open-ended pass on strings alone.
+
 Current gate: **NOT READY**. Current blockers: Honda linker secure-mode, absolute path, and failure behavior plus jmcs mapping access from `/data/local/tmp` are unknown. A boot-ramdisk service edit is required for the candidate `setenv` seam and must be treated as a persistent change with its own review.

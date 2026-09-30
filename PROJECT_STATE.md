@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 41G — preload lab unavailable; seam parked UNKNOWN (2026-09-30)
+
+No offline ARM user-mode runner, container runtime, or ready ARM guest is available. QEMU system emulation alone is insufficient, and constructing a guest from Honda boot/system artifacts would exceed the synthetic-only lab. A bounded static pass confirmed linker identity and preload/path/error data but did not prove env parsing, separators, absolute paths, secure-mode handling, load fatality, or constructor ordering; no direct call to the linker `getenv` helper was found, but inline/indirect parsing remains possible. Therefore `LD_PRELOAD_SEAM_STATUS: UNKNOWN` (parked, not disproven), no-op test NOT READY, Type111 NOT READY. Next study: offline ExternalDisplay/CarPlayService companion API and secondary stream ownership. See [Step 41G report](step-reports/41g-offline-linker-behavior-lab.md).
+
 ## Step 41F — Honda linker fingerprint partial; no-op load remains gated (2026-09-30)
 
 Static inspection matched the archived `/system/bin/linker` SHA-256 from Step 41B (`608af427…357aa90`), ELF32 ARM `ET_DYN`, and confirmed preload/library/error strings plus `/vendor/lib` and `/system/lib` data pointers. It did not prove Honda secure-mode checks, absolute-path parsing, separators, fatal preload failure, or constructor ordering. Honda/AOSP LD_PRELOAD behavior is **PARTIAL**. A historical `/proc/mounts` snapshot records `/data` as `rw,nosuid,nodev`, without `noexec`, reducing but not removing executable-map risk; SELinux and `mmap(PROT_EXEC)` permission remain unknown. Mapping risk MEDIUM. **Preload remains PLAUSIBLE_SECONDARY; no-op test NOT READY; Type111 NOT READY.** See [Step 41F report](step-reports/41f-honda-linker-preload-fingerprint.md).

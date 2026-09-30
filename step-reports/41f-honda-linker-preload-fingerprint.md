@@ -1,5 +1,7 @@
 # Step 41F — Honda linker preload fingerprint
 
+> **Step 41G supersedes the Step 41F seam classification:** this fingerprint remains valid, but the seam is now UNKNOWN/parked because no isolated ARM lab was available and targeted static analysis did not resolve behavior.
+
 **Result: Honda linker identity and preload-related data are confirmed; its exact preload control flow is not.** The `LD_PRELOAD` route remains plausible, but cannot be upgraded to PRIMARY or a no-op load test. Offline only: archived binaries were extracted to temporary scratch for static inspection, never executed; no vehicle, ADB, firmware/image write, partition mount, preload build, or deployment occurred.
 
 ## Honda artifacts and method

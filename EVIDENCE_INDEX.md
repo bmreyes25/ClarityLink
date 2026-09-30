@@ -319,3 +319,11 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Secure exec | `research/deployment/jmcs-secure-exec.md` | Root-to-root/no-setid metadata suggests AT_SECURE=0 absent LSM decision; actual state unknown |
 | `/data` mount and candidate | Historical capture `research/captures/20260925T150706Z-capabilities/capability-survey/cat-_proc_mounts.txt`; `research/deployment/library-staging-paths.md` | `/data` was `rw,nosuid,nodev` without `noexec`; SELinux and executable mmap remain unknown, risk MEDIUM |
 | Decision | `step-reports/41f-honda-linker-preload-fingerprint.md`, `research/deployment/noop-interposer-plan.md` | LD_PRELOAD seam remains PLAUSIBLE_SECONDARY; no-op load and Type111 not ready |
+## Step 41G — offline linker lab/seam decision (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Lab feasibility | `step-reports/41g-offline-linker-behavior-lab.md` | No qemu-arm user-mode, container runtime, or ready ARM guest; system QEMU alone is insufficient; no proprietary binary executed |
+| Targeted static pass | Same report; archived linker hash and Capstone/llvm-objdump | Preload strings/data confirmed; control flow to getenv/parser/secure path/fatal failure not resolved; direct helper calls not found in bounded scan |
+| Data mapping context | Same report; historical `/proc/mounts` capture | `/data` was rw,nosuid,nodev without noexec; SELinux/mmap still unknown, MEDIUM risk |
+| Seam decision | `research/deployment/next-load-seam-options.md`, `research/deployment/noop-interposer-plan.md` | LD_PRELOAD is UNKNOWN/parked; no-op and Type111 not ready; next study is ExternalDisplay/CarPlayService companion path |
