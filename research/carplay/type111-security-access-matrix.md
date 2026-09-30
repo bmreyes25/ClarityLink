@@ -1,5 +1,11 @@
 # Step 42B — Type111 security and session access matrix
 
+## Step 42C contract addendum
+
+Honda Type110's recovered KDF, session input, listener and crypto object remain Honda-owned and must not be borrowed or reset by a Type111 model. Existing offline KDF tests use generated master bytes. Candidate Type111 work must use a separate stream ID, independent candidate key/IV, and independent CTR/parser instance. This is a design isolation rule, not a Honda Type111 derivation claim. Reuse of authenticated master material, Type111 ID source, and exact KDF remain unknown.
+
+The repository must not contain real key material or proprietary encrypted payload fixtures. Synthetic known-answer tests may use generated values only and must not carry Honda session provenance.
+
 The matrix distinguishes the current Type110 implementation from a hypothesized Honda Type111 extension.
 
 | State/material | Honda source | Outside jmcs now? | Needed for Type111? | Assessment |

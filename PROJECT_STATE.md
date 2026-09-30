@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42C — offline jmcs integration contract defined
+
+Defined Type110 invariants, potential jmcs inputs/outputs, the Type111 unknown register and listener lifecycle, crypto boundaries, renderer frame contract, and digital-twin evidence profiles. Honda Type111-specific input/output and security remain partial/unknown. Existing negotiation/session-model tests already enforce stock-first behavior, primary preservation and rollback, so no code change was justified. Offline twin work is ready; jmcs no-op, ExternalDisplay render and Type111 live remain NOT READY. See step-reports/42c-jmcs-integration-contract.md and linked contract documents.
+
 ## Step 42B — architecture selected; implementation remains offline-only
 
 Selected target: keep the authenticated CarPlay control/session and Type111 handling in `jmcs`, delegating stock Type 110 unchanged, and add a narrow renderer adapter in the ExternalDisplay host. No supported proxy interception/key-transfer seam or ExternalDisplay frame handoff is currently proven. This is a target design, not a ready integration. The active executable workstream remains the digital twin; `LD_PRELOAD` is parked. No model/code change was justified because Type111 schema, display correlation, and security fields remain unknown or MHI2-derived. Companion and live Type111 work remain NOT READY. See [Step 42B](step-reports/42b-type111-architecture-decision.md), [architecture comparison](research/architecture/type111-architecture-options.md), and [digital twin boundaries](research/simulator/digital-twin-architecture.md).

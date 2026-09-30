@@ -18,3 +18,7 @@ Inventory archived `ExternalDisplay`, `CarPlayService`, and related JNI/native/B
 Step 42A found no ExternalDisplay frame/Surface Binder transaction and no CarPlay AP stream-transfer API. Step 42B selects jmcs as the target control/session owner, with a separate ExternalDisplay-host renderer adapter as the target rendering responsibility. A network proxy has no proven traffic interception or session-key handoff. This is not deployable: jmcs entry and ExternalDisplay host integration remain unresolved. Current active work stays in the digital twin; `LD_PRELOAD` remains parked. No existing companion API was found in reviewed artifacts, which does not prove no alternative can be engineered.
 
 The `LD_PRELOAD` seam is **UNKNOWN**, not proven absent. The current init service still lacks `LD_PRELOAD`, so any later attempt through this path requires a boot-ramdisk change and separate approval/recovery planning.
+
+## Step 42C contract status
+
+The offline integration boundary is specified in research/architecture/jmcs-integration-contract.md and research/architecture/type111-integration-contract.md. It defines stock-first Setup, isolated Type111 candidate state, fail-soft rollback and renderer handoff. It does not identify a load seam. Existing stock-preservation/lifecycle tests cover the model invariants, so no model code changed. jmcs entry and ExternalDisplay host frame handoff remain unresolved; deployment stays gated.

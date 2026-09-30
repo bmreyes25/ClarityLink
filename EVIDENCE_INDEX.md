@@ -1,3 +1,14 @@
+## Step 42C — offline jmcs integration contract (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Type110 invariants | research/architecture/type110-invariants.md; Honda screen crypto and stream schema | Stock Setup, Type110 port/ID/KDF and receiver remain Honda-owned; synthetic tests preserve response semantics |
+| jmcs inputs/outputs | research/architecture/jmcs-integration-contract.md; research/architecture/type111-integration-contract.md | Setup/session is inside jmcs; no reviewed outside-JMCS session/security/frame transfer; Type111 fields remain unknown/hypothesis |
+| Unknowns/lifecycle | research/carplay/type111-unknown-register.md; research/carplay/type111-listener-lifecycle.md | Wire/security/correlation/teardown unknowns explicit; offline lifecycle is a candidate model |
+| Security/renderer | research/carplay/type111-security-access-matrix.md; research/display/type111-renderer-handoff-contract.md | Independent crypto state is a design rule; no Honda Type111 KDF or supported frame API |
+| Digital twin | research/simulator/digital-twin-contract.md | Profiles separate Honda evidence, MHI2 hypotheses, synthetic values and unknowns |
+| Decision/readiness | step-reports/42c-jmcs-integration-contract.md; NEXT_ACTION.md | Contract defined, Type111-specific portions partial; active work offline, live gates not ready |
+
 ## Step 42B — architecture decision (2026-09-30)
 
 | Area | Primary evidence | Finding |
