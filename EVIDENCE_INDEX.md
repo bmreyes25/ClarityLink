@@ -1,3 +1,13 @@
+## Step 41D — SELinux and preload-path evidence audit (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Policy/context archive search | `research/carplay/step41d-selinux-load-environment.md` | No policy/context artifacts in enumerated tar archives or boot/recovery ramdisks; raw MMC image remains undecoded for policy |
+| Init SELinux fingerprint | `root-startup.tar:init` strings; same research note | `selinux.`, `seclabel`, `setcon` strings confirm code-path fingerprints only; do not prove enforcing state or jmcs context |
+| Runtime enforcement probe | `research/captures/jmcs-runtime-diff/20260929T160905Z/disconnected/selinux-enforcing.txt` and `.stderr` | `getenforce` unavailable; enforcement state UNKNOWN |
+| AT_SECURE and candidate path | Same audit; Step 41C service report | `AT_SECURE` unknown; `/data/local/tmp` 0771 shell:shell is only a candidate, SELinux executable-map permission unproven |
+| Decision | `step-reports/41d-selinux-load-environment.md` | Step 41D NOT PASSED; Step 42 not ready; next task is offline read-only decoding of relevant raw MMC partition, if present |
+
 ## Step 40E4 — zero-write privilege path audit (2026-09-29)
 
 | Area | Primary evidence | Finding |

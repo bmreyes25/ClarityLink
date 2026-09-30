@@ -1,4 +1,8 @@
-# ClarityLink project state — 2026-09-29
+# ClarityLink project state — 2026-09-30
+
+## Step 41D — SELinux/load-path audit incomplete (2026-09-30)
+
+Read-only inventory found no compiled SELinux policy or file-context artifacts in the available system/vendor, root-startup, configuration, userdata archives, or boot/recovery ramdisks. Honda init contains `selinux.`, `seclabel`, and `setcon` strings, but the historical `getenforce` probe only reports that the command was unavailable. A held 7.5 GB raw eMMC image has nine GPT partitions (CAC, CAP, APP, LOG, MITSU, SDA, SDA2, SDC, UDA); all have ext4 superblock signatures, but the partitions have not been decoded because no ext4 reader is available in the offline toolset. Therefore active SELinux state, jmcs security domain, `AT_SECURE`, and executable mapping permission from `/data/local/tmp` remain UNKNOWN. This path is a candidate only, not a proven staging location. No no-partition-change load path is established; Step 41D has NOT PASSED, Step 42 is NOT READY, no deployment occurred, and Type111 remains disabled. Next: use a read-only ext4 reader to enumerate held filesystems and locate any active policy/context artifacts. See [Step 41D report](step-reports/41d-selinux-load-environment.md) and [research audit](research/carplay/step41d-selinux-load-environment.md).
 
 ## Step 41C — jmcs launch service recovered
 
