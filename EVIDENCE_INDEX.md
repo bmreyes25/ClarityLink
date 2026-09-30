@@ -254,6 +254,14 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 - Host-only models: `src/claritylink-honda/page_model.py`, `veneer_ranges.py`, `veneer_allocator_model.py`, `rendezvous_model.py`; tests in `tests/honda/test_runtime_safety_models.py`.
 # Step 41A evidence
 
+## Step 41C evidence
+
+| Question | Evidence | Conclusion |
+|---|---|---|
+| Exact jmcs service and imports | `research/carplay/jmcs-init-service.md` | Recovered from boot ramdisk and byte-matched root-startup archive; class main, root:root. |
+| Per-service preload seam | `research/carplay/claritylink-load-seam.md` | One `setenv LD_PRELOAD` option is supported without modifying jmcs; no deployment occurred. |
+| Secure-execution condition and staging path | Same load-seam note and `step-reports/41c-jmcs-init-service.md` | High-confidence linker support; SELinux/AT_SECURE and staged-library policy remain unknown. |
+
 ## Step 41B evidence
 
 | Question | Evidence | Conclusion |

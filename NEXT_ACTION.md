@@ -1,6 +1,3 @@
 # Next action
 
-Step 40E4 found no statically justifiable zero-write privileged path. Do not invoke `su`, `bugreport`/`dumpstate`, HondaHack, ADB root, or any diagnostic service; the Step 40F privileged collector stays mechanically disabled. Step 40E already completed the useful ordinary-shell 40F-Lite profile, and repeating it will not obtain current `jmcs` maps/smaps/fd. Next decide whether Step 41 can be redesigned without those current mappings, or seek independent static review of the archived `dumpstate -s` path without executing it. Step 40F and Step 41 remain NOT READY; Type111 stays disabled. No vehicle/ADB access, process signals, helpers, firmware changes, or live experiments.
-# Step 41B next action
-
-Acquire the matching archived init service declaration/startup configuration for `/system/bin/jmcs` and determine whether the actual init implementation accepts a bounded `setenv LD_PRELOAD` service option. This is required to either prove a current seam or specify the exact reversible future change. Do not reactivate Step 40F as a prerequisite. Step 41 remains NOT READY; Type111 remains DISABLED.
+Obtain the matching Honda SELinux policy/file-context artifacts and verify the jmcs domain transition, `AT_SECURE`, and access to `/data/local/tmp`. Then prepare a separate reviewed bounded-persistence proposal for the one service-scoped `setenv LD_PRELOAD` option and boot-ramdisk rollback. Step 40F remains obsolete as a prerequisite; live deployment is not ready and Type111 remains disabled.
