@@ -1,3 +1,15 @@
+## Step 40E3 — SuperSU provenance and side-effect review (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Binary identity | `research/platform/honda-root-path.md`, `step-reports/40e3-supersu-provenance-static-review.md` | `/system/xbin/su` is a 75,348-byte Chainfire SuperSU-family `2.77:SUPERSU`; SHA-256 `d95fdbb551aca66d8a81471ea7683f58dba75a09d5cdc4712209b955574eab26` |
+| Acquisition provenance | September 18 backup `system-vendor.tar`; September 25 forensic `filesystems/system.tar`; `research/inventory/backup-checksums.json`; forensic `SHA256SUMS` | Three full-system copies agree on binary bytes and owner/mode `0:0 / 06777`; these are captures of the modified unit, not a factory-ROM baseline |
+| Mode attribution | `research/platform/honda-root-path.md` | Mode is uniquely permissive compared with other special-bit binaries; no inspected HondaHack code sets `su` to `06777`; exact actor/date UNKNOWN |
+| HondaHack privilege path | Local ignored `research/hondahack/artifacts/hondahack-installed.apk`, statically inspected DEX/resources | APK 7.7.7 uses embedded libsuperuser with `su`, prepends SuperSU log deletion, and contains persistent root changes; APK binary not executed |
+| Root startup modification | APK resource `install_recovery2_mitsubishi.sh`; system archive `system/etc/install-recovery2.sh`; `root-startup.tar:init.rc` | Payload hashes match; init launches a USB-polled script that executes a supplied `recovery.sh` as root; hazardous unrelated path, excluded from collector |
+| Zero-write invocation | Binary imports/strings plus [official Chainfire How-To](https://su.chainfire.eu/) | Direct `su -c` side effects remain unknown; zero-write guarantee absent; Step 40F NOT READY |
+| Review | Step 40E3 report | ECC security-review workflow used; independent reviewer unavailable; no independent approval claimed |
+
 ## Step 40E2 — offline bundle exhaustion and privileged-read preparation (2026-09-29)
 
 | Area | Primary evidence | Finding |
