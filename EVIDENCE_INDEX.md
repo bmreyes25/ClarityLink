@@ -1,3 +1,15 @@
+## Step 42A — Type111 correlation and companion handoff audit (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| `/info` display shape | `step-reports/32-airplay-info-phone-path.md`; `research/carplay/honda-copy-displays-info.md` | Phone-facing `displays` CFArray is confirmed by static dataflow. The stock builder calls `ScreenCopyMain()` once and adds one descriptor. Field names are recovered; numeric `uuid` insertion is confirmed, but value semantics are unknown. |
+| Type 110 Setup | `research/carplay/honda-stream-entry-schema.md`, `honda-screen-crypto.md`, `honda-mixed-stream-setup.md` | Request `type=110` and nonzero uint64 `streamConnectionID` feed per-screen crypto; response is `{type:110,dataPort}` from ephemeral listener. No UUID/ID binding found. |
+| Type 111 stock behavior | `step-reports/38-type111-setup-security-contract.md`, `research/carplay/honda-mixed-stream-setup.md` | Unsupported type-111 entry is logged/skipped and adds no response; transaction can still succeed if common PlatformControl and supported entries succeed. Honda Type111 schema/security is absent. |
+| ExternalDisplay host/API | `research/resources/ExternalDisplayOutService/AndroidManifest.xml`, `research/decompiled/ExternalDisplayOutService/.../ExternalDisplayOutService.java`, `InterfaceWindow.java`, `research/decompiled/ExternalDisplayLib/.../IExternalDisplayApService.java` | ExternalDisplayOutService owns Android View roots but `onBind` returns null; static `addView` is in-process. AP Binder controls LVDS/meter state and exposes no arbitrary frames/Surface/H.264 method. |
+| CarPlay AP Binder | `research/resources/CarPlayService/AndroidManifest.xml`, `research/decompiled/CarPlayApServiceApiLib/.../ICarPlayApService.java`, `CarPlayService/.../DispControl.java` | Exported control API exists; `setVideoPath` toggles AV path 11, not a frame sink. No Type111 session/Surface/frame handoff found. |
+| HondaHack output | `research/hondahack/hondahack-display-path.md`, `CLARITYLINK_OUTPUT_INTERFACE.md` | View insertion into ExternalDisplayOutService is demonstrated through Xposed; this is not a supported external service contract. |
+| Model/readiness | `research/carplay/type111-display-stream-correlation.md`, `research/carplay/type111-security-fields.md`, `research/display/companion-rendering-path.md` | Existing response profile remains MHI2-derived and synthetic. No source-backed Honda model change; supported non-jmcs Type111/render handoff not found; live gates remain NOT READY. |
+
 ## Step 41G runtime probe and offline Type111 model validation (2026-09-30)
 
 | Area | Evidence | Finding |
