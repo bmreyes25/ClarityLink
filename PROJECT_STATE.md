@@ -1,6 +1,8 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 40B
+## Current milestone — Step 40C
+
+Step 40C establishes API-era Bionic interfaces for `mmap2`, `mprotect`, `munmap`, `futex`, and ARM `cacheflush`, while leaving Honda's exact kernel behavior unresolved. The pinned ARM32 `jmcs` ELF has RX and RW PT_LOAD segments with `0x1000` alignment; that is not runtime page-size evidence. Pure host models now calculate ARM32 page ranges and Thumb BL reach and reject W+X in the modeled protection state. The common theoretical veneer range is `0..0x128a15a`; no real allocation was attempted. Setup's callsite `0x28af72` straddles a 4-byte boundary. Uncoordinated patching is unsafe, and no thread rendezvous/saved-PC strategy is validated.
 
 Step 40 reconfirmed the exact local Honda target: ELF32 little-endian ARM ET_DYN, file size 13,406,720, whole ELF SHA-256 cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232, and .text SHA-256 ca4abfd2f2c1f5f7fe88b4b0bde9e920d22b454f2a699b7de1f4984c901278eb. It has Android API 17 identification and no GNU build-id. Exact instruction fingerprints are verified offline.
 
@@ -10,7 +12,7 @@ Step 40B independently re-disassembled both call sites: `0x28a158` (`f8 f7 bc fd
 
 The original Honda functions remain untouched by the modeled call-site strategy; a traditional stolen-prologue trampoline is not required. NOOP/OBSERVE semantics now cover both INFO and Setup at host level. The **offline synthetic harness is READY**: the emulator consumes a transaction-patched Thumb call and the test restores/verifies its original bytes. **Not proven/implemented:** a compiled production shim that calls Honda functions, target executable veneer allocation, page-protection transitions, cache synchronization, thread coordination, and process-level rollback. The installable hook harness is **NOT READY**, Step 41 is **NO**, and Type111 remains disabled.
 
-Verification: Step 40B Honda suite passes with Unicorn (40 tests, including synthetic ARM execution); separately run maintained suites total 123 passed and 31 subtests. Combined test collection has a pre-existing duplicate `test_model.py` import conflict; see `step-reports/40b-thumb2-reversible-hook.md`. Offline only; no vehicle, ADB, ptrace, live process write, listener, or Type111 request. See the Step 40B report and four `research/carplay/honda-*hook*.md` / executable-memory notes.
+Verification: Step 40B suites and synthetic Unicorn run are recorded in its report. Step 40C Honda suite passes (55 passed, 1 skipped). No API-17 ARM emulator/QEMU was available and no host executable mapping experiment was made because it would not prove target behavior. Combined suite collection's pre-existing duplicate test module issue remains documented in Step 40B. Offline only. See [Step 40C report](step-reports/40c-runtime-patch-lifecycle.md), [cache](research/carplay/honda-icache.md), [rendezvous](research/carplay/honda-thread-rendezvous.md), and [veneer](research/carplay/honda-veneer-allocation.md).
 
 ## Step 30 — close AltScreen negotiation loop (2026-09-29)
 

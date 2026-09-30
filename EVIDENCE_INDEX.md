@@ -188,3 +188,12 @@ Raw evidence, APKs, firmware, forensic images, and sensitive device identifiers 
 ## Step 32 — `/info` server-info path recovered
 
 Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestProcessInfo` (`0x28a018`, edge at `0x28b68e`). That handler calls `AirPlayCopyServerInfo` (`0x282cd4`, `0x28a156`) and passes its exact returned dictionary to `_requestSendPlistResponse` (`0x289f60`, `0x28a19c`). It releases the object at `0x28a1da` after synchronous serialization. `/info` response then goes through `_connectionHandleMessage` → `HTTPConnectionSendResponse` (`0x29dbe4`, `0x28b790`) → `_HTTPConnectionRunStateMachine` → `SocketWriteData` → `writev`. The serializer uses binary plist format `0xc8`. Thus `displays[]` is statically phone-facing and mutable before serialization. No Honda `FeatureKey`/`altScreen`/`viewAreas`/`enabledFeatures` literal or construction was found; modern prior art is not Honda proof. `streamConnectionID` binding and Type-111 ABI remain open. See Step 32 report.
+## Step 40C — runtime patch lifecycle (2026-09-29)
+
+- [Step report](step-reports/40c-runtime-patch-lifecycle.md): API-17 source interfaces confirmed; exact Honda kernel behavior and executable runtime unavailable; Step 41 stays NO.
+- [Executable memory](research/carplay/honda-executable-memory.md): exact local ELF PT_LOAD data, source/runtime evidence levels, and unresolved W^X lifecycle.
+- [I-cache](research/carplay/honda-icache.md): ARM Bionic `cacheflush` interface and upstream half-open range semantics; Honda target effects unknown.
+- [Thread rendezvous](research/carplay/honda-thread-rendezvous.md): explains why uncoordinated four-byte patching is unsafe and why no current stop-world mechanism qualifies.
+- [Veneer allocation](research/carplay/honda-veneer-allocation.md): exact checked Thumb BL ranges and why arithmetic does not prove an allocatable gap.
+- [Runtime lifecycle](research/carplay/honda-runtime-patch-lifecycle.md): API table, evidence classification, failure-order requirements, and implementation boundary.
+- Host-only models: `src/claritylink-honda/page_model.py`, `veneer_ranges.py`, `veneer_allocator_model.py`, `rendezvous_model.py`; tests in `tests/honda/test_runtime_safety_models.py`.
