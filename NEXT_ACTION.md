@@ -1,3 +1,6 @@
 # Next action
 
 Step 40E4 found no statically justifiable zero-write privileged path. Do not invoke `su`, `bugreport`/`dumpstate`, HondaHack, ADB root, or any diagnostic service; the Step 40F privileged collector stays mechanically disabled. Step 40E already completed the useful ordinary-shell 40F-Lite profile, and repeating it will not obtain current `jmcs` maps/smaps/fd. Next decide whether Step 41 can be redesigned without those current mappings, or seek independent static review of the archived `dumpstate -s` path without executing it. Step 40F and Step 41 remain NOT READY; Type111 stays disabled. No vehicle/ADB access, process signals, helpers, firmware changes, or live experiments.
+# Step 41A next action
+
+Pin and inspect AOSP `android-4.2_r1` ARM `libdl` exports and compare them with archived Honda `libdl.so`/linker symbols; then continue offline search for a stock jmcs code-loading seam. Do not reactivate Step 40F as a prerequisite. Step 41 remains NOT READY; Type111 remains DISABLED.

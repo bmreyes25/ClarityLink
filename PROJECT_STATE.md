@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-29
 
+## Step 41A — self-location redesign (offline)
+
+Step 41A separates runtime location from deployment. External privileged `/proc/<jmcs>/maps` is no longer an architectural prerequisite if ClarityLink is already in jmcs; `/proc/self/maps` and dynamic-linker pointer introspection are candidate in-process methods. Exact `android-4.2_r1` ARM `dladdr`/`dl_iterate_phdr` exports were NOT independently verified in this pass, and no Honda load seam was proven. Therefore in-process self-location is CONDITIONAL, load seam UNKNOWN, no live hook/negotiation readiness, and Type111 remains disabled. Added bounded synthetic parser/target validator only; it performs no real procfs or process-memory access and no patching. See [Step 41A report](step-reports/41A-self-locating-altscreen-interposer.md).
+
 ## Current milestone — Step 40E4 offline privilege-path audit complete; privileged capture blocked
 
 The corrected fixed-operation collector completed baseline, stock CarPlay connected (with the user-confirmed Apple Maps snapshot), and post-disconnect phases. Host ADB `shell` works on this API-17 target; the earlier `exec-out`/`uname` failure was a collector compatibility error, not an ADB transport blocker. The target fingerprint matched `/proc/version` and exact Android release/SDK/device/board/hardware properties. Manual preflight facts are separately documented and are not part of the immutable bundle.

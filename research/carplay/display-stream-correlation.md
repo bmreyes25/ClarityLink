@@ -42,3 +42,7 @@ Prior-art repositories describe Type-111 streams and control/UI state, but their
 The display UUID is best classified as **PRESENTATION/CAPABILITY IDENTITY** in current evidence, with a possible additional role in input/display association not explored here. It is not demonstrated as a transport binding or a cryptographic input. A dedicated data listener and its assigned port provide a natural media-transport association for the accepted socket, while the display descriptor tells the phone about a display/presentation target. The wire protocol may correlate those independently; Honda's phone-side relation is not recovered.
 
 `LISTENER_IS_STREAM_BINDING=YES` at the network endpoint level (a TCP peer connecting to listener B is connected to listener B's socket generation). Persistent linkage from Honda's Setup object fields to `_ScreenThread` ownership remains partial. The listener association answers how the socket can be assigned to a transport without UUID; it does not answer how the phone chose that Type-111 stream.
+
+## Step 41A addendum
+
+MHI2/xcertplay/carlink_linux are separate receiver implementations and can guide search terms and candidate fields only. **Honda correlation remains UNKNOWN.** Do not assume display UUID equals stream ID or connection ID. Resolve using Honda request/response parser, descriptor cloning behavior, and static dataflow; keep prior-art inference separately labeled.

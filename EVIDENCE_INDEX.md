@@ -252,3 +252,12 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 - [Veneer allocation](research/carplay/honda-veneer-allocation.md): exact checked Thumb BL ranges and why arithmetic does not prove an allocatable gap.
 - [Runtime lifecycle](research/carplay/honda-runtime-patch-lifecycle.md): API table, evidence classification, failure-order requirements, and implementation boundary.
 - Host-only models: `src/claritylink-honda/page_model.py`, `veneer_ranges.py`, `veneer_allocator_model.py`, `rendezvous_model.py`; tests in `tests/honda/test_runtime_safety_models.py`.
+# Step 41A evidence
+
+| Question | Evidence | Current conclusion |
+|---|---|---|
+| Is external privileged maps access required? | `research/runtime/step41-dependency-reassessment.md`; `research/runtime/honda-in-process-location.md` | No as architectural prerequisite once loaded in-process; own-map/API exact target capability remains conditional. |
+| What is the Honda executable? | `research/runtime/honda-jmcs-elf-model.md`; prior Step 40 identity report | ARM32 ET_DYN, exact SHA-256 recorded; load-bias formula statically modelable. |
+| Is there a Honda load seam? | `research/runtime/honda-native-load-seams.md` | None proven. |
+| Does Honda support modern capability tokens / Type111? | `research/carplay/carplay-negotiation-generations.md`; `honda-info-capabilities.md`; `honda-type111-minimum.md` | Legacy `/info` confirmed; R15/token/Type111 response support unknown or partial. |
+| Offline validator | `src/claritylink-hook/self_locator.py`; `tests/hook/test_self_locator.py` | Synthetic-only, fail-closed; no runtime or patch capability. |
