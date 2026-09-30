@@ -50,6 +50,20 @@ class HondaHookSemanticHarness:
                 return stock_result
         return stock_result
 
+    def info(self,request:Any,stock:Callable[[Any],Any]):
+        """NOOP/OBSERVE server-info delegation; returned object identity is preserved."""
+        try:
+            result=stock(request)
+        except Exception as exc:
+            if self.mode in (HookMode.NOOP,HookMode.OBSERVE):
+                self.diagnostics.record(HookEvent("info_noop" if self.mode is HookMode.NOOP else "info_observe",False,error_class=type(exc).__name__))
+            raise
+        if self.mode is HookMode.NOOP:
+            self.diagnostics.record(HookEvent("info_noop",result is not None))
+        elif self.mode is HookMode.OBSERVE:
+            self.diagnostics.record(_observe_info(result))
+        return result
+
 def _observe(request:Any,success:bool,result:Any)->HookEvent:
     if result is None:return HookEvent("setup_observe",False,error_class="null_stock_result")
     if isinstance(result,tuple) and len(result)>1 and result[0]==0 and not isinstance(result[1],dict):
@@ -63,3 +77,11 @@ def _observe(request:Any,success:bool,result:Any)->HookEvent:
             t=entry.get("type")
             if isinstance(t,int) and not isinstance(t,bool):values.append(t)
     return HookEvent("setup_observe",success,tuple(values),len(streams))
+
+def _observe_info(result:Any)->HookEvent:
+    if result is None:return HookEvent("info_observe",False,error_class="null_stock_result")
+    if not isinstance(result,dict):return HookEvent("info_observe",True,error_class="unexpected_container_type")
+    displays=result.get("displays")
+    if not isinstance(displays,(list,tuple)):return HookEvent("info_observe",True,error_class="unexpected_display_container")
+    # Count only, capped to keep observations bounded; never retain UUIDs or values.
+    return HookEvent("info_observe",True,stream_count=min(len(displays),32))

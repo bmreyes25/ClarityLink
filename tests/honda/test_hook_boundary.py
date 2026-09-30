@@ -6,7 +6,8 @@ from addressing import (AddressResolutionError, ProcMap, LoadSegment,
                         parse_maps, resolve_runtime_address)
 from targets import HookFingerprint
 from mock_hooks import (HookPatch, HookInstallError, InstallState,
-                        MockAddressSpace, ReversibleHookTransaction)
+                        MockAddressSpace, ReversibleHookTransaction,
+                        CriticalRestoreError, ProcessEpoch)
 from modes import BoundedDiagnostics, HookMode, HondaHookSemanticHarness
 
 def identity(**changes):
@@ -134,6 +135,97 @@ def test_augment_failure_returns_original_result_and_augment_requires_all_prereq
 def test_off_mode_delegates_without_diagnostics():
     d=BoundedDiagnostics();h=HondaHookSemanticHarness(HookMode.OFF,d);result=object()
     assert h.setup({},lambda _:result) is result and not d.snapshot()
+
+def test_info_noop_and_observe_preserve_stock_object_and_bound_diagnostics():
+    result={"displays":[{"uuid":"private"} for _ in range(50)],"secret":"hidden"}
+    for mode,category in ((HookMode.NOOP,"info_noop"),(HookMode.OBSERVE,"info_observe")):
+        diag=BoundedDiagnostics(1);h=HondaHookSemanticHarness(mode,diag);calls=[]
+        assert h.info({},lambda request:(calls.append(request),result)[1]) is result
+        assert calls==[{}]
+        event=diag.snapshot()[0]
+        assert event.category==category and event.stream_count==(0 if mode is HookMode.NOOP else 32)
+        assert "private" not in repr(event) and "hidden" not in repr(event)
+
+def test_restore_write_and_verification_failures_enter_loud_critical_state():
+    for failure in ("write","verify"):
+        space=MockAddressSpace(0x1000,b"ABCD")
+        tx=ReversibleHookTransaction(space,(HookPatch("a",0x1000,b"AB",b"xy"),))
+        tx.prepare();tx.activate()
+        if failure=="write":space.fail_write_at=space.write_count+1
+        else:space.corrupt_after_write_at=space.write_count+1
+        with pytest.raises(CriticalRestoreError) as err:tx.rollback()
+        assert err.value.category=="CRITICAL_EXECUTABLE_RESTORE_FAILURE"
+        assert tx.state is InstallState.CRITICAL_RESTORE_FAILURE
+        if failure=="write":
+            # An explicit retry can finish after a transient write error.
+            tx.rollback()
+            assert tx.state is InstallState.ROLLED_BACK and space.read(0x1000,4)==b"ABCD"
+        else:
+            # Corruption leaves unknown bytes: keep the critical state and refuse guessing.
+            with pytest.raises(CriticalRestoreError):tx.rollback()
+            assert tx.state is InstallState.CRITICAL_RESTORE_FAILURE
+
+def test_partial_install_rolls_back_and_failed_rollback_is_critical():
+    space=MockAddressSpace(0x1000,b"ABCDEFGH")
+    tx=ReversibleHookTransaction(space,(HookPatch("a",0x1000,b"AB",b"xy"),HookPatch("b",0x1004,b"EF",b"zz")))
+    tx.prepare();space.fail_write_at=2
+    with pytest.raises(HookInstallError):tx.activate()
+    assert tx.state is InstallState.ROLLED_BACK and space.read(0x1000,8)==b"ABCDEFGH"
+
+    broken=MockAddressSpace(0x1000,b"ABCDEFGH")
+    failed=ReversibleHookTransaction(broken,(HookPatch("a",0x1000,b"AB",b"xy"),HookPatch("b",0x1004,b"EF",b"zz")))
+    failed.prepare();broken.fail_write_at=2
+    # Simulate a second failure at rollback by rejecting both the second activation write and first restore.
+    original_write=broken.write
+    def fail_restore(address,value):
+        if value==b"AB":raise HookInstallError("injected restore failure")
+        return original_write(address,value)
+    broken.write=fail_restore
+    with pytest.raises(CriticalRestoreError):failed.activate()
+    assert failed.state is InstallState.CRITICAL_RESTORE_FAILURE
+
+    partial=MockAddressSpace(0x1000,b"ABCDEFGH")
+    partial_tx=ReversibleHookTransaction(partial,(HookPatch("a",0x1000,b"ABCD",b"wxyz"),))
+    partial_tx.prepare();partial.partial_write_at=1
+    with pytest.raises(HookInstallError,match="partial"):
+        partial_tx.activate()
+    assert partial_tx.state is InstallState.ROLLED_BACK
+    assert partial.read(0x1000,8)==b"ABCDEFGH"
+
+def test_process_restart_or_load_bias_change_invalidates_prepared_patch_addresses():
+    a=ProcessEpoch(123,"start-a","a"*64,0x10000000)
+    replacements=(
+        ProcessEpoch(123,"start-b","a"*64,0x10000000),
+        ProcessEpoch(123,"start-a","a"*64,0x20000000),
+        ProcessEpoch(123,"start-a","b"*64,0x10000000),
+        ProcessEpoch(124,"start-a","a"*64,0x10000000),
+    )
+    for replacement in replacements:
+        space=MockAddressSpace(0x1000,b"ABCD",epoch=a)
+        tx=ReversibleHookTransaction(space,(HookPatch("a",0x1000,b"AB",b"xy"),))
+        tx.prepare();space.epoch=replacement
+        with pytest.raises(HookInstallError,match="stale runtime patch"):
+            tx.activate()
+        assert space.read(0x1000,4)==b"ABCD"
+
+def test_process_epoch_rejects_malformed_identity_and_load_bias():
+    for args in ((0,"start","a"*64,0),(1,"","a"*64,0),(1,"start","A"*64,0),(1,"start","a"*64,-1),(1,"start","a"*64,0x1_0000_0000)):
+        with pytest.raises((TypeError,ValueError)):
+            ProcessEpoch(*args)
+
+def test_preflight_read_failure_changes_no_bytes_and_restore_read_failure_is_critical():
+    preflight=MockAddressSpace(0x1000,b"ABCD");preflight.fail_read_at=1
+    tx=ReversibleHookTransaction(preflight,(HookPatch("a",0x1000,b"AB",b"xy"),))
+    with pytest.raises(HookInstallError):tx.prepare()
+    assert preflight.write_count==0 and preflight.read(0x1000,4)==b"ABCD"
+
+    space=MockAddressSpace(0x1000,b"ABCD")
+    tx=ReversibleHookTransaction(space,(HookPatch("a",0x1000,b"AB",b"xy"),))
+    tx.prepare();tx.activate();space.fail_read_at=space.read_count+1
+    with pytest.raises(CriticalRestoreError):tx.rollback()
+    assert tx.state is InstallState.CRITICAL_RESTORE_FAILURE
+    tx.rollback()
+    assert tx.state is InstallState.ROLLED_BACK and space.read(0x1000,4)==b"ABCD"
 
 
 def test_exact_hook_group_prepare_requires_build_fp_and_all_sites_before_writes():

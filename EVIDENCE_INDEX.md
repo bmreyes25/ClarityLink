@@ -1,3 +1,15 @@
+## Step 40B — reversible Thumb-2 call-site model (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Exact call sites | `research/carplay/honda-thumb-hook.md`, exact local `jmcs` ELF and objdump | `0x28a158` bytes `f8 f7 bc fd` → `0x282cd4`; `0x28af72` bytes `fa f7 b5 fa` → `0x2854e0`; both direct 32-bit Thumb `BL` |
+| Encoding / veneer | `src/claritylink-honda/thumb_call.py`, `tests/honda/test_thumb_call.py` | Host-confirmed BL decoder/encoder, branch-range boundaries, explicit Thumb-pointer bit; 12-byte literal veneer uses r12, preserves args/LR/SP |
+| Synthetic execution | `tests/honda/test_thumb_call.py`, Unicorn 2.1.4 isolated under `/tmp` | Transaction-patched callsite executes caller → veneer → representative shim → stand-in callee → caller continuation; verifies registers/SP, restores exact original call bytes. This is not Honda runtime evidence |
+| Patch / restoration | `src/claritylink-honda/mock_hooks.py`, `research/carplay/honda-hook-restoration.md` | Host bytearray transaction preflights group, verifies exact restore, fails closed on unknown bytes and stale process epoch; no process writer |
+| Semantics | `src/claritylink-honda/modes.py`, Honda hook tests | NOOP/OBSERVE INFO and Setup preserve exact stock result; observations are count/class only and bounded |
+| Executable memory gate | `research/carplay/honda-executable-memory.md`, `honda-hook-safety.md` | Offline synthetic harness READY; target veneer allocation, W^X/page permissions, cache sync, thread coordination, and runtime restore remain UNKNOWN/NOT READY; Step 41 and Type111 live test stay disabled |
+| Review / verification | `step-reports/40b-thumb2-reversible-hook.md` | ECC skills/checklist applied with diff review; no dedicated ECC reviewer endpoint in this environment; focused and affected-suite results recorded in report |
+
 ## Step 40 — Honda hook boundary (2026-09-29)
 
 | Area | Primary evidence | Finding |

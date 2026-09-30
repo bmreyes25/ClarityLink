@@ -1,14 +1,16 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 40
+## Current milestone — Step 40B
 
 Step 40 reconfirmed the exact local Honda target: ELF32 little-endian ARM ET_DYN, file size 13,406,720, whole ELF SHA-256 cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232, and .text SHA-256 ca4abfd2f2c1f5f7fe88b4b0bde9e920d22b454f2a699b7de1f4984c901278eb. It has Android API 17 identification and no GNU build-id. Exact instruction fingerprints are verified offline.
 
 The preferred future control-plane call sites are AirPlayCopyServerInfo in _requestProcessInfo at 0x28a158 and stock AirPlayReceiverSessionSetup in _connectionHandleMessage at 0x28af72. The Setup ABI is recovered from DWARF and its caller: r0 session, r1 request dictionary, r2 responseOut pointer (caller stack slot sp+0x54), r0 OSStatus return; no stack arguments. Future persistent state additionally needs session-start and teardown coordination. Media-data hooks are not required.
 
-Added host-only ELF identity inspection, exact build/text/fingerprint gate, synthetic PT_LOAD and maps address resolution, transactionally reversible mock patch model, and OFF/NOOP/OBSERVE/AUGMENT stock-delegation semantics. The mock does not write any process memory. Selected call-site branches have no validated Thumb shim/veneer; function-entry candidates contain PC-relative literal/ADR instructions, and there is no ARM/Thumb relocator or executable patch/restore/cache/concurrency implementation. Therefore the Honda hook harness is **NOT READY** and the parked no-op test is **NO**. Type111 interop remains unproven.
+Step 40B independently re-disassembled both call sites: `0x28a158` (`f8 f7 bc fd`) is a 32-bit Thumb `BL` to `0x282cd4`; `0x28af72` (`fa f7 b5 fa`) is a 32-bit Thumb `BL` to `0x2854e0`. A pure encoder/decoder reproduces both targets, models the signed branch range, and builds a 12-byte full-address literal veneer. A Unicorn synthetic program executed caller → veneer → representative shim → stand-in original → caller continuation, preserving r1-r3 and r4-r11, returning r0, and restoring SP. A host-only patch transaction verifies exact mock-byte restoration and stale-process rejection; no process memory is read or written.
 
-Verification: 104 tests pass across tests/ and renderer tests (31 subtests), including Step 40 exact-ELF/fingerprint and mock-transaction tests; git diff --check passes. Repository-root pytest sweep still cannot collect unrelated research script tests because of pre-existing import-path and duplicate-module issues. Offline only; no vehicle, ADB, ptrace, live process write, listener, or Type111 request. See step-reports/40-honda-hook-harness.md.
+The original Honda functions remain untouched by the modeled call-site strategy; a traditional stolen-prologue trampoline is not required. NOOP/OBSERVE semantics now cover both INFO and Setup at host level. The **offline synthetic harness is READY**: the emulator consumes a transaction-patched Thumb call and the test restores/verifies its original bytes. **Not proven/implemented:** a compiled production shim that calls Honda functions, target executable veneer allocation, page-protection transitions, cache synchronization, thread coordination, and process-level rollback. The installable hook harness is **NOT READY**, Step 41 is **NO**, and Type111 remains disabled.
+
+Verification: Step 40B Honda suite passes with Unicorn (40 tests, including synthetic ARM execution); separately run maintained suites total 123 passed and 31 subtests. Combined test collection has a pre-existing duplicate `test_model.py` import conflict; see `step-reports/40b-thumb2-reversible-hook.md`. Offline only; no vehicle, ADB, ptrace, live process write, listener, or Type111 request. See the Step 40B report and four `research/carplay/honda-*hook*.md` / executable-memory notes.
 
 ## Step 30 — close AltScreen negotiation loop (2026-09-29)
 
