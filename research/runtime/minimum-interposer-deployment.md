@@ -1,0 +1,7 @@
+# Minimum future interposer deployment (not performed)
+
+No existing zero-change load seam is proven. Because the archived jmcs init service file is missing, the exact smallest persistent edit cannot yet be stated as a file and line.
+
+Conditional preferred candidate: Android 4.2.2 init grammar documents service option `setenv`, so add one `setenv LD_PRELOAD /absolute/path/libclaritylink.so` option to the actual jmcs init service if that archived service uses compatible init and startup is non-secure. Stage an immutable audited library outside `/system` only if init/startup path permissions allow; exact path control has not been verified. Required future controls: save/hash original service file and library, exact firmware and jmcs/proxy hashes, explicit enable marker, boot-safe fail-closed constructor, stock-first wrappers, independent short-timeout rollback/removal procedure, and center CarPlay recovery. Root and reboot are likely for a system init service edit, but exact Honda account/recovery facts remain UNKNOWN. This is a separate bounded persistent-write approval milestone; never hide it inside Step 40F.
+
+Alternative: replace the `libcarplay_proxy.so` dependency would modify a stock library and expand failure scope; unsupported and not preferred. Editing jmcs DT_NEEDED or adding a wrapper is broader than an init environment option. Do not deploy any candidate until the service declaration and init semantics are acquired and audited.

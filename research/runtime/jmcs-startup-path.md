@@ -1,0 +1,9 @@
+# jmcs startup path — archived evidence limits
+
+**HONDA CONFIRMED:** exact archived `jmcs` at `extracted/system-vendor/system/bin/jmcs` is ET_DYN ARM32 and declares `/system/bin/linker` as interpreter. Its command-line/service invocation, UID/GID, supplementary groups, rlimits, environment assignments, property triggers, and service options cannot be recovered from the currently preserved extracted filesystem: the tree contains no `init.rc` or `init.*.rc` service declaration. No wrapper/service start source was located in the relevant archived tree.
+
+Static receiver sequence from existing analysis is `jmcs` entry/startup -> MediaCore/CarPlay initialization (`mc_carplay_app_init`) -> `AirPlayReceiverSessionSetup` reachable in normal AirPlay connection handling. The exact init parent -> arguments/environment chain is UNKNOWN. Do not invent one from another Honda model or AOSP generic init configuration.
+
+**LD_PRELOAD:** AOSP 4.2 linker source parses `LD_PRELOAD` and loads entries for non-secure executable startup. The Android 4.2.2 init service grammar also supports a per-service `setenv <name> <value>` option. [AOSP 4.2.2 init grammar](https://android.googlesource.com/platform/system/core/+/android-4.2.2_r1.2/init/readme.txt) Honda linker strings include `LD_PRELOAD` and `LD_LIBRARY_PATH`, strongly confirming technical support; actual jmcs environment/secure mode and init service stanza are unknown. Existing Honda config seam: UNKNOWN, no service record found.
+
+Future bounded-modification concept only: add one `setenv LD_PRELOAD <absolute, hash-pinned library path>` option to the actual jmcs init service if its complete source is obtained and init supports the option in that target build. That is **not** an exact deployment instruction because the service file/path and whether jmcs is launched directly are absent. No file modification is authorized or performed here.

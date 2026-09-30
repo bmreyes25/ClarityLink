@@ -254,6 +254,17 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 - Host-only models: `src/claritylink-honda/page_model.py`, `veneer_ranges.py`, `veneer_allocator_model.py`, `rendezvous_model.py`; tests in `tests/honda/test_runtime_safety_models.py`.
 # Step 41A evidence
 
+## Step 41B evidence
+
+| Question | Evidence | Conclusion |
+|---|---|---|
+| Android 4.2 ARM linker API | `research/runtime/android42-arm-dynamic-linker.md`; tagged `linker/dlfcn.c` | `dladdr` YES; `dl_iterate_phdr` NO on ARM. |
+| Honda linker/Bionic | `research/runtime/honda-bionic-dladdr.md` | `libdl.so` export table matches the six tagged ARM names; exact `dladdr` semantics high-confidence, not direct disassembly proof. |
+| jmcs startup and dependencies | `research/runtime/jmcs-startup-path.md`; `jmcs-dependency-graph.md` | `/system/bin/linker` runs ET_DYN jmcs; direct dependency list recovered; init service absent from extracted archive. |
+| Native loader candidates | `research/runtime/jmcs-dlopen-sites.md`; `jmcs-load-seam-audit.md`; `libcarplay-proxy-load-path.md` | No legitimate existing plugin seam proven; proxy is direct DT_NEEDED but not a loader. |
+| Future bounded load change | `research/runtime/minimum-interposer-deployment.md` | Conditional one-line init service preload candidate; exact service file is unknown. |
+| Host locator model | `src/claritylink-hook/self_locator.py`, `target_descriptors.py`; `tests/hook/smoke_self_locator.py` | Bounded maps and dladdr-result models; exact hashes/callsite fingerprints; no runtime reads or patches. |
+
 | Question | Evidence | Current conclusion |
 |---|---|---|
 | Is external privileged maps access required? | `research/runtime/step41-dependency-reassessment.md`; `research/runtime/honda-in-process-location.md` | No as architectural prerequisite once loaded in-process; own-map/API exact target capability remains conditional. |

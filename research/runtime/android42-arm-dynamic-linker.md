@@ -1,16 +1,16 @@
-# Android 4.2 ARM dynamic linker — evidence status
+# Android 4.2 ARM dynamic linker — Step 41B result
 
-Honda target is Android API 17 / ARM32. AOSP `android-4.2_r1` source was not successfully pinned and retrieved in this pass; current AOSP source must not be substituted for that release. Therefore API17 ARM claims below remain provisional until checked against the tag's `libdl` map/source and archived Honda `/system/lib/libdl.so` exports.
+Honda target is Android API 17 / ARM32. The exact tagged `android-4.2_r1` source `linker/dlfcn.c` was opened and checked. ARM `ANDROID_LIBDL_STRTAB` includes `dlopen`, `dlclose`, `dlsym`, `dlerror`, `dladdr`, and `dl_unwind_find_exidx`; only x86/MIPS branch includes `dl_iterate_phdr`. The same source's `dladdr` locates `soinfo` with `find_containing_library`, returns `si->name` and `si->base`, and conditionally finds a containing dynamic symbol. [AOSP tagged source](https://android.googlesource.com/platform/bionic/+/android-4.2_r1/linker/dlfcn.c)
 
 | Method | API17 ARM conclusion | Constraints |
 |---|---|---|
 | `dlsym(handle,name)` | likely available; Honda jmcs imports it | Needs exported/dynamic symbol and correct handle/scope. Internal jmcs `.symtab` names are not dlsym-visible. |
-| `dladdr(ptr,info)` | UNKNOWN for exact API17 Honda until archived `libdl.so` symbol table/tag is inspected | Requires a pointer into target module; useful to identify containing object and base if supported. |
+| `dladdr(ptr,info)` | AOSP YES; Honda YES export confirmed | Requires pointer into target module; Honda semantic equivalence high-confidence but stripped linker implementation not fully disassembled. |
 | `dlopen(NULL)` + `dlsym` | UNKNOWN / conditional | Main-program symbol visibility and local executable exports matter; cannot discover non-dynamic symbols. |
 | `/proc/self/maps` | Linux procfs design makes own maps a plausible read-only source; Honda policy/config not proven | Bounded parser; verify self access on exact target in a later authorized test. |
-| `dl_iterate_phdr` | UNKNOWN for android-4.2_r1 ARM in this audit | Do not build around it until exact tagged ARM map proves export. Search results for newer Bionic are not evidence for API17. |
+| `dl_iterate_phdr` | AOSP NO on ARM; Honda NO in archived `libdl.so` dynsym | Do not use it. |
 | `link_map` / `r_debug` | unsupported as a design dependency | No Honda/AOSP API17 availability established; private linker internals are version-sensitive. |
 
-Research results surfaced modern Bionic `libdl` maps containing both `dladdr` and `dl_iterate_phdr`; those are specifically not adequate to establish the API17 surface. Required next source check: fetch AOSP tag `android-4.2_r1` `libdl/libdl.arm.map`, `libdl.c`, and linker implementation; compare exports in Honda's archived `libdl.so` and linker without executing them.
+Honda archive SHA-256s and export table are in `honda-bionic-dladdr.md`; exact Honda linker semantics remain an implementation-level inference, not a claim based solely on AOSP.
 
-Interim: self-location architecture is CONDITIONAL, not ready to ship. `/proc/self/maps` plus static ELF segment matching is the fallback candidate; external `/proc/<jmcs>/maps` is no longer inherently required.
+Interim: external `/proc/<jmcs>/maps` is no longer required. The in-process methods have exact API/export coverage; target execution and an in-process entry seam remain separate gates.

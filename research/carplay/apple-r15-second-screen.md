@@ -5,3 +5,5 @@
 **APPLE DOCUMENTED:** WWDC23 describes view areas as UI boundaries and safe areas as the guaranteed visible/interactable rectangle, extending vehicle layout and display integration concepts. [Apple WWDC23](https://developer.apple.com/videos/wwdc2023/10150/)
 
 These documents establish Apple capability generations, not Honda's licensed plug-in revision or protocol fields. Honda's older receiver has a one-display `/info` builder and Type111 invalid dispatch; no evidence establishes R15 support. Modern `FeatureKey` tokens such as `altScreen` must not be assumed necessary for older `/info` negotiation.
+
+Honda fingerprint classification: **PARTIAL**. The receiver has independent stream setup infrastructure, `/info` display descriptors, per-stream connection IDs and separate ephemeral screen listeners; those are relevant generic multi-stream structures. Against this, car-specific initialization registers one main screen, the proxy callback table is singleton, Setup does not handle Type111, and no R15 ViewArea/SafeArea/secondary role markers were recovered. Structural presence does not prove R15-compatible multi-display negotiation.

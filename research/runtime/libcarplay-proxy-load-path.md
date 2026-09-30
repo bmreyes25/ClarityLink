@@ -1,0 +1,7 @@
+# libcarplay_proxy load path
+
+**HONDA CONFIRMED:** jmcs `DT_NEEDED` contains `libcarplay_proxy.so`; proxy SONAME is `libcarplay_proxy.so`. Therefore the dynamic linker loads it as part of jmcs dependency startup, before CarPlay session Setup. It is not shown as optional. Exact init-array/constructor presence was not conclusively parsed; prior symbol/string artifacts show debug init/uninit routines but not proof of ELF constructor registration.
+
+Proxy exports `mc_carplay_proxy_{audio,screen,auth}_{register,unregister}`. Its undefined imports are `__cxa_finalize`, `__cxa_atexit`, `printf`, `__aeabi_unwind_cpp_pr0`, `__aeabi_unwind_cpp_pr1`, and `memset`; its dynamic dependencies are expat, libc, libstdc++, libm. The inspected ELF section table has no `SHT_INIT_ARRAY`, so no ELF constructor array was found. Source-path strings identify MediaCore's iAP2 CarPlay proxy/callback glue. The singleton screen registration stores one 24-byte callback table and rejects subsequent registration. It does not export AirPlay Setup or provide evidence of generic stock forwarding or a plugin loader. Session state for AirPlay is primarily in jmcs; proxy owns registration/callback globals.
+
+**ROLE:** Honda screen/audio/auth callback boundary. **LOAD MECHANISM:** direct DT_NEEDED from jmcs, hard SONAME/path resolution. **NATURAL INTERPOSITION SEAM: PARTIAL**—relevant callback boundary but replacing/substituting it changes stock code and no replacement-forwarding implementation is proven. Do not treat it as safe to replace.

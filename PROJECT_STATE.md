@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-29
 
+## Step 41B — Honda linker and load-seam audit
+
+Tagged AOSP 4.2 ARM source confirms `dladdr` and `dl_unwind_find_exidx`, not `dl_iterate_phdr`. Honda archived `libdl.so` exports those same six ARM functions and excludes `dl_iterate_phdr`; exact Honda `dladdr` implementation semantics are high-confidence AOSP match, not fully disassembled proof. `jmcs` is ARM32 ET_DYN/PIE-style with executable PT_LOAD at VA/file offset zero. `libcarplay_proxy.so` is direct DT_NEEDED and can furnish a known in-module pointer, but is a singleton callback proxy rather than a loader. No init service files are present in the preserved extracted filesystem, and no legitimate Honda plugin/config/preload seam is proven. In-process self-location is READY as an offline design (self-maps for jmcs, exported proxy pointer + dladdr for proxy); runtime untested. A reversible init-service `LD_PRELOAD` setting is the smallest conditional future persistent change, but exact file/path remain unknown. See [Step 41B report](step-reports/41B-jmcs-load-seam-and-dladdr.md).
+
 ## Step 41A — self-location redesign (offline)
 
 Step 41A separates runtime location from deployment. External privileged `/proc/<jmcs>/maps` is no longer an architectural prerequisite if ClarityLink is already in jmcs; `/proc/self/maps` and dynamic-linker pointer introspection are candidate in-process methods. Exact `android-4.2_r1` ARM `dladdr`/`dl_iterate_phdr` exports were NOT independently verified in this pass, and no Honda load seam was proven. Therefore in-process self-location is CONDITIONAL, load seam UNKNOWN, no live hook/negotiation readiness, and Type111 remains disabled. Added bounded synthetic parser/target validator only; it performs no real procfs or process-memory access and no patching. See [Step 41A report](step-reports/41A-self-locating-altscreen-interposer.md).

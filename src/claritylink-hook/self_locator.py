@@ -48,6 +48,12 @@ class Validation:
     reason: str = ""
 
 
+@dataclass(frozen=True)
+class DladdrResult:
+    filename: str | None
+    base: int | None
+
+
 def parse_maps_bounded(raw: bytes, *, max_bytes: int = MAX_MAP_BYTES,
                        max_entries: int = MAX_MAP_ENTRIES) -> tuple[Mapping, ...]:
     if len(raw) > max_bytes:
@@ -110,3 +116,33 @@ def validate_target(*, actual_sha256: str, descriptor: TargetDescriptor,
     if not descriptor.expected_bytes or memory_window[:len(descriptor.expected_bytes)] != descriptor.expected_bytes:
         return Validation(Verdict.WRONG_PROLOGUE, reason="instruction fingerprint mismatch")
     return Validation(Verdict.VALID_TARGET, addr, "exact offline identity and bytes matched")
+
+
+def locate_via_dladdr(*, result: DladdrResult | None, expected_path: str,
+                      pointer: int, module_mappings: tuple[Mapping, ...]) -> int:
+    """Validate a dladdr-like result against exact mappings; performs no API call."""
+    if result is None or result.filename is None or result.base is None:
+        raise LocationError("dladdr returned no module")
+    if result.filename != expected_path:
+        raise LocationError("dladdr returned the wrong module")
+    if not 0 <= result.base < U32_LIMIT or not 0 <= pointer < U32_LIMIT:
+        raise LocationError("dladdr address overflow")
+    if not any(m.pathname == expected_path and m.start <= pointer < m.end for m in module_mappings):
+        raise LocationError("pointer is outside the expected module mapping")
+    if not any(m.pathname == expected_path and m.start <= result.base < m.end for m in module_mappings):
+        # Some loaders report an ELF base below the first file-backed mapping.
+        # Require exact file-offset-zero mapping in that case rather than guess.
+        if not any(m.pathname == expected_path and m.offset == 0 and m.start <= result.base <= m.end
+                   for m in module_mappings):
+            raise LocationError("base is inconsistent with module mappings")
+    return result.base
+
+
+def classify_load_seam(*, mechanism: str, proven_existing: bool,
+                       persistent_change_required: bool) -> str:
+    """Conservative seam model: unproven candidates never become load approval."""
+    if mechanism not in {"stock_plugin", "proxy", "dependency", "ld_preload", "wrapper", "jni"}:
+        return "UNSUPPORTED_CANDIDATE"
+    if not proven_existing:
+        return "FAIL_CLOSED_UNPROVEN"
+    return "EXISTING_SEAM" if not persistent_change_required else "PERSISTENT_CHANGE_REQUIRED"
