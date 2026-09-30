@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42E — synthetic Type111 end-to-end replay (offline)
+
+Added a canonical two-mode digital-twin replay. Strict Honda mode runs stock Setup and skips Type111; hypothetical mode gates on explicit synthetic prerequisites, preserves the stock Type110 response/request, appends an MHI2-hypothesis candidate, parses synthetic opcode 1 config and opcode 0 video through the existing Type110-informed transport model, extracts Annex-B, then submits a generated pattern frame to a Display 1 mock. There is no decoder, Type111 crypto, Honda wire claim, or live renderer. Type111-only teardown leaves Type110 and synthetic audio active; full-session teardown is modeled separately. The replay, evidence labels, and event timeline are tested. Synthetic demo and offline twin are READY; jmcs no-op, ExternalDisplay live render, and Type111 live remain NOT READY. See step-reports/42e-synthetic-type111-end-to-end-replay.md.
+
 ## Step 42D — failure-injected Type111 digital twin (offline)
 
 Added a synthetic-only Type111 lifecycle twin and failure-injection test. It models isolated Type110 response/crypto/audio state, candidate Type111 listener/config/frame/renderer state, and a semantic event timeline. Injected setup, listener, crypto, parser/config, H.264, renderer, duplicate-request, disconnect and teardown failures leave the stock Type110/audio snapshot unchanged, except explicit parent/full-session teardown rules. Honda Type111 wire/security/correlation remain unknown. Offline synthetic demo is ready; jmcs no-op, ExternalDisplay live render and Type111 live remain NOT READY. See step-reports/42d-failure-injected-type111-digital-twin.md.

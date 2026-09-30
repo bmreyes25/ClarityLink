@@ -13,3 +13,5 @@ Require bounded frame ownership, stale-generation rejection and clear/close on T
 - Unknowns: decoder/surface ownership, pixel transfer, geometry, host entry, lifecycle and authorization.
 
 The offline failure twin injects renderer unavailable, invalid dimensions, timeout, absent host, unknown crop/mask, and dropped-frame failures. It verifies the Type110/audio snapshot is unchanged and candidate renderer state is cleared. This is not an ExternalDisplay output test.
+
+In Step 42E, the transport parser first emits a synthetic Annex-B access unit. Since no H.264 decoder exists in the twin, that valid parser event gates a deterministic generated RGBA pattern frame; the pattern is not decoded from the access unit. A synthetic presentation timestamp and 800x480 dimensions are submitted to the Display 1 mock. Center Display 0 is represented as stock/unchanged, while safety-overlay composition and crop/mask remain explicitly unknown and are not drawn by the mock. This demonstrates an offline handoff boundary only.

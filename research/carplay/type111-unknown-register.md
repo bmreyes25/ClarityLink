@@ -21,3 +21,5 @@ All rows are unknown for Honda. Offline tests validate candidate handling but ca
 No real keys or captured proprietary payloads are used.
 
 Step 42D fixtures keep all fields that affect display correlation, response shape, stream crypto, and codec readiness explicitly candidate/synthetic. An injected missing-field case fails closed; no implicit Honda default is added.
+
+Step 42E's replay preserves these unknowns in both modes: strict mode skips the candidate; hypothetical mode marks its cloned response profile as MHI2-derived, values as synthetic, display-to-stream correlation as unknown, and key/IV behavior as unknown without running Type111 crypto. The synthetic second descriptor is not linked to the request's synthetic correlation value as a Honda rule. A deterministic pattern frame after successful synthetic parsing proves only model composition.

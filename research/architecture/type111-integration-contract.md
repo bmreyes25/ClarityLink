@@ -15,3 +15,5 @@
 Current candidate response fields are MHI2-derived and are not endorsed as Honda wire fields.
 
 Failures must be stock-first and fail-soft: no project resources on stock Setup failure; malformed candidate means stock-only response; project listener/KDF/serialization failure closes only project resources; Type111 disconnect clears only its own state; parent-session teardown closes the child.
+
+Step 42E adds a two-mode offline gate. `STRICT_HONDA` keeps the stock response and display information and emits a skip event. `HYPOTHETICAL_TYPE111` runs only when every synthetic prerequisite is present and unknown Honda requirements remain explicit. Its prior-art response profile is labeled MHI2-derived; concrete response values, port, IDs, stream bytes, and display UUID are generated synthetic values. This contract does not establish Honda support or a valid iPhone request sequence.

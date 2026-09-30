@@ -17,3 +17,5 @@ IDLE -> PREPARING -> LISTENING -> ADVERTISED -> CONNECTED -> STREAMING -> CLOSED
 Existing tests cover lifecycle generations, invalid IDs/ports/transitions, stock-first failure short-circuit, candidate rollback and ScreenStream parser bounds/reset. These test synthetic behavior only; no real Type111 socket exists.
 
 Step 42D failure-injection tests cover candidate descriptor/ID/response failures; allocation/bind/listen/accept; partial disconnect; derivation/IV/CTR failure; header/body/opcode/config/H.264 errors; renderer/host failures; duplicate requests; secondary-only disconnect; parent Type110 disconnect; and whole-session teardown/reconnect. Each secondary failure is checked against a snapshot of Type110 and synthetic audio state.
+
+Step 42E also runs a successful synthetic lifecycle through fake listener allocation/accept, opcode 1 config, opcode 0 frame, and candidate teardown. The listener is a host fake; packet bodies are generated and crypto is disabled. The successful replay checks that candidate cleanup leaves the Type110 parent active, then models full-session cleanup separately. No Honda Type111 listener or port behavior is claimed.

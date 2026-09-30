@@ -1,3 +1,12 @@
+# Step 42E — synthetic Type111 end-to-end replay (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Capability gate and modes | `src/claritylink-sim/capability_gating.py`; `research/simulator/capability-gating-model.md` | Strict Honda mode skips Type111; hypothetical mode requires all synthetic prerequisites and explicit unknowns |
+| Canonical replay | `src/claritylink-sim/synthetic_type111_replay.py`; `tests/integration/test_synthetic_type111_replay.py` | Stock delegate first; candidate setup, fake listener, config/frame parsing, Annex-B extraction, synthetic frame source, Display 1 mock and teardown are composed offline |
+| Evidence and output | `research/simulator/synthetic-type111-replay.md`; `research/simulator/event-timeline-model.md` | MHI2 response profile remains hypothesis; IDs/ports/bytes/frame are synthetic; display correlation, Type111 crypto, overlay/crop remain unknown |
+| Preservation/readiness | `research/architecture/type110-invariants.md`; `step-reports/42e-synthetic-type111-end-to-end-replay.md`; `NEXT_ACTION.md` | Type110 request/response and synthetic audio survive Type111 teardown; full teardown clears model state; no live gate advanced |
+
 ## Step 42D — failure-injected Type111 digital twin (2026-09-30)
 
 | Area | Primary evidence | Finding |
