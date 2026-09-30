@@ -7,6 +7,12 @@
 !/simulator/
 !/tests/
 !/src/
+!/tools/
+/tools/*
+!/tools/honda-readonly-preflight/
+!/tools/honda-readonly-preflight/**
+/tools/honda-readonly-preflight/__pycache__/
+/tools/honda-readonly-preflight/*.pyc
 /src/**/__pycache__/
 /src/**/*.pyc
 

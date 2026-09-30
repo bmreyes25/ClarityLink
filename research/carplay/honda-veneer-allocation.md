@@ -13,3 +13,7 @@ Intervals are clipped to valid ARM32 code addresses; the arithmetic lower endpoi
 The project implements a first-fit gap chooser over supplied synthetic intervals. It does not call `mmap`, reserve address space, or claim a real allocation strategy. A gap-snapshot allocator would race with concurrent mappings unless reservation is atomic and the actual returned address is checked. No `MAP_FIXED_NOREPLACE` support is assumed for this API/kernel generation.
 
 `NEAR VENEER ALLOCATION: MODEL ONLY; TARGET NOT READY`
+
+## Step 40E status
+
+No live maps were captured because the ADB host device list was empty. Therefore neither INFO nor Setup has a runtime reach interval yet, and no candidate free VA gap, page-aligned start, neighboring mapping, or cross-phase gap stability is known. The offline gap parser is synthetic-tested; it never calls `mmap` and will label all observed spaces as candidate gaps only. Do not treat any synthetic result as Honda address-space evidence.

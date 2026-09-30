@@ -1,10 +1,16 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 40D complete; Step 40E next
+## Current milestone — Step 40E blocked before target capture
+
+Step 40E's fixed-operation host collector, synthetic parsers, safety allowlist, and offline analyzer are prepared and tested. After the user reconfirmed the connected car, host ADB listed one authorized target. The first read-only `uname -a` request failed with `error: closed`; the collector stopped before target identity verification and phase capture. No runtime evidence was obtained. Do not reset transports, use `adb root`, or change settings.
+
+ECC evidence-first/security review guidance was used; no independent reviewer endpoint was available. Host checks: 19 focused preflight tests, Honda 74 passed/1 skipped, interposer 14, transport+negotiation 47 plus 31 subtests, renderer 8. Dry-run had no ADB query. No target shell command/write, custom code, or Type111 activity occurred. Step 40F is not ready without target facts; Step 41 remains NO. See [Step 40E report](step-reports/40e-readonly-runtime-preflight.md) and [runtime evidence status](research/platform/honda-live-runtime.md).
+
+## Step 40D baseline
 
 Step 40D obtained and safely inventoried the official Honda/Panasonic ADA01 source archive. It contains generic Tegra2/3 support but Linux 3.4.108 and no VCM30T30 board source; Honda's exact forensic image is `3.1.10+` for `vcm30t30a`. Classify ADA01 as RELATED PLATFORM SOURCE only. Exact Honda kernel config and VM page size remain unknown. The extracted target kernel copy hash is `1dd3e403311d5cd18f12284b2d9263a0999707f1f16d3d83df1d8c324428949a`.
 
-An official Google API-17 ARM image was checksum-verified, but the available macOS emulator rejects ARM guests in both engines and generic QEMU lacks Goldfish. No ARM guest or executable-memory test ran. Maintained host suites pass: Honda 55/1 skipped, interposer 14, transport+negotiation 47 plus 31 subtests, renderer 8. These are not ARM/Honda runtime evidence. Step 40E read-only target preflight is the next appropriate task; Step 41 and Type111 remain NO. See [Step 40D report](step-reports/40d-honda-kernel-and-api17-runtime.md).
+An official Google API-17 ARM image was checksum-verified, but the available macOS emulator rejects ARM guests in both engines and generic QEMU lacks Goldfish. No ARM guest or executable-memory test ran. See [Step 40D report](step-reports/40d-honda-kernel-and-api17-runtime.md).
 
 ## Step 40C baseline
 

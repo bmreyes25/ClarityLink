@@ -29,3 +29,7 @@ An eventual transaction would need this strict sequence: bind exact process/ELF 
 ## Step 40D update
 
 The official ADA01 source archive is **RELATED PLATFORM SOURCE** only (Linux 3.4.108, generic Tegra support, no VCM30T30 board source) versus the target's 3.1.10+ VCM30T30 kernel. Exact kernel config and target VM page size remain unrecovered. An official API-17 ARM image was obtained and checksum-verified, but both available Android emulator engines reject ARM guests on this Apple Silicon host, and generic QEMU lacks Goldfish. No executable-memory/runtime experiment ran. These results preserve the existing NO decision for Step 41; see the [Step 40D report](../../step-reports/40d-honda-kernel-and-api17-runtime.md).
+
+## Step 40E update
+
+The user confirmed the parked/disconnected preconditions, but host ADB listed one authorized device, but the fixed-operation collector's first read-only `uname -a` request failed with `error: closed`. No target state was returned and no capture phase ran. Read-only target mprotect/cache/rendezvous gates are still unknown/untested. Step 40F and Step 41 remain NO. See the [Step 40E report](../../step-reports/40e-readonly-runtime-preflight.md).

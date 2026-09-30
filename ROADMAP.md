@@ -26,14 +26,15 @@ flowchart LR
 | B | Honda CarPlay control/media protocol recovery | **SUBSTANTIALLY COMPLETE**; some runtime semantics remain unknown |
 | C | Host Display-B architecture, stock delegation, synthetic receive path | **COMPLETE** as a host model |
 | D | Exact Honda build identity, source provenance, executable-memory lab feasibility | **COMPLETE OFFLINE**; ADA01 is related source only, official API-17 image obtained but no ARM guest can boot on the available host |
-| E | Parked read-only target runtime preflight | **NEXT**; collect target facts without modifying `jmcs` or executing a helper |
-| F | Parked no-op stock-delegation validation | **NOT READY**; only after a reviewed real hook harness and runtime gates pass |
-| G | Observe-only secondary negotiation | Future; no live collection |
-| H | Controlled Display-B / Type111 advertisement | Future; response acceptance unknown |
-| I | Type111 listener/security/secondary TCP | Future; Type111 KDF and phone acceptance unknown |
-| J | Real secondary H.264 receive/decode | Future; no real Type111 stream |
-| K | ExternalDisplay / instrument-cluster rendering | Future; no real CarPlay output |
-| L | Apple Maps/Waze validation and production hardening | Future |
+| E | Parked read-only target runtime preflight | **INCOMPLETE / BLOCKED**; host ADB saw one target, but its first read-only identity command failed `error: closed` |
+| F | Parked standalone self-only runtime probe | **NOT READY**; requires completed Step 40E facts and separate reviewed helper design; must never touch `jmcs` |
+| G | Parked no-op stock-delegation validation | **NOT READY**; only after Step 40F and a reviewed process-level hook lifecycle |
+| H | Observe-only secondary negotiation | Future; no live collection |
+| I | Controlled Display-B / Type111 advertisement | Future; response acceptance unknown |
+| J | Type111 listener/security/secondary TCP | Future; Type111 KDF and phone acceptance unknown |
+| K | Real secondary H.264 receive/decode | Future; no real Type111 stream |
+| L | ExternalDisplay / instrument-cluster rendering | Future; no real CarPlay output |
+| M | Apple Maps/Waze validation and production hardening | Future |
 
 ## Current offline findings
 
@@ -57,4 +58,4 @@ flowchart LR
 
 ## Next
 
-Step 40D found no exact public Honda kernel source and no usable API-17 ARM guest on this Apple Silicon host. Proceed to Step 40E as a **read-only** parked target preflight; this is evidence collection, not authorization for a test helper or mutation. Step 41 and Type111 remain **NO**. See `step-reports/40d-honda-kernel-and-api17-runtime.md`.
+Step 40E remains blocked until the existing ADB link returns read-only command output. The retry reached `uname -a`, which failed `error: closed`; no capture phases ran. Do not reset transports, escalate privileges, or alter vehicle settings. After the three-phase capture, draft Step 40F's self-only runtime probe and review it separately. Step 41 and Type111 remain **NO**. See `step-reports/40e-readonly-runtime-preflight.md`.

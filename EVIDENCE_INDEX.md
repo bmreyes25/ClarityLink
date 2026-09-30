@@ -1,3 +1,13 @@
+## Step 40E — parked read-only Honda runtime preflight (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Read-only collector | `tools/honda-readonly-preflight/collector.py`, `README.md` | Fixed read-only operations, explicit parked/disconnected gates, one-device and MY16ADA/kernel identity guards, no arbitrary command/upload/write path, per-command timeout/output cap, host-only raw storage |
+| Host parsers/analyzer | `tools/honda-readonly-preflight/parsers.py`, `analyze.py`, `tests/honda/test_readonly_preflight.py` | Synthetic maps/smaps/status/signal/task/network/load-bias/gap/privacy tests; no ADB dependency |
+| Live attempt | `research/platform/honda-live-runtime.md`, `step-reports/40e-readonly-runtime-preflight.md` | Host ADB listed one authorized target; first read-only `uname -a` failed `error: closed`; no phase capture or Honda runtime facts |
+| Hook/runtime gates | `research/carplay/honda-runtime-addressing.md`, `honda-veneer-allocation.md`, `honda-thread-rendezvous.md`, `honda-runtime-patch-lifecycle.md`, `honda-hook-safety.md` | No live addresses/gaps/signal/thread data; Step 40F and Step 41 remain NO |
+| Verification/review | Step 40E report | 19 focused tests; Honda 74/1 skipped, interposer 14, transport+negotiation 47 + 31 subtests, renderer 8; ECC skills used, independent reviewer unavailable |
+
 ## Step 40D — kernel provenance and API-17 ARM runtime (2026-09-29)
 
 | Area | Primary evidence | Finding |

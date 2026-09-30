@@ -17,3 +17,7 @@ Run only after the real shim/allocation/patch/restore lifecycle has independent 
 Abort on identity/fingerprint mismatch; unexpected bytes; inability to restore; missing original-call path; nonzero stock result when baseline succeeds; center CarPlay degradation; unexpected network/listener activity; or unbounded/missing diagnostics. If any abort occurs, disable project behavior and restore before any subsequent experiment. Type111 must remain disabled.
 
 This draft is NOT a live-test authorization. Step 40B’s offline synthetic harness (emulated patch, delegation, restore, and byte verification) is **READY**; the process-level hook harness and Step 41 remain **NOT READY**. Type111 remains disabled.
+
+## Step 40E outcome
+
+The read-only collector was built and passed its dry-run and synthetic test gate, but it could not reach a target: Host ADB listed one authorized target, but the first read-only `uname -a` failed with `error: closed`; no runtime facts were returned. No custom helper, target write, or target modification occurred. A read-only map/signal/thread snapshot therefore provides no new authorization for Step 41. Step 40F remains not ready until Step 40E collects target facts and its self-only probe safety plan is separately reviewed.
