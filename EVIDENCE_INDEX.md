@@ -1,3 +1,14 @@
+## Step 40E4 — zero-write privilege path audit (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| SuperSU client/daemon | `research/runtime/supersu-execution-path.md`, `supersu-write-side-effects.md` | SuperSU 2.77-family; partial static path trace; no exact upstream binary match; `su -c` zero-persistent-write NOT PROVEN because stripped control flow/open flags and daemon/policy/log paths remain unresolved |
+| ADBD | `research/runtime/adbd-privilege-model.md` | Archived defaults `ro.secure=1`, `ro.debuggable=0`, user/release-keys; prior shell UID 2000; root adbd without `su` NO on archived configured evidence |
+| Alternative privileged paths | `research/runtime/alternative-root-paths.md` | No approved narrow root read proxy or useful SUID/SGID candidate found; `bugreport`/`dumpstate` is broad and may signal/write, not run or approved |
+| 40F-Lite / required datum | `research/runtime/collector-privilege-matrix.md`, `step40f-lite.md` | Existing Step 40E capture already provides meaningful ordinary-shell evidence; fresh maps/smaps/fd remain denied and are not recoverable from older process epochs |
+| Threat model / review packet | `research/runtime/privilege-threat-model.md`, `step40e4-review-packet.md` | Zero-write definition distinguishes application writes, transient IPC/RAM/kernel state, tmpfs, and atime; independent review NOT PERFORMED |
+| Decision | `step-reports/40E4-zero-write-privilege-path.md` | No justifiable privileged path; Step 40F/41 NOT READY; Type111 disabled |
+
 ## Step 40E3 — SuperSU provenance and side-effect review (2026-09-29)
 
 | Area | Primary evidence | Finding |
