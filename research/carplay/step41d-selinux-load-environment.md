@@ -8,43 +8,46 @@ The locally held file archives were enumerated by member name: `root-startup.tar
 
 The saved `boot.img` and `recovery.img` are Android boot images, and the Step 41C CPIO audit found no policy/context files in their ramdisks. The boot ramdisk contains the exact jmcs service source already documented in [jmcs-init-service.md](jmcs-init-service.md). Recovery has no jmcs service. The 2 MiB USP and 64 MiB whole-device MTD artifacts are also present, but this pass did not decode their proprietary filesystems.
 
-The held 7.5 GB `mmcblk0-full.img` has a valid GPT. Its nine partitions are named CAC, CAP, APP, LOG, MITSU, SDA, SDA2, SDC, and UDA. Read-only superblock inspection found ext4 magic `0xEF53` at the expected superblock offset in all nine partitions. Existing filesystem exports cover `system.tar` and the other named filesystem snapshots, but the raw MMC ext4 directories were not independently decoded during this audit; no ext4 reader is available in the current offline toolset. Therefore this pass establishes absence from the enumerated archives and ramdisks, **not** absence from every byte of the raw MMC image. The raw image is the remaining already-held source that might contain an unexported policy artifact; no partition-to-path mapping for policy was recovered.
+The held 7.5 GB `mmcblk0-full.img` has a valid GPT. Its nine partitions are named CAC, CAP, APP, LOG, MITSU, SDA, SDA2, SDC, and UDA. Step 41D2/41D3 installed Homebrew e2fsprogs 1.47.4 and used `debugfs` 1.47.4 against one temporary copy of each partition at a time. The image was never mounted. The copies were deleted after each read. Recursive directory-name walks completed on all nine partitions with no matches for `sepolicy`, `file_contexts` (including common variants), `property_contexts`, `seapp_contexts`, `service_contexts`, `mac_permissions.xml`, `selinux_version`, init rc files, or fstab files. Separate read-only ASCII scans of the USP and whole-device MTD artifacts found no matching SELinux/policy/context terms. These checks establish that named policy/context files were not found in the held filesystems and inspected image artifacts; they cannot exclude a policy embedded in an unparsed/compressed binary or loaded from an unrepresented source.
+
+APP is the system filesystem: its `/bin/jmcs` has size 13,406,720 bytes and streaming SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`, matching the exact archived Honda receiver. It also contains `/bin/linker` (63,176 bytes). CAP has no `/bin/jmcs` or `/bin/linker`. The UDA filesystem is the data filesystem by its root contents; its `/local/tmp` corresponds to `/data/local/tmp`.
 
 ## `AT_SECURE` and linker conclusion
 
-**UNKNOWN.** The recovered init stanza launches `/system/bin/jmcs` as `root:root`, and the archived jmcs file is mode 0755 with no setuid/setgid mode bits. Those facts make a real/effective UID or GID mismatch less likely, but they do not prove `AT_SECURE=0`: the archived file exports omit filesystem xattrs/file capabilities, and the exact Honda SELinux policy and exec transition are unavailable.
+**UNKNOWN, with a strong non-secure-exec inference.** The recovered init stanza launches jmcs as `root:root`. The matching binary in APP is mode 0755, owner 0/group 2000, has no setuid/setgid bits, and its ext4 extended-attribute list is empty (no archived file capability or `security.selinux` xattr observed). This removes the ordinary set-ID/file-capability triggers. A root-to-root exec with no effective SELinux transition would normally leave `AT_SECURE` clear, but the exact Honda kernel/LSM decision and runtime auxv are unavailable, so this is not a direct proof.
 
-The archived init binary contains the strings `selinux.`, `seclabel`, and `setcon`. This is **HONDA CONFIRMED** evidence that the init build includes SELinux-related code paths or diagnostics; it does not prove enforcement was enabled at the relevant boot, identify the jmcs security context, or establish whether an LSM secure-exec decision sets `AT_SECURE`.
-
-A historical capture records `getenforce: not found`. This is not evidence that SELinux was disabled; it only shows that this diagnostic executable was unavailable. No captured `/sys/fs/selinux/enforce`, process security context, auxv `AT_SECURE`, or AVC record was found in the reviewed files.
+The archived init binary contains the strings `selinux.`, `seclabel`, and `setcon`. This is **HONDA CONFIRMED** evidence that the init build includes SELinux-related code paths or diagnostics; it does not prove enforcement was enabled at the relevant boot, identify the jmcs security context, or establish whether an LSM secure-exec decision sets `AT_SECURE`. A historical capture records `getenforce: not found`, so it does not supply runtime mode evidence.
 
 The Honda linker’s `LD_PRELOAD` handling remains **HIGH-CONFIDENCE, CONDITIONAL** based on Step 41B's static linker comparison. Its processing for this jmcs invocation is not proven until secure-execution state and actual loader behavior are established.
 
 ## Candidate path and mapping permissions
 
-`/data/local/tmp` is the only specific candidate path established by prior init/filesystem evidence: init creates it with mode 0771 and owner/group `shell:shell`; historical mount evidence records `/data` read/write without `noexec`. A root process can pass the ordinary DAC read check for a shell-owned file, but the evidence does not establish the path's SELinux label, jmcs domain access, executable-mapping permission, or whether Honda's linker would accept a preload from it. The init source also comments that this directory should remain empty.
+`/data/local/tmp` is the only specific candidate path established by prior init/filesystem evidence. On UDA, `/local/tmp` exists with mode 0771 and owner/group `2000:2000` (`shell:shell`); `/local` is 0751 root:root. `debugfs ea_list` returned no extended attributes for either directory, so no stored `security.selinux` label was observed. Historical mount evidence records `/data` read/write without `noexec`. Root DAC access is plausible, but the exact active SELinux state/domain and executable-mapping permission remain unknown. The init source comments that `/data/local/tmp` should remain empty.
 
-No existing path is therefore proven safe and legitimate for ClarityLink mapping. `/data/local/tmp` remains a **candidate requiring policy proof**, not a recommendation to stage a library there. `/system/lib` would avoid a data mount but cannot be used without a persistent system-partition change and is outside the desired no-partition-change route.
+No existing path is therefore proven safe and legitimate for ClarityLink mapping. `/data/local/tmp` remains the best **candidate**, not a confirmed staging path. `/system/lib` exists in APP; `/vendor/lib` was not found in that filesystem. Adding a library to a system/vendor partition would require a persistent partition change. The init stanza currently has no `LD_PRELOAD`; adding a service-scoped `setenv` would itself require changing the boot ramdisk. No zero-change load path has been identified.
 
 ## Decision
 
 | Question | Finding | Evidence level |
 |---|---|---|
-| Matching SELinux policy/context artifacts in enumerated archives or boot/recovery ramdisks? | No | Archive/CPIO inventory; Honda confirmed for those inspected artifacts |
-| Matching policy present somewhere in the raw MMC image? | Unknown; raw GPT image exists but its relevant partition contents were not decoded here | Unknown |
-| Is SELinux enforcement active for the preserved boot? | Unknown | Historical `getenforce` command unavailable; no enforce file/context capture |
-| Is `AT_SECURE` false for jmcs? | Unknown | Root:root service and non-setuid mode do not settle LSM/file-capability behavior |
+| Matching SELinux policy/context files in the nine ext4 filesystems? | No matches in recursive directory-name walks | Honda image confirmed for names visible in these filesystem trees |
+| Matching policy/context files in boot/recovery and inspected MTD images? | No named artifacts found | CPIO inventory and bounded ASCII scans; does not exclude embedded/compressed policy |
+| Is SELinux enforcement active for the preserved boot? | Unknown | Init has SELinux-related code strings; no policy file or enforce capture found |
+| Is `AT_SECURE` false for jmcs? | Unknown; likely false absent a credential/LSM transition | Exact binary has no set-ID bits/xattrs; process auxv and kernel LSM decision unavailable |
 | Does Honda linker support `LD_PRELOAD`? | High confidence, conditional on secure execution and path access | Step 41B static analysis; not live-tested |
-| Exact pre-existing path with proven read + executable map access? | None established | Unknown |
-| Can current evidence support a no-partition-change load? | No | Path and SELinux permissions unproven |
+| Best candidate path? | `/data/local/tmp/claritylink_jmcs_interposer.so` | Existing `/data/local/tmp` parent is 0771 shell:shell; mapping permissions unknown |
+| Exact path with proven read + executable-map access? | None established | SELinux mode/domain and loader execution not confirmed |
+| Can current evidence support a no-partition-change load? | No | No existing `LD_PRELOAD` env entry; adding `setenv` requires a boot-ramdisk change |
 
-**Step 41D gate: NOT PASSED.** Do not proceed to Step 42. The next offline action is to use a read-only ext4 reader to enumerate the nine preserved filesystems, identify any policy/context files and their metadata, then correlate the relevant policy to the active boot/init image. Preserve the image; do not modify partitions. If no such policy/context source exists in the held image, the `AT_SECURE` and path-permission questions stay unresolved and a live loader test is not justified.
+**Step 41D2/41D3 filesystem inspection: COMPLETE. Step 41D deployment-readiness gate: NOT PASSED.** No named SELinux policy or file-context source was found in any of the nine ext4 filesystems or inspected ramdisks. `AT_SECURE`, process domain, and data-path executable mapping remain unknown; no zero-change load path exists. Do not proceed to a live no-op load test. The remaining useful offline action is to verify the init/linker failed-policy and secure-exec behavior against the exact Android 4.2.2 sources/binaries where available; otherwise preserve these fields as unknown and keep live loading gated.
 
 Once that gate is answered, the proposed sequence remains 41E (offline ARM/API17 package audit), then a separately reviewed Step 42 loader smoke test with Type111 disabled, and only after it preserves stock center CarPlay, Step 43 negotiation-only testing.
 
-## Step 41D2 preflight — raw ext4 tooling unavailable
+## Step 41D2/41D3 read-only filesystem inspection
 
-The raw GPT partition map was read directly from `../forensic/CLARITY_FORENSIC_WORKING/mmcblk0-full.img`; sector size is 512 bytes. All partition type GUIDs are Microsoft Basic Data (`ebd0a0a2-b9e5-4433-87c0-68b6b72699c7`). Partition roles are left unknown because their directories were not read.
+**Superseded by the completed inspection below.** This was an interim status before installing the user-authorized e2fsprogs reader.
+
+The raw GPT partition map was read directly from `../forensic/CLARITY_FORENSIC_WORKING/mmcblk0-full.img`; sector size is 512 bytes. All partition type GUIDs are Microsoft Basic Data (`ebd0a0a2-b9e5-4433-87c0-68b6b72699c7`). CAP/APP share an ext4 UUID, as do MITSU/UDA; do not rely on UUID-based auto-selection. Root entries were inspected as summarized below; inferred mount roles are kept distinct from the on-disk GPT names.
 
 | # | GPT name | Start sector | End sector | Byte offset | Byte length | ext4 UUID | Needs journal recovery |
 |---:|---|---:|---:|---:|---:|---|---|
@@ -58,6 +61,31 @@ The raw GPT partition map was read directly from `../forensic/CLARITY_FORENSIC_W
 | 8 | SDC | 7,634,944 | 9,732,095 | 3,909,091,328 | 1,073,741,824 | `77fb0698-7c18-4cf6-8dbe-97ee116f42b6` | Yes |
 | 9 | UDA | 9,732,096 | 14,712,831 | 4,982,833,152 | 2,550,132,736 | `57f8f4bc-abf4-655f-bf67-946fc0f9f25b` | Yes |
 
-The ext4 reader/tool inventory found no `debugfs`, `e2ls`, `e2cp`, Sleuth Kit (`mmls`, `fls`, `icat`), guestfs, Docker, or Podman executable. `qemu-nbd` is installed and advertises read-only offset exports, but it is not an ext4 filesystem reader and no compatible NBD block-device consumer is installed. Homebrew's expected e2fsprogs bottle path is not present in its cache; no network fetch or installation was performed. The GPT/superblock parser read fixed metadata only and made no mounts or writes.
+| Partition | Observed top-level entries (directories/files abbreviated only for LOG) | Role assessment |
+|---|---|---|
+| CAC | `lost+found`, `recovery` | Name retained; role not inferred |
+| CAP | `app`, `bin`, `etc`, `framework`, `lib`, `media`, `build.prop` | Android-like filesystem; exact mount role unknown |
+| APP | `vendor`, `etc`, `app`, `bin`, `fonts`, `framework`, `lib`, `media`, `usr`, `xbin`, `build.prop`, `recovery-from-boot.p` | System filesystem confirmed by hash-matched `/bin/jmcs` and `/bin/linker` |
+| LOG | Diagnostic logs/databases | Log-like contents; private log contents not read |
+| MITSU | `ada`, `artwork-1.jpg` | Honda/Mitsubishi data-like contents; exact mount role unknown |
+| SDA | `com.honda`, multiple `com.mitsubishielectric.*` directories, `edid.txt` | App/service data-like contents |
+| SDA2 | `com.honda`, multiple `com.mitsubishielectric.*` directories, `edid.txt` | App/service data-like contents |
+| SDC | `0`, `obb`, `legacy` | Android shared-storage-like contents |
+| UDA | `local`, `app`, `app-private`, `app-asec`, `app-lib`, `data`, `system`, `user`, `misc`, `property`, `dalvik-cache`, `tombstones` | Android data filesystem; `/local/tmp` maps to `/data/local/tmp` |
 
-The `needs_recovery` feature bit is set in seven partitions (all except CAP and APP). Do not use a mount path that could replay journals. A future reader should access the raw image or partition data read-only and must not perform journal replay or filesystem repair. Top-level directory listings, policy/context paths, filesystem roles, and extracted metadata remain unavailable. **Step 41D2 is blocked at tool availability.** Next is Step 41D3: provide a safe offline ext4 inspection environment, then resume with direct read-only inspection.
+The initial tool inventory found no `debugfs`, `e2ls`, `e2cp`, Sleuth Kit (`mmls`, `fls`, `icat`), guestfs, Docker, or Podman executable. e2fsprogs 1.47.4 was subsequently downloaded and installed from Homebrew at the user's explicit allowance and used. `debugfs` was run without `-w`; one partition copy at a time was held under a temporary directory and deleted after inspection. No filesystem mount, journal replay, repair, raw image rewrite, or live target action occurred.
+
+
+The `needs_recovery` feature bit is set in seven partitions (all except CAP and APP). No mount was used. A read-only `debugfs` walk listed every partition root and recursively searched names containing SELinux/policy/context tokens plus standard init/fstab names. There were no relevant matches; the only broad `policy` substring matches were ordinary audio policy configuration/library names in APP. APP `/bin/jmcs` streamed to SHA-256 as `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`, exactly matching the known Honda binary. APP `/bin/linker` exists. UDA `/local/tmp` is mode 0771, owner/group `2000:2000`; `/local` is 0751 root:root. `ea_list` returned no extended attributes for jmcs, linker, `/local`, or `/local/tmp`. **Step 41D2/41D3 filesystem inspection is complete; no named policy/context artifact was recovered.** Active mode, jmcs domain, `AT_SECURE`, and mapping permission remain unknown.
+
+### Candidate path observations
+
+| Candidate | Raw ext4 path | Filesystem observation | Can jmcs map it? |
+|---|---|---|---|
+| `/data/local/tmp/claritylink_jmcs_interposer.so` | UDA `/local/tmp/...` | Parent exists, 0771 shell:shell; no xattr | **Unknown**; policy/domain and executable-map access unproven |
+| `/data/local/claritylink/...` | UDA `/local/claritylink/...` | Parent `/local` exists, 0751 root:root; requested child absent | **Unknown**; root could create by DAC, but policy and map access unproven |
+| `/data/claritylink/...` | UDA `/claritylink/...` | Requested child absent; UDA root 0771 system:system | **Unknown**; policy and map access unproven |
+| `/system/lib/claritylink_jmcs_interposer.so` | APP `/lib/...` | `/lib` exists on system filesystem | **No path proof**; adding a file would require system-partition mutation |
+| `/vendor/lib/claritylink_jmcs_interposer.so` | APP `/vendor/lib/...` | `/vendor/lib` absent in APP | **Not established** for this path; no path proof |
+
+The existing `service jmcs` stanza has no `LD_PRELOAD`. Android init/Honda init supports service `setenv` per Step 41C, but adding it would modify the boot ramdisk and require a separate persistent-change review. Thus there is no existing zero-change preload seam even if `/data/local/tmp` later proves mappable.

@@ -6,16 +6,18 @@
 | Init SELinux fingerprint | `root-startup.tar:init` strings; same research note | `selinux.`, `seclabel`, `setcon` strings confirm code-path fingerprints only; do not prove enforcing state or jmcs context |
 | Runtime enforcement probe | `research/captures/jmcs-runtime-diff/20260929T160905Z/disconnected/selinux-enforcing.txt` and `.stderr` | `getenforce` unavailable; enforcement state UNKNOWN |
 | AT_SECURE and candidate path | Same audit; Step 41C service report | `AT_SECURE` unknown; `/data/local/tmp` 0771 shell:shell is only a candidate, SELinux executable-map permission unproven |
-| Decision | `step-reports/41d-selinux-load-environment.md` | Step 41D NOT PASSED; Step 42 not ready; next task is offline read-only decoding of relevant raw MMC partition, if present |
+| Decision | `step-reports/41d-selinux-load-environment.md` | All nine ext4 partitions inspected; no named policy/context files found; SELinux/AT_SECURE/path access unknown; Step 42 not ready |
 
-## Step 41D2 — raw ext4 inspection preflight (2026-09-30)
+## Step 41D2/41D3 — raw ext4 read-only inspection (2026-09-30)
 
 | Area | Primary evidence | Finding |
 |---|---|---|
 | GPT/partition geometry | `research/carplay/step41d-selinux-load-environment.md` | Nine named ext4 partitions, exact starts/ends/offsets/sizes/UUIDs recorded; filesystem roles not inferred |
 | Journal safety | Same note; raw superblock feature flags | Seven filesystems set `EXT4_FEATURE_INCOMPAT_RECOVER`; no mounting/replay attempted |
-| Reader availability | `step-reports/41d-selinux-load-environment.md` | No debugfs/e2tools/Sleuth Kit/guestfs/container reader; qemu-nbd alone cannot inspect files |
-| Decision | Same report | 41D2 blocked at tool availability; next is 41D3, establish a safe offline reader without journal replay |
+| Reader/method | Same report | e2fsprogs `debugfs` 1.47.4 run without `-w` against temporary partition copies; no mounts or journal replay |
+| Policy/context search | Same report and research note | No named policy/context files in recursive walks of all nine ext4 filesystems |
+| Binary/path evidence | Same report | APP `/bin/jmcs` hash matches known image; UDA `/local/tmp` is 0771 shell:shell with no xattr |
+| Decision | Same report | Filesystem inspection complete; SELinux mode/domain, AT_SECURE, and mapping permission remain unknown; live load not ready |
 
 ## Step 40E4 — zero-write privilege path audit (2026-09-29)
 

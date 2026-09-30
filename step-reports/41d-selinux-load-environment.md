@@ -1,57 +1,58 @@
-# Step 41D — Honda SELinux and preload-path audit
+# Step 41D / 41D2 / 41D3 — SELinux and jmcs load-environment audit
 
-## Outcome
+## Result
 
-**NOT PASSED.** Existing archive and boot-ramdisk inventories contain no SELinux policy or path-context files. The matching artifacts may still exist within the held raw MMC image, whose GPT partitions have not been decoded for this purpose. `AT_SECURE` and jmcs's ability to map a library from `/data/local/tmp` therefore remain unknown. Step 42 is not ready.
+**Raw filesystem inspection complete; load-environment gate not passed.** All nine ext4 filesystems in the held raw eMMC image were inspected read-only with e2fsprogs `debugfs` 1.47.4. No named SELinux policy or context files were found. The exact Honda jmcs binary was identified in APP. The UDA filesystem contains `/data/local/tmp` as `/local/tmp`, mode 0771 and owner/group shell:shell, but no evidence establishes the active SELinux state/domain, `AT_SECURE`, or executable mapping permission. Step 42 is not ready.
 
 ## Work performed
 
-- Verified repository is `main` at `e38e0be`, initially clean.
-- Enumerated members of the local system/vendor, root-startup, Honda/media configuration, and userdata tar archives, including the forensic `system.tar` copies.
-- Searched exact policy/context artifact names and reviewed the boot/recovery CPIO findings from Step 41C.
-- Examined the archived init binary's printable SELinux-related strings (`selinux.`, `seclabel`, `setcon`) without executing it.
-- Reviewed the historical `getenforce` output; it says the command was unavailable and does not report an enforcement state.
-- Parsed the held raw eMMC image's GPT in read-only fashion. It contains CAC, CAP, APP, LOG, MITSU, SDA, SDA2, SDC, and UDA partitions. Read-only superblock checks found ext4 magic `0xEF53` in all nine. No ext4 reader is available in this offline toolset, so no partition was mounted or decoded.
+- Committed the original Step 41D findings first as `a7cd616` (`ClarityLink: record blocked jmcs load-environment review`).
+- Installed e2fsprogs 1.47.4 with Homebrew as explicitly allowed; used `debugfs` without `-w`.
+- Read the GPT and ext4 superblocks from `../forensic/CLARITY_FORENSIC_WORKING/mmcblk0-full.img`.
+- Copied one partition at a time to a temporary scratch directory so `debugfs` could access the partition image; deleted each temporary copy after use. No filesystem was mounted, and no journal replay, repair, or write command ran.
+- Enumerated the top level of all nine ext4 partitions and recursively searched names for SELinux/policy/context, init rc, and fstab targets. No SELinux policy/context files were found. Broad `policy` substring hits were unrelated audio-policy files.
+- Streamed APP `/bin/jmcs` through SHA-256 without saving a binary copy; it matches the archived Honda jmcs hash exactly.
+- Read jmcs/linker and candidate directory metadata/xattrs. No extended attributes were returned for jmcs, linker, UDA `/local`, or UDA `/local/tmp`.
+- Searched boot/recovery ramdisk findings and printable strings in held USP/whole-device MTD artifacts. No named policy/context artifact was found; embedded policy in an unparsed/compressed binary is not ruled out.
 
-## Findings
+## Evidence and limitations
 
-The service executes `/system/bin/jmcs` as root:root, while jmcs has ordinary 0755 mode. This does not determine `AT_SECURE`: archived metadata does not establish file capabilities, and the SELinux policy/domain transition is not recovered. `/data/local/tmp` remains only a path candidate: prior init evidence gives shell:shell 0771, and historical mount evidence lacks `noexec`, but no matching SELinux label/rule proves access or executable mapping by jmcs.
+- The APP partition contains `/bin/jmcs` (13,406,720 bytes, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`) and `/bin/linker` (63,176 bytes). This identifies APP as the system filesystem for the captured Honda build.
+- jmcs on ext4 is owner 0/group 2000, mode 0755, with no setuid/setgid bit and no extended attributes observed. The init service runs it as root:root.
+- UDA `/local/tmp` is mode 0771, owner/group 2000:2000 (`shell:shell`), with no extended attributes. Historical mount evidence says `/data` is read/write without `noexec`; it does not establish SELinux permission.
+- Seven ext4 partitions set `EXT4_FEATURE_INCOMPAT_RECOVER`. None was mounted. The read-only `debugfs` queries did not invoke journal recovery.
+- The init binary contains `selinux.`, `seclabel`, and `setcon` strings. These show SELinux-related code paths or diagnostics, not that policy was loaded or enforcing. Historical `getenforce` output only says the executable was unavailable.
+- A root-to-root exec of a non-setuid, non-file-capability jmcs would normally leave `AT_SECURE` clear absent an LSM secure-exec decision. This is an inference, not a direct auxv measurement; the kernel/LSM state is not established.
+- Honda linker `LD_PRELOAD` support remains high-confidence conditional on `AT_SECURE=false` and path access. The current init stanza has no `LD_PRELOAD`; adding service-scoped `setenv` changes the boot ramdisk and is a persistent modification.
 
-The Honda linker remains high-confidence capable of processing `LD_PRELOAD` only if the exec is not secure and the selected library path is allowed. No such path is proven. The narrowest concrete next task is read-only identification and decoding of the relevant active policy/context files from the existing raw MMC partition(s), if present. Do not use the vehicle or alter the image.
+Exact GPT geometry, ext4 UUIDs, journal flags, and observed top-level entries are recorded in [the research note](../research/carplay/step41d-selinux-load-environment.md).
 
 ## Decision gate
 
 ```text
-JMCS SERVICE FOUND: YES (Step 41C)
-SERVICE FILE: boot.img ramdisk /init.vcm30t30.rc
-SERVICE EXECUTABLE: /system/bin/jmcs
-SERVICE USER/GROUP: root / root
-SELINUX POLICY IN ENUMERATED ARCHIVES: NO
-SELINUX POLICY IN HELD RAW MMC IMAGE: UNKNOWN
-AT_SECURE FALSE: UNKNOWN
-HONDA LD_PRELOAD HANDLING: HIGH-CONFIDENCE, CONDITIONAL
-EXISTING LIBRARY PATH WITH PROVEN MAPPING ACCESS: NO
-NO-PARTITION-CHANGE LOADING PROVEN: NO
-STEP 41D: NOT PASSED
-LIVE DEPLOYMENT READY: NO
-BIGGEST BLOCKER: no exact active SELinux policy/context evidence to establish AT_SECURE and a jmcs-readable executable-mapping path
-NEXT ACTION: use a read-only ext4 reader to enumerate the nine held filesystems and locate active policy/context artifacts, if present
+EXT4_READER_SELECTED: e2fsprogs debugfs 1.47.4
+WHY_SAFE_READ_ONLY: default read-only debugfs mode (no -w) against disposable partition copies; no mount, journal replay, or repair
+COMMANDS_USED: Homebrew e2fsprogs install; read-only Python GPT/superblock and temporary-slice helper; debugfs ls -p/stat/ea_list/cat; streaming SHA-256
+PARTITION_MAP: see research/carplay/step41d-selinux-load-environment.md; nine GPT/ext4 entries with UUIDs and recovery flags
+SELINUX_PRESENT: PARTIAL (init has SELinux-related strings; no named policy found)
+SELINUX POLICY FOUND: NO (no named artifact in inspected filesystems/ramdisks)
+FILE_CONTEXTS FOUND: NO
+SELINUX_MODE: UNKNOWN
+SELINUX ACTIVE: UNKNOWN
+JMCS EXEC CONTEXT: UNKNOWN
+JMCS PROCESS DOMAIN: UNKNOWN
+JMCS CAN MAP /data/local/tmp LIBRARY: UNKNOWN
+BEST LIBRARY LOCATION: /data/local/tmp/claritylink_jmcs_interposer.so (candidate only)
+LD_PRELOAD HONORED FOR JMCS: UNKNOWN (high-confidence linker support conditional on secure-exec/path access)
+AT_SECURE BLOCKER: UNKNOWN (likely false absent an LSM transition; not directly measured)
+SERVICE-SCOPED INIT SEAM: NOT READY (requires a boot-ramdisk change and mapping proof)
+NO-OP INTERPOSER DESIGN: NOT READY
+LIVE NO-OP LOAD TEST: NOT READY
+TYPE111 LIVE WORK: NOT READY
+BIGGEST BLOCKER: no active policy/context or runtime secure-exec evidence proves a library can be mapped from /data/local/tmp
+NEXT ACTION: verify exact init/linker policy-load failure and secure-exec behavior from preserved or pinned Android 4.2.2 sources, then reassess offline readiness
 ```
 
-## Verification
+## Checks
 
-Archive member enumeration and raw GPT/superblock parsing were read-only. Step 41D2 confirmed exact GPT byte offsets, ext4 UUIDs, and recovery-needed flags; no filesystem was mounted, and the raw image was not modified. No usable offline ext4 reader or cached e2fsprogs bottle was available, so filesystem listings and policy extraction were not attempted. Documentation changes only; there were no code tests to run. `git diff --check` was run after the documentation updates.
-
-## Step 41D2 preflight gate
-
-```text
-EXT4_READER_SELECTED: NONE AVAILABLE OFFLINE
-WHY_SAFE_READ_ONLY: No ext4 parser selected; qemu-nbd supports --read-only/--offset but no NBD block-device consumer is installed
-COMMANDS_USED: command -v inventory; Homebrew cache/Cellar inventory; qemu-nbd --help; read-only Python GPT/ext4-superblock parser
-PARTITION_MAP: Recorded in research/carplay/step41d-selinux-load-environment.md; all 9 are ext4, all Basic Data GPT type; roles unknown
-JOURNAL SAFETY: 7/9 set EXT4_FEATURE_INCOMPAT_RECOVER; no mounts or journal replay attempted
-TOP-LEVEL CONTENTS: NOT READ
-POLICY / FILE-CONTEXT PATHS: NOT READ FROM RAW FILESYSTEMS
-STEP 41D2: BLOCKED AT TOOL AVAILABILITY
-NEXT ACTION: STEP 41D3 — provide a safe offline ext4 reader and resume read-only inspection
-```
+`git diff --check` passed. This was documentation and read-only filesystem inspection; there were no code tests to run. No vehicle, ADB, raw-image modification, partition mount, session-key access, library deployment, or Type111 action occurred. Temporary partition copies were deleted.
