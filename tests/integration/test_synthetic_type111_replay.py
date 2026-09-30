@@ -76,6 +76,16 @@ class SyntheticType111ReplayTests(unittest.TestCase):
         self.assertEqual(strict["type110_snapshot"], hypothetical["type110_snapshot"])
         self.assertEqual(strict["audio_snapshot"], hypothetical["audio_snapshot"])
 
+    def test_host_decode_status_keeps_parser_fixture_and_fallback_distinct(self):
+        result = synthetic_type111_cluster_replay(ReplayMode.HYPOTHETICAL_TYPE111)
+        self.assertFalse(result["host_decode"]["performed"])
+        self.assertEqual(result["video_handoff_mode"], "SYNTHETIC_FRAME_SOURCE")
+        self.assertIn("synthetic_frame_source_fallback", [e["event"] for e in result["events"]])
+        self.assertEqual(result["stock_response"]["streams"][:2],
+                         result["stock_baseline"]["streams"])
+        self.assertTrue(result["after_type111_teardown"]["type110_active"])
+        self.assertEqual(result["after_type111_teardown"]["audio"], result["audio_snapshot"])
+
     def test_hypothetical_gate_requires_every_prerequisite_and_explicit_unknowns(self):
         inputs = CapabilityInputs(True, True, True, True, True, True, True, True)
         allowed = evaluate_capability_gate(ReplayMode.HYPOTHETICAL_TYPE111, inputs)

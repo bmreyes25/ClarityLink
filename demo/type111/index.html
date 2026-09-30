@@ -17,7 +17,7 @@
     <div><div class="kicker">ClarityLink · Step 42F</div><h1>Two-display digital twin</h1><p class="lead">A visual replay of the proposed experience: stock center CarPlay stays active while a synthetic secondary frame is shown on a mock cluster. The second stream is hypothetical and the cluster view is a schematic.</p></div>
     <span class="badge synthetic" id="source-badge">Replay output</span>
   </header>
-  <div class="notice"><strong>Offline model only.</strong> No Honda Type111 stream or ExternalDisplay integration is running here. The candidate frame is generated after synthetic Annex-B extraction; it is not decoded H.264 and does not replace or cover the real cluster UI.</div>
+  <div class="notice"><strong>Offline model only.</strong> No Honda Type111 stream or ExternalDisplay integration is running here. The replay access unit is a parser fixture, not valid H.264. Current status: <strong>HOST DECODER UNAVAILABLE</strong>. This view uses a synthetic pattern fallback and does not replace or cover the real cluster UI.</div>
 
   <nav class="toolbar" aria-label="Replay mode"><span>Replay mode</span><button id="strict-button" type="button" aria-pressed="true">Strict Honda</button><button id="hypothetical-button" type="button" aria-pressed="false">Hypothetical Type111</button><span id="mode-status" role="status"></span></nav>
 
@@ -57,7 +57,7 @@
       <div class="status-row"><span class="status-pill" id="audio-status">Audio · unchanged</span><span class="status-pill off" id="live-status">Live test · NOT READY</span><span class="status-pill off" id="preload-status">LD_PRELOAD · PARKED</span></div>
     </article>
   </section>
-  <p class="footnote">Evidence key: <span class="badge honda">HONDA_CONFIRMED</span> recovered stock behavior · <span class="badge hypothesis">MHI2_DERIVED_HYPOTHESIS</span> prior-art response profile · <span class="badge synthetic">SYNTHETIC_TEST_VALUE</span> generated demo data · <span class="badge unknown">UNKNOWN</span> unproven Honda behavior. The green cluster frame is an in-page illustration selected by replay output; it is not a decoded frame asset. Decoder, safety overlay composition, crop/mask, and ExternalDisplay handoff remain unproven.</p>
+  <p class="footnote">Evidence key: <span class="badge honda">HONDA_CONFIRMED</span> recovered stock behavior · <span class="badge hypothesis">MHI2_DERIVED_HYPOTHESIS</span> prior-art response profile · <span class="badge synthetic">SYNTHETIC_TEST_VALUE</span> generated demo data · <span class="badge unknown">UNKNOWN</span> unproven Honda behavior. The cluster illustration is synthetic; no H.264 decode ran. A host FFmpeg adapter is optional, but FFmpeg is unavailable in this environment. Safety overlay composition, crop/mask, and ExternalDisplay handoff remain unproven.</p>
   <p class="error" id="error" role="alert"></p>
 </main>
 <script>
@@ -68,7 +68,7 @@ function render(){if(!data)return;const state=data.modes[mode],hypothetical=mode
   $('mode-status').textContent=hypothetical?'Hypothetical candidate · synthetic only':'Honda stock behavior';
   $('type110-status').innerHTML=state.type110.active&&state.type110.unchanged?'<b>ACTIVE</b> · unchanged':'CHECK';
   $('cluster-screen').classList.toggle('empty',!state.cluster_frame.visible);$('synthetic-map').toggleAttribute('hidden',!state.cluster_frame.visible);
-  $('cluster-message').textContent=state.cluster_frame.visible?'Synthetic frame pattern · not decoded H.264':'Strict Honda mode: Type111 skipped';
+  $('cluster-message').textContent=state.cluster_frame.visible?state.cluster_frame.status_label:'Strict Honda mode: Type111 skipped';
   $('stream-caption').textContent=state.cluster_frame.visible?'Synthetic Type111 candidate · 800 × 480':'No secondary frame';
   $('type111-badge').textContent=state.type111.evidence;$('type111-badge').className='badge '+(hypothetical?'hypothesis':'honda');
   $('renderer-status').textContent=state.type111.renderer_submitted?'Renderer · mock submission recorded':'Renderer · inactive';

@@ -398,3 +398,11 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Targeted static pass | Same report; archived linker hash and Capstone/llvm-objdump | Preload strings/data confirmed; control flow to getenv/parser/secure path/fatal failure not resolved; direct helper calls not found in bounded scan |
 | Data mapping context | Same report; historical `/proc/mounts` capture | `/data` was rw,nosuid,nodev without noexec; SELinux/mmap still unknown, MEDIUM risk |
 | Seam decision | `research/deployment/next-load-seam-options.md`, `research/deployment/noop-interposer-plan.md` | LD_PRELOAD is UNKNOWN/parked; no-op and Type111 not ready; next study is ExternalDisplay/CarPlayService companion path |
+# Step 42G — host decoder
+
+| Question | Evidence | Conclusion |
+|---|---|---|
+| Host decode adapter and bounds | `src/claritylink-sim/host_h264_decoder.py`; `tests/sim/test_host_h264_decoder.py` | Optional FFmpeg CLI path accepts bounded Annex-B with SPS/PPS and returns a validated one-frame RGBA result; mock process test verifies the adapter boundary. |
+| Synthetic H.264 source | Same decoder module; `research/simulator/host-h264-decode-stage.md` | In-memory FFmpeg/libx264 test-pattern generator added; no media committed. Actual generation was unavailable here. |
+| Current replay decode status | `src/claritylink-sim/synthetic_type111_replay.py`; `demo/type111/replay-data.json` | Existing replay payload is parser-shaped, not valid H.264; it is never decoded and fallback is labeled. |
+| Host tool availability | Step 42G report | No FFmpeg/PyAV/OpenCV/imageio decoder on this host; real decode test skipped explicitly. Live integration readiness unchanged. |

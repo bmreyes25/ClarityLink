@@ -25,3 +25,6 @@ Step 42D fixtures keep all fields that affect display correlation, response shap
 Step 42E's replay preserves these unknowns in both modes: strict mode skips the candidate; hypothetical mode marks its cloned response profile as MHI2-derived, values as synthetic, display-to-stream correlation as unknown, and key/IV behavior as unknown without running Type111 crypto. The synthetic second descriptor is not linked to the request's synthetic correlation value as a Honda rule. A deterministic pattern frame after successful synthetic parsing proves only model composition.
 
 Step 42F exposes response schema, display/stream correlation, Type111 security, ExternalDisplay frame handoff, jmcs load seam, and crop/mask as visible `UNKNOWN` items in the visual demo. The hypothetical view does not collapse them when its synthetic frame appears.
+# Step 42G update — host decoder
+
+Host H.264 decoding is implemented only as an optional FFmpeg adapter. The host in this step lacks FFmpeg, and the replay fixture is not valid H.264. Actual host decoding is therefore still UNKNOWN/NOT RUN; the digital-twin image remains a synthetic pattern. Honda decoder compatibility and Type111 video syntax remain UNKNOWN.

@@ -56,6 +56,13 @@ def build_visual_demo_payload() -> dict[str, Any]:
                 "height": frame.height if frame else None,
                 "presentation_timestamp": "SYNTHETIC_TEST_VALUE" if frame else None,
                 "evidence": "SYNTHETIC_TEST_VALUE",
+                "decode_status": replay["host_decode"]["status"],
+                "decode_backend": replay["host_decode"]["backend"],
+                "status_label": (
+                    "SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE"
+                    if not replay["host_decode"]["backend_available"]
+                    else "SYNTHETIC FRAME SOURCE — VALID H.264 TEST MEDIA NOT GENERATED"
+                ) if submitted else "No frame in strict Honda mode",
             },
             "renderer": {
                 "target": "Display 1 · ExternalDisplay host mock" if submitted else "inactive",
@@ -73,6 +80,7 @@ def build_visual_demo_payload() -> dict[str, Any]:
                 {"element": "Display-to-stream correlation", "label": "UNKNOWN"},
                 {"element": "Type111 security/key derivation", "label": "UNKNOWN"},
                 {"element": "Synthetic frame after Annex-B", "label": "SYNTHETIC_TEST_VALUE"},
+                {"element": "Host H.264 decode", "label": "UNKNOWN"},
                 {"element": "Mock renderer submission", "label": "SYNTHETIC_TEST_VALUE"},
                 {"element": "Real ExternalDisplay integration", "label": "UNKNOWN"},
                 {"element": "Cluster crop/mask", "label": "UNKNOWN"},

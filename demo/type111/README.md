@@ -21,3 +21,9 @@ Evidence labels mean:
 - `UNKNOWN`: Honda response/security/correlation details and live integration surfaces that remain unproven.
 
 The page intentionally keeps unknowns visible. Live Type111, jmcs no-op loading, and real ExternalDisplay rendering remain not ready.
+
+## Optional host H.264 decode
+
+Step 42G adds an optional FFmpeg CLI decoder and in-memory synthetic test-pattern generator. If FFmpeg with libx264 is installed, run `python3 -m unittest tests.sim.test_host_h264_decoder.HostH264DecoderTests.test_real_synthetic_encode_then_host_decode` to encode and decode one synthetic frame without writing media files. Without FFmpeg the test skips explicitly, and the page reports `SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE`.
+
+The canonical replay's H.264-like bytes are parser fixtures, not valid H.264, and are never passed to FFmpeg. The mock adapter test exercises RGBA frame submission but does not count as actual video decoding. Honda Type111 media format and real ExternalDisplay handoff remain unproven; all live gates remain NOT READY.

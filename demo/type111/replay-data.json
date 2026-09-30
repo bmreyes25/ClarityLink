@@ -38,7 +38,10 @@
         "width": null,
         "height": null,
         "presentation_timestamp": null,
-        "evidence": "SYNTHETIC_TEST_VALUE"
+        "evidence": "SYNTHETIC_TEST_VALUE",
+        "decode_status": "HOST_DECODER_UNAVAILABLE",
+        "decode_backend": "MOCK_ONLY",
+        "status_label": "No frame in strict Honda mode"
       },
       "renderer": {
         "target": "inactive",
@@ -79,6 +82,10 @@
         {
           "element": "Synthetic frame after Annex-B",
           "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Host H.264 decode",
+          "label": "UNKNOWN"
         },
         {
           "element": "Mock renderer submission",
@@ -188,7 +195,10 @@
         "width": 800,
         "height": 480,
         "presentation_timestamp": "SYNTHETIC_TEST_VALUE",
-        "evidence": "SYNTHETIC_TEST_VALUE"
+        "evidence": "SYNTHETIC_TEST_VALUE",
+        "decode_status": "HOST_DECODER_UNAVAILABLE",
+        "decode_backend": "MOCK_ONLY",
+        "status_label": "SYNTHETIC FRAME SOURCE \u2014 HOST DECODER UNAVAILABLE"
       },
       "renderer": {
         "target": "Display 1 \u00b7 ExternalDisplay host mock",
@@ -229,6 +239,10 @@
         {
           "element": "Synthetic frame after Annex-B",
           "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Host H.264 decode",
+          "label": "UNKNOWN"
         },
         {
           "element": "Mock renderer submission",
@@ -324,8 +338,13 @@
           "evidence": "SYNTHETIC_TEST_VALUE"
         },
         {
-          "event": "synthetic_decode_handoff",
-          "source": "synthetic-pattern-after-Annex-B",
+          "event": "host_decode_not_run",
+          "backend_available": false,
+          "reason": "replay access unit is synthetic parser fixture, not valid H.264"
+        },
+        {
+          "event": "synthetic_frame_source_fallback",
+          "source": "pattern-after-synthetic-Annex-B-parser-fixture",
           "pts_ns": 1790726400000000000,
           "evidence": "SYNTHETIC_TEST_VALUE"
         },

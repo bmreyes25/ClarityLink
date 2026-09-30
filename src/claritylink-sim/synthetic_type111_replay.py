@@ -29,6 +29,7 @@ from setup_interposer import ClarityLinkSetupInterposer, ClarityLinkType111Respo
 from model import ClarityLinkRenderer, MockDisplay1Backend, SyntheticPatternSource
 
 from capability_gating import CapabilityDecision, CapabilityInputs, ReplayMode, evaluate_capability_gate
+from host_h264_decoder import FfmpegCliDecoder
 
 
 def _message(opcode: int, body: bytes, timestamp_raw: int) -> bytes:
@@ -47,6 +48,7 @@ def synthetic_type111_cluster_replay(mode: ReplayMode = ReplayMode.HYPOTHETICAL_
     Screen body is synthetic plaintext; this does not exercise Type111 crypto.
     """
     events: list[dict[str, Any]] = []
+    host_decoder = FfmpegCliDecoder()
     diagnostics = ClarityLinkRedactedDiagnostics()
     stock_type110_response = {"type": 110, "dataPort": 42110}
     stock_audio = {"center_active": True, "voice_route_active": True, "focus_owner": "synthetic-stock"}
@@ -161,11 +163,14 @@ def synthetic_type111_cluster_replay(mode: ReplayMode = ReplayMode.HYPOTHETICAL_
         events.append({"event": "type111_frame_received", "timestamp_raw": raw_timestamp,
                        "format": media.data_format, "evidence": "SYNTHETIC_TEST_VALUE"})
 
-        # No H.264 decoder is implemented. A deterministic synthetic pattern
-        # frame is generated only after a valid Annex-B access unit is produced.
+        # The replay fixture is parser-shaped, not valid decodable H.264.
+        # Keep rendering an explicit synthetic fallback; never claim decode.
         source = SyntheticPatternSource()
         frame = source.next_frame(datetime(2026, 9, 30, tzinfo=timezone.utc))
-        events.append({"event": "synthetic_decode_handoff", "source": "synthetic-pattern-after-Annex-B",
+        events.append({"event": "host_decode_not_run", "backend_available": host_decoder.available,
+                       "reason": "replay access unit is synthetic parser fixture, not valid H.264"})
+        events.append({"event": "synthetic_frame_source_fallback",
+                       "source": "pattern-after-synthetic-Annex-B-parser-fixture",
                        "pts_ns": frame.presentation_time_ns,
                        "evidence": "SYNTHETIC_TEST_VALUE"})
         renderer.start()
@@ -247,4 +252,12 @@ def synthetic_type111_cluster_replay(mode: ReplayMode = ReplayMode.HYPOTHETICAL_
             "display UUID": "SYNTHETIC_TEST_VALUE; not correlated to stream",
         },
         "video_handoff_mode": "SYNTHETIC_FRAME_SOURCE",
+        "host_decode": {
+            "backend": "FFMPEG_CLI" if host_decoder.available else "MOCK_ONLY",
+            "backend_available": host_decoder.available,
+            "performed": False,
+            "status": "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264" if host_decoder.available
+            else "HOST_DECODER_UNAVAILABLE",
+            "fallback": "synthetic pattern frame",
+        },
     }

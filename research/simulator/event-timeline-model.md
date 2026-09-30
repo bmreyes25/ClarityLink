@@ -28,3 +28,6 @@ Step 42F exports the selected mode's event list as JSON and displays it in the s
 ## Step 42E canonical replay
 
 The synthetic replay orders `session_started`, stock Setup start/preservation, capability gate, then either a strict-Honda skip or a hypothetical candidate setup/listener/connect/config/frame/render path. The hypothetical branch records Annex-B handoff, mock Display 1 submission, Type111-only teardown, `type110_still_active`, `audio_state_unchanged`, and finally synthetic full-session teardown. Events carry evidence labels where a wire/protocol interpretation could otherwise be mistaken for Honda behavior. Ports, IDs, timestamps, and frames are generated test values. The event stream is deterministic semantic output, not a Honda log format or timing trace.
+# Step 42G decoder events
+
+Hypothetical replay records `host_decode_not_run` with the backend availability and parser-fixture reason, followed by `synthetic_frame_source_fallback`. A future valid synthetic encode/decode path may add a successful decode event; the current timeline does not claim one. Decode failure or unavailability has no transition into Type110 or audio state.

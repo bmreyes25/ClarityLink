@@ -30,3 +30,5 @@ Honda-confirmed semantics are limited to stock Setup ownership/Type110 field sha
 The replay proves internal model composition and state invariants only.
 
 Step 42F's static visual demo reads a generated summary of this replay in both modes. It presents a center placeholder, a strict-mode empty secondary view or hypothetical-mode SVG illustration, evidence ledger, unknown register, and the semantic timeline. The SVG is a synthetic schematic chosen when the replay reports renderer submission; it is not decoded H.264. See `research/simulator/visual-cluster-demo.md` and `demo/type111/README.md`.
+
+Step 42G adds an optional FFmpeg CLI host decoder and synthetic in-memory H.264 generator. The replay fixture remains parser-only and is never presented to the decoder as valid media. This environment has no FFmpeg, so the real decode test skips; visual output explicitly reports the pattern fallback and decoder status. See `research/simulator/host-h264-decode-stage.md`.

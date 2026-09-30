@@ -27,6 +27,10 @@ class VisualClusterDemoTests(unittest.TestCase):
         self.assertTrue(hypothetical["type111"]["renderer_submitted"])
         self.assertTrue(hypothetical["cluster_frame"]["visible"])
         self.assertFalse(hypothetical["cluster_frame"]["decoded_from_h264"])
+        self.assertIn("SYNTHETIC FRAME SOURCE", hypothetical["cluster_frame"]["status_label"])
+        self.assertIn(hypothetical["cluster_frame"]["decode_status"], {
+            "HOST_DECODER_UNAVAILABLE", "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264",
+        })
         self.assertTrue(hypothetical["audio"]["unchanged"])
 
     def test_evidence_and_unknowns_are_visible_in_both_modes(self):
@@ -52,7 +56,7 @@ class VisualClusterDemoTests(unittest.TestCase):
         for text in (
             "HONDA_CONFIRMED", "MHI2_DERIVED_HYPOTHESIS", "SYNTHETIC_TEST_VALUE", "UNKNOWN",
             "Strict Honda", "Hypothetical Type111", "Unknown register", "replay-data.json",
-            "NOT READY", "CROP / MASK UNKNOWN", "not decoded H.264", "Evidence labels",
+            "NOT READY", "CROP / MASK UNKNOWN", "not valid H.264", "HOST DECODER UNAVAILABLE", "Evidence labels",
             "toggleAttribute('hidden'",
             "Candidate response fields", "MHI2 hypothesis",
         ):
