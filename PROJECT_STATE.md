@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42F — visual offline cluster demo
+
+Added a static two-display demo at `demo/type111/index.html`, driven by JSON generated from both modes of the Step 42E replay. Strict mode shows active/unchanged Type110 and no secondary frame; hypothetical mode shows the replay's candidate lifecycle and an inline synthetic map illustration in the Display 1 mock. The event timeline, evidence labels, unknown register, audio state, and closed live-readiness gates stay visible. The illustration is not decoded H.264 or a Honda capture. The demo is ready offline; jmcs no-op, real ExternalDisplay rendering, and Type111 live remain NOT READY. See `step-reports/42f-visual-offline-cluster-demo.md` and `research/simulator/visual-cluster-demo.md`.
+
 ## Step 42E — synthetic Type111 end-to-end replay (offline)
 
 Added a canonical two-mode digital-twin replay. Strict Honda mode runs stock Setup and skips Type111; hypothetical mode gates on explicit synthetic prerequisites, preserves the stock Type110 response/request, appends an MHI2-hypothesis candidate, parses synthetic opcode 1 config and opcode 0 video through the existing Type110-informed transport model, extracts Annex-B, then submits a generated pattern frame to a Display 1 mock. There is no decoder, Type111 crypto, Honda wire claim, or live renderer. Type111-only teardown leaves Type110 and synthetic audio active; full-session teardown is modeled separately. The replay, evidence labels, and event timeline are tested. Synthetic demo and offline twin are READY; jmcs no-op, ExternalDisplay live render, and Type111 live remain NOT READY. See step-reports/42e-synthetic-type111-end-to-end-replay.md.

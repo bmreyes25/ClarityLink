@@ -23,6 +23,8 @@ The current twin records primary preservation as an explicit snapshot assertion 
 
 Tests use the timeline to prove stage order and cleanup explanation. No event implies Honda emitted an equivalent log or callback.
 
+Step 42F exports the selected mode's event list as JSON and displays it in the static visual demo. The page formats existing event names for readability; it does not invent lifecycle events. Evidence text comes from the replay records, and empty/strict and hypothetical timelines remain distinct.
+
 ## Step 42E canonical replay
 
 The synthetic replay orders `session_started`, stock Setup start/preservation, capability gate, then either a strict-Honda skip or a hypothetical candidate setup/listener/connect/config/frame/render path. The hypothetical branch records Annex-B handoff, mock Display 1 submission, Type111-only teardown, `type110_still_active`, `audio_state_unchanged`, and finally synthetic full-session teardown. Events carry evidence labels where a wire/protocol interpretation could otherwise be mistaken for Honda behavior. Ports, IDs, timestamps, and frames are generated test values. The event stream is deterministic semantic output, not a Honda log format or timing trace.

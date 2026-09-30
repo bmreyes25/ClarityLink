@@ -28,3 +28,5 @@ Canonical scenario: synthetic_type111_cluster_replay. Entry point: src/clarityli
 Honda-confirmed semantics are limited to stock Setup ownership/Type110 field shapes and stock unsupported Type111 behavior. The Setup response strategy is MHI2-derived hypothesis. IDs, ports, descriptor and bodies are generated synthetic test values. Honda Type111 schema, display correlation, key/IV derivation, opcode semantics, phone acceptance and real render handoff remain unknown.
 
 The replay proves internal model composition and state invariants only.
+
+Step 42F's static visual demo reads a generated summary of this replay in both modes. It presents a center placeholder, a strict-mode empty secondary view or hypothetical-mode SVG illustration, evidence ledger, unknown register, and the semantic timeline. The SVG is a synthetic schematic chosen when the replay reports renderer submission; it is not decoded H.264. See `research/simulator/visual-cluster-demo.md` and `demo/type111/README.md`.

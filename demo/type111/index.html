@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>ClarityLink · Synthetic cluster demo</title>
+  <style>
+    :root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e9f0f2;background:#0b1015;font-synthesis:none;--panel:#141d25;--line:#2b3944;--muted:#a5b5be;--mint:#87e0c2;--amber:#ffc875;--red:#ff8e8e;--blue:#8fc7ff}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 78% -20%,#213541 0,transparent 40%),#0b1015}main{width:min(1240px,100% - 32px);margin:0 auto;padding:36px 0 64px}header{display:flex;gap:20px;justify-content:space-between;align-items:start;margin-bottom:20px}h1{font-size:clamp(25px,4vw,38px);letter-spacing:-.04em;margin:0 0 8px}.kicker{font-size:12px;text-transform:uppercase;letter-spacing:.15em;color:var(--mint);font-weight:700}p{line-height:1.55}.lead{max-width:780px;margin:0;color:#c1cdd2}.notice{border:1px solid #604d31;background:#211b12;color:#ffe0ac;border-radius:12px;padding:13px 16px;margin:20px 0 24px}.notice strong{color:#ffd18a}.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 22px}.toolbar span{color:var(--muted);margin-right:4px}.toolbar button{border:1px solid var(--line);border-radius:999px;background:#121a20;color:#e8f2f4;padding:10px 15px;font:inherit;cursor:pointer}.toolbar button[aria-pressed="true"]{background:#b0f0da;color:#092117;border-color:#b0f0da;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{background:linear-gradient(145deg,#17222a,#111920);border:1px solid var(--line);border-radius:18px;padding:20px;min-width:0}.card h2{font-size:18px;margin:0 0 6px}.sub{color:var(--muted);font-size:13px;margin:0 0 16px}.display{min-height:255px;background:#05090c;border:5px solid #35434b;border-radius:28px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}.display-head,.display-foot{display:flex;justify-content:space-between;color:#aab9c1;font-size:12px;letter-spacing:.04em}.center-content{text-align:center}.center-content .carplay{font-size:clamp(28px,4vw,46px);font-weight:650;letter-spacing:-.04em}.center-content .apps{display:flex;justify-content:center;gap:9px;margin:16px 0}.app-icon{height:34px;width:34px;border-radius:10px;background:#23343c;display:grid;place-items:center}.type110-line{font-size:13px;color:#b8d0d5}.cluster{min-height:255px;display:grid;grid-template-columns:110px 1fr 110px;gap:8px;align-items:stretch;border:5px solid #46545b;border-radius:28px;background:#05090c;padding:14px}.cluster-side{display:flex;flex-direction:column;justify-content:space-between;color:#d9e4e8;text-align:center;padding:8px 0}.cluster-side strong{font-size:25px}.cluster-center{min-width:0;display:flex;flex-direction:column;gap:8px}.cluster-label{font-size:10px;color:#a7b8c0;text-transform:uppercase;letter-spacing:.12em}.cluster-screen{flex:1;min-height:126px;position:relative;overflow:hidden;background:#0d171a;border:1px solid #526761;border-radius:9px;display:grid;place-items:center}.cluster-screen.empty{background:repeating-linear-gradient(135deg,#0c1418 0 12px,#111b20 12px 24px)}.cluster-screen svg{width:100%;height:100%;position:absolute;inset:0}.screen-overlay{position:relative;z-index:1;background:#071014d9;border:1px solid #779284;border-radius:7px;padding:7px 9px;font-size:12px;text-align:center;max-width:90%}.cluster-caption{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#9aadb6}.badge{display:inline-flex;align-items:center;border:1px solid currentColor;border-radius:999px;padding:3px 7px;font:700 10px/1.4 ui-monospace,monospace;letter-spacing:.015em;white-space:nowrap}.honda{color:var(--mint)}.hypothesis{color:var(--amber)}.synthetic{color:var(--blue)}.unknown{color:#ffbfaa}.status-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.status-pill{background:#1b2830;border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:#d4e0e4;font-size:12px}.status-pill b{color:var(--mint)}.status-pill.off b{color:var(--amber)}.lower{display:grid;grid-template-columns:1fr .85fr;gap:16px;margin-top:16px}.timeline,.unknown-list{margin:12px 0 0;padding:0;list-style:none}.timeline{display:grid;gap:8px}.timeline li{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;font-size:12px;padding:8px 10px;background:#10171d;border:1px solid #26343d;border-radius:9px}.timeline .num{color:#7c929e;font:11px ui-monospace,monospace}.timeline code{color:#e5eff2;overflow-wrap:anywhere}.timeline small{color:var(--muted)}.unknown-list{display:grid;gap:7px}.unknown-list li{font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:7px;border-bottom:1px solid #29353d}.evidence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.evidence-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#10171d;border:1px solid #26343d;border-radius:9px;padding:9px 10px;font-size:12px}.footnote{margin-top:16px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:12px}.error{color:#ffaaaa;min-height:1em}@media(max-width:800px){header{display:block}.grid,.lower{grid-template-columns:1fr}.evidence-grid{grid-template-columns:1fr}.cluster{grid-template-columns:68px 1fr 68px;padding:10px}.cluster-side strong{font-size:19px}.display{min-height:220px}}
+  </style>
+  <style>[hidden]{display:none!important}</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="kicker">ClarityLink · Step 42F</div><h1>Two-display digital twin</h1><p class="lead">A visual replay of the proposed experience: stock center CarPlay stays active while a synthetic secondary frame is shown on a mock cluster. The second stream is hypothetical and the cluster view is a schematic.</p></div>
+    <span class="badge synthetic" id="source-badge">Replay output</span>
+  </header>
+  <div class="notice"><strong>Offline model only.</strong> No Honda Type111 stream or ExternalDisplay integration is running here. The candidate frame is generated after synthetic Annex-B extraction; it is not decoded H.264 and does not replace or cover the real cluster UI.</div>
+
+  <nav class="toolbar" aria-label="Replay mode"><span>Replay mode</span><button id="strict-button" type="button" aria-pressed="true">Strict Honda</button><button id="hypothetical-button" type="button" aria-pressed="false">Hypothetical Type111</button><span id="mode-status" role="status"></span></nav>
+
+  <section class="grid" aria-label="Center and cluster mock displays">
+    <article class="card"><h2>Center display · Display 0</h2><p class="sub">Stock Type110 path placeholder</p>
+      <div class="display" id="center-display">
+        <div class="display-head"><span>HONDA · CARPLAY</span><span>STOCK PATH</span></div>
+        <div class="center-content"><div class="carplay">CarPlay</div><div class="apps"><span class="app-icon">⌖</span><span class="app-icon">♫</span><span class="app-icon">▦</span></div><div class="type110-line">Center stream · Type110 · active</div></div>
+        <div class="display-foot"><span>Audio route · active</span><span>Center UI · unchanged</span></div>
+      </div>
+      <div class="status-row"><span class="badge honda">HONDA_CONFIRMED</span><span class="badge synthetic">SYNTHETIC_TEST_VALUE</span><span class="status-pill" id="type110-status"><b>ACTIVE</b> · unchanged</span></div>
+    </article>
+
+    <article class="card"><h2>Instrument cluster · Display 1</h2><p class="sub">Mock ExternalDisplay host · does not replace full cluster</p>
+      <div class="cluster" id="cluster-display">
+        <div class="cluster-side"><span>POWER</span><strong>—</strong><span>CHARGE</span></div>
+        <div class="cluster-center"><div class="cluster-label">Proposed inset area · boundaries unknown</div><div class="cluster-screen empty" id="cluster-screen">
+          <svg id="synthetic-map" viewBox="0 0 800 360" preserveAspectRatio="xMidYMid slice" aria-label="Synthetic map pattern" hidden>
+            <defs><linearGradient id="mapbg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#16332f"/><stop offset="1" stop-color="#354c3f"/></linearGradient><pattern id="gridlines" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#718878" stroke-opacity=".26" stroke-width="2"/></pattern></defs>
+            <rect width="800" height="360" fill="url(#mapbg)"/><rect width="800" height="360" fill="url(#gridlines)"/>
+            <path d="M-50 260 C130 220 180 80 340 130 S550 245 860 35" fill="none" stroke="#e0d8b5" stroke-width="25" stroke-linecap="round"/><path d="M70 -30 C160 90 260 190 315 390M490 -20 C440 110 535 190 690 385" fill="none" stroke="#8da2a0" stroke-width="13"/>
+            <path d="M-50 260 C130 220 180 80 340 130 S550 245 860 35" fill="none" stroke="#68a9ff" stroke-width="7" stroke-linecap="round"/><circle cx="432" cy="163" r="19" fill="#eaf5ff" stroke="#3377c8" stroke-width="8"/><path d="M432 145 420 173 433 168 444 174Z" fill="#2876d0"/>
+          </svg>
+          <div class="screen-overlay" id="cluster-message">Strict Honda mode: Type111 skipped</div>
+        </div><div class="cluster-caption"><span id="stream-caption">No secondary frame</span><span class="badge unknown">CROP / MASK UNKNOWN</span></div></div>
+        <div class="cluster-side"><span>SPEED</span><strong>—</strong><span>km/h</span></div>
+      </div>
+      <div class="status-row"><span class="badge hypothesis" id="type111-badge">HONDA_CONFIRMED</span><span class="badge unknown">UNKNOWN</span><span class="status-pill" id="renderer-status">Renderer · inactive</span><span class="status-pill" id="response-fields">No Type111 response in strict mode</span></div>
+    </article>
+  </section>
+
+  <section class="card"><h2>Evidence labels</h2><p class="sub">Confidence is attached to each displayed element, not inferred from the mock rendering.</p><div class="evidence-grid" id="evidence-labels"></div></section>
+
+  <section class="lower">
+    <article class="card"><h2>Replay timeline</h2><p class="sub">Semantic events from the Step 42E model; no live receiver events.</p><ol class="timeline" id="timeline"></ol></article>
+    <article class="card"><h2>Unknown register</h2><p class="sub">These remain unresolved for Honda and the real vehicle.</p><ul class="unknown-list" id="unknowns"></ul>
+      <div class="status-row"><span class="status-pill" id="audio-status">Audio · unchanged</span><span class="status-pill off" id="live-status">Live test · NOT READY</span><span class="status-pill off" id="preload-status">LD_PRELOAD · PARKED</span></div>
+    </article>
+  </section>
+  <p class="footnote">Evidence key: <span class="badge honda">HONDA_CONFIRMED</span> recovered stock behavior · <span class="badge hypothesis">MHI2_DERIVED_HYPOTHESIS</span> prior-art response profile · <span class="badge synthetic">SYNTHETIC_TEST_VALUE</span> generated demo data · <span class="badge unknown">UNKNOWN</span> unproven Honda behavior. The green cluster frame is an in-page illustration selected by replay output; it is not a decoded frame asset. Decoder, safety overlay composition, crop/mask, and ExternalDisplay handoff remain unproven.</p>
+  <p class="error" id="error" role="alert"></p>
+</main>
+<script>
+const $=id=>document.getElementById(id);let data=null,mode='strict_honda';
+const readable=value=>value.replaceAll('_',' ');
+function render(){if(!data)return;const state=data.modes[mode],hypothetical=mode==='hypothetical_type111';
+  $('strict-button').setAttribute('aria-pressed',String(!hypothetical));$('hypothetical-button').setAttribute('aria-pressed',String(hypothetical));
+  $('mode-status').textContent=hypothetical?'Hypothetical candidate · synthetic only':'Honda stock behavior';
+  $('type110-status').innerHTML=state.type110.active&&state.type110.unchanged?'<b>ACTIVE</b> · unchanged':'CHECK';
+  $('cluster-screen').classList.toggle('empty',!state.cluster_frame.visible);$('synthetic-map').toggleAttribute('hidden',!state.cluster_frame.visible);
+  $('cluster-message').textContent=state.cluster_frame.visible?'Synthetic frame pattern · not decoded H.264':'Strict Honda mode: Type111 skipped';
+  $('stream-caption').textContent=state.cluster_frame.visible?'Synthetic Type111 candidate · 800 × 480':'No secondary frame';
+  $('type111-badge').textContent=state.type111.evidence;$('type111-badge').className='badge '+(hypothetical?'hypothesis':'honda');
+  $('renderer-status').textContent=state.type111.renderer_submitted?'Renderer · mock submission recorded':'Renderer · inactive';
+  $('response-fields').textContent=state.type111.response_fields.length?`Candidate response fields · MHI2 hypothesis · synthetic request values: ${state.type111.response_fields.join(', ')}`:'No Type111 response fields in strict mode';
+  $('audio-status').textContent=state.audio.unchanged?'Audio · unchanged':'Audio · check';
+  $('live-status').textContent=`Live test · ${data.live_test}`;$('preload-status').textContent=`LD_PRELOAD · ${data.ld_preload}`;
+  $('timeline').replaceChildren(...state.timeline.map((entry,index)=>{const li=document.createElement('li'),num=document.createElement('span'),code=document.createElement('code'),small=document.createElement('small');num.className='num';num.textContent=String(index+1).padStart(2,'0');code.textContent=readable(entry.event);small.textContent=entry.evidence||'';li.append(num,code,small);return li;}));
+  $('unknowns').replaceChildren(...state.unknowns.map(item=>{const li=document.createElement('li'),label=document.createElement('span'),badge=document.createElement('span');label.textContent=item.topic;badge.className='badge unknown';badge.textContent=item.evidence;li.append(label,badge);return li;}));
+  $('evidence-labels').replaceChildren(...state.evidence_labels.map(item=>{const row=document.createElement('div'),label=document.createElement('span'),badge=document.createElement('span');row.className='evidence-row';label.textContent=item.element;badge.className='badge '+({HONDA_CONFIRMED:'honda',MHI2_DERIVED_HYPOTHESIS:'hypothesis',SYNTHETIC_TEST_VALUE:'synthetic',UNKNOWN:'unknown'}[item.label]||'unknown');badge.textContent=item.label;row.append(label,badge);return row;}));
+  $('error').textContent='';
+}
+$('strict-button').onclick=()=>{mode='strict_honda';render()};$('hypothetical-button').onclick=()=>{mode='hypothetical_type111';render()};
+fetch('./replay-data.json').then(response=>{if(!response.ok)throw new Error('Could not load replay-data.json');return response.json()}).then(value=>{data=value;$('source-badge').textContent=value.source;render()}).catch(error=>{$('error').textContent=`Run the demo from its local server: ${error.message}`;});
+</script>
+</body>
+</html>

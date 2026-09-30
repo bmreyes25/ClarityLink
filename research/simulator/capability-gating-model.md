@@ -23,3 +23,5 @@ Hypothetical capability advertisement uses a synthetic descriptor. Its UUID does
 - UNKNOWN: whether a real iPhone requests/accepts these fields and how display/stream identity is bound.
 
 Never interpret HYPOTHETICAL_TYPE111 success as Honda or iPhone support.
+
+The Step 42F view is projected from the canonical replay's mode outputs. Strict mode visibly has no cluster frame; hypothetical mode shows only a schematic synthetic illustration. The browser view does not change the gate or run a second independent negotiation model.

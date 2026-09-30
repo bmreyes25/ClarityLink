@@ -1,0 +1,359 @@
+{
+  "schema": "claritylink.synthetic-type111-visual-demo.v1",
+  "generated_at": "2026-09-30T00:00:00+00:00",
+  "source": "STEP_42E_REPLAY_OUTPUT",
+  "live_test": "NOT_READY",
+  "jmcs_noop_test": "NOT_READY",
+  "externaldisplay_live_render_test": "NOT_READY",
+  "ld_preload": "PARKED",
+  "modes": {
+    "strict_honda": {
+      "type110": {
+        "active": true,
+        "unchanged": true,
+        "display": "Display 0 \u00b7 stock center placeholder",
+        "evidence": [
+          "HONDA_CONFIRMED",
+          "SYNTHETIC_TEST_VALUE"
+        ]
+      },
+      "audio": {
+        "unchanged": true,
+        "evidence": "SYNTHETIC_TEST_VALUE"
+      },
+      "type111": {
+        "status": "skipped / unsupported",
+        "listener_started": false,
+        "video_config_received": false,
+        "frame_received": false,
+        "renderer_submitted": false,
+        "response_fields": [],
+        "evidence": "HONDA_CONFIRMED",
+        "field_values": null
+      },
+      "cluster_frame": {
+        "visible": false,
+        "source": null,
+        "decoded_from_h264": false,
+        "width": null,
+        "height": null,
+        "presentation_timestamp": null,
+        "evidence": "SYNTHETIC_TEST_VALUE"
+      },
+      "renderer": {
+        "target": "inactive",
+        "real_externaldisplay_integration": "UNKNOWN",
+        "crop_mask": "UNKNOWN",
+        "safety_overlay_composition": "UNKNOWN",
+        "evidence": "SYNTHETIC_TEST_VALUE"
+      },
+      "evidence_labels": [
+        {
+          "element": "Display 0 stock Type110 path",
+          "label": "HONDA_CONFIRMED"
+        },
+        {
+          "element": "Display 0 generated fixture values",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Display 1 mock canvas",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Type111 candidate response profile",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Type111 candidate field values",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Display-to-stream correlation",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Type111 security/key derivation",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Synthetic frame after Annex-B",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Mock renderer submission",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Real ExternalDisplay integration",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Cluster crop/mask",
+          "label": "UNKNOWN"
+        }
+      ],
+      "unknowns": [
+        {
+          "topic": "Honda Type111 response schema",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "display-to-stream correlation",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "Type111 security and key derivation",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "real ExternalDisplay frame handoff",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "jmcs integration/load seam",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "crop and mask geometry",
+          "evidence": "UNKNOWN"
+        }
+      ],
+      "timeline": [
+        {
+          "event": "session_started",
+          "evidence": "synthetic"
+        },
+        {
+          "event": "type110_setup_started",
+          "evidence": "synthetic Honda-shaped baseline"
+        },
+        {
+          "event": "type110_setup_preserved"
+        },
+        {
+          "event": "capability_gate_checked",
+          "mode": "strict_honda",
+          "allowed": false,
+          "evidence": "HONDA_CONFIRMED: stock Honda skips unsupported Type111",
+          "unknowns": [
+            "Honda Type111 response schema",
+            "display/stream correlation",
+            "Type111 KDF and master reuse"
+          ]
+        },
+        {
+          "event": "type111_skipped_by_honda",
+          "evidence": "HONDA_CONFIRMED stock unsupported branch"
+        },
+        {
+          "event": "full_session_teardown"
+        }
+      ]
+    },
+    "hypothetical_type111": {
+      "type110": {
+        "active": true,
+        "unchanged": true,
+        "display": "Display 0 \u00b7 stock center placeholder",
+        "evidence": [
+          "HONDA_CONFIRMED",
+          "SYNTHETIC_TEST_VALUE"
+        ]
+      },
+      "audio": {
+        "unchanged": true,
+        "evidence": "SYNTHETIC_TEST_VALUE"
+      },
+      "type111": {
+        "status": "synthetic replay completed",
+        "listener_started": true,
+        "video_config_received": true,
+        "frame_received": true,
+        "renderer_submitted": true,
+        "response_fields": [
+          "type",
+          "streamConnectionID",
+          "displayCorrelation",
+          "dataPort",
+          "streamID"
+        ],
+        "evidence": "MHI2_DERIVED_HYPOTHESIS",
+        "field_values": "SYNTHETIC_TEST_VALUE"
+      },
+      "cluster_frame": {
+        "visible": true,
+        "source": "generated pattern after synthetic Annex-B extraction",
+        "decoded_from_h264": false,
+        "width": 800,
+        "height": 480,
+        "presentation_timestamp": "SYNTHETIC_TEST_VALUE",
+        "evidence": "SYNTHETIC_TEST_VALUE"
+      },
+      "renderer": {
+        "target": "Display 1 \u00b7 ExternalDisplay host mock",
+        "real_externaldisplay_integration": "UNKNOWN",
+        "crop_mask": "UNKNOWN",
+        "safety_overlay_composition": "UNKNOWN",
+        "evidence": "SYNTHETIC_TEST_VALUE"
+      },
+      "evidence_labels": [
+        {
+          "element": "Display 0 stock Type110 path",
+          "label": "HONDA_CONFIRMED"
+        },
+        {
+          "element": "Display 0 generated fixture values",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Display 1 mock canvas",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Type111 candidate response profile",
+          "label": "MHI2_DERIVED_HYPOTHESIS"
+        },
+        {
+          "element": "Type111 candidate field values",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Display-to-stream correlation",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Type111 security/key derivation",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Synthetic frame after Annex-B",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Mock renderer submission",
+          "label": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "element": "Real ExternalDisplay integration",
+          "label": "UNKNOWN"
+        },
+        {
+          "element": "Cluster crop/mask",
+          "label": "UNKNOWN"
+        }
+      ],
+      "unknowns": [
+        {
+          "topic": "Honda Type111 response schema",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "display-to-stream correlation",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "Type111 security and key derivation",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "real ExternalDisplay frame handoff",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "jmcs integration/load seam",
+          "evidence": "UNKNOWN"
+        },
+        {
+          "topic": "crop and mask geometry",
+          "evidence": "UNKNOWN"
+        }
+      ],
+      "timeline": [
+        {
+          "event": "session_started",
+          "evidence": "synthetic"
+        },
+        {
+          "event": "type110_setup_started",
+          "evidence": "synthetic Honda-shaped baseline"
+        },
+        {
+          "event": "type110_setup_preserved"
+        },
+        {
+          "event": "capability_gate_checked",
+          "mode": "hypothetical_type111",
+          "allowed": true,
+          "evidence": "MHI2_DERIVED_HYPOTHESIS + SYNTHETIC_TEST_VALUE; not Honda support evidence",
+          "unknowns": [
+            "Honda Type111 response schema",
+            "display/stream correlation",
+            "Type111 KDF and master reuse"
+          ]
+        },
+        {
+          "event": "type111_allowed_hypothetical",
+          "evidence": "MHI2_DERIVED_HYPOTHESIS"
+        },
+        {
+          "event": "type111_setup_created",
+          "fields": {
+            "type": "MHI2_DERIVED_HYPOTHESIS",
+            "dataPort": "SYNTHETIC_TEST_VALUE",
+            "streamConnectionID": "SYNTHETIC_TEST_VALUE",
+            "displayCorrelation": "UNKNOWN"
+          }
+        },
+        {
+          "event": "type111_listener_started",
+          "dataPort": 43111,
+          "evidence": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "event": "type111_client_connected"
+        },
+        {
+          "event": "type111_videoconfig_received",
+          "evidence": "SYNTHETIC_TEST_VALUE; parser semantics modeled from Type110"
+        },
+        {
+          "event": "type111_frame_received",
+          "timestamp_raw": 2345,
+          "format": "annex-b-normal-record-path",
+          "evidence": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "event": "synthetic_decode_handoff",
+          "source": "synthetic-pattern-after-Annex-B",
+          "pts_ns": 1790726400000000000,
+          "evidence": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "event": "type111_frame_submitted_to_renderer",
+          "target": {
+            "display": 1,
+            "size": [
+              800,
+              480
+            ],
+            "host": "mock"
+          },
+          "evidence": "SYNTHETIC_TEST_VALUE"
+        },
+        {
+          "event": "type111_teardown"
+        },
+        {
+          "event": "type110_still_active"
+        },
+        {
+          "event": "audio_state_unchanged"
+        },
+        {
+          "event": "full_session_teardown"
+        }
+      ]
+    }
+  }
+}

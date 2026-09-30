@@ -1,4 +1,13 @@
-# Step 42E — synthetic Type111 end-to-end replay (2026-09-30)
+# Step 42F — visual offline cluster demo (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Visual page | `demo/type111/index.html`; `demo/type111/README.md` | Static, dependency-light two-display mock with Strict Honda and Hypothetical Type111 views; no capture assets |
+| Replay data | `src/claritylink-sim/export_visual_demo.py`; `demo/type111/replay-data.json` | Generated from both Step 42E replay modes; contains state/timeline summary only, no media bytes or keys |
+| Evidence / unknowns | `research/simulator/visual-cluster-demo.md`; `tests/integration/test_visual_cluster_demo.py` | Honda, MHI2 hypothesis, synthetic values, and unknown behavior have visible separate labels; live gates remain closed |
+| Preview / readiness | `step-reports/42f-visual-offline-cluster-demo.md`; `NEXT_ACTION.md` | Local browser preview checked both modes; visual demo ready, jmcs no-op/ExternalDisplay live/Type111 live NOT READY |
+
+## Step 42E — synthetic Type111 end-to-end replay (2026-09-30)
 
 | Area | Primary evidence | Finding |
 |---|---|---|
