@@ -24,3 +24,5 @@ Step 42C contract for offline models and future integration. Honda-confirmed mea
 ## Existing tests
 
 The negotiation suite covers stock-first order, stock failure short-circuit, Type110/audio entry preservation, unknown fields, candidate rollback, and atomic malformed merge. The display/session fixture checks primary preservation and labels its tokens synthetic. These guard the model, not Honda Type111 support.
+
+Step 42D's failure twin additionally compares an immutable Type110/session/audio snapshot across injected listener, crypto, parser/config, frame, renderer, duplicate-request and secondary-teardown failures. Parent stream loss closes the modeled secondary; full session loss clears audio. All audio fields are synthetic invariant-only.

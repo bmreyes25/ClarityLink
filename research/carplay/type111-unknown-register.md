@@ -19,3 +19,5 @@ All rows are unknown for Honda. Offline tests validate candidate handling but ca
 | ScreenStream/H.264 reuse | Honda Type110 only; MHI2 own path | Parser incompatibility | Synthetic variants | Yes | Obtain legitimate secondary stream evidence |
 
 No real keys or captured proprietary payloads are used.
+
+Step 42D fixtures keep all fields that affect display correlation, response shape, stream crypto, and codec readiness explicitly candidate/synthetic. An injected missing-field case fails closed; no implicit Honda default is added.

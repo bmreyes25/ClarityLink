@@ -21,3 +21,5 @@ Unknown identity never defaults to a Honda UUID. Unknown Type111 requirements fa
 Assertions: stock response immutable; Type110/audio order and values preserved; Type111 crypto/parser state generation-isolated; secondary-only failure does not reset Type110; parent teardown closes child; renderer accepts frames only for active generation and clears on teardown; every test labels evidence class.
 
 The twin can test state transitions, bounds, rollback, generated crypto isolation and renderer lifecycle. It cannot prove phone acceptance, MFi/iAP2 authentication, Honda Type111 wire/key compatibility, code entry, Binder access, physical Display 1 geometry or live center-display preservation.
+
+Step 42D adds a host-only Type111 failure twin with independent Type110, Type111, audio and event state. Injected failures clear the Type111 generation while the serialized Type110/audio snapshot remains equal. Full-session teardown is the only event that clears all modeled state. This remains a synthetic invariant test, not a Honda runtime implementation.

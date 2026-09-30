@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42D — failure-injected Type111 digital twin (offline)
+
+Added a synthetic-only Type111 lifecycle twin and failure-injection test. It models isolated Type110 response/crypto/audio state, candidate Type111 listener/config/frame/renderer state, and a semantic event timeline. Injected setup, listener, crypto, parser/config, H.264, renderer, duplicate-request, disconnect and teardown failures leave the stock Type110/audio snapshot unchanged, except explicit parent/full-session teardown rules. Honda Type111 wire/security/correlation remain unknown. Offline synthetic demo is ready; jmcs no-op, ExternalDisplay live render and Type111 live remain NOT READY. See step-reports/42d-failure-injected-type111-digital-twin.md.
+
 ## Step 42C — offline jmcs integration contract defined
 
 Defined Type110 invariants, potential jmcs inputs/outputs, the Type111 unknown register and listener lifecycle, crypto boundaries, renderer frame contract, and digital-twin evidence profiles. Honda Type111-specific input/output and security remain partial/unknown. Existing negotiation/session-model tests already enforce stock-first behavior, primary preservation and rollback, so no code change was justified. Offline twin work is ready; jmcs no-op, ExternalDisplay render and Type111 live remain NOT READY. See step-reports/42c-jmcs-integration-contract.md and linked contract documents.

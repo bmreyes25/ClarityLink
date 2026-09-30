@@ -11,3 +11,5 @@ Require bounded frame ownership, stale-generation rejection and clear/close on T
 - Supported companion frame API: not found in reviewed interfaces.
 - Host mock test: ready; Android/vehicle render test: not ready.
 - Unknowns: decoder/surface ownership, pixel transfer, geometry, host entry, lifecycle and authorization.
+
+The offline failure twin injects renderer unavailable, invalid dimensions, timeout, absent host, unknown crop/mask, and dropped-frame failures. It verifies the Type110/audio snapshot is unchanged and candidate renderer state is cleared. This is not an ExternalDisplay output test.

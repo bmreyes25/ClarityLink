@@ -1,3 +1,13 @@
+## Step 42D — failure-injected Type111 digital twin (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Failure matrix | research/simulator/type111-failure-matrix.md | Setup, listener, crypto/parser/config, H.264, renderer, session and reconnect failures have explicit synthetic expected behavior |
+| Isolation model/test | src/claritylink-sim/type111-failure-twin.js; tests/sim/test_type111_failure_twin.js | Type110 response/stream/crypto and synthetic audio are separate from Type111 state; candidate failures and teardown are injected |
+| Audio/timeline | research/simulator/audio-state-model.md; research/simulator/event-timeline-model.md | Audio isolation is synthetic invariant-only; event timeline is semantic, bounded in-memory, not Honda logs |
+| Updated contracts | research/simulator/digital-twin-contract.md; research/architecture/type110-invariants.md; Type111 lifecycle/renderer notes | Failure behavior is modeled; Honda Type111 and live rendering remain unknown |
+| Readiness | step-reports/42d-failure-injected-type111-digital-twin.md; NEXT_ACTION.md | Synthetic Type111 lifecycle demo ready; no live gate advanced |
+
 ## Step 42C — offline jmcs integration contract (2026-09-30)
 
 | Area | Primary evidence | Finding |
