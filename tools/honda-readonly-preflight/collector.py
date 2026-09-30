@@ -153,13 +153,16 @@ class FixedAdb:
         self.serial = serial
 
     def plan(self, operation: str, args: tuple[str, ...]) -> tuple[str, ...]:
-        if operation in {"id", "uname", "ps", "service-list", "hash-jmcs", "ls-jmcs"}:
+        if operation in {"id", "uname", "ps", "service-list", "hash-jmcs", "ls-jmcs",
+                         "hash-su", "ls-su"}:
             if args:
                 raise SafetyStop("fixed command does not accept extra arguments")
             remote = {"id": ("id",), "uname": ("uname", "-a"), "ps": ("ps",),
                       "service-list": ("service", "list"),
                       "hash-jmcs": ("sha256sum", JMCS_STATIC_PATH),
-                      "ls-jmcs": ("ls", "-l", JMCS_STATIC_PATH)}[operation]
+                      "ls-jmcs": ("ls", "-l", JMCS_STATIC_PATH),
+                      "hash-su": ("sha256sum", "/system/xbin/su"),
+                      "ls-su": ("ls", "-l", "/system/xbin/su")}[operation]
         elif operation == "read":
             if len(args) != 1:
                 raise SafetyStop("read requires exactly one allowlisted path")
@@ -208,6 +211,13 @@ class FixedAdb:
     def run(self, operation: str, *args: str, timeout: int = COMMAND_TIMEOUT,
             max_bytes: int = MAX_COMMAND_OUTPUT) -> tuple[int, bytes, bytes]:
         command = self.plan(operation, tuple(args))
+        return self._run_planned(command, operation, tuple(args), timeout=timeout,
+                                 max_bytes=max_bytes)
+
+    def _run_planned(self, command: tuple[str, ...], operation: str,
+                     args: tuple[str, ...], *, timeout: int = COMMAND_TIMEOUT,
+                     max_bytes: int = MAX_COMMAND_OUTPUT) -> tuple[int, bytes, bytes]:
+        """Execute a command built by a reviewed fixed-operation planner."""
         started = datetime.now(timezone.utc).isoformat()
         record: dict[str, Any] = {
             "operation": operation, "arguments": list(args),
@@ -569,6 +579,8 @@ class Capture:
             "phase_order": phase_order,
             "phase_times": self.phase_times,
             "process_identities": {name: asdict(identity) for name, identity in self.phase_identities.items()},
+            "target_identity": getattr(self, "target_identity", None),
+            "privileged_mode": bool(getattr(self, "privileged_mode", False)),
             "artifacts": self.files,
             "commands": self.reader.records,
             "stop_result": self.stop_result,
@@ -708,11 +720,20 @@ def main(argv: list[str] | None = None) -> int:
             phases.append("post-disconnect")
         capture.finalize(phases)
         print(f"Capture finalized on host: {output}")
+        print("==============================================")
+        print("CAPTURE COMPLETE — YOU CAN TURN THE CAR OFF NOW")
+        print("==============================================")
         return 0
-    except (SafetyStop, KeyboardInterrupt, EOFError) as exc:
+    except (Exception, KeyboardInterrupt, EOFError) as exc:
         capture.stop_result = classify_stop_reason(str(exc)).value
-        capture.finalize(phases)
+        try:
+            capture.finalize(phases)
+        except Exception as finalize_error:
+            print(f"Host finalization issue recorded: {type(finalize_error).__name__}.", file=sys.stderr)
         print(f"STOPPED safely; completed phase evidence retained at {output}: {exc}", file=sys.stderr)
+        print("==============================================", file=sys.stderr)
+        print("CAPTURE STOPPED — YOU CAN TURN THE CAR OFF NOW", file=sys.stderr)
+        print("==============================================", file=sys.stderr)
         return 1
 
 

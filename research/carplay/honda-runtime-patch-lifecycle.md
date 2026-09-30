@@ -33,3 +33,7 @@ The official ADA01 source archive is **RELATED PLATFORM SOURCE** only (Linux 3.4
 ## Step 40E update
 
 The corrected Step 40E three-phase read-only capture completed and confirmed a stable `jmcs` process identity. Maps/smaps access was denied, so runtime callsites, page size, executable mapping protections, and candidate veneer gaps remain unknown. mprotect/cache/rendezvous behavior remains untested. Step 40F and Step 41 remain NO. See the [Step 40E report](../../step-reports/40e-readonly-runtime-preflight.md).
+
+## Step 40E2 update
+
+The full existing bundle was reviewed offline and its 1,944 hashes match. No indirect map or page-size evidence exists. Related Tegra source makes ptrace eligibility the high-confidence explanation for maps/fd denial, but the exact Honda kernel source and LSM state are unavailable. A fixed-operation `su -c` read plan and three-phase state machine were prepared with UID/PID/start-time checks and no target writes. The preserved `system/xbin/su` is setuid-root with mode `06777`, so the wrapper refuses it unless a later exact live fingerprint/mode preflight passes. Persistent invocation side effects and current live binary metadata are unknown. Independent ECC review is unavailable; the car session is NOT READY, and Step 40F, Step 41, and Type111 remain disabled.

@@ -14,6 +14,10 @@ The corrected collector independently matched `/proc/version` and Android releas
 
 ## Automated read-only observations
 
-The completed three-phase capture found the same `jmcs` process identity throughout. `/proc/<jmcs>/maps` and `smaps` were permission denied to the unprivileged shell, leaving page size and runtime mappings unknown. CPU0–CPU3 topology values were available during baseline; cache index/line details were not exposed. `/proc/config.gz` was malformed or unsupported when analyzed, and `/sys/fs/selinux/enforce` was absent. No runtime permission, cache, signal, rendezvous, or patch test was performed.
+The completed three-phase capture found the same `jmcs` process identity throughout. `/proc/<jmcs>/maps` and `smaps` were permission denied to the unprivileged shell, leaving page size and runtime mappings unknown. CPU0–CPU3 topology values were available during baseline; cache index directories were not exposed. `/proc/config.gz` had a gzip signature but the legacy ADB shell copy did not decompress, and `/sys/fs/selinux/enforce` was absent. No runtime permission, cache, signal, rendezvous, or patch test was performed.
+
+Related Tegra source shows ptrace permission gates for `maps`/`smaps` and `/proc/<pid>/fd`; combined with shell UID 2000 and root-owned `jmcs`, this is the high-confidence explanation for the observed errors. Honda's exact 3.1.10+ source is not available, so this is not vendor-kernel confirmation. See [proc access analysis](honda-proc-access.md).
 
 Static Step 40D evidence remains: copied Honda kernel SHA-256 `1dd3e403311d5cd18f12284b2d9263a0999707f1f16d3d83df1d8c324428949a`; exact kernel config remains unrecovered. The official ADA01 3.4.108 tree remains related-platform comparison source only.
+
+Step 40E2 verified all 1,944 capture hashes offline. `/proc/meminfo`, captured maps errors, process status, proc mount options, ASLR, CPU topology, and the gzip failure were examined for indirect page-size evidence; page size remains **UNKNOWN**. No address alignment was used to infer a granule.

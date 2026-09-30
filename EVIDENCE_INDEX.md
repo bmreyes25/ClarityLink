@@ -1,3 +1,14 @@
+## Step 40E2 — offline bundle exhaustion and privileged-read preparation (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Bundle inventory | `tools/honda-readonly-preflight/bundle_inventory.py`, `step-reports/40e2-privileged-read-preparation.md` | 1,944 artifact/manifest entries represented; all 1,944 capture hashes matched; inventory and detailed TID/network derivatives live beside raw evidence outside Git |
+| Proc permission | `research/platform/honda-proc-access.md` | UID 2000 denied maps/smaps/fd; ptrace credential gate is high-confidence based on related Tegra source, not exact Honda confirmation; page size UNKNOWN |
+| Existing root facility | `research/platform/honda-root-path.md` | `/system/xbin/su` ARM SuperSU-family binary and `su -c` use proven in earlier read-only sessions; preserved archive mode 06777 is unsafe; live mode/hash and persistence effects UNKNOWN |
+| Prepared collector | `tools/honda-readonly-preflight/privileged.py`, `privileged_session.py`, `session.py` | Fixed enum allowlist, exact UID and process checks, root binary fingerprint/mode gate, host-only raw outputs, three-phase prompts, car-off success/abort messages |
+| Decision | Step 40E2 report | Full session simulator passes, but the mode gate rejects the preserved `su`; vehicle session NOT READY; Step 40F/41 NO; Type111 disabled |
+| Review | Step 40E2 report | ECC security-review and terminal-ops used; independent ECC reviewer unavailable; no independent approval claimed |
+
 ## Step 40E — parked read-only Honda runtime preflight (2026-09-29)
 
 | Area | Primary evidence | Finding |

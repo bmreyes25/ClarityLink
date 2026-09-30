@@ -14,6 +14,10 @@ The project implements a first-fit gap chooser over supplied synthetic intervals
 
 `NEAR VENEER ALLOCATION: MODEL ONLY; TARGET NOT READY`
 
+## Step 40E2 status
+
+The existing capture contains only permission-denial text for all three maps/smaps phases. It provides no live unmapped intervals, so the exact candidates remain **UNKNOWN**. The host inventory reports no addresses from the denied files and does not convert this into an empty-map result. No allocation, reservation, or page-size assumption was made. The privileged capture plan remains blocked by the `su` binary integrity/mode finding in [Honda root path evidence](../platform/honda-root-path.md).
+
 ## Step 40E status
 
 The three-phase Step 40E capture completed, but unprivileged ADB reads of `/proc/<jmcs>/maps` and `smaps` returned `Permission denied`. INFO/Setup runtime reach intervals, load bias, page size, and candidate free VA gaps therefore remain unknown. The analyzer preserves these as unavailable and does not infer empty address space. No allocation or active target operation occurred.

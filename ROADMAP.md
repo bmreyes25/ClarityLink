@@ -58,4 +58,4 @@ flowchart LR
 
 ## Next
 
-Step 40E completed through legacy `adb shell`; the earlier `exec-out`/`uname` stop was a collector compatibility error. Runtime maps/smaps remain denied, so load bias/page size/gap analysis is blocked. Next identify a supported read-only mapping access path without changing target state. Step 40F, Step 41, and Type111 remain **NO**. See `step-reports/40e-readonly-runtime-preflight.md`.
+Step 40E2 exhausted the existing capture and prepared a fixed-operation privileged read plan and full phase simulator. It did not contact the vehicle. The preserved setuid-root `/system/xbin/su` archive mode is 06777 (group/other writable), so the new preflight rejects it; exact current-device hash/mode and persistent invocation effects remain unknown. Resolve this trust issue and obtain independent ECC review before considering another vehicle session. Step 40F, Step 41, and Type111 remain **NO**. See `step-reports/40e2-privileged-read-preparation.md`.

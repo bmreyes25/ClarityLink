@@ -15,3 +15,7 @@ The actual ELF is ET_DYN with two PT_LOAD segments. Its first executable PT_LOAD
 ## Step 40E status
 
 The host collector and offline mapping parser are now available in `tools/honda-readonly-preflight/`. It checks the pinned ELF's `p_offset=0`, `p_vaddr=0` relation against the live executable mapping and then requires each computed runtime callsite to fall in an executable VMA. The corrected three-phase read-only capture completed and confirmed the same `jmcs` PID/start time throughout, but `/proc/<jmcs>/maps` and `smaps` were denied to the unprivileged shell. There is no live load bias or runtime callsite address; synthetic fixtures do not fill that gap. See [Step 40E report](../../step-reports/40e-readonly-runtime-preflight.md).
+
+## Step 40E2 status
+
+All available Step 40E artifacts were inventoried and hash-checked offline. No indirect page-size or mapping evidence resolves the missing runtime facts. Step 40E2 prepared a fixed-operation root reader but leaves live collection blocked: the preserved setuid `su` file mode is `06777` and its exact current-device integrity/side effects are not established. No runtime address may be calculated until an approved read-only maps capture passes exact ELF/path/segment checks.
