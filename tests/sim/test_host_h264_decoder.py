@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src/claritylink-renderer"))
 
 from host_h264_decoder import (  # noqa: E402
     DecodeStatus, FfmpegCliDecoder, generate_synthetic_h264,
+    probe_ffmpeg_capabilities,
 )
 from model import MockDisplay1Backend, ClarityLinkRenderer  # noqa: E402
 
@@ -24,6 +25,16 @@ def _synthetic_annexb() -> bytes:
 
 
 class HostH264DecoderTests(unittest.TestCase):
+    def test_capability_detection_reports_host_tools(self):
+        capabilities = probe_ffmpeg_capabilities()
+        if not shutil.which("ffmpeg"):
+            self.assertEqual(
+                capabilities,
+                type(capabilities)(False, False, False, False),
+            )
+        else:
+            self.assertTrue(capabilities.ffmpeg_available)
+
     def test_unavailable_backend_is_explicit_and_does_not_claim_a_decode(self):
         with patch("host_h264_decoder.shutil.which", return_value=None):
             decoder = FfmpegCliDecoder()
@@ -93,6 +104,13 @@ class HostH264DecoderTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg absent; real synthetic encode/decode not run")
     def test_real_synthetic_encode_then_host_decode(self):
+        capabilities = probe_ffmpeg_capabilities()
+        if not capabilities.libx264_available:
+            self.skipTest("ffmpeg libx264 encoder unavailable; real synthetic encode/decode not run")
+        if not capabilities.h264_decoder_available:
+            self.skipTest("ffmpeg H.264 decoder unavailable; real synthetic decode not run")
+        if not capabilities.rgba_output_available:
+            self.skipTest("ffmpeg RGBA output unavailable; renderer handoff not run")
         try:
             elementary_stream = generate_synthetic_h264()
         except RuntimeError as exc:
@@ -102,6 +120,19 @@ class HostH264DecoderTests(unittest.TestCase):
         )
         self.assertEqual(result.status, DecodeStatus.DECODED, result.reason)
         self.assertEqual(len(result.frame.rgba), 320 * 180 * 4)
+        self.assertEqual(result.frame.presentation_time_ns, 1_000_000_000)
+        center_display = {"type110_active": True, "display": 0}
+        audio = {"active": True, "source": "synthetic-test-only"}
+        type110_before, audio_before = center_display.copy(), audio.copy()
+        backend = MockDisplay1Backend()
+        renderer = ClarityLinkRenderer(backend)
+        renderer.start()
+        renderer.submit(result.frame)
+        self.assertEqual(backend.target.display_id, 1)
+        self.assertEqual(backend.frames, [result.frame])
+        self.assertEqual(center_display, type110_before)
+        self.assertEqual(audio, audio_before)
+        renderer.close()
 
 
 if __name__ == "__main__":

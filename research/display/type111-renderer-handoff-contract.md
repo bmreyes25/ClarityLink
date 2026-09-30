@@ -20,3 +20,5 @@ Step 42F renders an inline synthetic map illustration when the Step 42E output r
 # Step 42G host-side test boundary
 
 An optional host-only adapter can turn a valid synthetic Annex-B access unit into one bounded RGBA `DecodedFrame`, then submit it to the Display 1 mock. It requires FFmpeg and valid SPS/PPS/VCL input. The current replay fixture is not valid decodable H.264 and bypasses this adapter in favor of its explicitly labeled synthetic pattern. No real ExternalDisplay API or Honda decoder handoff is proven by this test.
+
+Step 42H could not produce an actual decoded frame because the host has no FFmpeg/libx264/H.264 decoder. The mock adapter frame submission is not decoder evidence. Actual decode-to-renderer status remains SKIPPED.

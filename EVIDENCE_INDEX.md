@@ -406,3 +406,12 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Synthetic H.264 source | Same decoder module; `research/simulator/host-h264-decode-stage.md` | In-memory FFmpeg/libx264 test-pattern generator added; no media committed. Actual generation was unavailable here. |
 | Current replay decode status | `src/claritylink-sim/synthetic_type111_replay.py`; `demo/type111/replay-data.json` | Existing replay payload is parser-shaped, not valid H.264; it is never decoded and fallback is labeled. |
 | Host tool availability | Step 42G report | No FFmpeg/PyAV/OpenCV/imageio decoder on this host; real decode test skipped explicitly. Live integration readiness unchanged. |
+
+## Step 42H — synthetic H.264 validation
+
+| Question | Evidence | Conclusion |
+|---|---|---|
+| FFmpeg / encoder / decoder availability | `step-reports/42h-ffmpeg-synthetic-h264-validation.md`; `probe_ffmpeg_capabilities()` | FFmpeg, libx264, H.264 decoder, and RGBA output are unavailable; no installation attempted. |
+| Synthetic media encode/decode | `tests/sim/test_host_h264_decoder.py` | Real test skips explicitly when FFmpeg is absent; no media was generated in this run. |
+| Renderer handoff | Same test; `research/display/type111-renderer-handoff-contract.md` | Fake-process RGBA adapter check passes; actual decoded-frame submission remains skipped. |
+| Twin and live readiness | `PROJECT_STATE.md`; Step 42H report | Offline twin remains ready; live Type111, jmcs no-op, and ExternalDisplay rendering remain NOT READY. |

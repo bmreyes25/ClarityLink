@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42H — FFmpeg synthetic H.264 validation
+
+Rechecked this host without installing dependencies: FFmpeg, ffprobe, PyAV, OpenCV, imageio, and Pillow are unavailable. The new capability probe reports FFmpeg/libx264/H.264 decode/RGBA unavailable; no media was generated and the actual encode/decode test skipped explicitly. Existing parser-fixture AVCC-to-Annex-B tests and mocked decoder-to-renderer adapter checks still pass, but no actual decoded frame reached the renderer. The visual demo remains on its synthetic pattern fallback. Digital twin remains READY; live Type111, jmcs no-op, and ExternalDisplay live rendering remain NOT READY. See `step-reports/42h-ffmpeg-synthetic-h264-validation.md`.
+
 ## Step 42G — optional host H.264 decode stage (offline)
 
 Added an optional FFmpeg CLI decoder adapter and in-memory synthetic H.264 generator. The adapter validates bounded Annex-B input with SPS/PPS, decodes at most one RGBA frame, and hands a validated `DecodedFrame` to the existing Display 1 mock. The Step 42E bytes are parser fixtures rather than valid H.264, so the replay does not claim to decode them. This host has no FFmpeg or Python decode libraries; the real encode/decode test is explicitly skipped, and the visual demo says `SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE`. Mock adapter wiring passes. Digital twin remains READY; live Type111, jmcs no-op, and ExternalDisplay live render remain NOT READY. See `step-reports/42g-host-h264-decode-stage.md` and `research/simulator/host-h264-decode-stage.md`.

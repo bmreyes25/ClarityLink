@@ -37,6 +37,51 @@ class HostDecodeResult:
     evidence: str = "SYNTHETIC_TEST_VALUE"
 
 
+@dataclass(frozen=True)
+class FfmpegCapabilities:
+    ffmpeg_available: bool
+    libx264_available: bool
+    h264_decoder_available: bool
+    rgba_output_available: bool
+    version: str | None = None
+
+
+def probe_ffmpeg_capabilities(executable: str | None = None) -> FfmpegCapabilities:
+    """Read FFmpeg's local capability tables without installing or writing files."""
+    ffmpeg = executable or shutil.which("ffmpeg")
+    if not ffmpeg:
+        return FfmpegCapabilities(False, False, False, False)
+    try:
+        version_result = subprocess.run([ffmpeg, "-version"], capture_output=True,
+                                        check=False, timeout=3)
+        if version_result.returncode != 0:
+            return FfmpegCapabilities(False, False, False, False)
+        encoder_result = subprocess.run([ffmpeg, "-encoders"], capture_output=True,
+                                         check=False, timeout=3)
+        decoder_result = subprocess.run([ffmpeg, "-decoders"], capture_output=True,
+                                         check=False, timeout=3)
+        pixel_result = subprocess.run([ffmpeg, "-pix_fmts"], capture_output=True,
+                                      check=False, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return FfmpegCapabilities(False, False, False, False)
+    encoder_text = encoder_result.stdout.decode("utf-8", "replace")
+    decoder_text = decoder_result.stdout.decode("utf-8", "replace")
+    pixel_text = pixel_result.stdout.decode("utf-8", "replace")
+    version_lines = version_result.stdout.decode("utf-8", "replace").splitlines()
+    return FfmpegCapabilities(
+        ffmpeg_available=True,
+        libx264_available="libx264" in encoder_text,
+        h264_decoder_available=any(
+            " h264 " in f" {line.lower()} " for line in decoder_text.splitlines()
+        ),
+        rgba_output_available=any(
+            line.split()[1:2] == ["rgba"] for line in pixel_text.splitlines()
+            if len(line.split()) > 1
+        ),
+        version=version_lines[0] if version_lines else "version unavailable",
+    )
+
+
 def _nal_types(annexb: bytes) -> set[int]:
     """Collect NAL types from three- or four-byte Annex-B start codes."""
     types: set[int] = set()
@@ -121,6 +166,9 @@ def generate_synthetic_h264(executable: str | None = None) -> bytes:
     ffmpeg = executable or shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg unavailable; synthetic H.264 generation skipped")
+    capabilities = probe_ffmpeg_capabilities(ffmpeg)
+    if not capabilities.libx264_available:
+        raise RuntimeError("ffmpeg libx264 encoder unavailable; synthetic H.264 generation skipped")
     command = [
         ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-f", "lavfi",
         "-i", "testsrc2=size=320x180:rate=1", "-frames:v", "1", "-an",
