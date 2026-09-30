@@ -89,3 +89,7 @@ The `needs_recovery` feature bit is set in seven partitions (all except CAP and 
 | `/vendor/lib/claritylink_jmcs_interposer.so` | APP `/vendor/lib/...` | `/vendor/lib` absent in APP | **Not established** for this path; no path proof |
 
 The existing `service jmcs` stanza has no `LD_PRELOAD`. Android init/Honda init supports service `setenv` per Step 41C, but adding it would modify the boot ramdisk and require a separate persistent-change review. Thus there is no existing zero-change preload seam even if `/data/local/tmp` later proves mappable.
+
+## Step 41E follow-up (2026-09-30)
+
+Static follow-up in [Step 41E](../../step-reports/41e-init-linker-preload-behavior.md) sharpens but does not close the gate. Honda `/init` has `setenv` parser evidence; the exact jmcs service still has no `LD_PRELOAD`. The preserved linker contains `LD_PRELOAD` and loader machinery strings, but no control-flow proof establishes secure-mode suppression, absolute-path parsing, or missing-library failure behavior. The absence of named policy files plus SELinux-related init strings leaves practical SELinux state **UNKNOWN**, not proven absent/disabled. A root-to-root jmcs exec without set-ID/capability changes makes `AT_SECURE=0` the ordinary expectation, but the actual LSM decision is unknown. `/data/local/tmp` remains an unapproved mapping candidate. The required boot-ramdisk service edit is persistent; no-op load remains **NOT READY**.

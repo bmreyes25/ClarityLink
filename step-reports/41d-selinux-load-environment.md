@@ -1,5 +1,7 @@
 # Step 41D / 41D2 / 41D3 — SELinux and jmcs load-environment audit
 
+> **Step 41E update:** The archived Honda linker has `LD_PRELOAD`/loader strings and init has `setenv` parser evidence, but the linker's secure-exec branch, absolute path behavior, failure semantics, active SELinux state, and `/data/local/tmp` executable-map access are still unproven. Do not treat “no policy file found” as proof SELinux is disabled. See [Step 41E](41e-init-linker-preload-behavior.md). No-op load test remains NOT READY.
+
 ## Result
 
 **Raw filesystem inspection complete; load-environment gate not passed.** All nine ext4 filesystems in the held raw eMMC image were inspected read-only with e2fsprogs `debugfs` 1.47.4. No named SELinux policy or context files were found. The exact Honda jmcs binary was identified in APP. The UDA filesystem contains `/data/local/tmp` as `/local/tmp`, mode 0771 and owner/group shell:shell, but no evidence establishes the active SELinux state/domain, `AT_SECURE`, or executable mapping permission. Step 42 is not ready.

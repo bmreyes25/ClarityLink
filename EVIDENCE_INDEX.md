@@ -301,3 +301,12 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Is there a Honda load seam? | `research/runtime/honda-native-load-seams.md` | None proven. |
 | Does Honda support modern capability tokens / Type111? | `research/carplay/carplay-negotiation-generations.md`; `honda-info-capabilities.md`; `honda-type111-minimum.md` | Legacy `/info` confirmed; R15/token/Type111 response support unknown or partial. |
 | Offline validator | `src/claritylink-hook/self_locator.py`; `tests/hook/test_self_locator.py` | Synthetic-only, fail-closed; no runtime or patch capability. |
+## Step 41E — Honda init and linker preload behavior (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Init service and setenv | `research/deployment/jmcs-init-service.md`, `research/carplay/jmcs-init-service.md` | Exact jmcs service stanza runs root:root, has no LD_PRELOAD, and Honda init has a setenv parser diagnostic |
+| Linker fingerprint | `research/runtime/honda-bionic-dladdr.md`, `research/deployment/jmcs-ld-preload.md` | Honda linker hash and LD_PRELOAD/loader strings recorded; no control-flow proof of secure suppression, absolute paths, or failure behavior |
+| SELinux/secure execution | `research/deployment/jmcs-secure-exec.md`, `research/carplay/step41d-selinux-load-environment.md` | Policy files absent from inspected archive trees, but active SELinux state/domain and actual AT_SECURE remain UNKNOWN |
+| Candidate path | `research/deployment/library-staging-paths.md` | `/data/local/tmp` is 0771 shell:shell and best candidate; executable-map permission unproven |
+| Decision | `step-reports/41e-init-linker-preload-behavior.md`, `research/deployment/noop-interposer-plan.md` | LD_PRELOAD is a plausible secondary seam; boot ramdisk change required; no-op test NOT READY |
