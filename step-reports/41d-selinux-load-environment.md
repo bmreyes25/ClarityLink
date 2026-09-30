@@ -40,4 +40,18 @@ NEXT ACTION: use a read-only ext4 reader to enumerate the nine held filesystems 
 
 ## Verification
 
-Archive member enumeration and raw GPT parsing were read-only. Documentation changes only; there were no code tests to run. `git diff --check` is recorded after the documentation updates.
+Archive member enumeration and raw GPT/superblock parsing were read-only. Step 41D2 confirmed exact GPT byte offsets, ext4 UUIDs, and recovery-needed flags; no filesystem was mounted, and the raw image was not modified. No usable offline ext4 reader or cached e2fsprogs bottle was available, so filesystem listings and policy extraction were not attempted. Documentation changes only; there were no code tests to run. `git diff --check` was run after the documentation updates.
+
+## Step 41D2 preflight gate
+
+```text
+EXT4_READER_SELECTED: NONE AVAILABLE OFFLINE
+WHY_SAFE_READ_ONLY: No ext4 parser selected; qemu-nbd supports --read-only/--offset but no NBD block-device consumer is installed
+COMMANDS_USED: command -v inventory; Homebrew cache/Cellar inventory; qemu-nbd --help; read-only Python GPT/ext4-superblock parser
+PARTITION_MAP: Recorded in research/carplay/step41d-selinux-load-environment.md; all 9 are ext4, all Basic Data GPT type; roles unknown
+JOURNAL SAFETY: 7/9 set EXT4_FEATURE_INCOMPAT_RECOVER; no mounts or journal replay attempted
+TOP-LEVEL CONTENTS: NOT READ
+POLICY / FILE-CONTEXT PATHS: NOT READ FROM RAW FILESYSTEMS
+STEP 41D2: BLOCKED AT TOOL AVAILABILITY
+NEXT ACTION: STEP 41D3 — provide a safe offline ext4 reader and resume read-only inspection
+```

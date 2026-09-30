@@ -41,3 +41,23 @@ No existing path is therefore proven safe and legitimate for ClarityLink mapping
 **Step 41D gate: NOT PASSED.** Do not proceed to Step 42. The next offline action is to use a read-only ext4 reader to enumerate the nine preserved filesystems, identify any policy/context files and their metadata, then correlate the relevant policy to the active boot/init image. Preserve the image; do not modify partitions. If no such policy/context source exists in the held image, the `AT_SECURE` and path-permission questions stay unresolved and a live loader test is not justified.
 
 Once that gate is answered, the proposed sequence remains 41E (offline ARM/API17 package audit), then a separately reviewed Step 42 loader smoke test with Type111 disabled, and only after it preserves stock center CarPlay, Step 43 negotiation-only testing.
+
+## Step 41D2 preflight — raw ext4 tooling unavailable
+
+The raw GPT partition map was read directly from `../forensic/CLARITY_FORENSIC_WORKING/mmcblk0-full.img`; sector size is 512 bytes. All partition type GUIDs are Microsoft Basic Data (`ebd0a0a2-b9e5-4433-87c0-68b6b72699c7`). Partition roles are left unknown because their directories were not read.
+
+| # | GPT name | Start sector | End sector | Byte offset | Byte length | ext4 UUID | Needs journal recovery |
+|---:|---|---:|---:|---:|---:|---|---|
+| 1 | CAC | 32,768 | 2,129,919 | 16,777,216 | 1,073,741,824 | `24ba859a-d903-4cb6-ad2c-3cb2a20c1418` | Yes |
+| 2 | CAP | 2,129,920 | 3,702,783 | 1,090,519,040 | 805,306,368 | `57f8f4bc-abf4-655f-bf67-946fc0f9f25b` | No |
+| 3 | APP | 3,702,784 | 4,751,359 | 1,895,825,408 | 536,870,912 | `57f8f4bc-abf4-655f-bf67-946fc0f9f25b` | No |
+| 4 | LOG | 4,751,360 | 5,013,503 | 2,432,696,320 | 134,217,728 | `34f30828-6404-4d06-8257-503d2ef23c7a` | Yes |
+| 5 | MITSU | 5,013,504 | 7,110,655 | 2,566,914,048 | 1,073,741,824 | `57f8f4bc-abf4-655f-bf67-946fc0f9f25b` | Yes |
+| 6 | SDA | 7,110,656 | 7,372,799 | 3,640,655,872 | 134,217,728 | `ac275c15-c5cb-4ebf-afb0-363130fb52f3` | Yes |
+| 7 | SDA2 | 7,372,800 | 7,634,943 | 3,774,873,600 | 134,217,728 | `42c39753-0fa6-4793-b7e5-513bd95f1196` | Yes |
+| 8 | SDC | 7,634,944 | 9,732,095 | 3,909,091,328 | 1,073,741,824 | `77fb0698-7c18-4cf6-8dbe-97ee116f42b6` | Yes |
+| 9 | UDA | 9,732,096 | 14,712,831 | 4,982,833,152 | 2,550,132,736 | `57f8f4bc-abf4-655f-bf67-946fc0f9f25b` | Yes |
+
+The ext4 reader/tool inventory found no `debugfs`, `e2ls`, `e2cp`, Sleuth Kit (`mmls`, `fls`, `icat`), guestfs, Docker, or Podman executable. `qemu-nbd` is installed and advertises read-only offset exports, but it is not an ext4 filesystem reader and no compatible NBD block-device consumer is installed. Homebrew's expected e2fsprogs bottle path is not present in its cache; no network fetch or installation was performed. The GPT/superblock parser read fixed metadata only and made no mounts or writes.
+
+The `needs_recovery` feature bit is set in seven partitions (all except CAP and APP). Do not use a mount path that could replay journals. A future reader should access the raw image or partition data read-only and must not perform journal replay or filesystem repair. Top-level directory listings, policy/context paths, filesystem roles, and extracted metadata remain unavailable. **Step 41D2 is blocked at tool availability.** Next is Step 41D3: provide a safe offline ext4 inspection environment, then resume with direct read-only inspection.

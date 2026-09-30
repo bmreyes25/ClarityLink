@@ -8,6 +8,15 @@
 | AT_SECURE and candidate path | Same audit; Step 41C service report | `AT_SECURE` unknown; `/data/local/tmp` 0771 shell:shell is only a candidate, SELinux executable-map permission unproven |
 | Decision | `step-reports/41d-selinux-load-environment.md` | Step 41D NOT PASSED; Step 42 not ready; next task is offline read-only decoding of relevant raw MMC partition, if present |
 
+## Step 41D2 — raw ext4 inspection preflight (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| GPT/partition geometry | `research/carplay/step41d-selinux-load-environment.md` | Nine named ext4 partitions, exact starts/ends/offsets/sizes/UUIDs recorded; filesystem roles not inferred |
+| Journal safety | Same note; raw superblock feature flags | Seven filesystems set `EXT4_FEATURE_INCOMPAT_RECOVER`; no mounting/replay attempted |
+| Reader availability | `step-reports/41d-selinux-load-environment.md` | No debugfs/e2tools/Sleuth Kit/guestfs/container reader; qemu-nbd alone cannot inspect files |
+| Decision | Same report | 41D2 blocked at tool availability; next is 41D3, establish a safe offline reader without journal replay |
+
 ## Step 40E4 — zero-write privilege path audit (2026-09-29)
 
 | Area | Primary evidence | Finding |
