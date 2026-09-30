@@ -26,7 +26,7 @@ flowchart LR
 | B | Honda CarPlay control/media protocol recovery | **SUBSTANTIALLY COMPLETE**; some runtime semantics remain unknown |
 | C | Host Display-B architecture, stock delegation, synthetic receive path | **COMPLETE** as a host model |
 | D | Exact Honda build identity, source provenance, executable-memory lab feasibility | **COMPLETE OFFLINE**; ADA01 is related source only, official API-17 image obtained but no ARM guest can boot on the available host |
-| E | Parked read-only target runtime preflight | **INCOMPLETE / BLOCKED**; host ADB saw one target, but its first read-only identity command failed `error: closed` |
+| E | Parked read-only target runtime preflight | **COMPLETE, EVIDENCE PARTIAL**; three phases captured; maps/smaps denied and connected thread snapshots partial |
 | F | Parked standalone self-only runtime probe | **NOT READY**; requires completed Step 40E facts and separate reviewed helper design; must never touch `jmcs` |
 | G | Parked no-op stock-delegation validation | **NOT READY**; only after Step 40F and a reviewed process-level hook lifecycle |
 | H | Observe-only secondary negotiation | Future; no live collection |
@@ -58,4 +58,4 @@ flowchart LR
 
 ## Next
 
-Step 40E remains blocked until the existing ADB link returns read-only command output. The retry reached `uname -a`, which failed `error: closed`; no capture phases ran. Do not reset transports, escalate privileges, or alter vehicle settings. After the three-phase capture, draft Step 40F's self-only runtime probe and review it separately. Step 41 and Type111 remain **NO**. See `step-reports/40e-readonly-runtime-preflight.md`.
+Step 40E completed through legacy `adb shell`; the earlier `exec-out`/`uname` stop was a collector compatibility error. Runtime maps/smaps remain denied, so load bias/page size/gap analysis is blocked. Next identify a supported read-only mapping access path without changing target state. Step 40F, Step 41, and Type111 remain **NO**. See `step-reports/40e-readonly-runtime-preflight.md`.

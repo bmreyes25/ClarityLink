@@ -16,4 +16,4 @@ The project implements a first-fit gap chooser over supplied synthetic intervals
 
 ## Step 40E status
 
-No live maps were captured because the ADB host device list was empty. Therefore neither INFO nor Setup has a runtime reach interval yet, and no candidate free VA gap, page-aligned start, neighboring mapping, or cross-phase gap stability is known. The offline gap parser is synthetic-tested; it never calls `mmap` and will label all observed spaces as candidate gaps only. Do not treat any synthetic result as Honda address-space evidence.
+The three-phase Step 40E capture completed, but unprivileged ADB reads of `/proc/<jmcs>/maps` and `smaps` returned `Permission denied`. INFO/Setup runtime reach intervals, load bias, page size, and candidate free VA gaps therefore remain unknown. The analyzer preserves these as unavailable and does not infer empty address space. No allocation or active target operation occurred.

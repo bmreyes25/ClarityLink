@@ -8,6 +8,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import zlib
 from typing import Any
 
 from parsers import (Mapping, aligned_candidate, decode_signal_mask,
@@ -33,6 +34,23 @@ def _artifact(root: Path, phase: str, category: str, name: str) -> bytes | None:
 
 def _text(value: bytes | None) -> str:
     return value.decode("utf-8", "replace") if value is not None else ""
+
+
+def _observation_status(value: bytes | None) -> str:
+    if value is None:
+        return "not_captured"
+    text = _text(value).lower()
+    if not text.strip():
+        return "empty_or_not_exposed"
+    if "permission denied" in text or "operation not permitted" in text:
+        return "permission_denied"
+    if re.search(r"(?:^|\n)(?:/system/bin/)?(?:sh|mksh):\s*[^\n]*:\s*not found", text):
+        return "command_unavailable"
+    if any(item in text for item in ("error: closed", "device offline", "unauthorized")):
+        return "transport_failure"
+    if text.startswith(("/system/bin/sh:", "sh:", "mksh:", "ls:", "cat:", "readlink:")):
+        return "other_command_failure"
+    return "available"
 
 
 def _parse_size(value: str) -> int | None:
@@ -68,10 +86,12 @@ def _task_snapshot(root: Path, phase: str, index: int) -> dict[int, dict[str, st
     result = {}
     for tid in tids:
         raw = _artifact(root, phase, "threads", f"snapshot_{index:02d}_tid_{tid}_status")
-        if raw is None:
+        if _observation_status(raw) != "available":
             continue
         status = parse_status(_text(raw))
-        wchan = _text(_artifact(root, phase, "threads", f"snapshot_{index:02d}_tid_{tid}_wchan")).strip()
+        wchan_raw = _artifact(root, phase, "threads", f"snapshot_{index:02d}_tid_{tid}_wchan")
+        wchan = (_text(wchan_raw).strip()
+                 if _observation_status(wchan_raw) == "available" else "")
         thread = {"name": status.get("Name", ""), "state": status.get("State", ""),
                   "pid": status.get("Pid", ""), "tgid": status.get("Tgid", ""),
                   "ppid": status.get("PPid", ""), "sigpnd": status.get("SigPnd", ""),
@@ -96,11 +116,15 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
     except (OSError, json.JSONDecodeError):
         manifest = {}
     maps_text = _text(_artifact(root, phase, "process", "maps"))
-    mappings = parse_maps(maps_text) if maps_text else ()
+    maps_raw = _artifact(root, phase, "process", "maps")
+    maps_status = _observation_status(maps_raw)
+    mappings = parse_maps(maps_text) if maps_status == "available" else ()
     jmcs_maps = tuple(mapping for mapping in mappings if _is_jmcs(mapping))
     executable = tuple(mapping for mapping in jmcs_maps if "x" in mapping.permissions)
     smaps_text = _text(_artifact(root, phase, "process", "smaps"))
-    smaps_entries = parse_smaps(smaps_text) if smaps_text else ()
+    smaps_raw = _artifact(root, phase, "process", "smaps")
+    smaps_status = _observation_status(smaps_raw)
+    smaps_entries = parse_smaps(smaps_text) if smaps_status == "available" else ()
     page_size_values = set()
     for mapping in executable:
         page_size_values.update(_parse_map_page_sizes(smaps_text, mapping))
@@ -127,7 +151,23 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
     thread_snapshots = [_task_snapshot(root, phase, index) for index in range(5)]
     tids_by_snapshot = [set(snapshot) for snapshot in thread_snapshots]
     tids_union = set().union(*tids_by_snapshot) if tids_by_snapshot else set()
-    stable = bool(tids_by_snapshot) and all(tids == tids_by_snapshot[0] for tids in tids_by_snapshot)
+    snapshot_listing_statuses = [
+        _observation_status(_artifact(root, phase, "threads", f"snapshot_{index:02d}_task_listing"))
+        for index in range(5)]
+    listed_tids_by_snapshot = []
+    for index in range(5):
+        listing = _text(_artifact(root, phase, "threads", f"snapshot_{index:02d}_task_listing"))
+        try:
+            listed_tids_by_snapshot.append(set(parse_task_listing(listing)))
+        except ValueError:
+            listed_tids_by_snapshot.append(set())
+    thread_snapshots_available = (bool(tids_union)
+        and all(status == "available" for status in snapshot_listing_statuses)
+        and all(snapshot for snapshot in thread_snapshots))
+    thread_snapshots_complete = (thread_snapshots_available
+        and all(set(snapshot) == listed for snapshot, listed in zip(thread_snapshots, listed_tids_by_snapshot)))
+    stable = (thread_snapshots_complete and bool(tids_by_snapshot)
+              and all(tids and tids == tids_by_snapshot[0] for tids in tids_by_snapshot))
     process_status = parse_status(_text(_artifact(root, phase, "process", "status")))
     network = {}
     for name, proto, family in (("tcp4", "tcp", 4), ("tcp6", "tcp", 6),
@@ -138,6 +178,8 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
         except ValueError:
             network[name] = []
     fd_targets = {}
+    fd_listing_raw = _artifact(root, phase, "process", "fd_links")
+    fd_listing_status = _observation_status(fd_listing_raw)
     for path in sorted((root / phase / "process").glob("fd_*_target.raw")):
         target = path.read_text(errors="replace").strip()
         match = re.fullmatch(r"socket:\[([0-9]+)\]", target)
@@ -163,7 +205,7 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
                                   config_data, re.MULTILINE)
                 if match:
                     config_summary[key] = match.group(1) or "n"
-        except (OSError, EOFError):
+        except (OSError, EOFError, zlib.error):
             config_summary = {"parse_status": "malformed or unsupported gzip"}
     hash_output = _text(_artifact(root, phase, "platform", "jmcs_file_sha256")).strip()
     hash_match = re.match(r"([0-9a-fA-F]{64})\s+", hash_output)
@@ -239,11 +281,13 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
     return {
         "phase": phase,
         "process_identity": identity,
-        "maps_available": bool(maps_text),
+        "maps_available": maps_status == "available",
+        "maps_status": maps_status,
         "jmcs_mappings": text_regions,
         "jmcs_executable_mappings": [r for r in text_regions if "x" in r["permissions"]],
         "any_jmcs_rwx": any("w" in m.permissions and "x" in m.permissions for m in jmcs_maps),
-        "smaps_available": bool(smaps_text),
+        "smaps_available": smaps_status == "available",
+        "smaps_status": smaps_status,
         "smaps_page_fields": page_fields,
         "smaps_page_size_values": page_sizes,
         "target_page_size": page_size,
@@ -260,13 +304,18 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
                              for snapshot in thread_snapshots],
         "thread_count_first": len(tids_by_snapshot[0]) if tids_by_snapshot else 0,
         "thread_count_union": len(tids_union),
+        "thread_snapshots_available": thread_snapshots_available,
+        "thread_snapshots_complete": thread_snapshots_complete,
+        "thread_listing_statuses": snapshot_listing_statuses,
         "thread_population_stable_within_phase": stable,
         "process_signal_masks_complete": all(key in process_status for key in
                                               ("SigPnd", "ShdPnd", "SigBlk", "SigIgn", "SigCgt")),
-        "per_thread_signal_masks_complete": bool(tids_union) and all(
+        "per_thread_signal_masks_complete": thread_snapshots_complete and all(
             all(thread.get(key) for key in ("sigpnd", "shdpnd", "sigblk", "sigign", "sigcgt"))
             for snapshot in thread_snapshots for thread in snapshot.values()),
-        "wchan_reads_available": bool(thread_snapshots) and all(
+        "wchan_reads_available": thread_snapshots_available and all(
+            bool(thread.get("wchan")) for snapshot in thread_snapshots for thread in snapshot.values()),
+        "wchan_reads_complete": thread_snapshots_complete and all(
             bool(thread.get("wchan")) for snapshot in thread_snapshots for thread in snapshot.values()),
         "network": network,
         "unix_sockets": unix_sockets,
@@ -288,6 +337,7 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
         "selinux_enforce": selinux or None,
         "cpu_topology_cache_reads": cpu_values,
         "fd_targets": fd_targets,
+        "fd_listing_status": fd_listing_status,
         "network_fd_inodes_with_tcp_udp_table_match": sorted(fd_socket_inodes & tcp_inodes),
         "network_fd_inodes_with_unix_table_match": sorted(fd_socket_inodes & unix_inodes),
         "network_socket_entry_count": len(proc_net_sockets),
@@ -327,15 +377,19 @@ def analyze_bundle(root: Path) -> dict[str, Any]:
                   for m in b["jmcs_mappings"]}
         threads_a = set().union(*(set(map(int, snap)) for snap in a["thread_snapshots"]))
         threads_b = set().union(*(set(map(int, snap)) for snap in b["thread_snapshots"]))
+        maps_comparable = a["maps_available"] and b["maps_available"]
+        threads_comparable = a["thread_snapshots_available"] and b["thread_snapshots_available"]
         output["phase_deltas"][f"{left}_to_{right}"] = {
             "same_process_instance": same_instance,
             "pid_changed": ia is None or ib is None or ia.get("pid") != ib.get("pid"),
             "start_time_changed": ia is None or ib is None or ia.get("start_time_ticks") != ib.get("start_time_ticks"),
-            "mappings_added": sorted(maps_b - maps_a),
-            "mappings_removed": sorted(maps_a - maps_b),
-            "thread_tids_added": sorted(threads_b - threads_a),
-            "thread_tids_removed": sorted(threads_a - threads_b),
-            "thread_counts": [len(threads_a), len(threads_b)],
+            "mappings_comparable": maps_comparable,
+            "mappings_added": sorted(maps_b - maps_a) if maps_comparable else None,
+            "mappings_removed": sorted(maps_a - maps_b) if maps_comparable else None,
+            "threads_comparable": threads_comparable,
+            "thread_tids_added": sorted(threads_b - threads_a) if threads_comparable else None,
+            "thread_tids_removed": sorted(threads_a - threads_b) if threads_comparable else None,
+            "thread_counts": [len(threads_a), len(threads_b)] if threads_comparable else None,
         }
     phases_data = list(output["phases"].values())
     masks = []
@@ -359,13 +413,16 @@ def analyze_bundle(root: Path) -> dict[str, Any]:
     gap_sets = [tuple((item["start"], item["end_exclusive"]) for item in phase["candidate_unmapped_gaps"])
                 for phase in phases_data]
     output["common_candidate_gaps_stable_all_phases"] = (
-        bool(gap_sets) and all(gaps == gap_sets[0] for gaps in gap_sets[1:])
-    ) if len(phases_data) == 3 else None
+        all(gaps == gap_sets[0] for gaps in gap_sets[1:])
+        if len(phases_data) == 3 and all(phase["maps_available"] for phase in phases_data)
+        else None)
     within_phase_stability = [phase.get("thread_population_stable_within_phase") for phase in phases_data]
     output["thread_population_overall"] = (
-        "MIXED" if any(within_phase_stability) and not all(within_phase_stability)
-        else "STABLE" if phases_data and all(within_phase_stability)
-        else "CHURNING" if phases_data else "UNKNOWN")
+        "UNAVAILABLE" if not phases_data or not all(phase["thread_snapshots_available"] for phase in phases_data)
+        else "PARTIAL" if not all(phase["thread_snapshots_complete"] for phase in phases_data)
+        else "STABLE" if all(within_phase_stability)
+        else "MIXED" if any(within_phase_stability)
+        else "CHURNING")
     analysis_path = root.parent / f"{root.name}_analysis.json"
     analysis_path.write_text(json.dumps(output, indent=2, sort_keys=True, default=list) + "\n")
     analysis_path.chmod(0o600)

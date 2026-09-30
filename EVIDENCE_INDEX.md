@@ -2,11 +2,11 @@
 
 | Area | Primary evidence | Finding |
 |---|---|---|
-| Read-only collector | `tools/honda-readonly-preflight/collector.py`, `README.md` | Fixed read-only operations, explicit parked/disconnected gates, one-device and MY16ADA/kernel identity guards, no arbitrary command/upload/write path, per-command timeout/output cap, host-only raw storage |
+| Read-only collector | `tools/honda-readonly-preflight/collector.py`, `README.md` | Fixed read-only operations, explicit parked/disconnected gates, one-device selection and kernel/Android-property fingerprint gates, no arbitrary command/upload/write path, per-command timeout/output cap, host-only raw storage |
 | Host parsers/analyzer | `tools/honda-readonly-preflight/parsers.py`, `analyze.py`, `tests/honda/test_readonly_preflight.py` | Synthetic maps/smaps/status/signal/task/network/load-bias/gap/privacy tests; no ADB dependency |
-| Live attempt | `research/platform/honda-live-runtime.md`, `step-reports/40e-readonly-runtime-preflight.md` | Host ADB listed one authorized target; first read-only `uname -a` failed `error: closed`; no phase capture or Honda runtime facts |
-| Hook/runtime gates | `research/carplay/honda-runtime-addressing.md`, `honda-veneer-allocation.md`, `honda-thread-rendezvous.md`, `honda-runtime-patch-lifecycle.md`, `honda-hook-safety.md` | No live addresses/gaps/signal/thread data; Step 40F and Step 41 remain NO |
-| Verification/review | Step 40E report | 19 focused tests; Honda 74/1 skipped, interposer 14, transport+negotiation 47 + 31 subtests, renderer 8; ECC skills used, independent reviewer unavailable |
+| Live attempt | `research/platform/honda-live-runtime.md`, `step-reports/40e-readonly-runtime-preflight.md` | Three phases completed through legacy `adb shell`; target fingerprint matched; same `jmcs` PID/start time persisted; maps/smaps denied; thread snapshots partial while connected; raw bundle and analysis remain host-only |
+| Hook/runtime gates | `research/carplay/honda-runtime-addressing.md`, `honda-veneer-allocation.md`, `honda-thread-rendezvous.md`, `honda-runtime-patch-lifecycle.md`, `honda-hook-safety.md` | Maps/smaps denied; no live addresses/gaps; process signals and thread snapshots captured with connected-phase partiality; Step 40F and Step 41 remain NO |
+| Verification/review | Step 40E report | preflight 35; Honda 90/1 skipped, interposer 14, transport+negotiation 47 + 31 subtests, renderer 8; ECC guidance used; independent reviewer unavailable |
 
 ## Step 40D — kernel provenance and API-17 ARM runtime (2026-09-29)
 
@@ -15,7 +15,7 @@
 | Official source | `research/platform/honda-ada01-source.md` | Honda/Panasonic ADA01 archive SHA-256 recorded; safe inventory/extraction; Linux 3.4.108 generic Tegra, no VCM30T30; related source only |
 | Target kernel | `research/platform/honda-kernel-provenance.md`, `honda-kernel-config.md` | Forensic copy hash recorded; exact target 3.1.10+; modules corroborate SMP/preempt/ARMv7; config and VM page size unknown |
 | API 17 ARM image | `research/platform/api17-arm-runtime.md` | Official image hash verified; Google emulator rejects ARM in both engines; generic QEMU lacks Goldfish; no guest tests |
-| Runtime gate | `research/carplay/honda-executable-memory.md`, `honda-icache.md`, `honda-thread-rendezvous.md`, `honda-runtime-patch-lifecycle.md` | No RX/RW/cache/Thumb/veneer/signal/futex/rendezvous runtime proof; Step 41 NO; Step 40E read-only preflight is next |
+| Runtime gate | `research/carplay/honda-executable-memory.md`, `honda-icache.md`, `honda-thread-rendezvous.md`, `honda-runtime-patch-lifecycle.md` | No RX/RW/cache/Thumb/veneer/signal/futex/rendezvous runtime proof; Step 41 NO; Step 40E read-only capture complete with maps/smaps permission limits |
 | Verification | `step-reports/40d-honda-kernel-and-api17-runtime.md` | Honda 55 passed/1 skipped, interposer 14, transport+negotiation 47 + 31 subtests, renderer 8; host tests only |
 | Review | Step 40D report | ECC skill guidance applied; independent reviewer endpoint unavailable; self-review remains open, not external ECC approval |
 

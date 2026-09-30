@@ -6,16 +6,18 @@ This is a host-side Python collector for Step 40E. It stores target command outp
 
 The collector exposes only fixed operations:
 
-- host-selected existing ADB serial + `exec-out shell`;
-- target `id`, `uname -a`, `ps`, `service list`, fixed `sha256sum /system/bin/jmcs`, fixed `ls -l /system/bin/jmcs`;
+- host-selected existing ADB serial + legacy `adb shell` service (compatible with API-17 adbd; `exec-out` is not used);
+- target `id`, optional `uname -a`, `ps`, `service list`, fixed `sha256sum /system/bin/jmcs`, fixed `ls -l /system/bin/jmcs`;
 - `cat` of enumerated `/proc`, `/sys` CPU-topology/cache, process, task, and network paths;
-- `ls -1` of fixed proc/sys directories and validated numeric PID task/FD directories;
-- `readlink` of validated process exe/cwd/root and numeric FD paths;
+- `ls` of fixed proc/sys directories and validated numeric PID task/FD directories (the output parser accepts API-17 toolbox's default whitespace columns);
+- symlink target inspection via fixed `ls -l` on validated process exe/cwd/root and numeric FD paths (the collector does not assume a standalone `readlink` applet exists);
 - `getprop` for an enumerated build/device property set;
 - read-only `dumpsys display`, `SurfaceFlinger`, and `window`;
 - bounded `logcat -d -t 500` (no buffer clear).
 
-The collector rejects all other operations and paths. There is no arbitrary shell string, upload, install, write, signal, service restart, `adb root`, ptrace, `/proc/PID/mem`, or custom-code execution path. Every command has a timeout and output ceiling. Failed reads are saved with exit status and stderr so permission denials remain visible.
+The collector rejects all other operations and paths. There is no arbitrary shell string, upload, install, write, signal, service restart, `adb root`, ptrace, `/proc/PID/mem`, or custom-code execution path. Every command has a timeout and output ceiling. Results distinguish success, unavailable command, permission denial, transport failure, process identity change, timeout, output limit, and other command failure. A missing optional utility does not stop collection. Failed reads are saved with exit status and stderr so permission denials remain visible.
+
+The required target fingerprint comes from `/proc/version` and exact `getprop` values for Android release/SDK, product device/board, and hardware. `uname` is captured only as an optional diagnostic because it is absent on some embedded Android builds.
 
 ## Denylist
 

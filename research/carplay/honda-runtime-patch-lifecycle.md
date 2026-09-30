@@ -32,4 +32,4 @@ The official ADA01 source archive is **RELATED PLATFORM SOURCE** only (Linux 3.4
 
 ## Step 40E update
 
-The user confirmed the parked/disconnected preconditions, but host ADB listed one authorized device, but the fixed-operation collector's first read-only `uname -a` request failed with `error: closed`. No target state was returned and no capture phase ran. Read-only target mprotect/cache/rendezvous gates are still unknown/untested. Step 40F and Step 41 remain NO. See the [Step 40E report](../../step-reports/40e-readonly-runtime-preflight.md).
+The corrected Step 40E three-phase read-only capture completed and confirmed a stable `jmcs` process identity. Maps/smaps access was denied, so runtime callsites, page size, executable mapping protections, and candidate veneer gaps remain unknown. mprotect/cache/rendezvous behavior remains untested. Step 40F and Step 41 remain NO. See the [Step 40E report](../../step-reports/40e-readonly-runtime-preflight.md).

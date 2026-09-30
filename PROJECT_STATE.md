@@ -1,10 +1,12 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 40E blocked before target capture
+## Current milestone — Step 40E complete; runtime evidence is partial
 
-Step 40E's fixed-operation host collector, synthetic parsers, safety allowlist, and offline analyzer are prepared and tested. After the user reconfirmed the connected car, host ADB listed one authorized target. The first read-only `uname -a` request failed with `error: closed`; the collector stopped before target identity verification and phase capture. No runtime evidence was obtained. Do not reset transports, use `adb root`, or change settings.
+The corrected fixed-operation collector completed baseline, stock CarPlay connected (with the user-confirmed Apple Maps snapshot), and post-disconnect phases. Host ADB `shell` works on this API-17 target; the earlier `exec-out`/`uname` failure was a collector compatibility error, not an ADB transport blocker. The target fingerprint matched `/proc/version` and exact Android release/SDK/device/board/hardware properties. Manual preflight facts are separately documented and are not part of the immutable bundle.
 
-ECC evidence-first/security review guidance was used; no independent reviewer endpoint was available. Host checks: 19 focused preflight tests, Honda 74 passed/1 skipped, interposer 14, transport+negotiation 47 plus 31 subtests, renderer 8. Dry-run had no ADB query. No target shell command/write, custom code, or Type111 activity occurred. Step 40F is not ready without target facts; Step 41 remains NO. See [Step 40E report](step-reports/40e-readonly-runtime-preflight.md) and [runtime evidence status](research/platform/honda-live-runtime.md).
+The same `jmcs` PID/start-time identity persisted across all phases. Process signal masks were readable. Baseline and post-disconnect each had 14 thread records stable across five snapshots; the connected phase had 29 accessible threads and one short-lived TID per snapshot disappeared before status could be read, so connected per-thread evidence is partial. `/proc/<jmcs>/maps` and `smaps` were denied to UID 2000; runtime load bias, page size, runtime callsites, and veneer gaps remain unknown. Step 40E capture is complete, with those explicit evidence limits. Step 40F and Step 41 remain NO; Type111 remains disabled.
+
+The finalized raw capture and sibling analysis stay outside Git at `~/CLARITY_RUNTIME_20260929_195051` and `~/CLARITY_RUNTIME_20260929_195051_analysis.json`. Hashes were verified. ECC evidence-first/security-review guidance was applied; independent reviewer capability was unavailable. Focused tests: preflight 35, Honda 90 passed/1 skipped, interposer 14, transport+negotiation 47 plus 31 subtests, renderer 8. Dry-run and `git diff --check` passed. See [Step 40E report](step-reports/40e-readonly-runtime-preflight.md), [live runtime evidence](research/platform/honda-live-runtime.md), and [kernel runtime evidence](research/platform/honda-kernel-runtime.md).
 
 ## Step 40D baseline
 

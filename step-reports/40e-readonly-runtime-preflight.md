@@ -1,109 +1,117 @@
-# Step 40E — parked read-only Honda runtime preflight
+# Step 40E — Honda read-only runtime capture
 
-**Result: safely stopped at the first target identity probe.** On retry after the user confirmed the car was connected, the host-side collector's `--serial auto` guard found exactly one authorized ADB target. Its first fixed read-only command, `uname -a`, exited 255 with stderr `error: closed` and no stdout. The collector stopped before verifying the target fingerprint or beginning any capture phase. The raw host-only attempt bundle is `/Users/bmreyes24/CLARITY_RUNTIME_20260929_192837`; repository notes omit the target identifier.
+## Result
 
-One `adb exec-out shell uname -a` command was sent and failed with `error: closed`; no baseline or connected/post-disconnect phase ran. No `/proc`, `/sys`, property, diagnostic, process, or display reads returned data. There is no target PID or runtime data to analyze.
+**Step 40E capture: COMPLETE, with explicit evidence limits.** The initial `exec-out`/`uname` failure did not establish that ADB was broken. The user supplied successful manual `adb shell` reads and identified that `uname` is absent on this embedded Android build. The collector was corrected to use the legacy `adb shell` service, classify missing utilities separately, and fingerprint from `/proc/version` plus exact Android properties. The corrected collector matched the target and completed baseline, stock CarPlay connected, and post-disconnect phases.
 
-## Offline work completed
+The raw capture is host-only at `~/CLARITY_RUNTIME_20260929_195051`; offline analysis is next to it at `~/CLARITY_RUNTIME_20260929_195051_analysis.json`. Neither is in the Git worktree. The manifest lists 1,943 artifacts; all 1,944 host SHA-256 entries (artifacts plus manifest) verified with zero mismatches. An earlier capture bundle was retained outside Git but not used for conclusions because API-17 toolbox `ls` rejected `-1`; the corrected capture uses plain `ls`.
 
-- Added fixed-operation, host-only collector, external capture manifest/hash generation, output/timeout bounds, exact product/kernel fingerprint gate, robust single-`jmcs` PID/start-time/executable identity checks, phase prompts, and a no-contact dry-run.
-- Added synthetic parsers for maps/smaps/status/signal masks/tasks/TCP/TCP6/UDP/UDP6/Unix sockets, load bias, runtime callsites, mapping gaps, page candidates, and privacy redaction. Offline phase analyzer compares process identity, mappings, threads, signals, FDs, sockets, and candidate gaps. Its output is written beside the capture bundle so raw capture files stay unchanged.
-- Read-only allowlist/denylist and procedure are documented in `tools/honda-readonly-preflight/README.md`.
+## Manual preflight facts — separate from automated capture
 
-The collector reached one read-only target shell request (`uname -a`), but the ADB transport closed it before returning data. No process, `/proc`, `/sys`, property, display, log, or phase collection command ran. No `adb root`, transport reset, settings change, alternate transport, or retry was attempted after this failure.
+The following are user-supplied results from manual, read-only commands. They are recorded as separate preflight evidence and are not represented as bytes from the automated bundle:
 
-## Review and verification
+- Kernel `3.1.10+`, `SMP PREEMPT`, built Thu Apr 5 02:19:35 JST 2018
+- Compiler gcc 4.6.x-google 20120106 prerelease
+- ARMv7, four logical CPUs; implementer `0x41`, CPU part `0xc09`, revision 9
+- Hardware `vcm30t30`, device `vcm30t30a`, board `Andromeda`
+- Android 4.2.2 / API 17
+- ADB shell UID 2000 (`shell`) with reported graphics, input, log, adb, and networking groups
 
-ECC evidence-first, terminal-ops, and security-review guidance was used to review the command boundary, host-only storage, privacy handling, and failure paths. The available ECC capability has no independent review endpoint; `ECC INDEPENDENT REVIEWER: UNAVAILABLE`. No external ECC approval is claimed.
+The corrected automated preflight independently matched `/proc/version` and the Android release, SDK, device, board, and hardware properties. The target identity is a **MATCH**.
+
+## Phase observations
+
+| Area | Baseline: phone disconnected | Stock CarPlay connected | Post-disconnect |
+|---|---|---|---|
+| `jmcs` process | Identified | Same process identity | Same process identity |
+| Threads | 14 observed; five snapshots consistent | 29 accessible; one short-lived TID per snapshot vanished before status read; partial | 14 observed; five snapshots consistent |
+| Process signal masks | Complete | Complete | Complete |
+| Per-thread signal masks | Complete for observed set | Partial due to transient TID | Complete for observed set |
+| `wchan` | Available for observed set | Partial | Available for observed set |
+| `/proc/<jmcs>/maps` and `smaps` | Permission denied | Permission denied | Permission denied |
+| `/proc/<jmcs>/fd` listing | Permission denied | Permission denied | Permission denied |
+| Global TCP4/TCP6/UDP4/UDP6 rows | 6 / 3 / 4 / 2 | 6 / 6 / 7 / 5 | 6 / 5 / 4 / 2 |
+| CPU topology | CPU0–CPU3 topology fields read | Not recaptured in delta phase | Not recaptured in delta phase |
+
+The process PID and start-time identity remained unchanged across all phases. Network rows are system-wide `/proc/net` observations; FD access was denied, so sockets cannot be attributed to `jmcs`. The user-confirmed Apple Maps snapshot was collected during the connected phase.
+
+## Unavailable evidence and limits
+
+- **Page size, load bias, INFO/Setup runtime callsites, mapping permissions, and veneer gaps:** unknown. The shell UID 2000 could not read root-owned `jmcs` maps/smaps. Do not interpret empty analysis arrays as an empty address space.
+- **Stable common veneer gap:** unknown; no live mapping data exists to calculate one.
+- **Cache line/topology details:** CPU0–CPU3 topology values were read in baseline; cache index and coherency-line values were not exposed by the available listing. The manual four-core observation is separately attributed above.
+- **Kernel config:** `/proc/config.gz` was returned but did not decompress as supported gzip, so selected config values remain unavailable.
+- **SELinux enforcement:** `/sys/fs/selinux/enforce` was not present. ASLR read-only value was `2` in baseline.
+- **Executable symlink:** toolbox did not expose `/proc/<jmcs>/exe` through `ls -l`; identity was corroborated by `/proc/<pid>/status` Name, NUL-delimited cmdline, PID, and stat start time. `uname` was correctly classified COMMAND_UNAVAILABLE; no transport failure was inferred.
+
+No `adb root`, privilege escalation, target setting changes, signals, suspension, ptrace, `/proc/PID/mem`, helper upload/execution, target writes, `jmcs` modifications, or Type111 activity occurred. This completes the authorized read-only capture only; it does not authorize active testing.
+
+## ECC and verification
+
+ECC evidence-first and security-review guidance was applied to command classification, identity checks, fixed allowlist, shell argument construction, time/output limits, host-only writes, privacy handling, and the target write boundary. An independent ECC reviewer capability was unavailable; no independent approval is claimed.
 
 | Check | Result |
 |---|---|
-| Synthetic preflight parser/collector suite | 19 passed |
-| Focused Honda + interposer + transport + negotiation + integration suites | 136 passed, 1 skipped, 31 subtests passed |
+| Focused collector/parser/analyzer tests | 35 passed |
+| Honda suite | 90 passed, 1 skipped |
+| Interposer suite | 14 passed |
+| Transport + negotiation | 47 passed, 31 subtests passed |
 | Renderer suite | 8 passed |
-| Session-model suite | 12 passed |
-| Repo-wide `pytest -q` | collection blocked by duplicate `test_probe_artifact` and `test_model` module basenames in existing directories |
-| `--dry-run` | passed; no ADB device query |
-| `git diff --check` | passed |
-| Target reads/writes | one read-only `uname -a` request failed with `error: closed`; no target writes |
-
-## Safety decision
-
-Read-only guarantee: **PASS for the attempted run**. Vehicle parked / iPhone disconnected: **YES by user confirmation**. `jmcs` identity, mapping/page, callsite, signal/thread, network/FD, CPU/cache, and stock CarPlay deltas: **NOT CAPTURED**. Target mprotect, cacheflush, and rendezvous execution: **UNTESTED**. Target modifications, custom helper execution, and Type111 activity: **NONE**.
-
-Step 40E remains **INCOMPLETE** until the authorized ADB target returns the initial read-only identity probe and the three stock-state capture finishes. Step 40F is **NOT READY** without the target observations and a separate review of its self-only helper constraints. Step 41 stays **NO**; Type111 stays disabled.
+| Collector dry-run | Passed; no target query |
+| `git diff --check` | Passed |
+| Capture SHA-256 table | 1,944 file entries verified; 0 mismatches |
 
 ## Decision gate
 
-READ-ONLY GUARANTEE: PASS
+ADB TRANSPORT: WORKING
 
-VEHICLE PARKED: YES
+ADB SHELL: WORKING
 
-IPHONE BASELINE DISCONNECTED: YES
+UNAME: UNAVAILABLE
 
-JMCS EXACT PROCESS IDENTIFIED: NO
+PRIMARY IDENTITY SOURCE: /proc/version + Android properties
 
-JMCS PROCESS RESTART DURING STOCK CARPLAY: UNKNOWN
+TARGET IDENTITY: MATCH
 
-JMCS LOAD BIAS: UNKNOWN
+HONDA LIVE KERNEL: 3.1.10+, SMP PREEMPT, built Thu Apr 5 02:19:35 JST 2018; gcc 4.6.x-google 20120106 prerelease
 
-INFO RUNTIME CALL SITE: UNKNOWN
+HONDA LIVE ANDROID: 4.2.2
 
-SETUP RUNTIME CALL SITE: UNKNOWN
+HONDA LIVE SDK: 17
 
-JMCS TEXT PERMISSIONS: UNKNOWN
+HONDA LIVE DEVICE: vcm30t30a
 
-JMCS TEXT PRIVATE/SHARED: UNKNOWN
+HONDA LIVE BOARD: Andromeda
 
-SMAPS AVAILABLE: UNKNOWN
+HONDA LIVE HARDWARE: vcm30t30
+
+HONDA LIVE CPU: ARMv7; 4 logical CPUs; implementer 0x41; part 0xc09; revision 9
+
+JMCS IDENTIFIED: YES
+
+JMCS LOAD BIAS: UNKNOWN — maps denied
 
 TARGET PAGE SIZE: UNKNOWN
 
-CPU: NOT CAPTURED
+SMAPS: PERMISSION DENIED
 
-CACHE LINE INFORMATION: NOT CAPTURED
+THREAD DATA: PARTIAL — baseline/post stable; connected snapshot had transient TIDs
 
-KERNEL CONFIG AVAILABLE: UNKNOWN
+SIGNAL MASK DATA: PARTIAL — process masks complete; connected per-thread set partial
 
-ASLR STATE: UNKNOWN
+WCHAN: PARTIAL — baseline/post available; connected partial
 
-SELINUX STATE: UNKNOWN
-
-PROCESS SIGNAL MASKS: unavailable
-
-PER-THREAD SIGNAL MASKS: unavailable
-
-BASELINE THREAD COUNT: NOT CAPTURED
-
-CONNECTED THREAD COUNT: NOT CAPTURED
-
-POST-DISCONNECT THREAD COUNT: NOT CAPTURED
-
-THREAD POPULATION: UNKNOWN
-
-WCHAN DATA: unavailable
-
-SAVED-PC OBSERVABILITY: unavailable
-
-INFO VENEER RUNTIME RANGE: UNKNOWN
-
-SETUP VENEER RUNTIME RANGE: UNKNOWN
-
-COMMON VENEER RUNTIME RANGE: UNKNOWN
-
-COMMON CANDIDATE FREE GAP: UNKNOWN
+COMMON VENEER GAP: UNKNOWN
 
 COMMON GAP STABLE ACROSS PHASES: UNKNOWN
 
-TARGET MPROTECT EXECUTION: UNTESTED
+JMCS SAME PROCESS ACROSS CARPLAY: YES
 
-TARGET CACHEFLUSH EXECUTION: UNTESTED
+TARGET WRITES: 0
 
-TARGET RENDEZVOUS EXECUTION: UNTESTED
+CUSTOM CODE EXECUTED: 0
 
-TARGET JMCS MODIFIED: NO
-
-CUSTOM HELPER EXECUTED: NO
+JMCS MODIFIED: NO
 
 TYPE111 ACTIVITY: NONE
 
@@ -111,10 +119,12 @@ ECC WORKFLOW: USED
 
 ECC INDEPENDENT REVIEWER: UNAVAILABLE
 
-READY FOR STEP 40F STANDALONE PROBE: NO
+STEP 40E: COMPLETE
 
-READY FOR STEP 41 JMCS NO-OP HOOK: NO
+READY FOR STEP 40F: NO
+
+READY FOR STEP 41: NO
 
 READY FOR TYPE111: NO
 
-BIGGEST BLOCKER: ADB lists one authorized target, but its first read-only `uname -a` request fails with `error: closed`, preventing target identity verification and all capture phases.
+BIGGEST BLOCKER: Unprivileged ADB shell cannot read `/proc/<jmcs>/maps` or `smaps`, preventing runtime addresses, page size, and veneer-space evidence.

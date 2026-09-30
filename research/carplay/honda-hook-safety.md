@@ -20,4 +20,4 @@ This draft is NOT a live-test authorization. Step 40B’s offline synthetic harn
 
 ## Step 40E outcome
 
-The read-only collector was built and passed its dry-run and synthetic test gate, but it could not reach a target: Host ADB listed one authorized target, but the first read-only `uname -a` failed with `error: closed`; no runtime facts were returned. No custom helper, target write, or target modification occurred. A read-only map/signal/thread snapshot therefore provides no new authorization for Step 41. Step 40F remains not ready until Step 40E collects target facts and its self-only probe safety plan is separately reviewed.
+The corrected collector completed the parked three-phase read-only capture. It confirmed a persistent `jmcs` PID/start time and collected thread/signal/wchan and platform diagnostics, while maps/smaps remained permission-denied. No helper, target write, or target modification occurred. This evidence does not authorize Step 41. Step 40F remains not ready pending a supported read-only path for runtime mappings and a separate safety review.

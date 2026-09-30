@@ -1,17 +1,21 @@
 # Honda live runtime evidence — Step 40E
 
-## Capture attempt result
+## Provenance
 
-Step 40E's guarded collector was retried after the user confirmed the car was connected. Host `adb devices -l` returned exactly one authorized target. The collector issued its first fixed, read-only identity command (`uname -a`), which exited 255 with stderr `error: closed` and no output. It stopped before fingerprint verification and before any phase capture. The host-only attempt bundle is `/Users/bmreyes24/CLARITY_RUNTIME_20260929_192837`; target identifiers are omitted from repository notes.
+The user supplied a separate manual read-only preflight: Android 4.2.2/API 17; Linux 3.1.10+ with SMP/PREEMPT; ARMv7 with four CPUs, Cortex-A9 family part `0xc09`; VCM30T30 hardware, `vcm30t30a` device, Andromeda board; ADB shell UID 2000. The reported compiler/build date are in the [Step 40E report](../../step-reports/40e-readonly-runtime-preflight.md). These manual facts are not files in the automated capture.
 
-No transport reset, `adb root`, USB/debug-setting change, alternate transport, or second target command was attempted.
+The corrected collector uses legacy `adb shell`, treats `uname` as optional, and verifies `/proc/version` plus exact Android release/SDK/device/board/hardware properties. All required identity values matched. The initial `exec-out`/`uname` attempt was a collector compatibility issue, not proof of a broken ADB transport.
 
-## Evidence obtained / not obtained
+## Automated three-phase capture
 
-No Honda runtime facts were returned. There is no Phase A baseline, normal CarPlay connected phase, or post-disconnect phase. PID/start time/UID/GID, maps/smaps, load bias, callsite addresses, page size, cache topology, config, ASLR/SELinux, process/thread signal state, wchan, FDs, sockets, display diagnostics, and lifecycle deltas remain **UNKNOWN / NOT CAPTURED**.
+The parked capture completed baseline, normal stock CarPlay connected (including the user-confirmed Apple Maps snapshot), and post-disconnect phases. Raw capture and sibling offline analysis remain outside Git at `~/CLARITY_RUNTIME_20260929_195051` and `~/CLARITY_RUNTIME_20260929_195051_analysis.json`. The bundle hash table verified with zero mismatches.
 
-The collector and offline parsers are in `tools/honda-readonly-preflight/`; dry-run and synthetic tests run without target access. Resume the three-phase collection only when the current authorized ADB link returns the initial read-only identity command. Do not work around the closed transport with privilege escalation or setting changes.
+The same `jmcs` process PID/start-time identity persisted across all phases. Baseline and post-disconnect each exposed 14 threads consistently across five snapshots. During connected CarPlay, 29 threads were readable; one transient TID per snapshot disappeared before its status read, so connected per-thread signal and wchan evidence is partial. Process signal masks were readable in all phases.
 
-## Safety result
+## Permission and capability limits
 
-One read-only `uname -a` request was attempted and failed with `error: closed`; no target data was returned. No target-side write, signal, suspension, ptrace, `/proc/PID/mem`, helper upload/execution, or Type111 activity occurred. This is an incomplete runtime preflight, not a completed survey.
+ADB shell runs as UID 2000 while `jmcs` is root-owned. Reads of `/proc/<jmcs>/maps`, `smaps`, and `fd` listing returned permission denied in each phase. Therefore load bias, page size, runtime callsite addresses, and veneer gaps remain unknown; empty parsed mappings must not be read as an empty process map. Global network tables were collected, but inaccessible FDs prevent attributing sockets to `jmcs`.
+
+CPU0–CPU3 topology fields were read during baseline. Cache index/line fields were not exposed. `/proc/config.gz` did not parse as supported gzip; `/sys/fs/selinux/enforce` was absent. `uname` was classified COMMAND_UNAVAILABLE, not as a transport failure. No privilege escalation, target writes, signals, helper execution, ptrace, or Type111 activity occurred.
+
+Step 40E is complete as a read-only capture with partial evidence. Step 40F, Step 41, and Type111 remain disabled pending the maps/smaps blocker and separate safety review.

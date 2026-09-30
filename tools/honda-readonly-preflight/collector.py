@@ -4,7 +4,7 @@
 This script has no arbitrary remote-command option. It never uploads a file,
 uses adb root, touches /proc/PID/mem, signals/suspends a target, or executes a
 target-side custom helper. Real collection requires explicit parked/disconnect
-attestations and an explicit ADB serial.
+attestations and either one existing authorized ADB target or an explicit serial.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+from enum import StrEnum
 from typing import Any
 
 from parsers import parse_proc_stat_start_time, parse_status, parse_task_listing
@@ -41,8 +42,11 @@ SAFE_PROPERTIES = (
     "ro.secure", "ro.debuggable",
 )
 SAFE_DUMPSYS = ("display", "SurfaceFlinger", "window")
-EXPECTED_PRODUCT_MODEL = "MY16ADA"
 EXPECTED_PRODUCT_DEVICE = "vcm30t30a"
+EXPECTED_ANDROID_RELEASE = "4.2.2"
+EXPECTED_ANDROID_SDK = "17"
+EXPECTED_PRODUCT_BOARD = "Andromeda"
+EXPECTED_HARDWARE = "vcm30t30"
 STATIC_READ_PATHS = frozenset({
     "/proc/version", "/proc/sys/kernel/osrelease", "/proc/sys/kernel/ostype",
     "/proc/cpuinfo", "/proc/meminfo", "/proc/cmdline", "/proc/cpu/alignment",
@@ -59,6 +63,51 @@ STATIC_READ_PATHS = frozenset({
 
 class SafetyStop(RuntimeError):
     pass
+
+
+class CommandResult(StrEnum):
+    SUCCESS = "success"
+    COMMAND_UNAVAILABLE = "command_unavailable"
+    PERMISSION_DENIED = "permission_denied"
+    TRANSPORT_FAILURE = "transport_failure"
+    PROCESS_IDENTITY_CHANGE = "process_identity_change"
+    TIMEOUT = "timeout"
+    OUTPUT_LIMIT = "output_limit"
+    NOT_EXPOSED = "not_exposed"
+    OTHER_COMMAND_FAILURE = "other_command_failure"
+
+
+def classify_command_result(exit_code: int, stdout: bytes, stderr: bytes,
+                            *, timed_out: bool = False,
+                            output_limited: bool = False,
+                            operation: str = "") -> CommandResult:
+    """Classify command outcomes without treating missing tools as transport loss."""
+    if timed_out:
+        return CommandResult.TIMEOUT
+    if output_limited:
+        return CommandResult.OUTPUT_LIMIT
+    if operation == "readlink" and exit_code == 0 and not parse_ls_symlink_target(stdout):
+        return CommandResult.NOT_EXPOSED
+    diagnostic = (stderr + b"\n" + stdout).decode("utf-8", "replace").lower()
+    if re.search(r"(?:^|\n)(?:/system/bin/)?(?:sh|mksh):\s*[^\n]*:\s*not found(?:\s|$)", diagnostic):
+        return CommandResult.COMMAND_UNAVAILABLE
+    if "permission denied" in diagnostic or "operation not permitted" in diagnostic:
+        return CommandResult.PERMISSION_DENIED
+    if any(marker in diagnostic for marker in (
+            "error: closed", "device offline", "device unauthorized", "unauthorized",
+            "no devices/emulators found", "device not found", "failed to read from device")):
+        return CommandResult.TRANSPORT_FAILURE
+    if exit_code == 0:
+        return CommandResult.SUCCESS
+    return CommandResult.OTHER_COMMAND_FAILURE
+
+
+def classify_stop_reason(message: str) -> CommandResult:
+    if "instance changed" in message.lower() or "pid changed" in message.lower():
+        return CommandResult.PROCESS_IDENTITY_CHANGE
+    if "timed out" in message.lower():
+        return CommandResult.TIMEOUT
+    return CommandResult.OTHER_COMMAND_FAILURE
 
 
 @dataclass(frozen=True)
@@ -128,14 +177,17 @@ class FixedAdb:
             if path not in ("/proc", "/sys/devices/system/cpu", "/proc/net") and not re.fullmatch(
                     r"/proc/[0-9]+/(?:task|fd)|/sys/devices/system/cpu/cpu[0-9]+/cache", path):
                 raise SafetyStop(f"directory outside fixed allowlist: {path}")
-            remote = ("ls", "-1", path)
+            # API-17 toolbox `ls` rejects the newer `-1` option; whitespace
+            # tokenization in the host parsers handles its default columns.
+            remote = ("ls", path)
         elif operation == "readlink":
             if len(args) != 1:
                 raise SafetyStop("readlink requires exactly one allowlisted path")
             path = args[0]
             if not re.fullmatch(r"/proc/[0-9]+/(?:exe|cwd|root|fd/[0-9]+)", path):
                 raise SafetyStop(f"readlink path outside fixed allowlist: {path}")
-            remote = ("readlink", path)
+            # Android toolbox images may not ship the standalone readlink applet.
+            remote = ("ls", "-l", path)
         elif operation == "property":
             if len(args) != 1 or args[0] not in SAFE_PROPERTIES:
                 raise SafetyStop("property outside fixed allowlist")
@@ -150,7 +202,8 @@ class FixedAdb:
             remote = ("logcat", "-d", "-t", "500")
         else:
             raise SafetyStop(f"operation not allowlisted: {operation}")
-        return (self.adb, "-s", self.serial, "exec-out", "shell", *remote)
+        # Use the legacy `shell` service, which was verified on the API-17 target.
+        return (self.adb, "-s", self.serial, "shell", *remote)
 
     def run(self, operation: str, *args: str, timeout: int = COMMAND_TIMEOUT,
             max_bytes: int = MAX_COMMAND_OUTPUT) -> tuple[int, bytes, bytes]:
@@ -161,6 +214,7 @@ class FixedAdb:
             "command": list(command), "started_utc": started,
             "timeout_seconds": timeout, "max_output_bytes": max_bytes,
         }
+        timed_out = truncated = False
         try:
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert proc.stdout is not None and proc.stderr is not None
@@ -169,7 +223,6 @@ class FixedAdb:
             selector.register(proc.stderr, selectors.EVENT_READ, "stderr")
             chunks = {"stdout": bytearray(), "stderr": bytearray()}
             deadline = time.monotonic() + timeout
-            timed_out = truncated = False
             while selector.get_map():
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -206,19 +259,18 @@ class FixedAdb:
             if timed_out:
                 err += b"\ncollector: command timed out\n"
                 code = 124
-                record["result"] = "timeout"
             elif truncated:
                 err += b"\ncollector: combined output limit reached; process stopped\n"
                 code = 125
-                record["result"] = "output_limit"
-            else:
-                record["result"] = "ok" if code == 0 else "command_failed"
             record["truncated"] = truncated
         except OSError as exc:
             out, err, code = b"", str(exc).encode(), 127
-            record["result"] = "host_execution_error"
+            record["host_execution_error"] = True
         record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
                        "exit_code": code})
+        record["result"] = classify_command_result(
+            code, out, err, timed_out=timed_out,
+            output_limited=record.get("truncated", False), operation=operation).value
         self.records.append(record)
         return code, out, err
 
@@ -228,6 +280,13 @@ class FixedAdb:
 
 def _decode_cmdline(raw: bytes) -> str:
     return raw.replace(b"\x00", b" ").decode("utf-8", "replace").strip()
+
+
+def parse_ls_symlink_target(raw: bytes) -> str:
+    lines = [line.strip() for line in raw.decode("utf-8", "replace").splitlines() if line.strip()]
+    if len(lines) != 1 or " -> " not in lines[0]:
+        return ""
+    return lines[0].rsplit(" -> ", 1)[1].strip()
 
 
 def parse_ps_jmcs(text: str) -> tuple[int, ...]:
@@ -261,11 +320,10 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
     raw_results = []
     for op, arg, max_bytes in (("read", f"/proc/{pid}/stat", 64 * 1024),
                                ("read", f"/proc/{pid}/status", 256 * 1024),
-                               ("read", f"/proc/{pid}/cmdline", 64 * 1024),
-                               ("readlink", f"/proc/{pid}/exe", 64 * 1024)):
+                               ("read", f"/proc/{pid}/cmdline", 64 * 1024)):
         code, out, err = reader.run(op, arg, max_bytes=max_bytes)
         raw_results.append((op, arg, code, out, err))
-    stat_raw, status_raw, cmd_raw, exe_raw = (item[3] for item in raw_results)
+    stat_raw, status_raw, cmd_raw = (item[3] for item in raw_results)
     if capture:
         for index, (op, arg, code, out, err) in enumerate(raw_results):
             capture.record_result(phase, "identity", f"{label}_{pid}_{index}_{Path(arg).name}",
@@ -273,12 +331,15 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
     if any(item[2] != 0 for item in raw_results):
         raise SafetyStop(f"identity read failed for PID {pid}")
     status = parse_status(status_raw.decode("utf-8", "replace"))
-    exe = exe_raw.decode("utf-8", "replace").strip()
+    status_name = status.get("Name", "").strip()
     cmdline = _decode_cmdline(cmd_raw)
-    if Path(exe.removesuffix(" (deleted)")).name != "jmcs":
-        raise SafetyStop(f"PID {pid} executable is not jmcs")
-    if "jmcs" not in cmdline and Path(exe).name != "jmcs":
-        raise SafetyStop("jmcs command-line identity could not be corroborated")
+    argv0 = cmd_raw.split(b"\x00", 1)[0].decode("utf-8", "replace").strip()
+    if status_name != "jmcs" or Path(argv0.removesuffix(" (deleted)")).name != "jmcs":
+        raise SafetyStop(f"PID {pid} comm/cmdline identity is not jmcs")
+    # This API-17 build does not expose /proc/PID/exe through toolbox ls.
+    # Preserve that result as NOT_EXPOSED and use independent status+cmdline
+    # identity fields, plus PID/start time consistency checks, for discovery.
+    exe = argv0
     try:
         uid = status["Uid"].split()[0]
         gid = status["Gid"].split()[0]
@@ -317,6 +378,7 @@ class Capture:
         self.files: list[dict[str, Any]] = []
         self.phase_identities: dict[str, ProcessIdentity] = {}
         self.phase_times: dict[str, dict[str, str]] = {}
+        self.stop_result: str | None = None
 
     def store(self, phase: str, category: str, name: str, operation: str,
               *args: str, timeout: int = COMMAND_TIMEOUT,
@@ -376,22 +438,28 @@ class Capture:
         self.store(phase, "logs", "logcat_tail", "logcat", timeout=15, max_bytes=4 * 1024 * 1024)
 
     def verify_target_identity(self) -> dict[str, str]:
-        _, model_raw = self.store("preflight", "identity", "product_model", "property",
-                                  "ro.product.model", timeout=5, max_bytes=64 * 1024)
-        model = model_raw.decode("utf-8", "replace").strip()
-        _, device_raw = self.store("preflight", "identity", "product_device", "property",
-                                   "ro.product.device", timeout=5, max_bytes=64 * 1024)
-        device = device_raw.decode("utf-8", "replace").strip()
-        _, version_raw = self.store("preflight", "identity", "proc_version", "read",
-                                    "/proc/version", timeout=5, max_bytes=64 * 1024)
-        version = version_raw.decode("utf-8", "replace").strip()
-        if model != EXPECTED_PRODUCT_MODEL:
-            raise SafetyStop(f"target model mismatch: expected {EXPECTED_PRODUCT_MODEL}, got {model!r}")
-        if device != EXPECTED_PRODUCT_DEVICE:
-            raise SafetyStop(f"target device mismatch: expected {EXPECTED_PRODUCT_DEVICE}, got {device!r}")
-        if "3.1.10" not in version:
+        sources = (
+            ("kernel_version", "read", "/proc/version", "3.1.10+"),
+            ("android_release", "property", "ro.build.version.release", EXPECTED_ANDROID_RELEASE),
+            ("android_sdk", "property", "ro.build.version.sdk", EXPECTED_ANDROID_SDK),
+            ("device", "property", "ro.product.device", EXPECTED_PRODUCT_DEVICE),
+            ("board", "property", "ro.product.board", EXPECTED_PRODUCT_BOARD),
+            ("hardware", "property", "ro.hardware", EXPECTED_HARDWARE),
+        )
+        values: dict[str, str] = {}
+        for name, operation, argument, expected in sources:
+            code, raw = (self.store("preflight", "identity", name, operation, argument,
+                                    timeout=5, max_bytes=64 * 1024))
+            value = raw.decode("utf-8", "replace").strip()
+            values[name] = value
+            if code != 0:
+                raise SafetyStop(f"required target identity source unavailable: {name}")
+            matches = "3.1.10+" in value if name == "kernel_version" else value == expected
+            if not matches:
+                raise SafetyStop(f"target identity mismatch for {name}: expected {expected!r}, got {value!r}")
+        if not values["kernel_version"].startswith("Linux version 3.1.10+"):
             raise SafetyStop("target kernel release does not match the known 3.1.10+ platform")
-        return {"model": model, "device": device, "kernel_version": version}
+        return values
 
     def _capture_cpu_topology(self, phase: str) -> None:
         _, listing = self.store(phase, "cpu", "cpu_directory_listing", "list",
@@ -503,6 +571,7 @@ class Capture:
             "process_identities": {name: asdict(identity) for name, identity in self.phase_identities.items()},
             "artifacts": self.files,
             "commands": self.reader.records,
+            "stop_result": self.stop_result,
             "guarantees": ["fixed allowlist only", "no target file writes", "no helper upload/execution",
                            "no ptrace", "no /proc/PID/mem", "no signals or thread suspension"],
         }
@@ -607,13 +676,9 @@ def main(argv: list[str] | None = None) -> int:
     capture = Capture(reader, output)
     phases: list[str] = []
     try:
-        state_code, state_out, state_err = reader.run("uname")
-        capture.record_result("preflight", "platform", "adb_shell_uname_preflight",
-                              "uname", (), state_code, state_out, state_err)
-        if state_code != 0:
-            raise SafetyStop("ADB read preflight failed; no phase capture started")
         target_identity = capture.verify_target_identity()
-        print(f"Read-only target fingerprint passed: model={target_identity['model']}, "
+        print(f"Read-only target fingerprint passed: Android={target_identity['android_release']} "
+              f"API={target_identity['android_sdk']}, board={target_identity['board']}, "
               f"device={target_identity['device']}, kernel=3.1.10 family.")
         identity = capture.collect_process_phase("baseline", full=True)
         phases.append("baseline")
@@ -645,6 +710,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Capture finalized on host: {output}")
         return 0
     except (SafetyStop, KeyboardInterrupt, EOFError) as exc:
+        capture.stop_result = classify_stop_reason(str(exc)).value
         capture.finalize(phases)
         print(f"STOPPED safely; completed phase evidence retained at {output}: {exc}", file=sys.stderr)
         return 1
