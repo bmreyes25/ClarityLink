@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 41F — Honda linker fingerprint partial; no-op load remains gated (2026-09-30)
+
+Static inspection matched the archived `/system/bin/linker` SHA-256 from Step 41B (`608af427…357aa90`), ELF32 ARM `ET_DYN`, and confirmed preload/library/error strings plus `/vendor/lib` and `/system/lib` data pointers. It did not prove Honda secure-mode checks, absolute-path parsing, separators, fatal preload failure, or constructor ordering. Honda/AOSP LD_PRELOAD behavior is **PARTIAL**. A historical `/proc/mounts` snapshot records `/data` as `rw,nosuid,nodev`, without `noexec`, reducing but not removing executable-map risk; SELinux and `mmap(PROT_EXEC)` permission remain unknown. Mapping risk MEDIUM. **Preload remains PLAUSIBLE_SECONDARY; no-op test NOT READY; Type111 NOT READY.** See [Step 41F report](step-reports/41f-honda-linker-preload-fingerprint.md).
+
 ## Step 41E — preload behavior remains unproven; no-op load gated (2026-09-30)
 
 Offline review confirms Honda `/init` has `setenv` parser evidence and the recovered jmcs service currently sets no `LD_PRELOAD`. The stripped Honda linker contains `LD_PRELOAD` and loader strings, but this is not proof of preload behavior: secure-exec suppression, absolute-path handling, and failure semantics remain unknown. No named policy/context artifacts were found, but init retains SELinux-related code fingerprints, so SELinux is not classified absent/disabled. jmcs is root:root, executable mode 0755, with no observed set-ID bits or xattrs; `AT_SECURE=0` is the ordinary root-to-root expectation absent an LSM decision, not a runtime fact. `/data/local/tmp` remains the best candidate path but executable-map permission is unknown. A service-scoped preload requires a boot-ramdisk change. **LD_PRELOAD status: plausible secondary. No-op test: NOT READY. Step42/Type111: NOT READY.** See [Step 41E report](step-reports/41e-init-linker-preload-behavior.md).

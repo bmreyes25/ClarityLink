@@ -310,3 +310,12 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | SELinux/secure execution | `research/deployment/jmcs-secure-exec.md`, `research/carplay/step41d-selinux-load-environment.md` | Policy files absent from inspected archive trees, but active SELinux state/domain and actual AT_SECURE remain UNKNOWN |
 | Candidate path | `research/deployment/library-staging-paths.md` | `/data/local/tmp` is 0771 shell:shell and best candidate; executable-map permission unproven |
 | Decision | `step-reports/41e-init-linker-preload-behavior.md`, `research/deployment/noop-interposer-plan.md` | LD_PRELOAD is a plausible secondary seam; boot ramdisk change required; no-op test NOT READY |
+## Step 41F — Honda linker preload fingerprint (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Exact linker | `step-reports/41f-honda-linker-preload-fingerprint.md`, `research/runtime/honda-bionic-dladdr.md` | Archived linker hash matches Step 41B; ELF32 ARM ET_DYN; preload/path/error strings and data pointers present |
+| Behavioral comparison | `research/deployment/honda-linker-ld-preload.md` | Exact Honda secure check, absolute path handling, separators, fatal-load behavior, and ctor order remain UNKNOWN; no local matching AOSP source checkout |
+| Secure exec | `research/deployment/jmcs-secure-exec.md` | Root-to-root/no-setid metadata suggests AT_SECURE=0 absent LSM decision; actual state unknown |
+| `/data` mount and candidate | Historical capture `research/captures/20260925T150706Z-capabilities/capability-survey/cat-_proc_mounts.txt`; `research/deployment/library-staging-paths.md` | `/data` was `rw,nosuid,nodev` without `noexec`; SELinux and executable mmap remain unknown, risk MEDIUM |
+| Decision | `step-reports/41f-honda-linker-preload-fingerprint.md`, `research/deployment/noop-interposer-plan.md` | LD_PRELOAD seam remains PLAUSIBLE_SECONDARY; no-op load and Type111 not ready |
