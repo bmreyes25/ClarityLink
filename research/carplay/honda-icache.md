@@ -14,4 +14,4 @@ For any eventual text update the safe intended order is: park all threads that c
 
 `ICACHE SYNC MODEL: SOURCE-CONFIRMED INTERFACE; TARGET EFFECT UNKNOWN`
 
-No API-17 emulator/QEMU was available. Host cache behavior is not evidence for ARM instruction-cache coherency.
+Step 40D obtained Google's official API-17 ARM system image, but the available Android emulator rejects ARM guests with both QEMU2 and classic engines; generic QEMU lacks the required Goldfish machine. No guest ran and no ARM cacheflush call was made. ADA01's 3.4.108 generic Tegra source is not the target 3.1.10+ VCM30T30 kernel, so its cache-maintenance implementation cannot upgrade Honda's status. Host cache behavior is not evidence for ARM instruction-cache coherency. See [API-17 runtime result](../platform/api17-arm-runtime.md) and [ADA01 source assessment](../platform/honda-ada01-source.md).

@@ -25,14 +25,15 @@ flowchart LR
 | A | Firmware acquisition and display reverse engineering | **COMPLETE** offline |
 | B | Honda CarPlay control/media protocol recovery | **SUBSTANTIALLY COMPLETE**; some runtime semantics remain unknown |
 | C | Host Display-B architecture, stock delegation, synthetic receive path | **COMPLETE** as a host model |
-| D | Exact Honda build identity, hook points, reversible hook harness | **CURRENT**; ABI and static fingerprints recovered, ARM/Thumb call shim and live-safe rollback remain unimplemented |
-| E | Parked no-op stock-delegation validation | **NOT READY**; only after Step 40’s real hook harness passes review |
-| F | Observe-only secondary negotiation | Future; no live collection |
-| G | Controlled Display-B / Type111 advertisement | Future; response acceptance unknown |
-| H | Type111 listener, security, secondary TCP | Future; Type111 KDF and phone acceptance unknown |
-| I | Real secondary H.264 receive/decode | Future; no real Type111 stream |
-| J | ExternalDisplay / instrument-cluster rendering | Future; no real CarPlay output |
-| K | Apple Maps/Waze validation and production hardening | Future |
+| D | Exact Honda build identity, source provenance, executable-memory lab feasibility | **COMPLETE OFFLINE**; ADA01 is related source only, official API-17 image obtained but no ARM guest can boot on the available host |
+| E | Parked read-only target runtime preflight | **NEXT**; collect target facts without modifying `jmcs` or executing a helper |
+| F | Parked no-op stock-delegation validation | **NOT READY**; only after a reviewed real hook harness and runtime gates pass |
+| G | Observe-only secondary negotiation | Future; no live collection |
+| H | Controlled Display-B / Type111 advertisement | Future; response acceptance unknown |
+| I | Type111 listener/security/secondary TCP | Future; Type111 KDF and phone acceptance unknown |
+| J | Real secondary H.264 receive/decode | Future; no real Type111 stream |
+| K | ExternalDisplay / instrument-cluster rendering | Future; no real CarPlay output |
+| L | Apple Maps/Waze validation and production hardening | Future |
 
 ## Current offline findings
 
@@ -56,4 +57,4 @@ flowchart LR
 
 ## Next
 
-Complete the missing offline Step 40 item: implement and validate an ARMv7 Thumb-2 callsite shim/original-call veneer and a platform-specific reversible patch/restore path in a controlled host/emulator harness. Until then the no-op live test remains **NO**.
+Step 40D found no exact public Honda kernel source and no usable API-17 ARM guest on this Apple Silicon host. Proceed to Step 40E as a **read-only** parked target preflight; this is evidence collection, not authorization for a test helper or mutation. Step 41 and Type111 remain **NO**. See `step-reports/40d-honda-kernel-and-api17-runtime.md`.

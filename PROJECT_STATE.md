@@ -1,6 +1,12 @@
 # ClarityLink project state — 2026-09-29
 
-## Current milestone — Step 40C
+## Current milestone — Step 40D complete; Step 40E next
+
+Step 40D obtained and safely inventoried the official Honda/Panasonic ADA01 source archive. It contains generic Tegra2/3 support but Linux 3.4.108 and no VCM30T30 board source; Honda's exact forensic image is `3.1.10+` for `vcm30t30a`. Classify ADA01 as RELATED PLATFORM SOURCE only. Exact Honda kernel config and VM page size remain unknown. The extracted target kernel copy hash is `1dd3e403311d5cd18f12284b2d9263a0999707f1f16d3d83df1d8c324428949a`.
+
+An official Google API-17 ARM image was checksum-verified, but the available macOS emulator rejects ARM guests in both engines and generic QEMU lacks Goldfish. No ARM guest or executable-memory test ran. Maintained host suites pass: Honda 55/1 skipped, interposer 14, transport+negotiation 47 plus 31 subtests, renderer 8. These are not ARM/Honda runtime evidence. Step 40E read-only target preflight is the next appropriate task; Step 41 and Type111 remain NO. See [Step 40D report](step-reports/40d-honda-kernel-and-api17-runtime.md).
+
+## Step 40C baseline
 
 Step 40C establishes API-era Bionic interfaces for `mmap2`, `mprotect`, `munmap`, `futex`, and ARM `cacheflush`, while leaving Honda's exact kernel behavior unresolved. The pinned ARM32 `jmcs` ELF has RX and RW PT_LOAD segments with `0x1000` alignment; that is not runtime page-size evidence. Pure host models now calculate ARM32 page ranges and Thumb BL reach and reject W+X in the modeled protection state. The common theoretical veneer range is `0..0x128a15a`; no real allocation was attempted. Setup's callsite `0x28af72` straddles a 4-byte boundary. Uncoordinated patching is unsafe, and no thread rendezvous/saved-PC strategy is validated.
 

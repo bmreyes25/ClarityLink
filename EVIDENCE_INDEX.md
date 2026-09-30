@@ -1,3 +1,14 @@
+## Step 40D — kernel provenance and API-17 ARM runtime (2026-09-29)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Official source | `research/platform/honda-ada01-source.md` | Honda/Panasonic ADA01 archive SHA-256 recorded; safe inventory/extraction; Linux 3.4.108 generic Tegra, no VCM30T30; related source only |
+| Target kernel | `research/platform/honda-kernel-provenance.md`, `honda-kernel-config.md` | Forensic copy hash recorded; exact target 3.1.10+; modules corroborate SMP/preempt/ARMv7; config and VM page size unknown |
+| API 17 ARM image | `research/platform/api17-arm-runtime.md` | Official image hash verified; Google emulator rejects ARM in both engines; generic QEMU lacks Goldfish; no guest tests |
+| Runtime gate | `research/carplay/honda-executable-memory.md`, `honda-icache.md`, `honda-thread-rendezvous.md`, `honda-runtime-patch-lifecycle.md` | No RX/RW/cache/Thumb/veneer/signal/futex/rendezvous runtime proof; Step 41 NO; Step 40E read-only preflight is next |
+| Verification | `step-reports/40d-honda-kernel-and-api17-runtime.md` | Honda 55 passed/1 skipped, interposer 14, transport+negotiation 47 + 31 subtests, renderer 8; host tests only |
+| Review | Step 40D report | ECC skill guidance applied; independent reviewer endpoint unavailable; self-review remains open, not external ECC approval |
+
 ## Step 40B — reversible Thumb-2 call-site model (2026-09-29)
 
 | Area | Primary evidence | Finding |

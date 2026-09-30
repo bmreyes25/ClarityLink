@@ -17,3 +17,7 @@ Process-start installation would only avoid active callers if installation is gu
 The host model `rendezvous_model.py` rejects an incomplete parked set, thread-generation changes, and saved PCs within patch/veneer ranges; a separate lifetime predicate prevents modeled veneer release before restoration and zero in-flight callers. This only checks supplied synthetic facts—it cannot acquire them from a running process or guarantee thread creation is blocked.
 
 Required future evidence: a platform-supported mechanism that blocks thread creation, safely parks every relevant thread, obtains/validates saved PCs outside the patch/veneer pages, detects timeout/exit, and resumes only after protections and cache state are verified. No real signal was sent and no target thread was inspected.
+
+## Step 40D status
+
+The official API-17 ARM image was obtained, but no ARM guest could be booted by the available Apple Silicon emulator; therefore signal-context layout, futex behavior, task enumeration, saved-PC parsing, and rendezvous stress remain **NOT AVAILABLE** in a real API-17 process. The maintained host safety-model tests do not close those runtime gaps. A read-only target preflight is now the appropriate next evidence step; it is not authorization to patch or execute a test helper on the vehicle.
