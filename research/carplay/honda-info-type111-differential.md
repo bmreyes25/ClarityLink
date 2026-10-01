@@ -12,7 +12,7 @@
 - `EXTERNAL_PRIOR_ART`: behavior in the pinned xcertplay implementation; not Honda evidence.
 - `HYPOTHESIS`: bounded design inference to test with Honda evidence.
 
-Honda binary reviewed: `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`. The preserved `system-vendor/system/bin/jmcs` copy has the same SHA-256. Exact literal checks used the host `strings -a` output against this ELF; analysis is static and the binary was not executed.
+Honda binary reviewed: `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`. The preserved `system-vendor/system/bin/jmcs` copy has the same SHA-256. Exact literal checks used the host `strings -a` output against this ELF; analysis is static and the binary was not executed. Step 43B traces the descriptor property sources and confirms one `ScreenCopyMain()` object feeds the recovered builder; see [property-source trace](honda-screencopymain-property-sources.md).
 
 ## Source-pinned xcertplay behavior (`EXTERNAL_PRIOR_ART`)
 
@@ -50,7 +50,7 @@ _connectionHandleMessage /info route (0x28b678–0x28b68e)
 
 `serverInfo["displays"]` is the same array produced by the Honda display-property path, inserted into the dictionary, and serialized by this `/info` response. The array is mutable but the current path calls `ScreenCopyMain()` once and appends one descriptor. The phone-facing static dataflow is confirmed; no particular runtime phone exchange was captured in this milestone.
 
-The descriptor builder is `AirPlayReceiverSessionScreen_CopyDisplaysInfo` at VA `0x287ae0`. It creates a mutable dictionary, calls `ScreenCopyMain()` once, copies properties from that main-screen object, and inserts `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, and `uuid`. Numeric fields use numeric CF setters. In particular, `uuid` is inserted as a numeric CF value here; its source property's backing type, lifetime, and protocol meaning remain unknown. The property callback at `0x28d328` creates a mutable array and appends this one dictionary.
+The descriptor builder is `AirPlayReceiverSessionScreen_CopyDisplaysInfo` at VA `0x287ae0`. It creates a mutable dictionary, calls `ScreenCopyMain()` once, copies properties from that main-screen object, and inserts `edid`, `features`, `maxFPS`, `widthPhysical`, `heightPhysical`, `widthPixels`, `heightPixels`, and `uuid`. Numeric fields use numeric CF setters. In particular, `uuid` is inserted as a numeric CF value here; `ScreenCreate` contains a 16-byte UUID local and generated/default path, but the advertised source and stability remain unknown. Step 43B traces geometry/FPS through configuration-backed globals into the Screen object. The property callback at `0x28d328` creates a mutable array and appends this one dictionary. `ScreenCopyMain` reads only `gScreenArray[0]` under lock, retaining it; if absent it creates/registers the default main screen. No loop, alternate index, role key, or parallel source was recovered in the audited path. The outer array is mutable, so a second entry is mechanically representable at the container boundary, but the current producer does not build it. `forceKeyFrame`/`forceKeyFrameNeeded` and the named function remain unresolved: no second-display or ViewArea dataflow was recovered.
 
 ## Field-by-field differential
 

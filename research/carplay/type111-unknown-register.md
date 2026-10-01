@@ -1,6 +1,6 @@
 # Type 111 unknown register
 
-All rows are unknown for Honda. Offline tests validate candidate handling but cannot resolve wire behavior.
+All Type111 wire/schema rows remain unknown for Honda. Step 43B narrows some static descriptor questions but does not establish Type111 behavior. Offline tests validate candidate handling but cannot resolve wire behavior.
 
 | Unknown | Current evidence | Impact | Offline test | Live evidence | Next reduction |
 |---|---|---|---|---|---|
@@ -17,6 +17,8 @@ All rows are unknown for Honda. Offline tests validate candidate handling but ca
 | Connection initiator/start order | Type110 listener suggests phone connects; Type111 absent | Wrong listener timing | Event order model | Yes | Observe after response |
 | Teardown/reconnect semantics | Honda parent lifecycle only | Stale state/cross-session crypto | Generation tests | Yes | Trace disconnect/reconnect |
 | ScreenStream/H.264 reuse | Honda Type110 only; MHI2 own path | Parser incompatibility | Synthetic variants | Yes | Obtain legitimate secondary stream evidence |
+| Parallel Honda display descriptor source | `ScreenCopyMain` selects registry index 0; descriptor builder calls it once; no alternate source recovered in audited path | Existing `/info` producer may have no path to a second descriptor | Structural collection tests only | Yes, for actual advertised behavior | Expand key/function xrefs beyond recovered builder; later observe controlled Honda transaction |
+| `forceKeyFrame` semantics / Type111 relation | Literal keys and named function appear in string/DWARF artifacts; function body/cross-reference to second-display state was not recovered | Generic refresh or UI/control semantics remain undecided | Candidate models only | Yes, for live semantics | Recover function address/body and callers/consumers from complete function-level disassembly |
 
 No real keys or captured proprietary payloads are used.
 

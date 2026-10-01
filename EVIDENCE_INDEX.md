@@ -1,3 +1,14 @@
+# Step 43B — Honda Screen property sources and descriptor xrefs
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| ELF identity and debug data | `extracted/system/system/bin/jmcs`; SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; `research/native/jmcs/{symbols.json,disassembly.txt,focused-annotated.txt}` | Exact matching Honda binary; ARM32 ELF with symbols and DWARF. Offline static evidence only. |
+| Descriptor/object path | `research/carplay/honda-copy-displays-info.md`; `research/carplay/honda-screencopymain-property-sources.md`; function `0x287ae0` and `ScreenCopyMain` `0x2a17fc` | `HONDA_CONFIRMED`: one descriptor copies eight properties from first registered Screen; fallback creates/registers main Screen. Geometry/FPS derive from configuration-backed globals. |
+| UUID and stream binding | `research/carplay/honda-display-uuid-flow.md`; Type110 Setup/KDF reports | Numeric UUID insertion confirmed; generated/default source only candidate. UUID-to-stream binding not found in analyzed flow; semantics remain unknown. |
+| Parallel descriptor and role | Step 43B report; `honda-server-info.md` | Mutable collection can hold more entries structurally; Honda producer appends once. No alternate builder found in audited call path; binary-wide structural conclusion remains inconclusive. No role/type insertion recovered. |
+| Force-keyframe | strings at `0x337352`, `0x33737b`, `0x3379fb`; DWARF source name `AirPlayReceiverSessionForceKeyFrame` | `HONDA_UNKNOWN`: full function body/callers and Type111 relation were not recovered. Do not treat as cluster semantics. |
+| Readiness / next | `step-reports/43b-screencopymain-property-source-trace.md`; `NEXT_ACTION.md` | Descriptor feasibility is only structural; Type111, live test, jmcs integration, ExternalDisplay rendering remain NOT READY; LD_PRELOAD PARKED. Next: trace full force-keyframe implementation/callers. |
+
 # Step 43A — Honda `/info` Type111 differential (2026-09-30)
 
 | Evidence item | Source | Finding / classification |
