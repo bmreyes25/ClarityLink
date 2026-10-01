@@ -1,5 +1,11 @@
 # Hypothetical project child lifecycle contract — Step 43H
 
+## Step 43I update (2026-10-01)
+
+Honda evidence now proves a non-null application callback `_AirPlayHandleSessionFinalized` is installed in the receiver session delegate and called by the session CF runtime finalizer before platform/session resources are finalized. The 44-byte delegate is copied wholesale, so any future integration must preserve Honda's current callbacks and context. Honda also passes a request-aware `tearDownStreams` request through PlatformControl and distinguishes stream types 100, 101, and 110. It does not establish a Type111 child callback or supported way for a project child to subscribe to that request.
+
+Updated attachment assessment: `SESSION FINALIZER: CANDIDATE`; `REQUEST-AWARE PROJECT STREAM ATTACHMENT: UNKNOWN`; overall two-signal model remains `NEEDS_MORE_STATIC_PROOF`. The synthetic exact-once contract below remains hypothetical and does not prove a supported Honda attachment point. See [Step 43I Honda lifecycle evidence](honda-session-delegate-lifecycle.md).
+
 This is an offline design contract (`HYPOTHESIS` / `SYNTHETIC_TEST_VALUE`), not Honda behavior or Type111 implementation. Honda teardown evidence is summarized in [session teardown lifecycle](honda-session-teardown-lifecycle.md).
 
 ## State and ownership

@@ -568,3 +568,14 @@ Honda-specific source notes remain separately indexed below; no external project
 | Type110 ownership | `research/carplay/honda-cf-callback-ownership.md` | Entry retain/release ledger and response-to-streams retaining edge remain unknown/partial. |
 | Serialization boundary | `research/carplay/honda-post-setup-caller-liveness.md` | Response graph is released after synchronous serialization; later network failure does not need CF graph rollback. Project stream cleanup edge is unknown. |
 | Readiness / next | [Step 43H report](step-reports/43h-cf-callback-fingerprint.md); `NEXT_ACTION.md` | `NEEDS_MORE_STATIC_PROOF`; all implementation/live gates NO; LD_PRELOAD PARKED. Next: recover exact Setup callback arguments and session cleanup callback. |
+# Step 43I — Honda session delegate and finalizer lifecycle (offline)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Artifact identity and address mapping | jmcs SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; `tools/elf_va_map.py`; Xcode `llvm-objdump` | `HONDA_CONFIRMED`: verified image; ELF VA/literal mapping and Thumb normalization used. |
+| Session runtime class/finalizer | class table `0x3427d4`; `AirPlayReceiverSessionGetTypeID` `0x284e28`; `_Finalize` `0x284d24` | `HONDA_CONFIRMED`: registered CF runtime object; callback at session `+0x20` receives session and context before remaining resource teardown. |
+| Delegate replacement and callback target | `AirPlayReceiverSessionSetDelegate` `0x285040`; `_AirPlayHandleSessionCreated` `0xaf04c`; `_AirPlayHandleSessionFinalized` `0xae654` | `HONDA_CONFIRMED`: 44-byte whole-table copy; existing non-null finalizer callback at slot `+0x0c`; server session-created wiring proven. |
+| Request-aware stream teardown | `AirPlayReceiverSessionTearDown` `0x2852ec`; `AirPlayReceiverSessionPlatformControl` `0x28cd88` | `HONDA_CONFIRMED`: passes `tearDownStreams` and request; parser distinguishes 100/101/110. Does not prove Type111 or project callback. |
+| Project child and readiness | `research/carplay/honda-project-child-lifecycle-contract.md` | Finalizer is a candidate; request-aware child attachment unknown; exact-once contract remains synthetic; project model needs more static proof. |
+| External prior art | `docs/research/airplay-session-lifecycle-prior-art.md` | `EXTERNAL_PRIOR_ART` only; no ABI equivalence inferred. |
+| Report/tests | `step-reports/43i-honda-session-delegate-finalizer.md`; `NEXT_ACTION.md` | See report for test results and gates. |
