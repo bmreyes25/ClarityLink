@@ -25,4 +25,6 @@ Security classification is limited to the local PlayPort parser branch. Its curr
 - ClarityLink precheck: `tools.elf_va_map` import smoke passed; focused map tests 8 passed; full suite 301 passed, 4 skipped, 3 self-locator smoke checks passed, simulator JavaScript checks passed. Capture-backed skips remain due unavailable fixtures.
 - ECC: no dedicated ECC reviewer was invoked; manual engineering/evidence review was applied. Diagnostics allowlist and Type110/Type111 separation were checked in code/tests.
 
+The first pushed Offline CI run exposed that the earlier `6144222` fix had committed `tools/__init__.py` but the broad `/tools/*` ignore rule still kept `tools/elf_va_map.py` out of GitHub. The local source matched its committed tests; I added a narrow `.gitignore` exception and am committing the missing module so CI can run the same ELF-map tests present locally. The follow-up CI result is recorded after it completes.
+
 No live phone observation was performed. Current-iOS negotiation, phone connection to the second dataPort, actual Type111 media-security variant, and physical cluster rendering remain unobserved. Step 43P is the next separate phone-observation task; Step 43Q is conditional after reviewing its trace.
