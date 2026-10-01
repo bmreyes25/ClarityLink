@@ -1,6 +1,8 @@
-# Honda display capability send path — Step 30
+# Honda display capability phone-facing path — current status
 
-## Step 32: complete path
+**Static path:** confirmed by Step 32. **Live phone transaction:** not observed. **Safe runtime hook:** not established.
+
+## Recovered dataflow
 
 ```text
 _connectionHandleMessage /info dispatch (0x28b678–0x28b68e)
@@ -12,36 +14,35 @@ _connectionHandleMessage /info dispatch (0x28b678–0x28b68e)
  -> SocketWriteData (0x2a01c0) -> writev@plt
 ```
 
-This closes the static network edge: the nested `serverInfo["displays"]` value reaches the phone-facing response serializer. See [Step 32](../../step-reports/32-airplay-info-phone-path.md).
+The returned `serverInfo["displays"]` value therefore reaches the phone-facing `/info` response in static code flow. This is distinct from evidence about SETUP even though both use the plist response helper. See [Step 32](../../step-reports/32-airplay-info-phone-path.md).
 
-## Step 31 consumer search
-
-The builder is not dynsym-exported, and no normal ELF import was found among the 45 mapped shared libraries. Generic `dlopen`/`dlsym` use has no matching runtime lookup key. Reverse tracing confirms that the known plist/HTTP/writev path carries SETUP output only. `DISPLAYS_PHONE_FACING` and the phone-facing mutation point remain UNKNOWN. See [consumer search](airplay-server-info-consumers.md).
-
-## Proven local path
+## Display construction
 
 ```text
 AirPlayCopyServerInfo (0x282cd4)
-  -> AirPlayReceiverSessionPlatformCopyProperty("displays") (0x28d328)
-  -> AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0)
-  -> mutable one-element CFArray [main display dictionary]
-  -> CFDictionarySetValue(serverInfo, "displays", array) (0x282e42)
-  -> returned CFDictionaryRef
+ -> AirPlayReceiverSessionPlatformCopyProperty("displays") (0x28d328)
+ -> AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0)
+ -> mutable one-element CFArray [main display dictionary]
+ -> returned CFDictionaryRef
 ```
 
-The displays property comparison and mutable array construction are in the platform property callback at 0x28d332–0x28d370; the main display object is appended at 0x28d37a–0x28d382. The server-info builder queries and inserts this property at 0x282e34–0x282e48.
+The property callback creates a mutable array and calls `ScreenCopyMain()` once to append one descriptor. The descriptor fields recovered from the exact matching jmcs binary are `edid`, `features`, `maxFPS`, physical/pixel dimensions, and numeric `uuid`. See [descriptor recovery](honda-copy-displays-info.md) and the [Step 43A Type111 differential](honda-info-type111-differential.md).
 
-## Unproven network edge
+## Step 31 historical note
 
-No caller of AirPlayCopyServerInfo was found in the analyzed direct call sites, and the available evidence does not resolve its indirect consumer, incoming request, server-info serializer, HTTP/control response body, or socket send. The confirmed _connectionHandleMessage/binary-plist/writev chain belongs to AirPlayReceiverSessionSetup; it is not evidence for AirPlayCopyServerInfo.
+Step 31 had not recovered the server-info consumer, so the report then marked phone-facing use unknown. Step 32 recovered the `/info` route, callsite, serialization, and send path; it supersedes the Step 31 status. The original Step 31 report remains intact as history.
+
+## Mutation boundary and limitations
+
+The server-info return is held between `AirPlayCopyServerInfo` return at callsite `0x28a156` and serializer call `0x28a19c`. That is a structurally mutable interval in the analyzed path, not validation of an executable hook's ABI, collection ownership, deployment, or failure behavior.
 
 ```text
 LOCAL DISPLAYS VALUE: CONFIRMED
-INSERTED INTO SERVER INFO DICTIONARY: CONFIRMED
-SERIALIZED TO A RESPONSE: UNKNOWN
-SENT TO IPHONE: UNKNOWN
+INSERTED INTO SERVER INFO: CONFIRMED
+PASSED TO /info PLIST SERIALIZER: CONFIRMED
+SENT THROUGH HTTP/SocketWriteData PATH: CONFIRMED statically
+LIVE PHONE TRANSACTION OBSERVED: NO
+SAFE EXECUTABLE HOOK: NOT ESTABLISHED
 ```
 
-Accordingly, DISPLAYS_PHONE_FACING = UNKNOWN. A function name and a local dictionary insertion do not establish that the object is advertised to the phone.
-
-There is no proven latest safe phone-facing mutation point. The builder output is locally mutable, but hook A cannot be placed defensibly until its consumer and serialization boundary are recovered. Do not infer the SETUP serializer handles server info.
+Do not infer that this makes Type111 implementable. Honda's second-descriptor requirements, Type111 request/response schema, security, display/stream correlation, jmcs integration seam, and ExternalDisplay frame handoff remain unresolved.

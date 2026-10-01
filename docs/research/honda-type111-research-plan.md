@@ -12,11 +12,11 @@ This plan converts external CarPlay/AltScreen prior art into bounded Honda-speci
 
 ## Ordered research gates
 
-### 1. Honda `/info` differential audit
+### 1. Honda `/info` differential audit — completed, literal scope
 
-Compare exact Honda output/dataflow with fields found in xcertplay and the Apple vehicle-system material. Search for `uuid`, `type`, `maxFPS`, `widthPixels`, `heightPixels`, `widthPhysical`, `heightPhysical`, `features`, `primaryInputDevice`, `viewAreas`, `initialViewArea`, `initialURL`, and `safeArea`.
+Step 43A compared the exact phone-facing Honda descriptor construction path with xcertplay pinned at `de9647f4bdfb1be356bed4cac0519400473712a6`. The field-by-field status, artifact addresses, confidence, and limitations are in [Honda `/info` Type111 differential](../../research/carplay/honda-info-type111-differential.md). Honda's `/info` path and one `ScreenCopyMain()` descriptor are confirmed; the listed display keys are classified per descriptor-builder/literal evidence. The audit does not establish which fields are mandatory for Honda or Apple, and no `ABSENT_LITERAL` result means semantic absence.
 
-For each field record Honda as `CONFIRMED`, `ABSENT_LITERAL`, `INDIRECT_CANDIDATE`, or `UNKNOWN`, with binary/source location and value provenance. `ABSENT_LITERAL` must not be described as absence of functionality. Start from [Honda `/info` capabilities](../../research/carplay/honda-info-capabilities.md) and the source comparison table in [prior art](carplay-altscreen-prior-art.md).
+**Follow-up static task:** trace `ScreenCopyMain()` property sources and the `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) CFDictionary insertions, then inspect xrefs for `forceKeyFrame`/`forceKeyFrameNeeded` and `AirPlayReceiverSessionForceKeyFrame`. Determine whether a parallel descriptor source, implicit role property, or relevant UI/control equivalent exists. Do not implement a second descriptor or Type111 handler.
 
 ### 2. Honda UI-control command audit
 

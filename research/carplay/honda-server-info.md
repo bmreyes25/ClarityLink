@@ -1,12 +1,14 @@
-# Honda AirPlayCopyServerInfo — Step 30
+# Honda AirPlayCopyServerInfo — current recovered path
+
+**Current status:** Step 32 supersedes the earlier Step 30/31 uncertainty. The phone-facing `/info` call/dataflow is confirmed statically. The original Step 31 report remains historical; see [Step 32](../../step-reports/32-airplay-info-phone-path.md). The field-by-field xcertplay comparison is in [Step 43A](honda-info-type111-differential.md).
 
 ## Step 32: phone-facing consumer recovered
 
 `_requestProcessInfo` (`0x28a018`) calls `AirPlayCopyServerInfo` at `0x28a156`; the returned dictionary is passed unchanged in `r2` to `_requestSendPlistResponse` at `0x28a19c`. `_connectionHandleMessage` selects the info handler via the `/info` suffix branch and later calls `HTTPConnectionSendResponse` at `0x28b790`. The serializer synchronously creates the binary plist body (format `0xc8`); `_requestProcessInfo` releases the same dictionary at `0x28a1da` after serialization. Therefore the `displays` array is phone-facing in the static dataflow. The structurally mutable window is return at `0x28a156` through serializer entry at `0x28a19c`. Details: [Step 32](../../step-reports/32-airplay-info-phone-path.md).
 
-## Step 31 consumer search update
+## Historical Step 31 result (superseded)
 
-`AirPlayCopyServerInfo` is GLOBAL in `.symtab`, but absent from `.dynsym`; it is not a normal dynamic export. Dynamic symbol scans of the 45 mapped shared libraries found no matching import/export or relocation. `jmcs` uses `dlopen`/`dlsym` for generic loader support, but no `AirPlayCopyServerInfo` runtime lookup literal or lookup call was evidenced. `/info` is present as a string, but has no recovered handler edge. Thus phone-facing consumption remains UNKNOWN. See [consumer search](airplay-server-info-consumers.md).
+Step 31 did not recover the consuming handler and correctly left phone-facing use unknown on its evidence at that time. Step 32 later recovered `_connectionHandleMessage` `/info` dispatch into `_requestProcessInfo`, the `AirPlayCopyServerInfo` call, and the same returned dictionary reaching the binary-plist serializer. The current conclusion is therefore **phone-facing `/info` dataflow confirmed statically**, not unknown. The Step 31 report is retained as history and its conclusions must not be used as the current status.
 
 **Evidence:** authoritative local jmcs ELF, SHA-256 cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232. Offline static analysis only.
 
@@ -36,15 +38,13 @@ AirPlayCopyServerInfo
 
 AirPlayReceiverSessionPlatformCopyProperty (0x28d328) compares the key at 0x28d332–0x28d342. Its displays branch creates a mutable CFArray, calls AirPlayReceiverSessionScreen_CopyDisplaysInfo (0x287ae0), appends the returned main-display dictionary, and returns the array. Thus the builder inserts the one-element array returned by that branch.
 
-## Callers and transport status
+## Recovered callers and transport status
 
-DWARF and the public function symbol are present. No direct call to AirPlayCopyServerInfo was recovered in the available complete disassembly; no indirect callback-table or relocation consumer has been proven. The function contains no HTTP response serializer or socket send. The available _connectionHandleMessage → _requestSendPlistResponse proof is specifically for AirPlayReceiverSessionSetup's output object, not this server-info dictionary.
-
-Therefore the triggering request/URI, request phase, network-facing caller, server-info serialization format, and send function remain UNKNOWN. Do not reuse the proven SETUP binary-plist send path as evidence for server-info.
+`_requestProcessInfo` calls the function at `0x28a156`; the returned object is passed at `0x28a19c` to `_requestSendPlistResponse`. The `/info` route later sends that response through the HTTP state machine and `SocketWriteData`/`writev`. This is distinct from the separately analyzed SETUP object, although both use the synchronous binary-plist response helper. See Step 32 for register/dataflow detail.
 
 ## Ownership and mutation
 
-The builder creates a mutable server-info dictionary. The displays array is created with CFArrayCreateMutable. The main descriptor dictionary is mutable as well. The callback returns a copied/owned value; AirPlayCopyServerInfo inserts it into the mutable result dictionary, then releases its temporary ownership. This proves local structural mutability while the returned dictionary is alive. It does not prove the server-info value reaches a phone or identify a safe phone-facing mutation hook.
+The builder creates a mutable server-info dictionary. The displays array is created with CFArrayCreateMutable. The main descriptor dictionary is mutable as well. The callback returns a copied/owned value; AirPlayCopyServerInfo inserts it into the mutable result dictionary, then releases its temporary ownership. Step 32 separately proves this object reaches the phone-facing `/info` serializer. Local mutability does not prove a safe executable hook or deployment path.
 
 | Decision | Result |
 |---|---|
@@ -53,7 +53,8 @@ The builder creates a mutable server-info dictionary. The displays array is crea
 | Displays insertion | Confirmed in returned dictionary |
 | Server-info dictionary mutable during construction | Yes |
 | Displays container mutable | Yes, CFMutableArray |
-| Phone-facing server-info path | Unknown |
-| Safe capability mutation point | Unknown |
+| Phone-facing server-info path | Confirmed statically by Step 32 |
+| Descriptor field inventory | See `honda-copy-displays-info.md` and Step 43A differential |
+| Safe executable hook | Not established; a structural mutable-object interval is not runtime hook validation |
 
 See honda-display-capability-send-path.md, honda-display-capabilities.md, and Step 30.

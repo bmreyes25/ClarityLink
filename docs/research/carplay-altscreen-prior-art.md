@@ -39,21 +39,21 @@ The builder emits a main display entry and conditionally emits an additional clu
 
 | Field | xcertplay main | xcertplay cluster | Honda status | ClarityLink implication |
 |---|---|---|---|---|
-| `type` | Main constant 110 | Alternate constant 111 | `NOT FOUND` in recovered Honda descriptor builder | Audit literals, constants, and serializer dataflow; do not infer from xcertplay. |
-| `uuid` | Configured main UUID | Distinct configured alternate UUID | `CONFIRMED` field; runtime representation/value meaning remains unresolved | Compare encoded type/value and any identity correlation in Honda `/info`. |
+| `type` | Main constant 110 | Alternate constant 111 | `HONDA_INDIRECT_CANDIDATE`; Honda has `type` in Setup stream dictionaries, not confirmed in its display descriptor | Trace any implicit role property or alternate descriptor source; do not infer from xcertplay. |
+| `uuid` | Configured main UUID | Distinct configured alternate UUID | `HONDA_CONFIRMED`; inserted as a numeric CF value, semantics unresolved | Recover source property stability and consumers; no stream-identity relation is shown. |
 | `maxFPS` | Per-display config | Per-display config | `CONFIRMED` | Compare actual main descriptor value with any future second descriptor. |
 | `widthPixels` | Per-display config | Per-display config | `CONFIRMED` | Existing Honda main dimensions are a baseline, not proof of a second region. |
 | `heightPixels` | Per-display config | Per-display config | `CONFIRMED` | Same. |
 | `widthPhysical` | Per-display config | Per-display config | `CONFIRMED` | Preserve units and conversion uncertainty in any differential. |
 | `heightPhysical` | Per-display config | Per-display config | `CONFIRMED` | Same. |
 | `features` | Per-display config | Per-display config | `CONFIRMED`; bit meanings unknown | Record exact encoded value and avoid assigning undocumented bit meanings. |
-| `primaryInputDevice` | Emitted by the shared descriptor builder | Emitted by the shared descriptor builder | `NOT FOUND` in recovered Honda descriptor builder | Search serializer and indirect builders too; literal absence is not capability absence. |
-| `viewAreas` | One configured view-area entry | One configured view-area entry | `NOT FOUND` in recovered Honda descriptor builder | High-priority differential target; do not infer support from an array-shaped `displays` property. |
-| `initialViewArea` | Emitted as index 0 | Emitted as index 0 | `NOT FOUND` in recovered Honda descriptor builder | Determine whether Honda has a view-area selection model. |
-| `initialURL` | Optional when configuration provides it | Optional when configuration provides it | `NOT FOUND` in recovered Honda descriptor builder | Search actual configuration and command path; xcert source alone cannot establish a cluster URL. |
-| `safeArea` | Nested in the view-area entry | Nested in the view-area entry | `NOT FOUND` in recovered Honda descriptor builder | Compare geometry only after identifying Honda's intended cluster region. |
+| `primaryInputDevice` | Emitted from per-display config | Emitted from per-display config | `HONDA_ABSENT_LITERAL` | Search generic input/HID descriptor path; literal absence is not semantic absence. |
+| `viewAreas` | One configured view-area entry | One configured view-area entry | `HONDA_ABSENT_LITERAL` | Do not infer support from an array-shaped `displays` property. |
+| `initialViewArea` | Emitted as index 0 | Emitted as index 0 | `HONDA_ABSENT_LITERAL` | Determine whether Honda has implicit/numeric view-area selection. |
+| `initialURL` | Optional when configuration provides it | Optional when configuration provides it | `HONDA_ABSENT_LITERAL` | Search URL constants/config and generic UI/control paths. |
+| `safeArea` | Nested in the view-area entry | Nested in the view-area entry | `HONDA_ABSENT_LITERAL` | Search inset/geometry structures and generic serialization paths. |
 
-Honda statuses are scoped to the recovered `/info` descriptor builder, whose `displays` container is an array but whose stock code adds one `ScreenCopyMain()` descriptor. Honda field evidence is summarized in [Honda `/info` capabilities](../../research/carplay/honda-info-capabilities.md). `NOT FOUND` means the named field was not found in that recovered builder; it does not prove that no indirect or generated implementation exists elsewhere.
+Honda statuses are scoped to the recovered `/info` descriptor builder and exact-string checks on the matching jmcs ELF. The detailed evidence and confidence for every field are in the [Step 43A differential](../../research/carplay/honda-info-type111-differential.md). `HONDA_ABSENT_LITERAL` means the named literal was not found in that inspected scope; it does not prove that no indirect or generated implementation exists elsewhere.
 
 ## MHI2 AltScreen implementation
 

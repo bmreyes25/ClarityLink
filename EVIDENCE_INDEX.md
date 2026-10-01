@@ -1,3 +1,13 @@
+# Step 43A — Honda `/info` Type111 differential (2026-09-30)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| xcertplay descriptor builder | [Pinned commit `de9647f4bdfb1be356bed4cac0519400473712a6`](https://github.com/shilapi/xcertplay/commit/de9647f4bdfb1be356bed4cac0519400473712a6); [`AirPlayInfoPlist.kt`](https://github.com/shilapi/xcertplay/blob/de9647f4bdfb1be356bed4cac0519400473712a6/shared/src/main/java/com/shilapi/xcertplay/airplay/AirPlayInfoPlist.kt), lines 24–72, 141–189 | `EXTERNAL_PRIOR_ART`: configured type 110 main + conditional type 111 cluster with distinct configured UUID; shared fields include geometry, features, input device, viewAreas, initialViewArea, optional initialURL, and nested safeArea. Does not establish Honda requirements. |
+| Honda `/info` object path | `step-reports/32-airplay-info-phone-path.md`; matching `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` | `HONDA_CONFIRMED`: `/info` -> `_requestProcessInfo` -> `AirPlayCopyServerInfo` -> plist serializer -> HTTP/SocketWriteData/writev static flow; `displays` is phone-facing in code. No live phone transaction observed. |
+| Honda display descriptor | `research/carplay/honda-copy-displays-info.md`, function `AirPlayReceiverSessionScreen_CopyDisplaysInfo` `0x287ae0`; `research/carplay/honda-display-uuid-flow.md` | `HONDA_CONFIRMED`: one `ScreenCopyMain()` descriptor with `edid`, `features`, `maxFPS`, pixel/physical dimensions, numeric `uuid`; exact values/semantics partly unknown. No Type111 descriptor recovered. |
+| Differential and literal scope | `research/carplay/honda-info-type111-differential.md`; `step-reports/43a-honda-info-type111-differential.md` | `type` is `HONDA_INDIRECT_CANDIDATE` only (Honda uses it in Setup stream dictionaries, not a confirmed display role). `primaryInputDevice`, `viewAreas`, `initialViewArea`, `initialURL`, and `safeArea` are `HONDA_ABSENT_LITERAL` in the inspected scope. `forceKeyFrame` is an indirect candidate with no second-display semantics proven. Literal absence is not semantic absence. |
+| Readiness | `PROJECT_STATE.md`; `NEXT_ACTION.md` | No Type111 requirement, security, display-to-stream correlation, jmcs seam, or ExternalDisplay live path was proven. Implementation/live gates remain closed; LD_PRELOAD remains parked. |
+
 # Step 42F — visual offline cluster demo (2026-09-30)
 
 | Area | Primary evidence | Finding |
