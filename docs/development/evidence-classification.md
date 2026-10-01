@@ -6,6 +6,7 @@ Apply these labels to research, models, reports, and demo output:
 |---|---|
 | `HONDA_CONFIRMED` | Directly supported by a traceable Honda artifact or observed Honda behavior. Name the artifact and scope. |
 | `EXTERNAL_PRIOR_ART` | Apple documentation or another project's verified implementation. Include URL, pinned revision/date where possible, and what it cannot prove about Honda. |
+| `EXPERIMENTAL_LAB_ONLY` | A shared, extractable, non-certified credential or test asset explicitly allowed for a bounded non-production lab experiment. State its provenance and limitations; never treat it as a trusted/production credential or Honda evidence. |
 | `SYNTHETIC_TEST_VALUE` | Generated test bytes/state or mocked output. Never present as captured or Honda output. |
 | `HYPOTHESIS` | A reasoned design inference awaiting Honda confirmation. State the missing evidence. |
 | `UNKNOWN` | Not established. Do not fill it with a plausible value silently. |
