@@ -144,3 +144,19 @@ CALLOUT_FEASIBILITY: NEEDS_TRAMPOLINE
 Decision: `NEEDS_MORE_STATIC_PROOF`; implementation is not ready. The narrow next static question is: **Which exact callback functions are installed in the response dictionary/streams array, and what existing handler/session edge can clean project state if serialization or HTTP response queuing fails?**
 
 Evidence tags: `HONDA_CONFIRMED` for the disassembled pointer/serializer/mutable-constructor dataflow; `HONDA_INDIRECT_CANDIDATE` for ownership not traced through callback tables; `HONDA_UNKNOWN` for caller-side mutation safety and project failure cleanup; `SYNTHETIC_TEST_VALUE` for offline rollback models; `EXTERNAL_PRIOR_ART` for MHI2 schema/approach; `HYPOTHESIS` for any future project ownership contract.
+
+## Step 43G refinement — callbacks and later failures
+
+See [Honda CF callback ownership — Step 43G](honda-cf-callback-ownership.md) for callback slots, stock ownership ledger, failure propagation, and rollback matrix. The ELF callback table symbols and CFL wrapper semantics are recorded, but the Setup dictionary constructor arguments at `0x28557e` are not yet mapped conclusively to the named tables; the Type110 entry constructor/release ledger is also incomplete. Therefore the stock ownership ledger and any project append ownership contract remain `PARTIAL`.
+
+Serialization failure returns through the caller's common cleanup, which releases both parsed request and response. Property-list creation failure occurs before `HTTPMessageSetBody`; a body-setter failure can follow partial HTTP-message mutation. After serializer return, the CF response graph is released and independent HTTP message state is queued. A later queue/write failure cannot affect the response graph, but no connection-callback-to-session/project cleanup edge has been identified. The caller path shows no pre-serialization response escape, while threading/race freedom remains unproven.
+
+```text
+DICTIONARY CALLBACKS: PARTIAL
+ARRAY CALLBACKS: PARTIAL
+STOCK OWNERSHIP LEDGER: PARTIAL
+PROJECT OWNERSHIP CONTRACT: PARTIAL
+SERIALIZATION FAILURE CLEANUP: PARTIAL
+HTTP QUEUE CLEANUP: PARTIAL
+CALLER SIDE MUTATION RACE: NO_STATIC_EVIDENCE
+```

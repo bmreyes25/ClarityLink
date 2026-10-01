@@ -1,6 +1,6 @@
 # Type 111 unknown register
 
-Step 43F confirms exact caller pointer liveness and mutable stock response/array construction in the matching `jmcs` ELF. It does not resolve Honda Type111 wire/schema/security/display unknowns or caller-side mutation safety. Callback ownership and cleanup after serializer/HTTP failure remain open; see [caller liveness and cleanup](honda-post-setup-caller-liveness.md). No implementation/live gate changes.
+Step 43G partially resolves callback wrapper behavior but does not tie all callbacks to Setup's constructor arguments or complete the Type110 retain/release ledger. It also confirms that later HTTP queue/write failures occur after response-graph release, while project cleanup linkage remains unknown. Honda Type111 wire/schema/security/display unknowns and caller-side race safety remain open; see [CF callback ownership](honda-cf-callback-ownership.md) and [caller liveness](honda-post-setup-caller-liveness.md). No implementation/live gate changes.
 
 All Type111 wire/schema rows remain unknown for Honda. Step 43B narrows some static descriptor questions but does not establish Type111 behavior. Offline tests validate candidate handling but cannot resolve wire behavior.
 
@@ -38,3 +38,6 @@ Step 42J proves that generated synthetic H.264 can be adapted into the existing 
 # Step 42G update — host decoder
 
 Host H.264 decoding is implemented only as an optional FFmpeg adapter. The host in this step lacks FFmpeg, and the replay fixture is not valid H.264. Actual host decoding is therefore still UNKNOWN/NOT RUN; the digital-twin image remains a synthetic pattern. Honda decoder compatibility and Type111 video syntax remain UNKNOWN.
+# Step 43G callback/cleanup status (2026-09-30)
+
+The stock-first response seam remains a static candidate only. Named CFL array/dictionary callback tables are recorded, with retain/release/equality wrappers delegating to CFL operations, but the Setup response dictionary's exact callback arguments and the Type110 entry's full ownership ledger are unresolved. Do not treat table presence as proof of constructor use. Serializer failure releases the Setup response through caller cleanup; later HTTP queue/write failures use independent connection state. The callback-to-project/session cleanup edge is still unknown. Classification remains `NEEDS_MORE_STATIC_PROOF`; no Type111 implementation or live gate is authorized by this evidence. Details: [Honda CF callback ownership audit](honda-cf-callback-ownership.md).

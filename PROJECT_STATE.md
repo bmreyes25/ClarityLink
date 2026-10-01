@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 43G — CF callback and failure cleanup audit (offline)
+
+Named Honda CFL callback tables and wrapper behavior are partially recovered, but Setup dictionary constructor arguments and the stock Type110 entry retain/release ledger are not proven. Serialization is synchronous; the caller releases the response on serializer failure. Body-setter failure may leave partial HTTP message state. Queue/write failures happen after the response graph is released, while the connection failure callback's session/project cleanup edge remains unknown. Seam remains `NEEDS_MORE_STATIC_PROOF`; all implementation/live gates stay NO and LD_PRELOAD stays PARKED. See `step-reports/43g-cf-callbacks-failure-cleanup.md` and `research/carplay/honda-cf-callback-ownership.md`.
+
 ## Step 43F — caller liveness and CF cleanup (offline)
 
 Instruction-level disassembly confirms request/session/response liveness through the serializer call and direct same-object synchronous serialization. Stock response/streams are confirmed mutable by their construction path; caller-side mutation safety is not. CF callback ownership and cleanup after serializer/HTTP failure remain unproven. Design remains NEEDS_MORE_STATIC_PROOF; implementation/live gates NO; LD_PRELOAD PARKED. Local canonical runner lacks expected pytest, but Offline CI passed for HEAD 735c266. Next: resolve callback ownership and failure cleanup edges. See [Step 43F](step-reports/43f-caller-liveness-cf-cleanup.md).

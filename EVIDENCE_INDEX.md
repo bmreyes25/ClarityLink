@@ -517,3 +517,11 @@ Honda-specific source notes remain separately indexed below; no external project
 | Mutable CF objects | Same note; Setup `CFDictionaryCreateMutable` `0x28557e`; `_AddResponseStream` `0x284db8` | Stock response and streams array are `CONFIRMED_MUTABLE` by creation/append path. Callback identities/precise retain accounting and caller-side race safety remain unresolved. |
 | Callout/failure model | Same note; `step-reports/43f-caller-liveness-cf-cleanup.md` | Structural insertion interval found; callout requires trampoline; cleanup after serializer/queue failure is partial. |
 | Test environment/readiness | `docs/development/testing.md`; `requirements-test.txt`; [Offline CI run](https://github.com/bmreyes25/ClarityLink/actions/runs/36813310742); `NEXT_ACTION.md` | Local pytest unavailable although setup instructions exist; CI passed on starting HEAD. Seam implementation design remains `NEEDS_MORE_STATIC_PROOF`; no live gate advanced. |
+# Step 43G — Honda CF callback and failure cleanup
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| CFL callback tables | `research/carplay/honda-cf-callback-ownership.md`; identity-verified `jmcs` ELF symbol/data references | Array and dictionary callback table symbols/wrappers are identified, but Setup's dictionary callback arguments and Type110 entry callback/release ledger remain unresolved; table presence is not call-site proof. `HONDA_INDIRECT_CANDIDATE`. |
+| Serializer failure | Same research note; `_requestSendPlistResponse` and caller cleanup path | Property-list creation failure returns through common cleanup, releasing response and request. Body setter can fail after partial HTTP-message mutation. `HONDA_CONFIRMED` path, partial body-state implications. |
+| HTTP queue/write failure | Same note; `HTTPConnectionSendResponse` → state machine → `SocketWriteData`/`writev` | CF graph is released before queuing; later send failure cannot mutate it. Connection callback's session/project resource cleanup is not resolved. `HONDA_CONFIRMED` send path; cleanup `HONDA_UNKNOWN`. |
+| Race/readiness | Step 43G report | No response escape is seen in inspected caller path before serialization, but thread exclusivity is unproven. Race classified `NO_STATIC_EVIDENCE`; seam remains `NEEDS_MORE_STATIC_PROOF`. |

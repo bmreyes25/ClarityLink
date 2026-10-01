@@ -2,6 +2,8 @@
 
 **Step 43F refinement:** Instruction-level disassembly now confirms caller locations and direct serializer input. The response and streams array are classified `CONFIRMED_MUTABLE` as constructed by stock Honda; this does not prove arbitrary caller-side mutation safety. CF callback ownership and project cleanup after serializer/HTTP failure remain incomplete. See [Step 43F caller liveness and cleanup](honda-post-setup-caller-liveness.md).
 
+**Step 43G refinement:** CFL callback table symbols and wrapper semantics are identified, but Setup's dictionary constructor arguments and the Type110 entry's callback/release ledger remain unresolved. Serializer creation failure reaches caller cleanup; body-setter failure may leave HTTP message state partially changed. HTTP queue/write failures occur after the response graph is released, and the connection failure callback's session/project cleanup relationship is unknown. See [Step 43G callback and cleanup audit](honda-cf-callback-ownership.md).
+
 **Scope:** offline static audit of the identity-verified Honda `jmcs` ELF and synthetic response-preservation model. No vehicle, ADB, Honda runtime, binary modification, hook, Type111 implementation, or live render test was used.
 
 ## Finding
