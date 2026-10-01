@@ -1,3 +1,3 @@
 # Next action
 
-Identify whether an existing Honda function call in the post-Setup success window can serve as an observational or wrapper seam without displacing Honda logic; keep runtime integration disabled until callout safety is proven.
+Design and validate a synthetic stock-delegating Thumb callsite trampoline model for `0x28afba`, including ABI preservation, branch/continuation behavior, and fail-closed hash/byte gates; do not modify or emit a patched Honda binary.

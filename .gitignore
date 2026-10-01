@@ -23,6 +23,8 @@
 !/src/
 !/tools/
 /tools/*
+!/tools/jmcs_integration/
+!/tools/jmcs_integration/*.py
 !/tools/run_tests.sh
 !/tools/honda-readonly-preflight/
 !/tools/honda-readonly-preflight/**

@@ -1,3 +1,13 @@
+# Step 43M — existing-call wrapper seam (offline)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Reference identity and Setup success path | `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; `research/carplay/honda-post-setup-existing-call-map.md` | `HONDA_CONFIRMED`: Setup BL `0x28af72`; serializer BL `0x28afba`; request/response/session remain in caller frame; response released before HTTP send. |
+| Existing function linkage | `research/carplay/honda-wrapper-linkage-audit.md` | `HONDA_CONFIRMED`: bounded calls are internal direct BLs, no relevant PLT/JUMP_SLOT route found; runtime-loader precedence is not inferred. |
+| Serializer wrapper contract | `research/carplay/honda-request-send-plist-wrapper-audit.md`; `src/claritylink-negotiation/wrapper_contract.py` | Honda ABI/result is static evidence; transaction state, fail-open/rollback, and preservation checks are `OFFLINE_PROJECT_IMPLEMENTATION` / `SYNTHETIC_TEST_VALUE`. Success is `r0==0xc8 && statusOut==0`. |
+| Narrow future attachment target | `research/carplay/honda-minimal-future-trampoline-target.md`; `tools/jmcs_integration/callsite_plan.py` | `HONDA_CONFIRMED` target bytes/Thumb BL and static branch facts; trampoline behavior is plan-only, no patch bytes emitted, installation `HONDA_UNKNOWN`. |
+| Decision/readiness | [Step 43M report](step-reports/43m-existing-call-wrapper-seam.md); `PROJECT_STATE.md`; `NEXT_ACTION.md` | Existing function wrapper not supported; strategy C, minimal validated trampoline design next. JMCS implementation/live/Type111/ExternalDisplay remain NOT READY; LD_PRELOAD PARKED. |
+
 # Step 43H — HTTP commit and receiver-session cleanup (offline)
 
 | Evidence item | Source | Finding / classification |

@@ -18,7 +18,7 @@ Step 43A compared the exact phone-facing Honda descriptor construction path with
 
 **Follow-up static task:** trace `ScreenCopyMain()` property sources and the `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) CFDictionary insertions, then inspect xrefs for `forceKeyFrame`/`forceKeyFrameNeeded` and `AirPlayReceiverSessionForceKeyFrame`. Determine whether a parallel descriptor source, implicit role property, or relevant UI/control equivalent exists. Do not implement a second descriptor or Type111 handler.
 
-Step 43D completed a deeper stock SETUP trace: `type` selects stream branch; Type-110 `streamConnectionID` feeds the screen KDF; `dataPort` is sourced from the listener; no direct `/info` UUID join was recovered. See [Honda Setup identity](../../research/carplay/honda-setup-stream-identity.md) and [source-pinned identity prior art](../../research/carplay/setup-stream-identity-prior-art.md). **Next bounded gate:** statically assess the successful stock Setup return / pre-serialization boundary, response ownership, mutability, and failure rollback for an optional project-owned entry. This is design analysis only, not a hook implementation or live-ready decision.
+Step 43D completed a deeper stock SETUP trace: `type` selects stream branch; Type-110 `streamConnectionID` feeds the screen KDF; `dataPort` is sourced from the listener; no direct `/info` UUID join was recovered. See [Honda Setup identity](../../research/carplay/honda-setup-stream-identity.md) and [source-pinned identity prior art](../../research/carplay/setup-stream-identity-prior-art.md). Step 43M audited the bounded success path and selected the existing serializer callsite `0x28afba` as the narrowest future stock-delegating seam. Calls are direct internal Thumb BLs, so ordinary function interposition is not established; a minimal validated trampoline remains an offline design question. See [the 43M report](../../step-reports/43m-existing-call-wrapper-seam.md), [call map](../../research/carplay/honda-post-setup-existing-call-map.md), and [target plan](../../research/carplay/honda-minimal-future-trampoline-target.md). No Type111 response schema is asserted and no runtime attachment is ready.
 
 ### 2. Honda UI-control command audit
 
@@ -28,9 +28,9 @@ Search static code and preserved observations for `suggestUI`, `showUI`, `stopUI
 
 Trace allocation and ownership for receiver-session master material, `streamConnectionID`, AES key/IV derivation, and CTR state. Determine whether a second identifier can be derived without mutating/resetting the Type110 state. Do not infer Type111 KDF compatibility from the confirmed Type110 KDF or from MHI2. Use synthetic keys in tests; never check in live keys or capture payloads.
 
-### 4. Safe stock-first jmcs integration seam analysis
+### 4. Minimal stock-delegating callsite trampoline model (offline)
 
-Revisit the process entry and load path only with a concrete candidate and explicit rollback/failure model. The prior `LD_PRELOAD` candidate remains parked/unknown; service `setenv` capability does not prove that the archived Honda linker honors it. Any eventual integration must call stock behavior first, preserve its Type110 response and state, fail closed on binary mismatch, and have an independently reviewed recovery path. No live seam is currently ready.
+Model and validate the exact existing BL at `0x28afba` without patching the ELF: expected-hash and instruction-byte gates, Thumb ABI/register invariants, branch reach, stock serializer called once, continuation, and fail-closed behavior. The runtime installation/loading mechanism is not selected and `LD_PRELOAD` remains parked. Any future integration must preserve Type110/audio and project-owned cleanup. No live seam is ready.
 
 ### 5. ExternalDisplay synthetic renderer proof
 
