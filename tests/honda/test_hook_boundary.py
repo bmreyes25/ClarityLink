@@ -231,7 +231,9 @@ def test_preflight_read_failure_changes_no_bytes_and_restore_read_failure_is_cri
 def test_exact_hook_group_prepare_requires_build_fp_and_all_sites_before_writes():
     from pathlib import Path
     from targets import JMCS_SHA256,JMCS_TEXT_SHA256,JMCS_FILE_SIZE,JMCS_ELF_CLASS,JMCS_ENDIAN,JMCS_MACHINE,JMCS_TYPE,CANDIDATE_FINGERPRINTS
-    image=(Path(__file__).resolve().parents[2]/"extracted/system/system/bin/jmcs").read_bytes()
+    image_path=Path(__file__).resolve().parents[2]/"extracted/system/system/bin/jmcs"
+    if not image_path.is_file():pytest.skip("local ignored Honda jmcs ELF is not present")
+    image=image_path.read_bytes()
     req=BuildRequirements(JMCS_SHA256,JMCS_TEXT_SHA256,JMCS_FILE_SIZE,JMCS_ELF_CLASS,JMCS_ENDIAN,JMCS_MACHINE,JMCS_TYPE)
     fps=CANDIDATE_FINGERPRINTS
     base=fps[0].static_va
