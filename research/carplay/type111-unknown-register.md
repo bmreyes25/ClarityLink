@@ -1,5 +1,7 @@
 # Type 111 unknown register
 
+Step 43E established a synchronous stock-response ownership window and documented an offline-only rollback contract. It does not resolve any Honda Type111 wire/schema/security/display unknown. See [Honda post-Setup response seam](honda-post-setup-response-seam.md). The candidate next task is to recover exact caller instruction liveness and CF/runtime cleanup guarantees before an implementation design.
+
 All Type111 wire/schema rows remain unknown for Honda. Step 43B narrows some static descriptor questions but does not establish Type111 behavior. Offline tests validate candidate handling but cannot resolve wire behavior.
 
 | Unknown | Current evidence | Impact | Offline test | Live evidence | Next reduction |

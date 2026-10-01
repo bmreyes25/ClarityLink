@@ -1,5 +1,7 @@
 # Honda SETUP stream identity trace — Step 43D
 
+**Step 43E update:** The response lifetime and post-Setup/pre-serialization structural seam are now audited separately from `/info` and stream identity. See [Honda post-Setup response seam](honda-post-setup-response-seam.md) and [Step 43E](../../step-reports/43e-post-setup-response-seam.md). The seam is a safe static candidate for offline study only; response/array post-return mutability remains indirect, and implementation readiness is NO. This does not change the unknown UUID-to-stream identity relation or Type111 schema.
+
 **Evidence:** `HONDA_CONFIRMED` static analysis of the matching `jmcs` ELF only. No vehicle, ADB, runtime, or Type111 implementation was used. ELF SHA-256: `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`.
 
 ## Honda request path

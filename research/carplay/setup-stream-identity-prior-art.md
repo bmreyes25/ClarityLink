@@ -34,6 +34,10 @@ Classification: `EXTERNAL_PRIOR_ART`. It suggests a bounded first negotiation ob
 
 ## Search-model consequence
 
+### Step 43E seam boundary
+
+Honda's exact Setup out object reaches a synchronous pre-serialization caller window, with mutable CF response/array construction already present in stock. This is `HONDA_CONFIRMED` for dataflow and stock construction, but only `HONDA_INDIRECT_CANDIDATE` for caller-side mutation. The MHI2 stock-first append remains `EXTERNAL_PRIOR_ART`; it does not prove Honda hook safety, CF ownership semantics for new entries, schema, or cleanup. See [the full Step 43E lifetime and rollback audit](honda-post-setup-response-seam.md).
+
 The sources support asking two separate Honda questions in order:
 
 1. What display/input/capability identity is advertised through `/info`?

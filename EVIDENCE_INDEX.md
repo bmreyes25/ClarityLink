@@ -7,7 +7,7 @@
 | Type 111 stock behavior | `research/carplay/honda-mixed-stream-setup.md`; Step 43D report | `HONDA_CONFIRMED`: unsupported type is logged/skipped without a stock Type-111 response entry; this says nothing about iPhone selection. |
 | UUID correlation | `research/carplay/honda-display-uuid-flow.md`; Setup trace | `/info` numeric Screen UUID is inserted via a separate path. No direct UUID-to-streamConnectionID link found in inspected dataflow; UUID semantic role remains `HONDA_UNKNOWN`. |
 | Prior art | `research/carplay/setup-stream-identity-prior-art.md` | `APPLE_PUBLIC_ARCHITECTURE`: Apple WWDC19 multi-H.264 cluster streams. `EXTERNAL_PRIOR_ART`: carlink_linux pinned `fbbfa59400dac4704f34a5d76e745080ce7d6338`; MHI2 pinned `c2f811f1a5c84dae3a62f4cf9b4a9e65fc3f7b3c`; CPC200 pinned `e3e5d005552d3fa6f264634b377d30b0794dd1eb`. None proves Honda Type111. |
-| Readiness / next | Step 43D report; `NEXT_ACTION.md` | Type111 response shape, Honda display selection/binding, jmcs seam, and real renderer remain unresolved; all live gates remain NO; LD_PRELOAD PARKED. Next: statically assess the post-Setup/pre-serialization boundary and rollback. |
+| Readiness / next | Step 43D report; `NEXT_ACTION.md` | Type111 response shape, Honda display selection/binding, jmcs seam, and real renderer remain unresolved; all live gates remain NO; LD_PRELOAD PARKED. Step 43E now classifies the seam as a static candidate; next: prove instruction liveness and CF/runtime cleanup through serialization. |
 
 # Step 43C — Honda ForceKeyFrame semantics (offline)
 
@@ -498,3 +498,12 @@ The sources below are `EXTERNAL_PRIOR_ART`. They describe Apple platform behavio
 | CPC200 navigation-screen prior art | [lvalen91/CPC200-CCPA_resources `e3e5d005552d3fa6f264634b377d30b0794dd1eb`](https://github.com/lvalen91/CPC200-CCPA_resources/commit/e3e5d005552d3fa6f264634b377d30b0794dd1eb), `documentation/02_Protocol_Reference/video_protocol.md` | `EXTERNAL_PRIOR_ART` | CPC200-specific navigation geometry/video and focus-controlled flow in its wired adapter documentation. | Honda uses CPC200 protocol or that capability advertisement alone causes iOS to open a secondary stream. |
 
 Honda-specific source notes remain separately indexed below; no external project evidence has been relabeled as Honda-confirmed.
+# Step 43E — Honda post-Setup / pre-serialization seam (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Response lifetime/ownership | `research/carplay/honda-post-setup-response-seam.md`; `honda-response-ownership.md`; `honda-response-serializer.md` | Setup publishes the response +1; caller passes same object to synchronous binary-plist serialization and releases it afterward. Request/session remain in caller context. |
+| Mutability boundary | Same seam note; Setup response construction at `0x28557e`; `_AddResponseStream` at `0x284db8` | Response dictionary and `streams` array are mutable during stock construction. Caller-side post-return mutation remains `INDIRECT_CANDIDATE`, not runtime-proven. |
+| Detection/rollback | Same seam note; `src/claritylink-negotiation/setup_transaction.py`; `tests/negotiation/test_setup_contract.py` | `ORIGINAL_REQUEST_AFTER_STOCK` is supported by static flow; synthetic failure model preserves stock values and rolls project state back. No Honda Type111 semantics claimed. |
+| External comparison | `research/carplay/setup-stream-identity-prior-art.md` | MHI2 stock-first clone/append is `EXTERNAL_PRIOR_ART` only; hook safety and schema are not portable facts. |
+| Decision | `step-reports/43e-post-setup-response-seam.md`; `NEXT_ACTION.md` | `SAFE_STATIC_CANDIDATE`; implementation/readiness gates remain NO; next task is exact liveness and cleanup proof. |
