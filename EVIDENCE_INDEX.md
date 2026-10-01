@@ -1,3 +1,12 @@
+# Step 43C — Honda ForceKeyFrame semantics (offline)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| ELF and debug entry | `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; preserved `research/native/jmcs` symbol/disassembly/string reports | `HONDA_CONFIRMED`: matching ELF has debug information. DWARF names `AirPlayReceiverSessionForceKeyFrame` and gives parameter names, but low PC is zero and no usable body/address is present in saved maps. |
+| Key literals and xrefs | `research/carplay/honda-forcekeyframe-semantics.md` | `forceKeyFrame` / `forceKeyFrameNeeded` strings exist; resolved readers/writers and object ownership were not recovered. Semantics remain `HONDA_UNKNOWN`; string presence is not a functional trace. |
+| ScreenStream opcode scope | `research/carplay/honda-screen-framing.md`; Step 43C report | `HONDA_CONFIRMED` for recovered parser only: discriminator 3 takes its unrecognized path in `AirPlayReceiverSessionScreen_ProcessFrames`. It does not establish all Honda keyframe behavior. |
+| Type111 and readiness | [Step 43C report](step-reports/43c-forcekeyframe-semantics.md); `NEXT_ACTION.md` | No Type111/control-plane/decoder-recovery meaning established; Type111, live test, jmcs integration, ExternalDisplay live render remain NOT READY; LD_PRELOAD PARKED. Next: correlate Setup `type`/`streamConnectionID` with display UUID/Screen identity. |
+
 # Step 43B — Honda Screen property sources and descriptor xrefs
 
 | Evidence item | Source | Finding / classification |
@@ -7,7 +16,7 @@
 | UUID and stream binding | `research/carplay/honda-display-uuid-flow.md`; Type110 Setup/KDF reports | Numeric UUID insertion confirmed; generated/default source only candidate. UUID-to-stream binding not found in analyzed flow; semantics remain unknown. |
 | Parallel descriptor and role | Step 43B report; `honda-server-info.md` | Mutable collection can hold more entries structurally; Honda producer appends once. No alternate builder found in audited call path; binary-wide structural conclusion remains inconclusive. No role/type insertion recovered. |
 | Force-keyframe | strings at `0x337352`, `0x33737b`, `0x3379fb`; DWARF source name `AirPlayReceiverSessionForceKeyFrame` | `HONDA_UNKNOWN`: full function body/callers and Type111 relation were not recovered. Do not treat as cluster semantics. |
-| Readiness / next | `step-reports/43b-screencopymain-property-source-trace.md`; `NEXT_ACTION.md` | Descriptor feasibility is only structural; Type111, live test, jmcs integration, ExternalDisplay rendering remain NOT READY; LD_PRELOAD PARKED. Next: trace full force-keyframe implementation/callers. |
+| Readiness / next | `step-reports/43b-screencopymain-property-source-trace.md`; `NEXT_ACTION.md` | Descriptor feasibility is only structural; Type111, live test, jmcs integration, ExternalDisplay rendering remain NOT READY; LD_PRELOAD PARKED. Step 43C supersedes its ForceKeyFrame next action; current task is Setup `type` / `streamConnectionID` versus display UUID/Screen identity. |
 
 # Step 43A — Honda `/info` Type111 differential (2026-09-30)
 
