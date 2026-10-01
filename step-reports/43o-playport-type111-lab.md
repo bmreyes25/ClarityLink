@@ -27,4 +27,6 @@ Security classification is limited to the local PlayPort parser branch. Its curr
 
 The first pushed Offline CI run exposed that the earlier `6144222` fix had committed `tools/__init__.py` but the broad `/tools/*` ignore rule still kept `tools/elf_va_map.py` out of GitHub. The second run then exposed that tests unconditionally opened the local-only Honda `jmcs` artifact. The mapper tests now use a generated synthetic ELF; exact Honda fingerprint/target tests run when the private artifact is present and report an explicit fixture skip in clean CI checkouts. The production planner checks the whole-file SHA-256 before parsing. This keeps import, mapping, fail-closed hash, and branch-range coverage active without putting Honda bytes in CI.
 
+After that correction, GitHub Offline CI run `36921627788` for `d9a9d9b` completed with `offline-tests: PASS`.
+
 No live phone observation was performed. Current-iOS negotiation, phone connection to the second dataPort, actual Type111 media-security variant, and physical cluster rendering remain unobserved. Step 43P is the next separate phone-observation task; Step 43Q is conditional after reviewing its trace.
