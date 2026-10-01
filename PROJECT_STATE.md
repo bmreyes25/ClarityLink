@@ -1,5 +1,11 @@
 # ClarityLink project state — 2026-09-30
 
+## Source-pinned AltScreen research and repository navigation
+
+Reviewed current Apple CarPlay multi-display material and pinned xcertplay (`de9647f`), MHI2 AltScreen (`c2f811f`), and CPC200 receiver prior art (`e3e5d00`). These are classified as `EXTERNAL_PRIOR_ART`; none changes Honda Type111 status. The descriptor comparison, crypto distinction, UI/ViewArea hypothesis, and source links are in [CarPlay AltScreen prior art](docs/research/carplay-altscreen-prior-art.md). The ordered Honda follow-up questions are in the [Honda Type111 research plan](docs/research/honda-type111-research-plan.md).
+
+Repository navigation now starts at [README](README.md) and [docs index](docs/README.md); the historical research and step-report trees stay in place. Offline testing is documented at [docs/development/testing.md](docs/development/testing.md) and exposed through `tools/run_tests.sh`. The latest technical next action remains unchanged in [NEXT_ACTION.md](NEXT_ACTION.md).
+
 ## Step 42J — valid synthetic H.264 ScreenStream fixture (offline)
 
 Generated a 320×180 `testsrc2` frame with FFmpeg 9.0.2/libx264 in memory, extracted NAL types 5/6/7/8 (1 SPS, 1 PPS, 3 VCL), built a synthetic 39-byte avcC config and 7,237-byte AVCC frame body, wrapped them in modeled 128-byte opcode-1/0 headers, and passed both through `HondaScreenReceiverCore`. The parser's Annex-B output decoded to 320×180 RGBA (230,400 bytes) and reached mock Display 1. The fixture is explicitly `SYNTHETIC_TEST_VALUE` / `PLAINTEXT_SYNTHETIC`; no generated media was retained. Visual JSON reports `HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE` only on full-path success; displayed cluster art remains schematic. Honda Type111 crypto/schema/correlation and ExternalDisplay handoff remain unknown; live Type111, jmcs no-op, and ExternalDisplay render remain NOT READY; LD_PRELOAD remains PARKED. Tests: negotiation 18, transport 29, session model 12, integration 13, sim 13, offline decoder 1, locator smoke 3, simulator JS 11, failure twin passed, interposer 14, diff check passed. See `step-reports/42j-valid-h264-screenstream-fixture.md`.
