@@ -599,3 +599,12 @@ Honda-specific source notes remain separately indexed below; no external project
 | Concurrency/failure coverage | Focused lifecycle tests | 25 focused passed; EOF/teardown/finalize, prepare/finalize, rollback/finalize, pointer reuse and event-sequence invariants are synthetic only. |
 | Related groups and full suite | pytest and `tools/run_tests.sh` | Related groups 116 passed; full suite 266 passed, 4 skipped; capture replay unavailable. |
 | Step 43L boundary | [Honda integration contract](research/carplay/honda-post-setup-integration-contract.md); `NEXT_ACTION.md` | Exact successful Setup interval, object lifetimes/ownership, response mutation/rollback, serializer outcome, and commit point still require Honda static proof. JMCS integration/live gates remain closed. |
+## Step 43L — post-Setup transaction seam
+
+| Evidence | Result / boundary |
+|---|---|
+| Setup return and success path | Hash-matched `jmcs`: Setup BL `0x28af72`; status check `0x28af76–0x28af7c`; success context through `CFObjectSetProperty` `0x28afae`; same output response to serializer `0x28afba`; release `0x28b052`. Structural interval is proven; safe injected callout is not. |
+| Serializer | `_requestSendPlistResponse` `0x289f60`: synchronous property-list CFData (`0xc8`), byte/length extraction, HTTPMessageSetBody `0x29d01c`, status 200/500 and statusOut. Serializer success at caller `0x28afbe` is local readiness, not receipt. |
+| Rollback | Public CF array API includes count/get/create-copy/mutable/append, no public indexed remove/set wrapper found. Use LAST_MUTATION candidate; selective append/remove rollback is unsupported. |
+| Response transaction | Same Honda response object retained; type-based stream lookup; pre-serializer fail-open conditional; serializer failure does not promise Type110 delivery. Child commit candidate `0x28afbe`; cleanup subscription and callout safety unproven. |
+| Status | `POST_SETUP_TRANSACTION_MODEL: PARTIAL`; `JMCS integration design: NOT READY`; report `step-reports/43l-post-setup-transaction-seam.md`. |

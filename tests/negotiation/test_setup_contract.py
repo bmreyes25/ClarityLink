@@ -103,6 +103,43 @@ class SetupAugmentorTests(unittest.TestCase):
 
 
 class StockFirstTransactionTests(unittest.TestCase):
+    def test_project_failure_preserves_stock_status_request_and_type110_fields(self):
+        request = {"streams": [{"type": 110, "opaque": {"keep": True}}, {"type": 111, "streamConnectionID": 12}]}
+        request_before = copy.deepcopy(request)
+        response = {"streams": [{"opaque": [1, 2], "type": 110, "dataPort": 5010}], "vendor": "stock"}
+        response_before = copy.deepcopy(response)
+        result = run_stock_first_setup(
+            request,
+            lambda req: (0, response),
+            lambda cid: (_ for _ in ()).throw(OSError("synthetic listener bind failure")),
+            lambda: None,
+        )
+        self.assertEqual(result.status, 0)
+        self.assertFalse(result.augmented)
+        self.assertEqual(request, request_before)
+        self.assertEqual(result.response, response_before)
+        self.assertEqual(result.response["streams"][0], response_before["streams"][0])
+
+    def test_serializer_failure_rolls_back_prepared_project_without_rewriting_stock_result(self):
+        # Models 43K's explicit PREPARED -> rollback guard around an unsuccessful
+        # local response-ready event; Honda serialization remains static evidence.
+        sys.path.insert(0, str(ROOT / "src/carplay-session-model"))
+        from project_lifecycle import ProjectSessionKey, ProjectSessionRegistry
+
+        class Resource:
+            def __init__(self): self.closed = 0
+            def close(self): self.closed += 1
+
+        registry = ProjectSessionRegistry()
+        key = ProjectSessionKey("synthetic-session", 1)
+        resource = Resource()
+        tx = registry.prepare_child(key, lambda: [resource])
+        tx.mark_response_ready()
+        tx.rollback_before_response_commit()
+        self.assertEqual(resource.closed, 1)
+        with self.assertRaises(RuntimeError):
+            tx.commit_after_response_commit()
+
     def test_stock_failure_never_prepares_project(self):
         calls = []
         result = run_stock_first_setup(

@@ -38,3 +38,6 @@ Project transport EOF/failure calls `project_transport_failed` and removes only 
 10. Any concurrency/reentrancy constraints and the caller ABI needed for a future adapter.
 
 Until those facts are established, this is portable synthetic implementation only. It does not make JMCS integration or live testing ready.
+## Step 43L Honda transaction boundary
+
+43L maps the portable response transaction to a Honda structural interval: stock Setup succeeds at `0x28af76`; stock caller metadata work ends at `CFObjectSetProperty` return after `0x28afae`; same response enters synchronous plist/body helper at `0x28afba`; helper success returns at `0x28afbe`. Keep the registry PREPARED until that successful return. It is only a candidate ACTIVE commit because Honda's safe callout and direct child cleanup subscription remain unproven. Project preparation and all entry construction precede append; append is the last local response mutation. Pre-serializer project errors fail open to stock. Serializer errors go through Honda's error path and cannot promise stock response delivery. See [43L report](../../step-reports/43l-post-setup-transaction-seam.md).

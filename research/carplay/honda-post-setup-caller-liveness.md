@@ -166,3 +166,4 @@ SERIALIZATION FAILURE CLEANUP: PARTIAL
 HTTP QUEUE CLEANUP: PARTIAL
 CALLER SIDE MUTATION RACE: NO_STATIC_EVIDENCE
 ```
+**Step 43L exact boundary:** after `AirPlayReceiverSessionSetup` at `0x28af72`, `r0` is status, saved/checked at `0x28af76–0x28af7c`. Success-only context mutation, including session byte stores and `CFObjectSetProperty`, continues through `0x28afae`. At `0x28afb2–0x28afb8`, request/message, connection, responseOut and statusOut are staged; serializer begins at `0x28afba`. It returns to `0x28afbe`, and ordinary cleanup releases request at `0x28b048` and response at `0x28b052`. Thus structural post-success/pre-serialization window is `0x28af7e–0x28afba`. Whether arbitrary helper callout is safe there remains UNKNOWN. Serializer/body details and conditional fail-open limits are in [43L report](../../step-reports/43l-post-setup-transaction-seam.md).
