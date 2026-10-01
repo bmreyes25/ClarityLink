@@ -6,7 +6,7 @@ All Type111 wire/schema rows remain unknown for Honda. Step 43B narrows some sta
 |---|---|---|---|---|---|
 | Exact Type111 response fields | Honda skips; MHI2 is prior art | Phone may reject/ignore | Candidate profiles, strict unknown rejection | Yes | Trace response after safe entry exists |
 | Need for second /info descriptor | Array exists; stock emits one | Phone may never request stream | Candidate state only | Yes | Fingerprint exact capability generation |
-| Display UUID ↔ stream mapping | No Honda join | Wrong display binding | Enforce no default mapping | Yes | Correlate advertised/requested fields |
+| Display UUID ↔ stream mapping / UUID semantic role | `/info` inserts numeric Screen `uuid`; Setup independently reads stream `type`, Type-110 `streamConnectionID`, then returns `type`/listener `dataPort`. No direct join was found in those traced paths; semantic UUID role remains unknown for Honda. | Wrong display binding or mistaken coupling of presentation, input, transport, and crypto identities | Enforce no default mapping | Yes for phone-side selection; obtain broader Honda source for any internal join | Complete stock-first seam review, then only a reviewed observation milestone if needed |
 | Type111 streamConnectionID source | Type110-only Honda read | Crypto binding unavailable | Synthetic validation | Yes | Trace actual request and receiver |
 | dataPort expectations | Type110 ephemeral; MHI2 separate | Connection fails | Fake listener lifecycle | Yes | Observe secondary transaction |
 | Key/IV derivation and master reuse | Type110 KDF confirmed; Type111 absent | Decryption/authentication fails | Candidate isolation only | Yes | Trace legitimate Type111 security inputs |
@@ -27,6 +27,8 @@ Step 42D fixtures keep all fields that affect display correlation, response shap
 Step 42E's replay preserves these unknowns in both modes: strict mode skips the candidate; hypothetical mode marks its cloned response profile as MHI2-derived, values as synthetic, display-to-stream correlation as unknown, and key/IV behavior as unknown without running Type111 crypto. The synthetic second descriptor is not linked to the request's synthetic correlation value as a Honda rule. A deterministic pattern frame after successful synthetic parsing proves only model composition.
 
 Step 43C leaves `forceKeyFrame` as `HONDA_UNKNOWN`. The separate ForceKeyFrame body/callers are not recoverable from the preserved jmcs artifacts; string literals do not establish ownership or semantics. In the recovered ScreenStream dispatch only, opcode 3 is unrecognized. No Type111, control-plane, or decoder-recovery meaning is established. See [Step 43C](../../step-reports/43c-forcekeyframe-semantics.md) and [the Honda analysis](honda-forcekeyframe-semantics.md).
+
+Step 43D confirms that Honda Setup stream `type`, Type-110 `streamConnectionID`, and the listener's `dataPort` form a recovered stream-control path distinct from the `/info` Screen `uuid` insertion path. The direct UUID-to-stream binding was not found in the traced code; UUID role stays `HONDA_UNKNOWN`. See [Step 43D](../../step-reports/43d-setup-stream-identity-correlation.md), [Honda Setup identity](honda-setup-stream-identity.md), and the [pinned external prior-art note](setup-stream-identity-prior-art.md).
 
 Step 42F exposes response schema, display/stream correlation, Type111 security, ExternalDisplay frame handoff, jmcs load seam, and crop/mask as visible `UNKNOWN` items in the visual demo. The hypothetical view does not collapse them when its synthetic frame appears.
 

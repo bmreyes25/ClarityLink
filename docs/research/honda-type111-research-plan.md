@@ -18,6 +18,8 @@ Step 43A compared the exact phone-facing Honda descriptor construction path with
 
 **Follow-up static task:** trace `ScreenCopyMain()` property sources and the `AirPlayReceiverSessionScreen_CopyDisplaysInfo` (`0x287ae0`) CFDictionary insertions, then inspect xrefs for `forceKeyFrame`/`forceKeyFrameNeeded` and `AirPlayReceiverSessionForceKeyFrame`. Determine whether a parallel descriptor source, implicit role property, or relevant UI/control equivalent exists. Do not implement a second descriptor or Type111 handler.
 
+Step 43D completed a deeper stock SETUP trace: `type` selects stream branch; Type-110 `streamConnectionID` feeds the screen KDF; `dataPort` is sourced from the listener; no direct `/info` UUID join was recovered. See [Honda Setup identity](../../research/carplay/honda-setup-stream-identity.md) and [source-pinned identity prior art](../../research/carplay/setup-stream-identity-prior-art.md). **Next bounded gate:** statically assess the successful stock Setup return / pre-serialization boundary, response ownership, mutability, and failure rollback for an optional project-owned entry. This is design analysis only, not a hook implementation or live-ready decision.
+
 ### 2. Honda UI-control command audit
 
 Search static code and preserved observations for `suggestUI`, `showUI`, `stopUI`, `SecondDisplayMode`, `ViewArea`, `ViewAreaChanged`, and `forceKeyFrame`, then follow candidate strings/constants through parser, dispatch, and serialization paths. Record `ABSENT_LITERAL` only for the searched artifact and method. MHI2 sender lifecycle is prior art; it does not establish the Honda command set.

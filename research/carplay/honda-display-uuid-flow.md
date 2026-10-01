@@ -17,3 +17,7 @@ In the analyzed Setup path, no display UUID is read from a Type-110 stream dicti
 | Bound to `streamConnectionID` | No link found |
 
 No UUID consumer was linked to an analyzed SETUP/Type-110 stream or second-display state; this is scoped to recovered dataflow. Do not invent a UUID string or assert that it selects the screen stream. See `stream-connection-id.md` and `display-stream-correlation.md`.
+
+## Step 43D identity-layer update
+
+The deeper Setup trace confirms separate field paths: `/info` inserts the numeric Screen `uuid`; SETUP dispatches on stream `type`; Type-110's nonzero `streamConnectionID` is an input to screen crypto derivation; and the response advertises a listener through `dataPort`. No UUID read/comparison/derivation was found in those traced Setup paths. This supports a **working search model** that display capability identity and stream/session/crypto identity should be traced separately. Honda's actual semantic role for `uuid` (presentation versus HID/input identity) remains `HONDA_UNKNOWN`; the more specific UUID-to-HID claim is external prior art only. See [Step 43D](../../step-reports/43d-setup-stream-identity-correlation.md) and [the pinned prior-art note](setup-stream-identity-prior-art.md).

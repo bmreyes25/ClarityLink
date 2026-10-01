@@ -1,3 +1,14 @@
+# Step 43D — Honda Setup stream identity (offline)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Type-110 request fields | `research/carplay/honda-setup-stream-identity.md`; hash-matched `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` | `HONDA_CONFIRMED`: Setup iterates `streams[]`, reads `type`; Type 110 reads a nonzero uint64 `streamConnectionID` and passes it with receiver-session master material to screen crypto derivation. Other candidate keys remain unrecovered. |
+| Type-110 response | Same report; `0x286124`, `0x28614a–0x286168`; `_AddResponseStream` `0x284db8` | `HONDA_CONFIRMED`: listener port selected from requested port 0 becomes `dataPort`; response stream entry inserts constant `type=110`; no streamConnectionID echo observed in that entry. |
+| Type 111 stock behavior | `research/carplay/honda-mixed-stream-setup.md`; Step 43D report | `HONDA_CONFIRMED`: unsupported type is logged/skipped without a stock Type-111 response entry; this says nothing about iPhone selection. |
+| UUID correlation | `research/carplay/honda-display-uuid-flow.md`; Setup trace | `/info` numeric Screen UUID is inserted via a separate path. No direct UUID-to-streamConnectionID link found in inspected dataflow; UUID semantic role remains `HONDA_UNKNOWN`. |
+| Prior art | `research/carplay/setup-stream-identity-prior-art.md` | `APPLE_PUBLIC_ARCHITECTURE`: Apple WWDC19 multi-H.264 cluster streams. `EXTERNAL_PRIOR_ART`: carlink_linux pinned `fbbfa59400dac4704f34a5d76e745080ce7d6338`; MHI2 pinned `c2f811f1a5c84dae3a62f4cf9b4a9e65fc3f7b3c`; CPC200 pinned `e3e5d005552d3fa6f264634b377d30b0794dd1eb`. None proves Honda Type111. |
+| Readiness / next | Step 43D report; `NEXT_ACTION.md` | Type111 response shape, Honda display selection/binding, jmcs seam, and real renderer remain unresolved; all live gates remain NO; LD_PRELOAD PARKED. Next: statically assess the post-Setup/pre-serialization boundary and rollback. |
+
 # Step 43C — Honda ForceKeyFrame semantics (offline)
 
 | Evidence item | Source | Finding / classification |
@@ -5,7 +16,7 @@
 | ELF and debug entry | `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; preserved `research/native/jmcs` symbol/disassembly/string reports | `HONDA_CONFIRMED`: matching ELF has debug information. DWARF names `AirPlayReceiverSessionForceKeyFrame` and gives parameter names, but low PC is zero and no usable body/address is present in saved maps. |
 | Key literals and xrefs | `research/carplay/honda-forcekeyframe-semantics.md` | `forceKeyFrame` / `forceKeyFrameNeeded` strings exist; resolved readers/writers and object ownership were not recovered. Semantics remain `HONDA_UNKNOWN`; string presence is not a functional trace. |
 | ScreenStream opcode scope | `research/carplay/honda-screen-framing.md`; Step 43C report | `HONDA_CONFIRMED` for recovered parser only: discriminator 3 takes its unrecognized path in `AirPlayReceiverSessionScreen_ProcessFrames`. It does not establish all Honda keyframe behavior. |
-| Type111 and readiness | [Step 43C report](step-reports/43c-forcekeyframe-semantics.md); `NEXT_ACTION.md` | No Type111/control-plane/decoder-recovery meaning established; Type111, live test, jmcs integration, ExternalDisplay live render remain NOT READY; LD_PRELOAD PARKED. Next: correlate Setup `type`/`streamConnectionID` with display UUID/Screen identity. |
+| Type111 and readiness | [Step 43C report](step-reports/43c-forcekeyframe-semantics.md); `NEXT_ACTION.md` | No Type111/control-plane/decoder-recovery meaning established; Type111, live test, jmcs integration, ExternalDisplay live render remain NOT READY; LD_PRELOAD PARKED. Step 43D supersedes its next action. |
 
 # Step 43B — Honda Screen property sources and descriptor xrefs
 
