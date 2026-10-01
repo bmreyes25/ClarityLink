@@ -23,7 +23,7 @@ On macOS, install FFmpeg separately with Homebrew if needed (`brew install ffmpe
 ./tools/run_tests.sh
 ```
 
-The script runs Python tests, the host H.264/ScreenStream synthetic path, JavaScript simulator checks, hook-locator smoke checks, interposer tests, and `git diff --check`. Tests that require a local ignored forensic binary skip with a reason if that artifact is not present. CI must never download or require Honda artifacts.
+The script runs Python tests, the host H.264/ScreenStream synthetic path, contract-only JavaScript simulator checks, hook-locator smoke checks, interposer tests, and `git diff --check`. It deliberately excludes replay scripts backed by observation/capture datasets (including scripts that expect ignored screenshot assets); those data are not CI inputs. Tests that require a local ignored forensic binary skip with a reason if that artifact is not present. CI must never download or require Honda artifacts or private captures.
 
 ## Visual demo
 

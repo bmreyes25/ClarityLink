@@ -24,9 +24,13 @@ echo "== Self-locator standard-library smoke =="
 "$PYTHON_BIN" tests/hook/smoke_self_locator.py
 
 echo "== Simulator JavaScript checks =="
-for test_file in research/simulator/test-*.js; do
+for test_file in \
+  research/simulator/test-contract-adapter.js \
+  research/simulator/test-dual-screen.js \
+  research/simulator/test-guidance-expiry.js; do
   "$NODE_BIN" "$test_file"
 done
+echo "Skipping capture-backed replay scripts; their ignored/private capture fixtures are not CI inputs."
 "$NODE_BIN" tests/sim/test_type111_failure_twin.js
 
 echo "== Git whitespace validation =="
