@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42J — valid synthetic H.264 ScreenStream fixture (offline)
+
+Generated a 320×180 `testsrc2` frame with FFmpeg 9.0.2/libx264 in memory, extracted NAL types 5/6/7/8 (1 SPS, 1 PPS, 3 VCL), built a synthetic 39-byte avcC config and 7,237-byte AVCC frame body, wrapped them in modeled 128-byte opcode-1/0 headers, and passed both through `HondaScreenReceiverCore`. The parser's Annex-B output decoded to 320×180 RGBA (230,400 bytes) and reached mock Display 1. The fixture is explicitly `SYNTHETIC_TEST_VALUE` / `PLAINTEXT_SYNTHETIC`; no generated media was retained. Visual JSON reports `HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE` only on full-path success; displayed cluster art remains schematic. Honda Type111 crypto/schema/correlation and ExternalDisplay handoff remain unknown; live Type111, jmcs no-op, and ExternalDisplay render remain NOT READY; LD_PRELOAD remains PARKED. Tests: negotiation 18, transport 29, session model 12, integration 13, sim 13, offline decoder 1, locator smoke 3, simulator JS 11, failure twin passed, interposer 14, diff check passed. See `step-reports/42j-valid-h264-screenstream-fixture.md`.
+
 ## Step 42I — real synthetic H.264 encode/decode (offline)
 
 FFmpeg was already installed at `/opt/homebrew/bin/ffmpeg` (9.0.2), with libx264, H.264 decode, RGBA output, and ffprobe; no installation was needed. The exact real synthetic test passed: generated a 320×180 `testsrc2`, encoded in memory to Annex-B H.264, decoded to 230,400 RGBA bytes, and submitted the actual decoded frame to mock Display 1. The visual JSON records `HOST-DECODED SYNTHETIC H264`; the static map remains an SVG schematic. This test is separate from the replay parser fixture and does not establish Honda Type111 compatibility. All live gates remain NOT READY. See `step-reports/42i-real-synthetic-h264-decode.md`.

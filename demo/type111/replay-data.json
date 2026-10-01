@@ -1,30 +1,43 @@
 {
   "schema": "claritylink.synthetic-type111-visual-demo.v1",
   "generated_at": "2026-09-30T00:00:00+00:00",
-  "source": "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_FFMPEG_VALIDATION",
+  "source": "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_SCREENSTREAM_H264_VALIDATION",
   "host_decode_validation": {
-    "status": "HOST_DECODED_SYNTHETIC_H264",
+    "status": "NOT_RUN",
+    "reason": "no external synthetic encode/decode validation supplied"
+  },
+  "screenstream_validation": {
+    "status": "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM",
     "backend": "FFMPEG_CLI/libx264",
     "ffmpeg_version": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
     "output_format": "ANNEXB",
-    "encoded_bytes": 7877,
-    "capabilities": {
-      "ffmpeg_available": true,
-      "libx264_available": true,
-      "h264_decoder_available": true,
-      "rgba_output_available": true,
-      "version": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers"
+    "screenstream_input": "SYNTHETIC_TEST_VALUE",
+    "crypto_mode": "PLAINTEXT_SYNTHETIC",
+    "nal_types": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "sps_count": 1,
+    "pps_count": 1,
+    "vcl_count": 3,
+    "nal_length_size": 4,
+    "avcc_config_length": 39,
+    "avcc_frame_length": 7237,
+    "encoded_annexb_length": 7877,
+    "packet_lengths": {
+      "opcode1": 167,
+      "opcode0": 7365
     },
     "dimensions": [
       320,
       180
     ],
     "rgba_payload_size": 230400,
-    "presentation_timestamp_ns": 1000000000,
-    "frame_index": 0,
     "renderer_target": "Display 1 mock",
     "evidence": "SYNTHETIC_TEST_VALUE",
-    "separate_from_type111_fixture": true
+    "separate_from_honda_type111": true
   },
   "live_test": "NOT_READY",
   "jmcs_noop_test": "NOT_READY",
@@ -58,7 +71,7 @@
       "cluster_frame": {
         "visible": false,
         "source": null,
-        "decoded_from_h264": false,
+        "decoded_from_h264": true,
         "width": null,
         "height": null,
         "presentation_timestamp": null,
@@ -104,7 +117,7 @@
           "label": "UNKNOWN"
         },
         {
-          "element": "Synthetic frame after Annex-B",
+          "element": "Synthetic ScreenStream H.264 fixture",
           "label": "SYNTHETIC_TEST_VALUE"
         },
         {
@@ -214,15 +227,15 @@
       },
       "cluster_frame": {
         "visible": true,
-        "source": "generated pattern after synthetic Annex-B extraction",
-        "decoded_from_h264": false,
+        "source": "generated synthetic media via ScreenStream fixture",
+        "decoded_from_h264": true,
         "width": 800,
         "height": 480,
         "presentation_timestamp": "SYNTHETIC_TEST_VALUE",
         "evidence": "SYNTHETIC_TEST_VALUE",
         "decode_status": "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264",
         "decode_backend": "FFMPEG_CLI",
-        "status_label": "HOST-DECODED SYNTHETIC H264"
+        "status_label": "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE"
       },
       "renderer": {
         "target": "Display 1 \u00b7 ExternalDisplay host mock",
@@ -261,7 +274,7 @@
           "label": "UNKNOWN"
         },
         {
-          "element": "Synthetic frame after Annex-B",
+          "element": "Synthetic ScreenStream H.264 fixture",
           "label": "SYNTHETIC_TEST_VALUE"
         },
         {

@@ -18,6 +18,9 @@ from host_h264_decoder import (
 )
 from model import ClarityLinkRenderer, MockDisplay1Backend
 from synthetic_type111_replay import synthetic_type111_cluster_replay
+from synthetic_screenstream_fixture import (
+    create_synthetic_screenstream_fixture, run_fixture_through_transport,
+)
 
 
 def run_synthetic_decode_validation() -> dict[str, Any]:
@@ -67,8 +70,55 @@ def run_synthetic_decode_validation() -> dict[str, Any]:
     }
 
 
+def run_screenstream_h264_validation() -> dict[str, Any]:
+    """Generate synthetic H.264 and validate the modeled ScreenStream path end to end."""
+    capabilities = probe_ffmpeg_capabilities()
+    try:
+        fixture = create_synthetic_screenstream_fixture()
+        result = run_fixture_through_transport(fixture)
+    except (RuntimeError, ValueError, AssertionError) as exc:
+        return {
+            "status": "ATTEMPTED_FAILED",
+            "reason": str(exc),
+            "evidence": "SYNTHETIC_TEST_VALUE",
+            "crypto_mode": "PLAINTEXT_SYNTHETIC",
+            "capabilities": capabilities.__dict__,
+        }
+    if result["status"] != "PASS":
+        return {
+            "status": "ATTEMPTED_FAILED",
+            "reason": result.get("reason", "ScreenStream decode or renderer failed"),
+            "evidence": "SYNTHETIC_TEST_VALUE",
+            "crypto_mode": fixture.crypto_mode,
+            "capabilities": capabilities.__dict__,
+        }
+    return {
+        "status": "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM",
+        "backend": "FFMPEG_CLI/libx264",
+        "ffmpeg_version": capabilities.version,
+        "output_format": "ANNEXB",
+        "screenstream_input": "SYNTHETIC_TEST_VALUE",
+        "crypto_mode": fixture.crypto_mode,
+        "nal_types": sorted({nal[0] & 0x1F for nal in fixture.nals}),
+        "sps_count": result["sps_count"],
+        "pps_count": result["pps_count"],
+        "vcl_count": result["vcl_count"],
+        "nal_length_size": result["config"].nal_length_size,
+        "avcc_config_length": result["avcc_config_length"],
+        "avcc_frame_length": result["avcc_frame_length"],
+        "encoded_annexb_length": result["encoded_annexb_length"],
+        "packet_lengths": result["packet_lengths"],
+        "dimensions": result["media_dimensions"],
+        "rgba_payload_size": result["rgba_payload_size"],
+        "renderer_target": "Display 1 mock",
+        "evidence": "SYNTHETIC_TEST_VALUE",
+        "separate_from_honda_type111": True,
+    }
+
+
 def build_visual_demo_payload(
     host_decode_validation: dict[str, Any] | None = None,
+    screenstream_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     modes: dict[str, Any] = {}
     for mode in ReplayMode:
@@ -79,6 +129,20 @@ def build_visual_demo_payload(
         response = replay["hypothetical_type111_response"]
         frame = replay["decoded_frame"]
         submitted = "type111_frame_submitted_to_renderer" in event_names
+        if not submitted:
+            decode_status_label = "No frame in strict Honda mode"
+        elif screenstream_validation and screenstream_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM":
+            decode_status_label = "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE"
+        elif screenstream_validation and screenstream_validation.get("status") == "ATTEMPTED_FAILED":
+            decode_status_label = "HOST DECODER ATTEMPTED — FAILED"
+        elif host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264":
+            decode_status_label = "HOST-DECODED SYNTHETIC H264"
+        elif host_decode_validation and host_decode_validation.get("status") == "ATTEMPTED_FAILED":
+            decode_status_label = "HOST DECODER ATTEMPTED — FAILED"
+        elif not replay["host_decode"]["backend_available"]:
+            decode_status_label = "SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE"
+        else:
+            decode_status_label = "SYNTHETIC FRAME SOURCE — VALID H.264 TEST MEDIA NOT GENERATED"
         modes[mode.value] = {
             "type110": {
                 "active": True,
@@ -104,23 +168,18 @@ def build_visual_demo_payload(
             },
             "cluster_frame": {
                 "visible": submitted,
-                "source": "generated pattern after synthetic Annex-B extraction" if submitted else None,
-                "decoded_from_h264": False,
+                "source": "generated synthetic media via ScreenStream fixture" if submitted else None,
+                "decoded_from_h264": bool(
+                    screenstream_validation
+                    and screenstream_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM"
+                ),
                 "width": frame.width if frame else None,
                 "height": frame.height if frame else None,
                 "presentation_timestamp": "SYNTHETIC_TEST_VALUE" if frame else None,
                 "evidence": "SYNTHETIC_TEST_VALUE",
                 "decode_status": replay["host_decode"]["status"],
                 "decode_backend": replay["host_decode"]["backend"],
-                "status_label": (
-                    "HOST-DECODED SYNTHETIC H264"
-                    if host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264"
-                    else "HOST DECODER ATTEMPTED — FAILED"
-                    if host_decode_validation and host_decode_validation.get("status") == "ATTEMPTED_FAILED"
-                    else "SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE"
-                    if not replay["host_decode"]["backend_available"]
-                    else "SYNTHETIC FRAME SOURCE — VALID H.264 TEST MEDIA NOT GENERATED"
-                ) if submitted else "No frame in strict Honda mode",
+                "status_label": decode_status_label,
             },
             "renderer": {
                 "target": "Display 1 · ExternalDisplay host mock" if submitted else "inactive",
@@ -137,10 +196,12 @@ def build_visual_demo_payload(
                 {"element": "Type111 candidate field values", "label": "SYNTHETIC_TEST_VALUE" if allowed else "UNKNOWN"},
                 {"element": "Display-to-stream correlation", "label": "UNKNOWN"},
                 {"element": "Type111 security/key derivation", "label": "UNKNOWN"},
-                {"element": "Synthetic frame after Annex-B", "label": "SYNTHETIC_TEST_VALUE"},
+                {"element": "Synthetic ScreenStream H.264 fixture", "label": "SYNTHETIC_TEST_VALUE"},
                 {"element": "Host H.264 decode", "label": (
-                    "SYNTHETIC_TEST_VALUE" if host_decode_validation and
-                    host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264" else "UNKNOWN"
+                    "SYNTHETIC_TEST_VALUE" if (
+                        (screenstream_validation and screenstream_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM")
+                        or (host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264")
+                    ) else "UNKNOWN"
                 )},
                 {"element": "Mock renderer submission", "label": "SYNTHETIC_TEST_VALUE"},
                 {"element": "Real ExternalDisplay integration", "label": "UNKNOWN"},
@@ -160,11 +221,16 @@ def build_visual_demo_payload(
     return {
         "schema": "claritylink.synthetic-type111-visual-demo.v1",
         "generated_at": datetime(2026, 9, 30, tzinfo=timezone.utc).isoformat(),
-        "source": "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_FFMPEG_VALIDATION"
+        "source": "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_SCREENSTREAM_H264_VALIDATION"
+        if screenstream_validation and screenstream_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM"
+        else "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_FFMPEG_VALIDATION"
         if host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264"
         else "STEP_42E_REPLAY_OUTPUT",
         "host_decode_validation": host_decode_validation or {
             "status": "NOT_RUN", "reason": "no external synthetic encode/decode validation supplied"
+        },
+        "screenstream_validation": screenstream_validation or {
+            "status": "NOT_RUN", "reason": "no synthetic ScreenStream H.264 validation supplied"
         },
         "live_test": "NOT_READY",
         "jmcs_noop_test": "NOT_READY",
@@ -185,9 +251,14 @@ def main() -> int:
         "--decode-synthetic-h264", action="store_true",
         help="encode/decode one in-memory synthetic H.264 frame and record renderer-mock status",
     )
+    parser.add_argument(
+        "--screenstream-h264", action="store_true",
+        help="run synthetic H.264 through modeled ScreenStream parsing, decode, and Display 1 mock",
+    )
     args = parser.parse_args()
     validation = run_synthetic_decode_validation() if args.decode_synthetic_h264 else None
-    payload = build_visual_demo_payload(validation)
+    screenstream_validation = run_screenstream_h264_validation() if args.screenstream_h264 else None
+    payload = build_visual_demo_payload(validation, screenstream_validation)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote synthetic Step 42E replay summary: {args.output}")

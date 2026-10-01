@@ -424,3 +424,12 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Synthetic media encode/decode | `tests/sim/test_host_h264_decoder.py` | Real test skips explicitly when FFmpeg is absent; no media was generated in this run. |
 | Renderer handoff | Same test; `research/display/type111-renderer-handoff-contract.md` | Fake-process RGBA adapter check passes; actual decoded-frame submission remains skipped. |
 | Twin and live readiness | `PROJECT_STATE.md`; Step 42H report | Offline twin remains ready; live Type111, jmcs no-op, and ExternalDisplay rendering remain NOT READY. |
+
+## Step 42J — valid synthetic H.264 through ScreenStream model
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Synthetic media and NAL extraction | `src/claritylink-sim/synthetic_screenstream_fixture.py`; `tests/sim/test_synthetic_screenstream_fixture.py` | FFmpeg 9.0.2/libx264 generated 7,877 in-memory Annex-B bytes; NAL types 5/6/7/8, one SPS, one PPS, three VCL NALs. No media files retained. |
+| Config and packet model | Same fixture module and tests | Synthetic avcC-style config is 39 bytes with 4-byte NAL length; AVCC frame body 7,237 bytes; modeled opcode 1/0 packets 167/7,365 bytes including 128-byte headers. Crypto mode is `PLAINTEXT_SYNTHETIC`. |
+| Parse/decode/render | Same tests; `demo/type111/replay-data.json` `screenstream_validation` | Receiver parser emitted config and Annex-B frame; FFmpeg decoded 320×180 to 230,400 RGBA bytes and mock Display 1 accepted the frame. Visual status is `HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE`. |
+| Failure isolation and evidence | New fixture tests; `research/carplay/type111-unknown-register.md` | Missing/malformed config, unsupported width, malformed AVCC, bad H.264, renderer rejection, incomplete bodies, and unknown opcodes are exercised; Honda Type111 crypto/schema/correlation and ExternalDisplay remain UNKNOWN. All live gates remain NOT READY. |

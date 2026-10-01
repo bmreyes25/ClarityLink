@@ -12,6 +12,26 @@ from export_visual_demo import build_visual_demo_payload
 
 
 class VisualClusterDemoTests(unittest.TestCase):
+    def test_screenstream_validation_status_requires_full_path_success(self):
+        passed = {
+            "status": "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM",
+            "evidence": "SYNTHETIC_TEST_VALUE",
+            "dimensions": [320, 180],
+            "renderer_target": "Display 1 mock",
+        }
+        payload = build_visual_demo_payload(screenstream_validation=passed)
+        state = payload["modes"]["hypothetical_type111"]
+        self.assertEqual(payload["source"], "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_SCREENSTREAM_H264_VALIDATION")
+        self.assertEqual(state["cluster_frame"]["status_label"],
+                         "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE")
+        self.assertTrue(state["cluster_frame"]["decoded_from_h264"])
+        self.assertEqual(payload["live_test"], "NOT_READY")
+        self.assertFalse(payload["modes"]["strict_honda"]["cluster_frame"]["visible"])
+
+        failed = build_visual_demo_payload(screenstream_validation={"status": "ATTEMPTED_FAILED"})
+        self.assertEqual(failed["modes"]["hypothetical_type111"]["cluster_frame"]["status_label"],
+                         "HOST DECODER ATTEMPTED — FAILED")
+
     def test_successful_synthetic_decode_is_labeled_without_advancing_live_gates(self):
         validation = {
             "status": "HOST_DECODED_SYNTHETIC_H264",
@@ -73,6 +93,8 @@ class VisualClusterDemoTests(unittest.TestCase):
             "NOT READY", "CROP / MASK UNKNOWN", "not valid H.264", "HOST DECODER UNAVAILABLE", "Evidence labels",
             "toggleAttribute('hidden'",
             "Candidate response fields", "MHI2 hypothesis",
+            "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE", "screenstream_validation",
+            "not Honda output, a real CarPlay frame, or live Type111",
         ):
             self.assertIn(text, html)
         self.assertNotIn("PRESENTED_AS_LIVE_READY", html)
@@ -95,7 +117,7 @@ class VisualClusterDemoTests(unittest.TestCase):
         self.assertEqual(stored["jmcs_noop_test"], "NOT_READY")
         self.assertEqual(stored["externaldisplay_live_render_test"], "NOT_READY")
         validation = stored["host_decode_validation"]
-        rebuilt = build_visual_demo_payload(validation)
+        rebuilt = build_visual_demo_payload(validation, stored.get("screenstream_validation"))
         self.assertEqual(rebuilt["modes"]["strict_honda"]["type110"],
                          stored["modes"]["strict_honda"]["type110"])
         self.assertEqual(rebuilt["modes"]["hypothetical_type111"]["type110"],
