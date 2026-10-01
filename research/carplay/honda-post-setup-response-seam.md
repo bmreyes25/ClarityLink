@@ -1,5 +1,7 @@
 # Honda post-Setup / pre-serialization response seam — Step 43E
 
+**Step 43H update:** Setup response and `streams` constructor callback arguments remain unresolved, so container retention and safe project ownership cannot be promoted. Successful serialization ends the CF response graph's required lifetime; post-serialization queue/write failures are a separate project lifecycle concern. See [Step 43H](../../step-reports/43h-cf-callback-fingerprint.md).
+
 **Step 43F refinement:** Instruction-level disassembly now confirms caller locations and direct serializer input. The response and streams array are classified `CONFIRMED_MUTABLE` as constructed by stock Honda; this does not prove arbitrary caller-side mutation safety. CF callback ownership and project cleanup after serializer/HTTP failure remain incomplete. See [Step 43F caller liveness and cleanup](honda-post-setup-caller-liveness.md).
 
 **Step 43G refinement:** CFL callback table symbols and wrapper semantics are identified, but Setup's dictionary constructor arguments and the Type110 entry's callback/release ledger remain unresolved. Serializer creation failure reaches caller cleanup; body-setter failure may leave HTTP message state partially changed. HTTP queue/write failures occur after the response graph is released, and the connection failure callback's session/project cleanup relationship is unknown. See [Step 43G callback and cleanup audit](honda-cf-callback-ownership.md).

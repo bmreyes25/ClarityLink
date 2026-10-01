@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 43H — callback fingerprint and serialization boundary (offline)
+
+Honda's checked-in disassembly proves CFType callback-table use for a separate `/info` dictionary and global screen array, but not for the Setup response or Setup `streams` array. Type110 entry/container ownership remains unknown/partial. The response graph is synchronously serialized and released before HTTP queue/write failures, so those failures do not require CF graph rollback. Project listener/session cleanup after connection failure remains unknown. Design remains `NEEDS_MORE_STATIC_PROOF`; implementation/live/JMCS/ExternalDisplay gates remain NO; LD_PRELOAD remains PARKED. See [Step 43H](step-reports/43h-cf-callback-fingerprint.md).
+
 ## Step 43G — CF callback and failure cleanup audit (offline)
 
 Named Honda CFL callback tables and wrapper behavior are partially recovered, but Setup dictionary constructor arguments and the stock Type110 entry retain/release ledger are not proven. Serialization is synchronous; the caller releases the response on serializer failure. Body-setter failure may leave partial HTTP message state. Queue/write failures happen after the response graph is released, while the connection failure callback's session/project cleanup edge remains unknown. Seam remains `NEEDS_MORE_STATIC_PROOF`; all implementation/live gates stay NO and LD_PRELOAD stays PARKED. See `step-reports/43g-cf-callbacks-failure-cleanup.md` and `research/carplay/honda-cf-callback-ownership.md`.

@@ -2,6 +2,15 @@
 
 | Evidence item | Source | Finding / classification |
 |---|---|---|
+| Exact Setup callback arguments | `research/native/jmcs/focused-annotated.txt`; Step 43H report | Setup response dictionary and `streams` callback pointers remain unresolved. Named tables alone are not call-site proof. |
+| Positive call-site controls | Same disassembly | `/info` dictionary at `0x287af8` passes named CFType key/value tables; global screen array at `0x2a18ae` passes named CFType array table. These are separate objects. |
+| Type110 ownership | `research/carplay/honda-cf-callback-ownership.md` | Entry retain/release ledger and response-to-streams retaining edge remain unknown/partial. |
+| Serialization boundary | `research/carplay/honda-post-setup-caller-liveness.md` | Response graph is released after synchronous serialization; later network failure does not need CF graph rollback. Project stream cleanup edge is unknown. |
+| Readiness / next | [Step 43H report](step-reports/43h-cf-callback-fingerprint.md); `NEXT_ACTION.md` | `NEEDS_MORE_STATIC_PROOF`; all implementation/live gates NO; LD_PRELOAD PARKED. Next: recover exact Setup callback arguments and session cleanup callback. |
+
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
 | Type-110 request fields | `research/carplay/honda-setup-stream-identity.md`; hash-matched `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` | `HONDA_CONFIRMED`: Setup iterates `streams[]`, reads `type`; Type 110 reads a nonzero uint64 `streamConnectionID` and passes it with receiver-session master material to screen crypto derivation. Other candidate keys remain unrecovered. |
 | Type-110 response | Same report; `0x286124`, `0x28614a–0x286168`; `_AddResponseStream` `0x284db8` | `HONDA_CONFIRMED`: listener port selected from requested port 0 becomes `dataPort`; response stream entry inserts constant `type=110`; no streamConnectionID echo observed in that entry. |
 | Type 111 stock behavior | `research/carplay/honda-mixed-stream-setup.md`; Step 43D report | `HONDA_CONFIRMED`: unsupported type is logged/skipped without a stock Type-111 response entry; this says nothing about iPhone selection. |
@@ -525,3 +534,13 @@ Honda-specific source notes remain separately indexed below; no external project
 | Serializer failure | Same research note; `_requestSendPlistResponse` and caller cleanup path | Property-list creation failure returns through common cleanup, releasing response and request. Body setter can fail after partial HTTP-message mutation. `HONDA_CONFIRMED` path, partial body-state implications. |
 | HTTP queue/write failure | Same note; `HTTPConnectionSendResponse` → state machine → `SocketWriteData`/`writev` | CF graph is released before queuing; later send failure cannot mutate it. Connection callback's session/project resource cleanup is not resolved. `HONDA_CONFIRMED` send path; cleanup `HONDA_UNKNOWN`. |
 | Race/readiness | Step 43G report | No response escape is seen in inspected caller path before serialization, but thread exclusivity is unproven. Race classified `NO_STATIC_EVIDENCE`; seam remains `NEEDS_MORE_STATIC_PROOF`. |
+
+## Step 43H — CF callback fingerprint and post-serialization cleanup
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Exact Setup callback arguments | `research/native/jmcs/focused-annotated.txt`; Step 43H report | Setup response dictionary and `streams` callback pointers remain unresolved. Named tables alone are not call-site proof. |
+| Positive call-site controls | Same disassembly | `/info` dictionary at `0x287af8` passes named CFType key/value tables; global screen array at `0x2a18ae` passes named CFType array table. These are separate objects. |
+| Type110 ownership | `research/carplay/honda-cf-callback-ownership.md` | Entry retain/release ledger and response-to-streams retaining edge remain unknown/partial. |
+| Serialization boundary | `research/carplay/honda-post-setup-caller-liveness.md` | Response graph is released after synchronous serialization; later network failure does not need CF graph rollback. Project stream cleanup edge is unknown. |
+| Readiness / next | [Step 43H report](step-reports/43h-cf-callback-fingerprint.md); `NEXT_ACTION.md` | `NEEDS_MORE_STATIC_PROOF`; all implementation/live gates NO; LD_PRELOAD PARKED. Next: recover exact Setup callback arguments and session cleanup callback. |

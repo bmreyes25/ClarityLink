@@ -1,5 +1,7 @@
 # Honda post-Setup caller liveness and CF cleanup — Step 43F
 
+**Step 43H update:** The response is synchronously serialized and released before HTTP queue/write failures, so those failures do not require CF graph rollback. The connection failure callback's target/session relationship remains unknown. Setup callback identities and Type110 entry retain/release accounting remain incomplete; see [Step 43H](../../step-reports/43h-cf-callback-fingerprint.md).
+
 **Evidence binary:** `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`. Static ARM/Thumb disassembly via LLVM objdump. No vehicle, ADB, runtime, patch, Type111 implementation, or live render test.
 
 ## Caller instruction trace

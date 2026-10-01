@@ -1,5 +1,7 @@
 # Type 111 unknown register
 
+Step 43H ownership/lifecycle update (2026-09-30): Setup dictionary and `streams` array retaining callbacks, Type110 entry ownership, and post-send project session cleanup are still unknown. The CF response graph is no longer needed after successful synchronous serialization; a future Type111 listener would need an independently proven connection/session lifecycle cleanup edge. This does not establish Honda Type111 behavior or readiness. See [Step 43H](../../step-reports/43h-cf-callback-fingerprint.md).
+
 Step 43G partially resolves callback wrapper behavior but does not tie all callbacks to Setup's constructor arguments or complete the Type110 retain/release ledger. It also confirms that later HTTP queue/write failures occur after response-graph release, while project cleanup linkage remains unknown. Honda Type111 wire/schema/security/display unknowns and caller-side race safety remain open; see [CF callback ownership](honda-cf-callback-ownership.md) and [caller liveness](honda-post-setup-caller-liveness.md). No implementation/live gate changes.
 
 All Type111 wire/schema rows remain unknown for Honda. Step 43B narrows some static descriptor questions but does not establish Type111 behavior. Offline tests validate candidate handling but cannot resolve wire behavior.

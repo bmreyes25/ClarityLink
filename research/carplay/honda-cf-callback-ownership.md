@@ -1,5 +1,7 @@
 # Honda CF callback ownership — Step 43G
 
+**Step 43H correction:** focused disassembly proves named CFType callback-table use for the separate `/info` display dictionary (`0x287af8`) and global screen array (`0x2a18ae`). It does not prove callback arguments for the Setup response dictionary (`0x28557e`) or Setup `streams` array (`_AddResponseStream`, `0x284de2`). The Setup/Type110 retain graph stays UNKNOWN/PARTIAL. The response graph is synchronously serialized and released before HTTP queue/write failures, so those later failures do not require CF graph rollback; project listener/session cleanup remains unknown. See [Step 43H](../../step-reports/43h-cf-callback-fingerprint.md).
+
 **Scope:** static, offline review of the hash-identified `jmcs` ELF (`cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`) and prior disassembly notes. No runtime, patching, Type111 implementation, or device testing.
 
 ## Callback tables and certainty
