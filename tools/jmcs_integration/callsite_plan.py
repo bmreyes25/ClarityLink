@@ -37,13 +37,14 @@ class PlanError(ValueError):
 
 
 def build_plan(data: bytes, *, shim_address: int | None = None) -> dict[str, Any]:
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != REFERENCE_SHA256:
+        raise PlanError(f"reference SHA-256 mismatch: {digest}")
     try:
         inspection = inspect_elf32(data)
     except ELFError as exc:
         raise PlanError(str(exc)) from exc
     ident = inspection.identity
-    if ident.elf_sha256 != REFERENCE_SHA256:
-        raise PlanError(f"reference SHA-256 mismatch: {ident.elf_sha256}")
     if ident.elf_class != 32 or ident.endian != "little" or ident.machine != 40 or ident.elf_type != 3:
         raise PlanError("reference ELF class, byte order, machine, or type mismatch")
     e_flags = struct.unpack_from("<I", data, 36)[0]
