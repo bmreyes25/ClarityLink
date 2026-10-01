@@ -1,53 +1,85 @@
 # ClarityLink
 
-ClarityLink’s goal is to keep factory Honda CarPlay on the center display while adding an independent navigation display in the instrument cluster’s existing Navigation region. Apple Maps is the first target; Waze follows if supported. The project preserves the rest of the factory cluster UI.
+ClarityLink researches and models an independent CarPlay navigation stream for the factory instrument-cluster Navigation region of a Honda Clarity, while preserving normal stock CarPlay on the center display and the rest of the cluster's safety UI.
 
-## Current status — Step 40 (offline)
+## Goal
 
-The project has moved from broad protocol recovery to validating a safe integration boundary around Honda’s exact jmcs build.
+Keep the Honda center display's stock CarPlay path working and add a genuine, independent secondary navigation stream to the cluster's existing navigation area. Apple Maps is the first target; Waze is a later target only if the negotiated secondary-screen implementation supports it. The secondary stream must not replace or disturb unrelated stock cluster content.
 
-- **CONFIRMED / strongly modeled:** stock Type110 Setup and media path; 128-byte screen framing; Type110 AES-CTR/KDF model; VideoConfig and H.264 conversion model.
-- **HOST IMPLEMENTED:** copy-on-write Display-B capability model; stock-first Setup response interposer; transactional rollback; fake listener; synthetic receiver path; redacted diagnostics; OFF/NOOP/OBSERVE semantics; ELF identity and mock hook transaction models.
-- **CURRENT:** exact-build and call-site fingerprints are verified offline; load-bias resolution is synthetic-testable. The ARM/Thumb call shim, original-call veneer, and executable rollback path are not implemented or validated, so the Honda hook harness is **NOT READY**.
-- **NOT PROVEN:** the iPhone requests Type111, accepts a project response, or uses the recovered Type110 KDF for Type111. No real secondary TCP stream, secondary H.264, or cluster rendering from CarPlay has been demonstrated.
+## Current status
 
-No vehicle, ADB, ptrace, live process memory, real listener, CAN, block device, or firmware write is part of Step 40.
+| Capability | Status |
+|---|---|
+| Offline digital twin | **READY** for the behaviors it models |
+| Synthetic Type111 replay | **READY** in explicitly hypothetical mode; strict Honda mode skips unsupported Type111 |
+| Synthetic ScreenStream + H.264 | **PASS**: generated H.264 traverses a modeled ScreenStream parser, decodes to RGBA, and reaches a Display 1 mock |
+| Honda Type111 negotiation | **NOT READY**; Honda stock path skips unsupported Type111 and the added response is unproven |
+| Real ExternalDisplay frame handoff | **NOT READY**; no supported companion frame/Surface interface found |
+| Live vehicle testing | **NOT READY**; jmcs integration seam and Type111 wire/security behavior remain unresolved |
 
-## Intended architecture
+## Architecture
 
-The target is two independent media paths in one authenticated CarPlay session. This is a design target; Type111 interoperability remains unproven.
+The proposed additive path below is not a demonstrated Honda implementation. The dotted links are unresolved integration boundaries.
 
 ```mermaid
 flowchart LR
-    Phone[iPhone CarPlay session]
-    Phone -->|stock Type110| Honda[Honda stock Setup and listener]
-    Honda --> Center[Honda stock decoder]
-    Center --> CenterDisplay[Center display]
-    Phone -->|future Type111 / AltScreen| Clarity[ClarityLink additive path]
-    Clarity --> Listener[Project listener]
-    Listener --> Receiver[Project receiver and H.264 decoder]
-    Receiver --> External[Honda ExternalDisplay path]
-    External --> Cluster[Instrument-cluster Navigation region]
+  phone[iPhone] --> session[Authenticated CarPlay session]
+  session --> jmcs[Honda jmcs]
+  jmcs -->|stock Type110| center[Normal center CarPlay]
+  jmcs -.->|proposed Type111; unproven| receiver[ClarityLink receiver]
+  receiver -.->|modeled ScreenStream / H.264| renderer[Renderer adapter]
+  renderer -.->|real handoff unknown| external[ExternalDisplay host]
+  external --> cluster[Cluster Navigation region]
 ```
 
-**Design invariant:** Honda Type110 remains stock. ClarityLink delegates to Honda first and adds project-owned behavior only after a valid stock result. Project failure returns the original stock result and releases only project resources. The generic mc_dev_attach("CarPlay Screen") registry investigation is fallback-only, not the primary Display-B architecture.
+The design invariant is stock-first: Honda Type110 remains unchanged; ClarityLink would own only separate Type111 state, and a Type111 failure must not disturb Type110.
 
-## Project plan
+## Evidence model
 
-See [ROADMAP.md](ROADMAP.md) for phases, evidence labels, and current gates.
+- `HONDA_CONFIRMED`: directly supported by a Honda artifact or observation, with scope documented.
+- `EXTERNAL_PRIOR_ART`: Apple material or another implementation; useful context, not Honda proof.
+- `SYNTHETIC_TEST_VALUE`: generated model/test input, never captured Honda or iPhone output.
+- `HYPOTHESIS`: a proposed interpretation awaiting Honda evidence.
+- `UNKNOWN`: not established and not silently filled in.
 
-## Start here
+## Offline demo
 
-| Purpose | File |
+The static two-display digital twin is in [`demo/type111/`](demo/type111/). From the repository root:
+
+```sh
+python3 src/claritylink-sim/export_visual_demo.py --screenstream-h264
+python3 -m http.server 8000 --bind 127.0.0.1 --directory demo/type111
+```
+
+Open `http://localhost:8000`. The generated media stays in memory; the page shows a schematic, not real Honda video. Details and limitations are in [the demo guide](demo/type111/README.md).
+
+## Testing
+
+Install the test dependency with `python -m pip install -r requirements-test.txt`, then run [`./tools/run_tests.sh`](tools/run_tests.sh). The H.264 integration test uses synthetic media and checks host capabilities; CI installs FFmpeg. See [testing instructions](docs/development/testing.md).
+
+## Repository layout
+
+| Path | Contents |
 |---|---|
-| Current state | [PROJECT_STATE.md](PROJECT_STATE.md) |
-| Next concrete task | [NEXT_ACTION.md](NEXT_ACTION.md) |
-| Evidence index | [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md) |
-| Step 40 report | [step-reports/40-honda-hook-harness.md](step-reports/40-honda-hook-harness.md) |
-| Honda hook points | [research/carplay/honda-hook-points.md](research/carplay/honda-hook-points.md) |
-| Hook fingerprints | [research/carplay/honda-hook-fingerprints.md](research/carplay/honda-hook-fingerprints.md) |
-| Runtime address model | [research/carplay/honda-runtime-addressing.md](research/carplay/honda-runtime-addressing.md) |
-| Host interposer | [research/carplay/display-b-interposer.md](research/carplay/display-b-interposer.md) |
-| Screen transport | [research/carplay/honda-screen-framing.md](research/carplay/honda-screen-framing.md) |
+| `docs/` | Concise architecture, evidence, research, and development navigation |
+| `research/` | Detailed Honda analysis, source evidence, simulator notes, and preserved investigations |
+| `step-reports/` | Chronological milestone reports |
+| `src/` | Offline models, parsers, receiver, renderer, and tools |
+| `tests/` | Synthetic unit/integration suites and isolated smoke tests |
+| `simulator/`, `demo/` | Digital twin and local presentation artifacts |
+| `tools/` | Read-only helpers and the canonical test runner |
+| Root status files | `PROJECT_STATE.md`, `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, and `ROADMAP.md` remain authoritative |
 
-Historical firmware, renderer, and protocol research remains under research/. Raw captures, APKs, firmware, forensic images, and sensitive data stay local and ignored.
+## Roadmap and research
+
+Start at [ROADMAP.md](ROADMAP.md), [current state](PROJECT_STATE.md), [the next action](NEXT_ACTION.md), and [EVIDENCE_INDEX.md](EVIDENCE_INDEX.md). The [docs index](docs/README.md), [research index](research/README.md), and [step-report index](step-reports/README.md) link into the existing history without moving it.
+
+The latest external-source review is [CarPlay AltScreen prior art](docs/research/carplay-altscreen-prior-art.md), followed by the [Honda-specific research plan](docs/research/honda-type111-research-plan.md).
+
+## Engineering boundaries
+
+Work offline first. Live vehicle work requires its own explicit, reviewed milestone. Do not write block devices or CAN; keep pristine forensic originals unchanged; keep private firmware, captures, credentials, and personal data out of Git. Preserve stock Type110 behavior and make uncertainty visible.
+
+## License
+
+Not yet selected.

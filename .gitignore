@@ -2,6 +2,18 @@
 /*
 !/.gitignore
 !/README.md
+!/ROADMAP.md
+!/PROJECT_STATE.md
+!/NEXT_ACTION.md
+!/EVIDENCE_INDEX.md
+!/CONTRIBUTING.md
+!/requirements-test.txt
+!/.editorconfig
+!/.github/
+!/.github/**
+!/docs/
+!/docs/**
+!/tools/run_tests.sh
 !/research/
 !/step-reports/
 !/simulator/
@@ -9,6 +21,7 @@
 !/src/
 !/tools/
 /tools/*
+!/tools/run_tests.sh
 !/tools/honda-readonly-preflight/
 !/tools/honda-readonly-preflight/**
 /tools/honda-readonly-preflight/__pycache__/
@@ -62,6 +75,9 @@
 /research/**/*.pyc
 /tests/**/__pycache__/
 /tests/**/*.pyc
+/.venv/
+/__pycache__/
+/.pytest_cache/
 /research/**/.DS_Store
 
 # Never track credentials, signing material, or archives if new paths appear.

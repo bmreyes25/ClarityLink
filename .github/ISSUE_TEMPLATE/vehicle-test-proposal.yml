@@ -1,0 +1,35 @@
+name: Vehicle test proposal
+description: Propose a reviewed, bounded vehicle validation milestone
+title: "Vehicle test proposal: "
+labels: ["question", "help wanted"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective and evidence gap
+      description: Identify the specific unresolved Honda behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: interaction
+    attributes:
+      label: Interaction class
+      options:
+        - READ-ONLY
+        - REVERSIBLE TEST
+        - LIVE MUTATION
+    validations:
+      required: true
+  - type: textarea
+    id: prerequisites
+    attributes:
+      label: Prerequisites, stop conditions, and rollback
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Expected stock behavior and recovery plan
+      description: Explain how center Type110 CarPlay and normal cluster behavior are preserved.
+    validations:
+      required: true

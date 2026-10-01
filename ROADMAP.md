@@ -1,61 +1,43 @@
 # ClarityLink roadmap
 
-**Project goal:** Keep factory Honda CarPlay independently usable on the center display while adding an independent navigation display in the instrument cluster’s existing Navigation region. Preserve all other stock cluster UI. Apple Maps first, Waze if supported.
+**Goal:** preserve stock Honda CarPlay on the center display while adding an independent navigation stream in the instrument cluster's existing Navigation region. Apple Maps is the first target; Waze is conditional on negotiated secondary-screen support. Preserve all other stock safety and cluster UI.
 
-## Architecture
+## Current engineering stage
 
-The design target is an additive second stream on the same authenticated CarPlay session. Honda’s stock Type110 path remains untouched; ClarityLink would add a project-owned Type111/AltScreen path, receiver, decoder, and ExternalDisplay output. This is an architecture hypothesis until iPhone Type111 negotiation and crypto are proven.
+The active executable work is the offline digital twin. Step 42J exercises generated synthetic H.264 through the modeled ScreenStream parser, AVCC-to-Annex-B extraction, FFmpeg decode, and a mock Display 1 renderer. This validates a host-side synthetic pipeline only.
+
+## Evidence-backed target
+
+The target architecture keeps Honda Type110 stock and adds a separate Type111 path inside/alongside the CarPlay session owner, with a renderer adapter in the ExternalDisplay host. Those integration seams remain unproven for Honda.
 
 ```mermaid
 flowchart LR
-    Phone[iPhone CarPlay session]
-    Phone -->|existing Type110| Stock[Honda stock listener and decoder]
-    Stock --> Center[Center display]
-    Phone -->|future Type111| Project[ClarityLink additive path]
-    Project --> TCP[Project listener]
-    TCP --> Decode[Project H.264 receiver and decoder]
-    Decode --> Ext[Honda ExternalDisplay]
-    Ext --> Cluster[Cluster Navigation region]
+  Phone[iPhone session] --> jmcs[Honda jmcs]
+  jmcs -->|stock Type110| Center[Center CarPlay]
+  jmcs -.->|proposed, unresolved| Type111[ClarityLink Type111]
+  Type111 -.-> Receiver[ScreenStream / H.264]
+  Receiver -.-> Render[ExternalDisplay renderer adapter]
+  Render -.-> Cluster[Cluster Navigation region]
 ```
 
-## Phases
+## Workstream and gates
 
-| Phase | Scope | Status |
+| Workstream | Current state | Next gate |
 |---|---|---|
-| A | Firmware acquisition and display reverse engineering | **COMPLETE** offline |
-| B | Honda CarPlay control/media protocol recovery | **SUBSTANTIALLY COMPLETE**; some runtime semantics remain unknown |
-| C | Host Display-B architecture, stock delegation, synthetic receive path | **COMPLETE** as a host model |
-| D | Exact Honda build identity, source provenance, executable-memory lab feasibility | **COMPLETE OFFLINE**; ADA01 is related source only, official API-17 image obtained but no ARM guest can boot on the available host |
-| E | Parked read-only target runtime preflight | **COMPLETE, EVIDENCE PARTIAL**; three phases captured; maps/smaps denied and connected thread snapshots partial |
-| F | Parked standalone self-only runtime probe | **NOT READY**; requires completed Step 40E facts and separate reviewed helper design; must never touch `jmcs` |
-| G | Parked no-op stock-delegation validation | **NOT READY**; only after Step 40F and a reviewed process-level hook lifecycle |
-| H | Observe-only secondary negotiation | Future; no live collection |
-| I | Controlled Display-B / Type111 advertisement | Future; response acceptance unknown |
-| J | Type111 listener/security/secondary TCP | Future; Type111 KDF and phone acceptance unknown |
-| K | Real secondary H.264 receive/decode | Future; no real Type111 stream |
-| L | ExternalDisplay / instrument-cluster rendering | Future; no real CarPlay output |
-| M | Apple Maps/Waze validation and production hardening | Future |
+| Offline digital twin | Ready for modeled/synthetic behavior | Optional in-memory RGBA preview based on the Step 42J decoded frame |
+| Honda `/info` and Type111 schema | Type110 confirmed; stock Type111 skipped; external fields are not Honda facts | Differential audit of the descriptor and control-plane paths |
+| Type111 security/session | Honda Type110 KDF inputs known; Type111 reuse unknown | Trace whether a second connection ID can own independent crypto state |
+| jmcs integration | No safe proven load seam | Bounded stock-first seam analysis with rollback and exact-build checks |
+| ExternalDisplay rendering | Host exists; supported frame handoff not found | Synthetic renderer boundary/proof, then actual host interface evidence |
+| Live negotiation | Not ready | Only after control-plane and integration gates; first criterion need not include rendered video |
 
-## Current offline findings
+## Important distinction
 
-- **CONFIRMED:** exact local Honda binary identity is ELF32 little-endian ARM, ET_DYN, file SHA-256 cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232, .text SHA-256 ca4abfd2f2c1f5f7fe88b4b0bde9e920d22b454f2a699b7de1f4984c901278eb, file size 13,406,720 bytes. It has Android identification notes and no GNU build-id.
-- **CONFIRMED:** a /info server-info return and a stock Setup callsite provide narrow candidate control-plane interception points.
-- **HIGH CONFIDENCE:** two semantic control-plane points are needed for capability advertisement and Setup response augmentation. Persistent project state also needs session-start/teardown lifecycle coordination.
-- **UNKNOWN:** runtime callback threading/reentrancy and native CF replacement ownership at every candidate point.
-- **NOT READY:** no ARM/Thumb shim, branch veneer, original-call trampoline, or executable-memory rollback has been implemented. Mock memory success is not live-hook safety.
-- **NOT PROVEN:** iPhone Type111 trigger/acceptance, Type111 KDF compatibility, real second TCP stream/H.264, cluster rendering.
+Apple, xcertplay, MHI2, and CPC200 establish external architecture or receiver-specific prior art. They do not prove Honda behavior. See the [source-pinned research](docs/research/carplay-altscreen-prior-art.md), [Honda research plan](docs/research/honda-type111-research-plan.md), [project state](PROJECT_STATE.md), and [next action](NEXT_ACTION.md).
 
-## Safety rules
+## Invariants
 
-- Preserve factory center CarPlay and leave Type110 unchanged.
-- Keep Type111 capability and response behavior off by default.
-- Require exact ELF and instruction fingerprints; reject partial/mismatched hook groups.
-- Never infer Honda behavior from MHI2 or host fixtures.
-- No secrets in logs or commits.
-- No CAN writes, block-device writes, or firmware flashing.
-- Treat generic mc_dev_attach("CarPlay Screen") registry work as fallback-only.
-- Do not run Step 41 until the no-op hook harness is actually implemented and reviewed.
-
-## Next
-
-Step 40E2 exhausted the existing capture and prepared a fixed-operation privileged read plan and full phase simulator. It did not contact the vehicle. The preserved setuid-root `/system/xbin/su` archive mode is 06777 (group/other writable), so the new preflight rejects it; exact current-device hash/mode and persistent invocation effects remain unknown. Resolve this trust issue and obtain independent ECC review before considering another vehicle session. Step 40F, Step 41, and Type111 remain **NO**. See `step-reports/40e2-privileged-read-preparation.md`.
+- Stock Type110 response, data path, crypto state, center display, and audio remain unchanged.
+- Type111-only failure must clean up Type111-owned resources only.
+- Synthetic and external-prior-art fields retain their evidence labels.
+- Live Type111 and jmcs no-op loading remain NOT READY until their explicit gates pass.

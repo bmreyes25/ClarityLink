@@ -1,0 +1,26 @@
+name: Research task
+description: Propose a bounded evidence-gathering task
+title: "Research: "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: State the Honda-specific question to answer.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and sources
+      description: List local artifacts and external sources. Keep evidence classes explicit.
+    validations:
+      required: true
+  - type: textarea
+    id: bounds
+    attributes:
+      label: Scope and stop condition
+      description: Define what is out of scope and what result closes the task.
+    validations:
+      required: true
