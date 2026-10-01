@@ -589,3 +589,13 @@ Honda-specific source notes remain separately indexed below; no external project
 | Full-session cleanup | `_Finalize` `0x284d24` calls PlatformFinalize `0x28cd60`; symbol/call audit | One direct call per finalizer invocation; tolerates no platform pointer; null-request `_TearDownStreams`, free and clear. HTTP/earlier teardown independent. |
 | Synthetic registry/adapter | `src/carplay-session-model/project_lifecycle.py`; focused tests; [child contract](research/carplay/honda-project-child-lifecycle-contract.md) | Offline-only, idempotent child cleanup keyed by `(session,generation)`; stock called once with unchanged request; not an installable Honda extension. |
 | Readiness | [Step 43J](step-reports/43j-platform-lifecycle-seam.md); `NEXT_ACTION.md` | Child lifecycle READY_FOR_OFFLINE_PROTOTYPE; post-Setup seam and safe platform integration remain NEEDS_MORE_STATIC_PROOF; live gates NOT READY; LD_PRELOAD PARKED. |
+
+## Step 43K — offline project-session registry
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Opaque identity/generation and state machine | `src/carplay-session-model/project_lifecycle.py` | `OFFLINE_PROJECT_IMPLEMENTATION`: PREPARING/PREPARED/ACTIVE/STOPPING/STOPPED, transaction-owned precommit resources, registry ownership after commit, exact generation lookup. |
+| Stock lifecycle adapters | Same module; `tests/carplay-session-model/test_project_lifecycle.py` | Synthetic adapter invokes stock once, passes unchanged object arguments, preserves stock result, and performs Type111 cleanup after stock. Finalization detaches project state before stock. No Honda execution or integration. |
+| Concurrency/failure coverage | Focused lifecycle tests | 25 focused passed; EOF/teardown/finalize, prepare/finalize, rollback/finalize, pointer reuse and event-sequence invariants are synthetic only. |
+| Related groups and full suite | pytest and `tools/run_tests.sh` | Related groups 116 passed; full suite 266 passed, 4 skipped; capture replay unavailable. |
+| Step 43L boundary | [Honda integration contract](research/carplay/honda-post-setup-integration-contract.md); `NEXT_ACTION.md` | Exact successful Setup interval, object lifetimes/ownership, response mutation/rollback, serializer outcome, and commit point still require Honda static proof. JMCS integration/live gates remain closed. |
