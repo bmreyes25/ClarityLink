@@ -23,3 +23,7 @@ Thus PlayPort has useful Type111 protocol/media plumbing, but a lab branch still
 ## ClarityLink use
 
 Treat this as an out-of-car iOS behavior oracle only. Its receiver stack is derived from DiPlay/xcertplay and does not establish Honda compatibility. It can help record the current phone's `/info altScreenURLs`, SETUP features/stream dictionaries, Type111 endpoint, media arrival, and control commands. Any observed values must retain the phone/iOS/build and PlayPort configuration context.
+
+## Third-reference pin and source-lineage note
+
+The xcertplay comparison is pinned at [`17c92439413638dfd1d7f91d7e1c2e7358398762`](https://github.com/shilapi/xcertplay/tree/17c92439413638dfd1d7f91d7e1c2e7358398762). Both xcertplay and this PlayPort protocol tree contain optional type-111 display, conditional `altScreen`, stream-type dispatch, separate data ports, and `(session,type)` media state. PlayPort's Type111 server config remains opt-in and the current browser renderer remains single-canvas. These codebases share implementation lineage with DiPlay/xcertplay, so agreement is useful cross-project prior art but not independent device evidence. Details: [xcertplay differential](xcertplay-type111-differential.md) and [four-way comparison](honda-xcertplay-diplay-playport-differential.md).

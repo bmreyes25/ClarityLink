@@ -57,6 +57,12 @@ Thumb-2 BL uses PC `call+4`, signed displacement `-0x1000000..+0xfffffe`, halfwo
 
 The detailed source map is in the [DiPlay differential](../research/carplay/diplay-type111-differential.md) and [PlayPort differential](../research/carplay/playport-type111-differential.md). Source was not copied into ClarityLink.
 
+### xcertplay third-reference addendum
+
+Verified the source commit and subject in a filtered temporary checkout: `shilapi/xcertplay` `17c92439413638dfd1d7f91d7e1c2e7358398762`, `fix(audio): add missing MainMediaAudioBuffer sources`. Inspected the requested config/info/session/media/screen files and relevant plist/media tests. xcertplay confirms optional type-111 cluster configuration, distinct main/alternate UUIDs, descriptor geometry/view-area fields, conditional SETUP `altScreen`, separate screen handler/dataPort, and stream state keyed by `(session,type)`. At this pin, `initialURL` is optional, and alternate UUID-scoped `forceKeyFrame`, `showUI`, and `stopUI` are not implemented in the inspected xcertplay screen path; those are DiPlay extensions. It uses 128-byte screen headers, VideoFrame/VideoConfig opcodes, DataStream HKDF tied to `streamConnectionID`, and ChaCha20-Poly1305 frame protection. These remain `EXTERNAL_PRIOR_ART`; Honda Type111 security is still `HONDA_UNKNOWN`. The DiPlay/PlayPort/xcertplay source families overlap, so their agreement is cross-project implementation agreement, not fully independent experimental confirmation. No source was copied or vendored.
+
+See [xcertplay differential](../research/carplay/xcertplay-type111-differential.md) and the [four-way Honda/xcertplay/DiPlay/PlayPort matrix](../research/carplay/honda-xcertplay-diplay-playport-differential.md). A clean-room `Type111CandidateDisplay`/`Type111CandidateSetup` schema now gives every field a provenance enum and refuses to promote external values to Honda-confirmed. Geometry, UUID, connection ID, and port remain unset. Existing Honda attachment scope remains the exact `0x28afba` callsite.
+
 ## Crypto boundary
 
 The pinned DiPlay/PlayPort screen path derives DataStream output keys from authenticated session shared secret plus `streamConnectionID` with DataStream HKDF labels and uses ChaCha20-Poly1305 for frame bodies. Honda Type110 is `HONDA_CONFIRMED` to use its legacy SHA-512 key/IV derivation and continuous AES-CTR body protection. Honda Type111 remains `HONDA_UNKNOWN`. A 128-byte header-family resemblance does not establish cipher, key, or nonce compatibility. See [security differential](../research/carplay/honda-vs-modern-type111-security.md).
@@ -87,6 +93,18 @@ The current `0x28afba` candidate could only affect the successful Setup response
 | TRAMPOLINE MODEL | `READY_OFFLINE`; synthetic control-flow contract only |
 | ORIGINAL CALLED EXACTLY ONCE | Yes in every modeled non-throwing stock path |
 | DIPLAY PIN | `f2d06951b4e8114dbb62f551c12a32a845a3042f`, pinned message confirmed |
+| XCERTPLAY PIN | `17c92439413638dfd1d7f91d7e1c2e7358398762`, `fix(audio): add missing MainMediaAudioBuffer sources` |
+| XCERTPLAY TYPE111 | Optional alternate display and separate incoming screen handling; `EXTERNAL_PRIOR_ART` |
+| XCERTPLAY SECOND DISPLAY | Type 111 with distinct UUID and per-display fields; `EXTERNAL_PRIOR_ART` |
+| XCERTPLAY ALTSCREEN FEATURE | Conditionally included when cluster config exists; `EXTERNAL_PRIOR_ART` |
+| XCERTPLAY VIEWAREAS | Emitted with `initialViewArea=0` and nested safeArea; `EXTERNAL_PRIOR_ART` |
+| XCERTPLAY TYPE111 DATAPORT | Independent accepted stream returns `{type,dataPort}`; `EXTERNAL_PRIOR_ART` |
+| XCERTPLAY STREAM IDENTITY | Media stream key is `(session,type)`; streamConnectionID participates in modern DataStream key derivation; `EXTERNAL_PRIOR_ART` |
+| XCERTPLAY KEYFRAME | Only primary/Type110 empty-params recovery found; no UUID-scoped Type111 behavior at this pin |
+| XCERTPLAY CRYPTO | 128-byte header, clear VideoConfig, ChaCha20-Poly1305 VideoFrame, DataStream key; modern external prior art only |
+| XCERTPLAY HONDA-PORTABLE | No; Type111 fields/security remain Honda-unknown |
+| THREE-IMPLEMENTATION AGREEMENT | 110/111 separation, conditional secondary display, separate stream/dataPort, per-type state; related source ancestry means not independent proof |
+| REMAINING HONDA-SPECIFIC UNKNOWN | Second-stream Honda security/session state, minimum current-iOS features, listener coexistence, renderer path |
 | DIPLAY PHYSICAL TYPE111 EVIDENCE | Pinned maintainer docs report DiLink 5.0 / Android 12 + iOS 27 Apple Maps cluster-map test (`EXTERNAL_PHYSICAL_VALIDATION`) |
 | ALTSCREENURLS | Three documented Maps URL family values; app/iOS-dependent (`EXTERNAL_PRIOR_ART`) |
 | SECOND DISPLAY STRUCTURE | Optional type 111, independent UUID, no cluster input, dimensions, viewAreas/safeArea, initial URL (`EXTERNAL_PRIOR_ART`) |
@@ -112,7 +130,8 @@ The current `0x28afba` candidate could only affect the successful Setup response
 
 ## Verification and readiness
 
-- Full configured suite: **299 passed, 4 skipped**. The four skipped tests require ignored/private capture fixtures and are excluded by the repository runner.
+- Updated configured suite after the xcertplay addendum: **301 passed, 4 skipped**. The four skipped tests require ignored/private capture fixtures and are excluded by the repository runner.
+- Focused external provenance/schema tests: **7 passed**.
 - Focused Setup, response delivery, lifecycle, trampoline, target planner, external provenance, and transaction tests: **85 passed**.
 - Self-locator standard-library smoke: **3 passed**. Simulator contract adapter, dual-screen model, guidance expiry, and Type111 failure-twin checks all passed.
 - `git diff --check`: **PASS**.

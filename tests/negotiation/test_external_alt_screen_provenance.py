@@ -6,10 +6,13 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src/claritylink-negotiation"))
 from external_alt_screen import (  # noqa: E402
     Evidence,
+    FieldProvenance,
     HondaStatus,
     HondaType111Candidate,
     diplay_alt_screen_profile,
     honda_type111_security_status,
+    type111_candidate_display,
+    type111_candidate_setup,
 )
 
 
@@ -57,3 +60,27 @@ def test_external_field_cannot_claim_honda_confirmed():
         pass
     else:
         raise AssertionError("external value must not promote itself into Honda evidence")
+
+
+def test_clean_room_candidate_schema_has_per_field_provenance_and_unknown_honda_status():
+    display = type111_candidate_display()
+    setup = type111_candidate_setup()
+    fields = (*display.__dict__.values(), *setup.__dict__.values())
+    assert all(field.honda_status is HondaStatus.UNKNOWN for field in fields)
+    assert display.stream_type.value == setup.stream_type.value == 111
+    assert display.stream_type.provenance is FieldProvenance.MULTIPLE_EXTERNAL_PRIOR_ART
+    assert display.initial_url.provenance is FieldProvenance.MULTIPLE_EXTERNAL_PRIOR_ART
+    assert setup.data_port.provenance is FieldProvenance.MULTIPLE_EXTERNAL_PRIOR_ART
+    assert display.width_pixels.value is None  # no Honda geometry or chosen synthetic default
+
+
+def test_external_candidate_schema_rejects_honda_confirmation():
+    from external_alt_screen import CandidateField
+
+    try:
+        CandidateField("stream_type", 111, FieldProvenance.MULTIPLE_EXTERNAL_PRIOR_ART,
+                       honda_status="HONDA_CONFIRMED")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("external candidate must stay Honda-unknown")

@@ -1,7 +1,7 @@
-"""Clean-room model of pinned external AltScreen observations.
+"""Clean-room models of pinned external AltScreen observations.
 
-Every modeled field stays tagged EXTERNAL_PRIOR_ART (or synthetic test data)
-and maps to HONDA_UNKNOWN. This module does not build a Honda response.
+Every external value keeps explicit external provenance and maps to
+HONDA_UNKNOWN. Candidate schemas do not build a Honda response.
 """
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ DIPLAY_REPOSITORY = "https://github.com/shihabal3amri/DiPlay"
 DIPLAY_COMMIT = "f2d06951b4e8114dbb62f551c12a32a845a3042f"
 PLAYPORT_REPOSITORY = "https://github.com/youcci/playport"
 PLAYPORT_COMMIT = "9a0882dd0ffe48e467b59d58b12d81391df55ade"
+XCERTPLAY_REPOSITORY = "https://github.com/shilapi/xcertplay"
+XCERTPLAY_COMMIT = "17c92439413638dfd1d7f91d7e1c2e7358398762"
 
 
 class Evidence(str, Enum):
@@ -24,6 +26,88 @@ class Evidence(str, Enum):
 
 class HondaStatus(str, Enum):
     UNKNOWN = "HONDA_UNKNOWN"
+
+
+class FieldProvenance(str, Enum):
+    """Evidence strength for a clean-room candidate; never implies Honda support."""
+
+    HONDA_CONFIRMED = "HONDA_CONFIRMED"
+    MULTIPLE_EXTERNAL_PRIOR_ART = "MULTIPLE_EXTERNAL_PRIOR_ART"
+    SINGLE_EXTERNAL_PRIOR_ART = "SINGLE_EXTERNAL_PRIOR_ART"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True)
+class CandidateField:
+    name: str
+    value: Any
+    provenance: FieldProvenance
+    honda_status: HondaStatus = HondaStatus.UNKNOWN
+
+    def __post_init__(self) -> None:
+        if self.honda_status is not HondaStatus.UNKNOWN:
+            raise ValueError("external candidate fields cannot assert Honda behavior")
+        if self.provenance is FieldProvenance.HONDA_CONFIRMED:
+            raise ValueError("this external candidate schema cannot assert Honda confirmation")
+
+
+@dataclass(frozen=True)
+class Type111CandidateDisplay:
+    stream_type: CandidateField
+    display_uuid: CandidateField
+    width_pixels: CandidateField
+    height_pixels: CandidateField
+    width_physical: CandidateField
+    height_physical: CandidateField
+    max_fps: CandidateField
+    display_features: CandidateField
+    input_device: CandidateField
+    view_areas: CandidateField
+    safe_area: CandidateField
+    initial_view_area: CandidateField
+    initial_url: CandidateField
+
+
+@dataclass(frozen=True)
+class Type111CandidateSetup:
+    enabled_features: CandidateField
+    stream_type: CandidateField
+    stream_connection_id: CandidateField
+    data_port: CandidateField
+
+
+def _candidate_field(name: str, value: Any, provenance: FieldProvenance) -> CandidateField:
+    return CandidateField(name, value, provenance)
+
+
+def type111_candidate_display() -> Type111CandidateDisplay:
+    """Candidate shape shared by inspected implementations; values stay external/unknown."""
+    multi = FieldProvenance.MULTIPLE_EXTERNAL_PRIOR_ART
+    return Type111CandidateDisplay(
+        stream_type=_candidate_field("stream_type", 111, multi),
+        display_uuid=_candidate_field("display_uuid", None, multi),
+        width_pixels=_candidate_field("width_pixels", None, multi),
+        height_pixels=_candidate_field("height_pixels", None, multi),
+        width_physical=_candidate_field("width_physical", None, multi),
+        height_physical=_candidate_field("height_physical", None, multi),
+        max_fps=_candidate_field("max_fps", None, multi),
+        display_features=_candidate_field("display_features", None, multi),
+        input_device=_candidate_field("input_device", None, multi),
+        view_areas=_candidate_field("view_areas", None, multi),
+        safe_area=_candidate_field("safe_area", None, multi),
+        initial_view_area=_candidate_field("initial_view_area", None, multi),
+        initial_url=_candidate_field("initial_url", None, multi),
+    )
+
+
+def type111_candidate_setup() -> Type111CandidateSetup:
+    multi = FieldProvenance.MULTIPLE_EXTERNAL_PRIOR_ART
+    return Type111CandidateSetup(
+        enabled_features=_candidate_field("enabled_features", ("viewAreas", "altScreen"), multi),
+        stream_type=_candidate_field("stream_type", 111, multi),
+        stream_connection_id=_candidate_field("stream_connection_id", None, multi),
+        data_port=_candidate_field("data_port", None, multi),
+    )
 
 
 @dataclass(frozen=True)

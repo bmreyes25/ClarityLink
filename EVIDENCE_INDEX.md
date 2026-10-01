@@ -648,3 +648,12 @@ Honda-specific source notes remain separately indexed below; no external project
 | Cleanup consequence | [`honda-project-child-cleanup-reachability.md`](research/carplay/honda-project-child-cleanup-reachability.md): pre-session delivery failure does not prove finalizer execution; finalizer is optional cleanup signal. |
 | Project guard | [`honda-generation-guard-model.md`](research/carplay/honda-generation-guard-model.md), `project_lifecycle.py`: exact generation supersession, configurable renewable lease/reaping, idempotent cleanup; synthetic only. |
 | Decision | [43L.2 audit](step-reports/43l2-session-finalizer-extension-audit.md): NO_SUPPORTED_EXTENSION; guard COMPLETE offline; `LIFECYCLE_MODEL_READY_CALLOUT_UNRESOLVED`; runtime integration not ready. |
+# Step 43N xcertplay addendum (2026-10-01)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| xcertplay source pin | `shilapi/xcertplay` `17c92439413638dfd1d7f91d7e1c2e7358398762`; `research/carplay/xcertplay-type111-differential.md` | `EXTERNAL_PRIOR_ART`: optional 110/111 displays, conditional feature negotiation, separate screen listener/dataPort, `(session,type)` state; source not copied. |
+| Four-way differential | `research/carplay/honda-xcertplay-diplay-playport-differential.md` | Honda facts separated from xcertplay/DiPlay/PlayPort prior art; notes source-lineage overlap and does not claim independent proof. |
+| Clean-room schema | `src/claritylink-negotiation/external_alt_screen.py`; `tests/negotiation/test_external_alt_screen_provenance.py` | Per-field external/single/unknown provenance, all Honda status unknown; external schema refuses `HONDA_CONFIRMED`; geometry/UUID/IDs/port remain unset. |
+| Modern crypto boundary | `research/carplay/honda-vs-modern-type111-security.md` | xcertplay modern ChaCha20-Poly1305 is external only; Honda Type110 legacy AES-CTR confirmed; Honda Type111 security remains unknown. |
+| Decision/readiness | `step-reports/43n-trampoline-and-type111-oracle.md`; `PROJECT_STATE.md`; `NEXT_ACTION.md` | Existing Honda target remains `0x28afba`; runtime/vehicle/Type111 readiness unchanged; Step 43O remains the single next task. |

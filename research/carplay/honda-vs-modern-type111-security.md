@@ -11,3 +11,9 @@
 ## Safety rule
 
 Do not port the current DiPlay/PlayPort DataStream KDF, ChaCha20-Poly1305, labels, nonce rules, or framing behavior into Honda. The shared 128-byte header family is not evidence of cipher compatibility. ClarityLink should first preserve Honda's authenticated session and established Type110 behavior, then prove whether a second stream can reuse Honda-compatible semantics or needs some other Honda-specific path. No live keys or packet captures are included here.
+
+## xcertplay third reference
+
+Pinned xcertplay `17c92439413638dfd1d7f91d7e1c2e7358398762` also describes a 128-byte screen header, clear VideoConfig, and ChaCha20-Poly1305 VideoFrame bodies using a DataStream output key and frame counter. Its media key path salts DataStream HKDF with `streamConnectionID`. This corroborates the modern implementation family represented in DiPlay/PlayPort, whose source ancestry overlaps; it is not a Honda Type111 security result. Classifications remain: **XCERTPLAY screen security: EXTERNAL_PRIOR_ART / modern receiver; Honda Type110: HONDA_CONFIRMED legacy AES-CTR; Honda Type111: HONDA_UNKNOWN.** See [pinned xcertplay differential](xcertplay-type111-differential.md) and the [four-way comparison](honda-xcertplay-diplay-playport-differential.md).
+
+Protocol features that recur externally—types 110/111, separate stream IDs/listeners, and the 128-byte framing family—are only candidate invariants across receiver generations. Encryption, key labels, nonce/counter policy, HEVC, and detailed frame protection remain generation-specific until Honda evidence says otherwise.

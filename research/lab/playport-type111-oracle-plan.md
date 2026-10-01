@@ -1,6 +1,6 @@
 # PlayPort Mac/iPhone Type111 oracle plan — offline design
 
-**Status: DESIGN_READY, not executed.** This plan targets only the pinned PlayPort `9a0882dd0ffe48e467b59d58b12d81391df55ade`. It does not require Honda access, credentials in Git, or changes to ClarityLink's production artifacts.
+**Status: DESIGN_READY, not executed.** This plan targets only the pinned PlayPort `9a0882dd0ffe48e467b59d58b12d81391df55ade`, with xcertplay `17c92439413638dfd1d7f91d7e1c2e7358398762` as a source-level protocol reference. It does not require Honda access, credentials in Git, or changes to ClarityLink's production artifacts.
 
 ## Minimal lab change
 
@@ -27,3 +27,9 @@ Do not record accessory private keys, pairing material, session secrets, or comp
 5. Keep the center-screen 110 path active throughout the lab run; stop on any session/authentication failure rather than changing keys or pairing identity.
 
 The current milestone performs none of these phone operations. It only establishes that the pinned protocol supports Type111 plumbing and that the normal web renderer still needs a second canvas path.
+
+## xcertplay reference baseline
+
+Before interpreting a later PlayPort observation, compare its redacted metadata with the pinned [xcertplay implementation](https://github.com/shilapi/xcertplay/tree/17c92439413638dfd1d7f91d7e1c2e7358398762): optional type-111 `/info` descriptor with a distinct UUID, `viewAreas`/`initialViewArea`, conditional SETUP `altScreen`, separate `{type,dataPort}` response, and `(session,type)` stream ownership. Treat this as `EXTERNAL_PRIOR_ART`; DiPlay and PlayPort share source lineage, so source agreement is not independent phone evidence.
+
+The oracle should answer, for the recorded iOS build: `altScreenURLs` presence, requested Type111 stream, second data-port connection, distinct `streamConnectionID`, required `enabledFeatures`, codec/config metadata, and observed security variant. Capture only field names/types and approved non-secret values; never retain keys, pairing secrets, or session secrets. This plan is not authorization to run an iPhone session; any phone use remains separately scoped.
