@@ -24,6 +24,10 @@ The source describes calling stock Setup with the original request first, preser
 
 Classification: `EXTERNAL_PRIOR_ART`. It supports a stock-first integration pattern for that target only. It does not prove Honda's accepted keys, Type-111 response schema, field names, crypto lifecycle, hook safety, or availability of a comparable Honda seam.
 
+### Legacy AES evidence addendum (Step 43O planning)
+
+The pinned [`STREAM111_PROTOCOL.md`](https://github.com/harman-f/mhi2_altscreen_carplay/blob/c2f811f1a5c84dae3a62f4cf9b4a9e65fc3f7b3c/docs/research/STREAM111_PROTOCOL.md) makes the older-generation crypto chain explicit: MHI2's Type111 path uses its established session AES material plus the secondary stream's `streamConnectionID` with `AirPlay_DeriveAESKeySHA512ForScreen`, then maintains an AES-CTR context through screen setup, frames, and stop. The pinned [`45clouds/WirelessCarPlay` source](https://github.com/45clouds/WirelessCarPlay/blob/51145ef55f8dd9f1cbadd58353cacb5e0ca215e9/source/Sources/AirPlayReceiverSession.c) independently reads the screen descriptor's `streamConnectionID` and passes it with session AES material into that derivation on its legacy non-PairVerify screen path. This raises the cross-platform legacy per-screen KDF model to strong external prior art. Honda Type111 remains `HONDA_UNKNOWN`; use these only to guide the offline isolation model, not to claim Honda crypto compatibility. Full boundary: [legacy AES Type111 cross-reference](legacy-aes-type111-cross-reference.md).
+
 ## CPC200: documented Type-111 ordering
 
 Repository: [`lvalen91/CPC200-CCPA_resources`](https://github.com/lvalen91/CPC200-CCPA_resources), pinned `e3e5d005552d3fa6f264634b377d30b0794dd1eb`. Inspected [`video_protocol.md`](https://github.com/lvalen91/CPC200-CCPA_resources/blob/e3e5d005552d3fa6f264634b377d30b0794dd1eb/documentation/02_Protocol_Reference/video_protocol.md), especially its “TTY Log Correlation: Video Stream Setup” section.

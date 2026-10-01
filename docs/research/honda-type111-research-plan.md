@@ -28,15 +28,19 @@ Search static code and preserved observations for `suggestUI`, `showUI`, `stopUI
 
 ### 3. Type110 to possible Type111 crypto reuse audit
 
-Trace allocation and ownership for receiver-session master material, `streamConnectionID`, AES key/IV derivation, and CTR state. Determine whether a second identifier can be derived without mutating/resetting the Type110 state. Do not infer Type111 KDF compatibility from the confirmed Type110 KDF or from MHI2. Use synthetic keys in tests; never check in live keys or capture payloads.
+Cross-platform legacy evidence now narrows this from an unknown crypto design to a strong hypothesis: pinned MHI2 uses its stock legacy per-screen AES KDF with its Type111 `streamConnectionID`, and pinned WirelessCarPlay's legacy screen path passes its own stream ID and session AES material to the same named derivation family. See [legacy AES Type111 cross-reference](../../research/carplay/legacy-aes-type111-cross-reference.md). This does **not** establish Honda Type111: Honda ABI, ownership, second CTR context, and isolation still require offline modeling against Honda-confirmed Type110 primitives. Use synthetic values only; never include live keys or capture payloads.
 
 ### 4. Minimal stock-delegating callsite trampoline model (offline) — completed in 43N
 
 Step 43N added an offline-only model and target compatibility planner. No loader, installer, patch bytes, or Honda runtime behavior is proven. `LD_PRELOAD` remains parked.
 
-### 5. PlayPort Mac/iPhone Type111 oracle (offline build next; phone run separately gated)
+### 5. PlayPort Mac/iPhone Type111 oracle (43O build next; phone observation in 43P)
 
-Build an isolated opt-in cluster profile and separate 110/111 frontend render paths in a separate PlayPort checkout, with synthetic tests and redacted diagnostics. Do not vendor upstream source into ClarityLink. Any iPhone connection or credential use requires separate explicit authorization. See the [oracle plan](../../research/lab/playport-type111-oracle-plan.md).
+Step 43O builds an isolated, opt-in cluster profile, separate 110/111 frontend render paths, and redacted diagnostics for negotiated feature/order, Type111 endpoint, media generation/security category, and independent 111 start/stop while Type110 remains active in the model. Step 43O makes no phone connection. Step 43P may collect a separately scoped trace for a selected iOS build. Do not vendor upstream code. See the [oracle contract](../../research/lab/playport-type111-oracle-plan.md).
+
+### 5a. Conditional Step 43Q: offline legacy Type111 crypto/lifecycle twin
+
+Only after 43O is built and 43P observations are reviewed, model a second legacy AES screen context using Honda-confirmed Type110 primitives and synthetic second IDs. Prove independent keys/IVs/CTR state and that Type111 stop, restart, or malformed frames cannot affect Type110. This is not runtime attachment or Honda Type111 confirmation.
 
 ### 6. ExternalDisplay synthetic renderer proof
 
