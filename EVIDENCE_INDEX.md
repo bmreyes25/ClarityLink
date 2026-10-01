@@ -507,3 +507,13 @@ Honda-specific source notes remain separately indexed below; no external project
 | Detection/rollback | Same seam note; `src/claritylink-negotiation/setup_transaction.py`; `tests/negotiation/test_setup_contract.py` | `ORIGINAL_REQUEST_AFTER_STOCK` is supported by static flow; synthetic failure model preserves stock values and rolls project state back. No Honda Type111 semantics claimed. |
 | External comparison | `research/carplay/setup-stream-identity-prior-art.md` | MHI2 stock-first clone/append is `EXTERNAL_PRIOR_ART` only; hook safety and schema are not portable facts. |
 | Decision | `step-reports/43e-post-setup-response-seam.md`; `NEXT_ACTION.md` | `SAFE_STATIC_CANDIDATE`; implementation/readiness gates remain NO; next task is exact liveness and cleanup proof. |
+
+# Step 43F — caller liveness and CF cleanup (2026-09-30)
+
+| Area | Primary evidence | Finding |
+|---|---|---|
+| Caller instruction liveness | `research/carplay/honda-post-setup-caller-liveness.md`; `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` | Request dictionary `[sp+0x1c]`, session reload `[r10+0xf4]`, responseOut `[sp+0x54]`, HTTP request `r6`, connection `r4`, and status `[sp+0x50]` remain available through direct serializer call at `0x28afba`. |
+| Serializer and cleanup | Same note; `_requestSendPlistResponse` `0x289f60`; common release `0x28b052` | Direct same Setup response is synchronously serialized; caller releases after helper returns. Later HTTP state-machine write is asynchronous/later. |
+| Mutable CF objects | Same note; Setup `CFDictionaryCreateMutable` `0x28557e`; `_AddResponseStream` `0x284db8` | Stock response and streams array are `CONFIRMED_MUTABLE` by creation/append path. Callback identities/precise retain accounting and caller-side race safety remain unresolved. |
+| Callout/failure model | Same note; `step-reports/43f-caller-liveness-cf-cleanup.md` | Structural insertion interval found; callout requires trampoline; cleanup after serializer/queue failure is partial. |
+| Test environment/readiness | `docs/development/testing.md`; `requirements-test.txt`; [Offline CI run](https://github.com/bmreyes25/ClarityLink/actions/runs/36813310742); `NEXT_ACTION.md` | Local pytest unavailable although setup instructions exist; CI passed on starting HEAD. Seam implementation design remains `NEEDS_MORE_STATIC_PROOF`; no live gate advanced. |

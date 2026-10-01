@@ -1,6 +1,6 @@
 # Type 111 unknown register
 
-Step 43E established a synchronous stock-response ownership window and documented an offline-only rollback contract. It does not resolve any Honda Type111 wire/schema/security/display unknown. See [Honda post-Setup response seam](honda-post-setup-response-seam.md). The candidate next task is to recover exact caller instruction liveness and CF/runtime cleanup guarantees before an implementation design.
+Step 43F confirms exact caller pointer liveness and mutable stock response/array construction in the matching `jmcs` ELF. It does not resolve Honda Type111 wire/schema/security/display unknowns or caller-side mutation safety. Callback ownership and cleanup after serializer/HTTP failure remain open; see [caller liveness and cleanup](honda-post-setup-caller-liveness.md). No implementation/live gate changes.
 
 All Type111 wire/schema rows remain unknown for Honda. Step 43B narrows some static descriptor questions but does not establish Type111 behavior. Offline tests validate candidate handling but cannot resolve wire behavior.
 

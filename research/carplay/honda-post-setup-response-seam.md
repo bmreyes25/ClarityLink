@@ -1,5 +1,7 @@
 # Honda post-Setup / pre-serialization response seam — Step 43E
 
+**Step 43F refinement:** Instruction-level disassembly now confirms caller locations and direct serializer input. The response and streams array are classified `CONFIRMED_MUTABLE` as constructed by stock Honda; this does not prove arbitrary caller-side mutation safety. CF callback ownership and project cleanup after serializer/HTTP failure remain incomplete. See [Step 43F caller liveness and cleanup](honda-post-setup-caller-liveness.md).
+
 **Scope:** offline static audit of the identity-verified Honda `jmcs` ELF and synthetic response-preservation model. No vehicle, ADB, Honda runtime, binary modification, hook, Type111 implementation, or live render test was used.
 
 ## Finding
@@ -82,4 +84,4 @@ Classification: `EXTERNAL_PRIOR_ART` for MHI2, `HONDA_CONFIRMED` for Honda stati
 - Establish a project-only cleanup owner and prove candidate-container rollback preserves the original response object on allocation failure; the Python model cannot prove CF retain/release behavior.
 - Keep schema, capability-token, UUID/stream correlation, crypto, and renderer requirements as separate unresolved layers.
 
-**Decision:** `SAFE_STATIC_CANDIDATE` for studying the seam and running an offline model; `IMPLEMENTATION_DESIGN_READY: NO`. Live, jmcs, ExternalDisplay, and LD_PRELOAD gates remain closed/parked.
+**Step 43E decision:** `SAFE_STATIC_CANDIDATE` for studying the seam and running an offline model; `IMPLEMENTATION_DESIGN_READY: NO`. Step 43F refines caller liveness and mutability, but implementation design remains `NEEDS_MORE_STATIC_PROOF` pending callback ownership and cleanup-edge evidence. Live, jmcs, ExternalDisplay, and LD_PRELOAD gates remain closed/parked.

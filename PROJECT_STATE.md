@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 43F — caller liveness and CF cleanup (offline)
+
+Instruction-level disassembly confirms request/session/response liveness through the serializer call and direct same-object synchronous serialization. Stock response/streams are confirmed mutable by their construction path; caller-side mutation safety is not. CF callback ownership and cleanup after serializer/HTTP failure remain unproven. Design remains NEEDS_MORE_STATIC_PROOF; implementation/live gates NO; LD_PRELOAD PARKED. Local canonical runner lacks expected pytest, but Offline CI passed for HEAD 735c266. Next: resolve callback ownership and failure cleanup edges. See [Step 43F](step-reports/43f-caller-liveness-cf-cleanup.md).
+
 ## Step 43E — post-Setup response seam (offline)
 
 `_connectionHandleMessage` passes the exact successful Setup response to synchronous binary-plist serialization and releases it afterward. Stock response/array construction is mutable; caller-side mutation remains `INDIRECT_CANDIDATE`. The request and receiver/session remain in caller context. The synthetic stock-first response model passes focused preservation/rollback coverage but does not prove Honda CF mutation or Type111 schema. Seam is `SAFE_STATIC_CANDIDATE`; implementation design, live test, jmcs integration, and ExternalDisplay live render remain NO; LD_PRELOAD stays PARKED. See [Step 43E](step-reports/43e-post-setup-response-seam.md). **Next:** establish exact caller instruction liveness and CF/runtime cleanup guarantees through serialization.
