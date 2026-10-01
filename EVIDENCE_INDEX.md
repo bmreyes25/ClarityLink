@@ -579,3 +579,13 @@ Honda-specific source notes remain separately indexed below; no external project
 | Project child and readiness | `research/carplay/honda-project-child-lifecycle-contract.md` | Finalizer is a candidate; request-aware child attachment unknown; exact-once contract remains synthetic; project model needs more static proof. |
 | External prior art | `docs/research/airplay-session-lifecycle-prior-art.md` | `EXTERNAL_PRIOR_ART` only; no ABI equivalence inferred. |
 | Report/tests | `step-reports/43i-honda-session-delegate-finalizer.md`; `NEXT_ACTION.md` | See report for test results and gates. |
+
+## Step 43J — platform lifecycle seam
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| R11B structural fingerprint | Honda delegate disassembly; pinned R11B prior art; `research/carplay/honda-session-delegate-lifecycle.md` | All 11 offsets and populated/null slots align; STRONG structural fingerprint only, no Honda ABI names/provenance inferred. |
+| Request-aware teardown routing | PlatformControl `0x28cd88`, branch `0x28cfe0–0x28d2e2`; [platform lifecycle trace](research/carplay/honda-platform-lifecycle-seam.md) | `tearDownStreams` handles typed streams internally. Does not call delegate control at session+0x24. Types 100/101/110 recognized; Type111 unknown/ignored. |
+| Full-session cleanup | `_Finalize` `0x284d24` calls PlatformFinalize `0x28cd60`; symbol/call audit | One direct call per finalizer invocation; tolerates no platform pointer; null-request `_TearDownStreams`, free and clear. HTTP/earlier teardown independent. |
+| Synthetic registry/adapter | `src/carplay-session-model/project_lifecycle.py`; focused tests; [child contract](research/carplay/honda-project-child-lifecycle-contract.md) | Offline-only, idempotent child cleanup keyed by `(session,generation)`; stock called once with unchanged request; not an installable Honda extension. |
+| Readiness | [Step 43J](step-reports/43j-platform-lifecycle-seam.md); `NEXT_ACTION.md` | Child lifecycle READY_FOR_OFFLINE_PROTOTYPE; post-Setup seam and safe platform integration remain NEEDS_MORE_STATIC_PROOF; live gates NOT READY; LD_PRELOAD PARKED. |

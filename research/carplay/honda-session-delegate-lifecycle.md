@@ -33,13 +33,31 @@ At `0x284d30–0x284d36`, `_Finalize` loads the callback at session offset `+0x2
 
 The delegate structure is copied, not merged. The existing callback is non-null. No Honda behavior in this step modifies, replaces, or chains it.
 
+### R11B structural comparison (external fingerprint only)
+
+| Offset | Honda recovered behavior | R11B field | Match class |
+|---:|---|---|---|
+| +0x00 | application context | context | EXACT_STRUCTURAL_MATCH |
+| +0x04 | null | context2 | EXACT_STRUCTURAL_MATCH |
+| +0x08 | null | initialize_f | EXACT_STRUCTURAL_MATCH |
+| +0x0c | session-finalized callback | finalize_f | EXACT_STRUCTURAL_MATCH |
+| +0x10 | session-control callback | control_f | EXACT_STRUCTURAL_MATCH |
+| +0x14 | copy-property callback | copyProperty_f | EXACT_STRUCTURAL_MATCH |
+| +0x18 | null | setProperty_f | EXACT_STRUCTURAL_MATCH |
+| +0x1c | modes-changed callback | modesChanged_f | EXACT_STRUCTURAL_MATCH |
+| +0x20 | request-UI callback | requestUI_f | EXACT_STRUCTURAL_MATCH |
+| +0x24 | duck-audio callback | duckAudio_f | EXACT_STRUCTURAL_MATCH |
+| +0x28 | unduck-audio callback | unduckAudio_f | EXACT_STRUCTURAL_MATCH |
+
+All 11 slots including null/populated pattern align; `HONDA_R11B_DELEGATE_FINGERPRINT: STRONG`. R11B's source-level names remain external labels, not newly asserted Honda facts.
+
 ## Request-aware stream teardown
 
 `AirPlayReceiverSessionTearDown` (`0x2852ec`) calls `AirPlayReceiverSessionPlatformControl` (`0x28cd88`) at `0x285364`, before its later teardown work. It passes the session, flag `1`, the CFString object whose backing text is `tearDownStreams`, null qualifier, the original request (`r5`) as the first stack argument, and null output pointer. The literal object begins at `0x3373d7`; its backing text begins at `0x3373e7`.
 
-`AirPlayReceiverSessionPlatformControl` compares the command and reads typed stream dictionaries from the request array. It reads each stream `type` and has explicit branches for decimal 100 (`0x64`), 101 (`0x65`), and 110 (`0x6e`). Type 100 and 101 select separate state slots; Type 110 takes a branch that skips the corresponding platform stream-state update. This proves Honda's request-aware handling and a Type110 distinction in this platform path. It does not prove Type111 support, nor that an application callback is dispatched for these recognized requests.
+`AirPlayReceiverSessionPlatformControl` compares the command and reads typed stream dictionaries from the request array. The `tearDownStreams` branch at `0x28cfe0` extracts each stream type; 100/101 select separate platform state slots and 110 takes the platform update path. Unknown types log and continue. This branch never loads/calls the delegate control slot at `session+0x24`; that indirect callback is only on the unmatched-command path at `0x28d2c2–0x28d2d6`. Consequently `TEARDOWNSTREAMS_TO_DELEGATE_CONTROL=NO`, and `TYPE111_CURRENT_PLATFORMCONTROL_RESULT=IGNORED` (unknown type, no application callback). The detail and synthetic lifecycle contract are in [Step 43J](../../step-reports/43j-platform-lifecycle-seam.md).
 
-The finalizer also has a separate unconditional `_TearDownStreams(session, 0)` call through `AirPlayReceiverSessionPlatformFinalize`. Stream-level request handling and final object destruction are therefore separate Honda code paths.
+The finalizer has a single direct call to `AirPlayReceiverSessionPlatformFinalize` per CF finalizer invocation. That helper skips safely with no platform pointer; otherwise it invokes `_TearDownStreams(session, NULL)`, frees the platform state, and clears `session+0x10`. Stream-level request handling and final object destruction are separate Honda paths. This is a full-session cleanup safety signal independent of HTTP or earlier teardown.
 
 ## Three-layer lifecycle matrix
 
@@ -54,9 +72,9 @@ The finalizer also has a separate unconditional `_TearDownStreams(session, 0)` c
 
 ## Project-child lifecycle assessment
 
-The Honda binary proves a natural full-session-object callback: `_AirPlayHandleSessionFinalized(session, context)` is already installed and called before platform/stream teardown. It is a strong **candidate** for an application-owned child cleanup safety net, if future source-level integration preserves the existing callback and its context/order. `AirPlayReceiverSessionSetDelegate` overwrites the whole table, so a project-only delegate would erase current callbacks and is explicitly unsafe.
+The Honda binary proves `_AirPlayHandleSessionFinalized(session, context)` is installed and called before platform/stream teardown. It remains Honda-owned. The project design does not replace or extend this delegate; its lifecycle model uses the platform request path and finalization cleanup semantics, with safe interception still unproven. `AirPlayReceiverSessionSetDelegate` overwrites the whole table, so a project-only delegate would erase current callbacks and is explicitly unsafe.
 
-The request-aware `tearDownStreams` path is proven, but no dedicated project child callback is established. Its current stream-type parser recognizes 100/101/110, and Honda's Type110-specific handling must remain untouched. An explicit future Type111 teardown path is not present in evidence. **`PROJECT_CHILD_ATTACHMENT_POINT: CANDIDATE`** for session finalization; **request-aware project-stream attachment remains `UNKNOWN`**. Thus the two-signal project-child lifecycle is not fully proven and remains `NEEDS_MORE_STATIC_PROOF`.
+The platform layer supplies both lifecycle semantics: request-aware teardown reaches the platform parser (but not the app delegate), and PlatformFinalize is the unconditional session-object cleanup path. The external ClarityLink registry/idempotent-child contract is ready for offline prototype. This proves lifecycle semantics, not safe interposition or extension. Project cleanup attachment and post-Setup child creation still need static integration proof.
 
 ## Reproducibility
 
