@@ -1,3 +1,7 @@
+**Step 43H update:** HTTP header commit failure is no longer an unknown effect: its nonzero status propagates through the request handler and state machine, which closes the HTTP connection; connection finalization reaches receiver-session teardown conditionally when the private session pointer exists. A supported child subscription across all parent teardown sources is still unproven, so seam readiness remains `NEEDS_MORE_STATIC_PROOF`. See [Step 43H](../../step-reports/43h-http-commit-and-session-cleanup.md).
+
+**Step 43G correction:** Exact callback tables and stock Type110 nested ownership are now proven from the hash-matched ELF. This upgrades container lifetime confidence, but does not establish safe arbitrary caller-side mutation, race freedom, queue-failure cleanup, or a project-owned lifecycle callback. The post-serialization response graph is already released before network failures. The post-Setup seam remains `NEEDS_MORE_STATIC_PROOF`. See [Step 43G](../../step-reports/43g-setup-cf-ownership-and-network-cleanup.md).
+
 # Honda post-Setup / pre-serialization response seam — Step 43E
 
 **Step 43H update:** Setup response and `streams` constructor callback arguments remain unresolved, so container retention and safe project ownership cannot be promoted. Successful serialization ends the CF response graph's required lifetime; post-serialization queue/write failures are a separate project lifecycle concern. See [Step 43H](../../step-reports/43h-cf-callback-fingerprint.md).

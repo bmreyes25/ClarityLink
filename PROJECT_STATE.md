@@ -1,3 +1,11 @@
+## Step 43H — HTTP commit failure and session cleanup lifecycle (offline, 2026-10-01)
+
+Step 43G's exact CF callback tables and Type110 container graph remain proven. Step 43H traces `HTTPConnectionSendResponse` → `HTTPHeader_Commit` return through `_connectionHandleMessage` into `_HTTPConnectionRunStateMachine`: commit/header failure returns nonzero and takes the connection stop/close callback path. `_connectionFinalize` conditionally calls `AirPlayReceiverSessionTearDown` when its private context session pointer is non-null. Full teardown stops screen/audio/control/timing resources in the recovered order. No supported project-child subscription point spanning all parent teardown sources is proven, so the cleanup model and post-Setup seam still need more static proof; all jmcs/live/Type111 gates remain closed and LD_PRELOAD remains parked. Canonical offline suite: 241 passed, 4 skipped; locator smoke and JS checks passed. See [Step 43H](step-reports/43h-http-commit-and-session-cleanup.md).
+
+## Step 43G — Setup CF ownership and connection failure cleanup (offline, 2026-10-01)
+
+Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly proves Setup passes Honda CFL CFType-style key and value callback tables to its response dictionary; `_AddResponseStream` passes the CFL CFType-style retaining table to `streams`. Type110 entry creation uses the same dictionary callbacks, append invokes the array retain callback, then Honda releases local entry/array references after insertion; the response release after synchronous serialization dispatches recursive array/dictionary finalizers. Terminal HTTP read/write failure stops and closes the HTTP connection; its finalizer can call `AirPlayReceiverSessionTearDown`. HTTP header-commit failure and any future project-child cleanup subscription remain unknown. Thus stock container ownership is proven, but the project seam remains `NEEDS_MORE_STATIC_PROOF`; jmcs integration, no-op, live, ExternalDisplay, and Type111 gates remain NOT READY; LD_PRELOAD remains PARKED. Synthetic delivery/lifecycle model and VA mapper tests are separate from Honda proof. See [Step 43G](step-reports/43g-setup-cf-ownership-and-network-cleanup.md) and linked research notes.
+
 # ClarityLink project state — 2026-09-30
 
 ## Step 43H — callback fingerprint and serialization boundary (offline)

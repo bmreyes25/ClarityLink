@@ -1,3 +1,27 @@
+# Step 43H — HTTP commit and receiver-session cleanup (offline)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Preserved Step 43G / binary identity | Step 43G files; jmcs SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` | Step 43G uncommitted artifacts were preserved; reference hash matches. |
+| HTTP response commit return | `HTTPConnectionSendResponse` `0x29dbe4`; `HTTPHeader_Commit` `0x29dd18`; `_connectionHandleMessage` call `0x28b790` | `HONDA_CONFIRMED`: commit error is returned unchanged, handler returns it, state machine checks it and takes connection stop/close callback. |
+| Response send state machine | `_HTTPConnectionRunStateMachine` `0x29d698`; `SocketWriteData` `0x2a01c0`; `UpdateIOVec` `0x29fc94` | `HONDA_CONFIRMED`: state 0 read/handler, state 1 write; EINTR retries, EAGAIN/partial writes return 11, terminal results close. |
+| Finalizer/session teardown | `_connectionFinalize` `0x289d90`; `AirPlayReceiverSessionTearDown` `0x2852ec` | `HONDA_CONFIRMED`, conditional on private context session pointer: finalizer calls teardown, then releases/clears session reference. |
+| Teardown order | `_ScreenTearDown` `0x284628`; `_TearDownStream` `0x284bd8`; Step 43H report | `HONDA_CONFIRMED` for bounded sequence; accepted ScreenStream socket lifetime and crypto zeroization unknown. |
+| Project child lifecycle | `research/carplay/honda-project-child-lifecycle-contract.md`; synthetic failure tests | `HYPOTHESIS`/`SYNTHETIC_TEST_VALUE`: exact-once project cleanup contract tested; supported Honda attachment point remains unknown. |
+| Tests / readiness | Step 43H report; `NEXT_ACTION.md` | Canonical offline checks pass; project cleanup and seam remain `NEEDS_MORE_STATIC_PROOF`; live gates closed. |
+
+# Step 43G — Setup CF ownership and connection failure cleanup (offline)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Artifact / address mapping | `extracted/system/system/bin/jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; `tools/elf_va_map.py`; `research/carplay/honda-setup-cf-callbacks.md` | `HONDA_CONFIRMED`: exact reference hash; PT_LOAD-aware VA/file map plus GOT relocations resolve constructor arguments and callback table words. |
+| Setup response dictionary | `AirPlayReceiverSessionSetup` `0x28557e`; detailed callback report | `HONDA_CONFIRMED`: key table `0x3428fc`, value table `0x342914`; wrappers dispatch to CFL retain/release/equality/hash. Both are CFType-style retaining tables. |
+| streams array | `_AddResponseStream` `0x284de2`; detailed callback report | `HONDA_CONFIRMED`: table `0x342858` with retain/release/equality and NULL description; retaining CFL callbacks. |
+| Type110 ownership | `research/carplay/honda-type110-ownership-ledger.md` | `HONDA_CONFIRMED`: entry retained by array, streams array retained by response, local references released after insertion; recursive finalizer path identified. Per-scalar temporary counts/aliases are not all quantified. |
+| Serialization boundary | `research/carplay/honda-post-setup-caller-liveness.md`; Step 43G report | `HONDA_CONFIRMED`: synchronous serialization precedes caller response release; subsequent HTTP/network delivery does not need CF graph rollback. |
+| HTTP and session failure | `research/carplay/honda-http-failure-session-cleanup.md` | Terminal read/write error closes HTTP connection and connection finalizer invokes receiver session teardown; commit/queue failure effect remains `UNKNOWN`; project-child subscription not established. |
+| Synthetic model / readiness | `src/claritylink-negotiation/response_delivery_model.py`; `tests/negotiation/test_response_delivery_ownership.py`; Step 43G report | Synthetic lifecycle invariants only; no Honda semantics inferred. Seam needs more static proof; all live/implementation gates remain closed; LD_PRELOAD parked. |
+
 # Step 43D — Honda Setup stream identity (offline)
 
 | Evidence item | Source | Finding / classification |

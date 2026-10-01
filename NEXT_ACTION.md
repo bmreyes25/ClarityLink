@@ -1,3 +1,9 @@
 # Next action
 
+Determine whether `AirPlayReceiverSessionPlatformControl` provides a documented teardown notification that a future project child can observe, and whether an integration can attach to it without a runtime hook. The HTTP commit failure path is now proven to close the connection; the remaining lifecycle gap is a supported project-child attachment point that covers parent teardown sources beyond that HTTP connection. If no such API exists, keep the attachment point unknown and define only a synthetic adapter boundary. See [Step 43H](step-reports/43h-http-commit-and-session-cleanup.md) and [session teardown lifecycle](research/carplay/honda-session-teardown-lifecycle.md).
+# Next action
+
+Trace the `HTTPConnectionSendResponse` header-commit failure return from `_connectionHandleMessage` back into `_HTTPConnectionRunStateMachine`, and prove whether that error closes the connection, retains it for retry, or leaves the receiver session alive. Keep this offline; do not implement Type111. The Setup callback/Type110 container graph is now proven, and terminal read/write errors reach connection-finalizer session teardown. See [Step 43G](step-reports/43g-setup-cf-ownership-and-network-cleanup.md) and [HTTP failure cleanup](research/carplay/honda-http-failure-session-cleanup.md).
+# Next action
+
 Recover with a verified VA-aware ELF dump/disassembly the exact callback arguments at Setup response dictionary (`0x28557e`) and `streams` array (`0x284de2`), Type110 entry callback/release ledger, and HTTP connection failure callback target/session cleanup edge. Keep offline; do not implement Type111. Step 43H confirms the response graph is finished after synchronous serialization, so later queue/write failures need no CF graph rollback. Start with [Step 43H callback fingerprint](step-reports/43h-cf-callback-fingerprint.md).
