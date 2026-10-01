@@ -617,3 +617,13 @@ Honda-specific source notes remain separately indexed below; no external project
 | Cleanup reachability | `research/carplay/honda-project-child-cleanup-reachability.md`: HTTP close conditionally tears down non-null session; Honda session finalization is proven but project child cannot reach it through a supported subscription. Response graph is released before network delivery. |
 | Generation guard | `project-session-registry.md`: generation and idempotent cleanup exist synthetically; watchdog timing/renewal and Honda event hookup are unknown. Required; model PARTIAL. |
 | Decision | [43L.1 report](step-reports/43l1-callout-safety-cleanup-reachability.md): CALLOUT CANDIDATE_ONLY; ABI PARTIAL; cleanup PARTIAL/NOT_PROVEN; integration NEEDS_MORE_STATIC_PROOF. |
+
+## Step 43L.2 — finalizer extension and generation guard
+
+| Evidence | Finding |
+|---|---|
+| Finalizer callback | [`honda-session-finalizer-dataflow.md`](research/carplay/honda-session-finalizer-dataflow.md): `_Finalize` calls the Honda per-session finalizer with session/context; finalizer emits interface event 2 (`MC_DEV_CARPLAY_SESSION_DESTROYED`) through a global callback. |
+| Registration and chaining | [`honda-session-finalizer-registration.md`](research/carplay/honda-session-finalizer-registration.md): both session delegate and app interface callback setters replace fixed-size whole records; no multi-subscriber dispatch or safe session-addressable chain found. |
+| Cleanup consequence | [`honda-project-child-cleanup-reachability.md`](research/carplay/honda-project-child-cleanup-reachability.md): pre-session delivery failure does not prove finalizer execution; finalizer is optional cleanup signal. |
+| Project guard | [`honda-generation-guard-model.md`](research/carplay/honda-generation-guard-model.md), `project_lifecycle.py`: exact generation supersession, configurable renewable lease/reaping, idempotent cleanup; synthetic only. |
+| Decision | [43L.2 audit](step-reports/43l2-session-finalizer-extension-audit.md): NO_SUPPORTED_EXTENSION; guard COMPLETE offline; `LIFECYCLE_MODEL_READY_CALLOUT_UNRESOLVED`; runtime integration not ready. |

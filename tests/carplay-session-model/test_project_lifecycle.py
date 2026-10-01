@@ -92,6 +92,14 @@ class ProjectLifecycleTests(unittest.TestCase):
         self.assertEqual(self.registry.child(self.key).phase, model.ChildPhase.ACTIVE)
         self.assertEqual(self.registry.child(self.key).resource_owner, model.ResourceOwner.REGISTRY)
 
+    def test_serializer_success_requires_http_200_and_zero_body_status(self):
+        self.assertFalse(self.tx.observe_serializer_result(0xC8, -1))
+        self.assertFalse(self.tx.observe_serializer_result(0, 0))
+        self.assertFalse(self.tx.observe_serializer_result(0x1F4, 0))
+        self.assertFalse(self.tx.response_ready)
+        self.assertTrue(self.tx.observe_serializer_result(0xC8, 0))
+        self.assertTrue(self.tx.response_ready)
+
     def test_finalize_before_commit_prevents_late_activation(self):
         self.registry.platform_finalize(self.key, lambda: 0)
         with self.assertRaisesRegex(RuntimeError, "no longer prepared"):
@@ -331,6 +339,35 @@ class ProjectLifecycleTests(unittest.TestCase):
         a.start(); b.start(); barrier.wait(); a.join(); b.join()
         self.assertEqual(len(self.closed), 6)
         self.assertEqual(len(set(self.closed)), 6)
+
+    def test_new_generation_supersedes_and_cleans_prepared_child(self):
+        newer = self.registry.next_key(self.identity)
+        self.assertEqual(newer.generation, self.key.generation + 1)
+        self.assertIsNone(self.registry.child(self.key))
+        self.assertEqual(len(self.closed), 6)
+        self.assertIsNone(self.registry.active_key(self.identity))
+
+    def test_expired_generation_is_reaped_and_cannot_touch_replacement(self):
+        now = [10.0]
+        registry = model.ProjectSessionRegistry(lease_seconds=5.0, clock=lambda: now[0])
+        identity = object()
+        old = registry.next_key(identity)
+        old_closed = []
+        registry.prepare_child(old, lambda: [Resource("old", old_closed)])
+        now[0] = 14.0
+        self.assertTrue(registry.renew_lease(old))
+        now[0] = 18.0
+        self.assertEqual(registry.reap_expired(), ())
+        new = registry.next_key(identity)
+        new_closed = []
+        registry.prepare_child(new, lambda: [Resource("new", new_closed)])
+        self.assertEqual(registry.reap_expired(now=20.0), ())
+        self.assertIsNotNone(registry.child(new))
+        self.assertEqual(registry.reap_expired(now=24.0), (new,))
+        self.assertIsNone(registry.child(new))
+        self.assertEqual(old_closed, ["old"])
+        self.assertEqual(new_closed, ["new"])
+        self.assertFalse(registry.renew_lease(old))
 
     def test_sequence_enumeration_preserves_exactly_once_invariant(self):
         events = ("commit", "teardown", "eof", "finalize")

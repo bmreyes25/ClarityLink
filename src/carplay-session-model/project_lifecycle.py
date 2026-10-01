@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from threading import RLock
+from time import monotonic
 from typing import Any, Callable, Hashable, Iterable, Protocol
 
 
@@ -119,8 +120,13 @@ class RequestObservation:
 class ProjectSessionRegistry:
     """Thread-safe registry for project-only resources, never Honda-owned state."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, lease_seconds: float = 300.0, clock: Callable[[], float] = monotonic) -> None:
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
         self._lock = RLock()
+        self._lease_seconds = lease_seconds
+        self._clock = clock
+        self._lease_deadline: dict[ProjectSessionKey, float] = {}
         self._children: dict[ProjectSessionKey, ProjectChildState] = {}
         self._latest_generation: dict[Hashable, int] = {}
         self._last_prepared_generation: dict[Hashable, int] = {}
@@ -133,7 +139,13 @@ class ProjectSessionRegistry:
         with self._lock:
             generation = self._latest_generation.get(session_identity, 0) + 1
             self._latest_generation[session_identity] = generation
-            return ProjectSessionKey(session_identity, generation)
+            stale = tuple(
+                key for key in self._children
+                if key.session_identity == session_identity and key.generation < generation
+            )
+        for key in stale:
+            self.stop_child(key, "superseded by newer generation")
+        return ProjectSessionKey(session_identity, generation)
 
     def prepare_child(
         self,
@@ -151,6 +163,7 @@ class ProjectSessionRegistry:
                 raise ValueError("project session generation was already used")
             child = ProjectChildState(key)
             self._children[key] = child
+            self._lease_deadline[key] = self._clock() + self._lease_seconds
             self._last_prepared_generation[key.session_identity] = key.generation
 
         try:
@@ -182,9 +195,30 @@ class ProjectSessionRegistry:
     def _detach(self, key: ProjectSessionKey) -> ProjectChildState | None:
         with self._lock:
             child = self._children.pop(key, None)
+            self._lease_deadline.pop(key, None)
             if self._active_key.get(key.session_identity) == key:
                 self._active_key.pop(key.session_identity, None)
             return child
+
+    def renew_lease(self, key: ProjectSessionKey) -> bool:
+        """Renew only the exact current generation after project-owned activity."""
+        with self._lock:
+            if key.generation != self._latest_generation.get(key.session_identity):
+                return False
+            child = self._children.get(key)
+            if child is None or child.phase not in (ChildPhase.PREPARED, ChildPhase.ACTIVE):
+                return False
+            self._lease_deadline[key] = self._clock() + self._lease_seconds
+            return True
+
+    def reap_expired(self, *, now: float | None = None) -> tuple[ProjectSessionKey, ...]:
+        """Stop expired exact generations; stale cleanup cannot touch replacements."""
+        current = self._clock() if now is None else now
+        with self._lock:
+            expired = tuple(key for key, deadline in self._lease_deadline.items() if deadline <= current)
+        for key in expired:
+            self.stop_child(key, "generation lease expired")
+        return expired
 
     def stop_child(self, key: ProjectSessionKey, reason: str) -> None:
         child = self._detach(key)
@@ -277,6 +311,13 @@ class PreparedChildTransaction:
         if self.finished or child is None or child.phase is not ChildPhase.PREPARED:
             raise RuntimeError("project child is no longer prepared")
         self.response_ready = True
+
+    def observe_serializer_result(self, return_code: int, status_out: int) -> bool:
+        """Apply Honda's recovered local-success predicate to a synthetic twin."""
+        if return_code != 0xC8 or status_out != 0:
+            return False
+        self.mark_response_ready()
+        return True
 
     def commit_after_response_commit(self) -> bool:
         """Caller invokes only once the future response transaction has committed."""

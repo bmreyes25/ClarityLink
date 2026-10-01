@@ -47,3 +47,7 @@ The stock-first response seam remains a static candidate only. Named CFL array/d
 ## Step 43L.1 register boundary update
 
 In `_connectionHandleMessage`, Setup at `0x28af72` receives `r0=session`, `r1=request`, `r2=&responseOut`. At the best structural candidate after stock metadata (`0x28afb2`), durable values are reloaded from `[r10+0xf4]`, `[sp+0x1c]`, `[sp+0x54]`, and `[sp+0x50]`; `r4` connection and `r6` HTTP message are callee-saved. Caller-saved `r0-r3/r12` are not durable. This caller ABI is not a Honda Type111 request ABI. Honda Setup still skips unsupported Type111, and no descriptor/security/dataPort semantics are established. Generic position-independent `streams[*].type == 111` inspection is a `SYNTHETIC_TEST_VALUE` project rule and must remain read-only. See [43L.1 callout/cleanup audit](../../step-reports/43l1-callout-safety-cleanup-reachability.md).
+
+## Step 43L.2 lifecycle update
+
+Honda has an interface event named `MC_DEV_CARPLAY_SESSION_DESTROYED`, but it is not Type111/session cleanup evidence: it is emitted through a single global callback slot, its setter replaces the whole callback record, and its callback arguments omit the AirPlay session identity. Project cleanup remains generation-owned with synthetic bounded lease/reap behavior. All Type111 schema, crypto, negotiation, identity, and live behavior rows remain `HONDA_UNKNOWN`; this milestone changes none of them. See [43L.2 finalizer audit](../../step-reports/43l2-session-finalizer-extension-audit.md).

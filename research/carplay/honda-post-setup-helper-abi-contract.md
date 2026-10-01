@@ -18,3 +18,7 @@ The caller frame is 8-byte aligned at the candidate (`push {r4-r11,lr}` plus `su
 For any serializer-success commit observer, distinguish the return convention: `_requestSendPlistResponse` returns `0xc8` on body-install success and `0x1f4` on helper error; `[sp+0x50]` receives `HTTPMessageSetBody`'s return (zero means success). Header-init/plist-creation failure writes a nonzero error result through the output pointer. Do not treat `r0==0` as success. A commit observer must check both the HTTP status and output result before activating the synthetic child.
 
 This ABI is not `COMPLETE`: callback safety, thread/lock/reentrancy behavior, method of entering the helper, and cleanup subscription remain unknown. No callout is authorized or implemented.
+
+## Step 43L.2 lifecycle update
+
+The finalizer path contains an interface notification, `MC_DEV_CARPLAY_SESSION_DESTROYED`, but it is not a session-addressable project subscription. The global callback record is one 24-byte slot copied wholesale by `mc_carplay_iface_set_cbs`; the callback receives interface plus event, not the AirPlay session. The per-session delegate setter likewise copies the complete 44-byte Honda-owned table. Neither proves chaining or multiple consumers. Honda finalization is optional for the project; the offline generation guard now owns idempotence, supersession, and configurable lease expiry. The callout remains the sole JMCS integration blocker. See [43L.2 finalizer audit](../../step-reports/43l2-session-finalizer-extension-audit.md).

@@ -24,6 +24,10 @@ Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly 
 
 # ClarityLink project state — 2026-09-30
 
+## Step 43L.2 — finalizer extension audit (offline, 2026-10-01)
+
+Honda emits `MC_DEV_CARPLAY_SESSION_DESTROYED` from `_AirPlayHandleSessionFinalized`, but only via a single global `event_cb` slot: setter replaces the whole callback record and the event carries interface+event, not the AirPlay session. No non-destructive session-addressable subscriber/chaining mechanism is proven. Honda finalization is optional for project cleanup. Offline project guard now supersedes exact stale generations and has configurable renewable leases plus expiry reap; serializer readiness requires `r0==0xc8 && statusOut==0`. **GENERATION GUARD MODEL: COMPLETE (offline); FINALIZER EXTENSION: NO_SUPPORTED_EXTENSION; JMCS INTEGRATION DESIGN: LIFECYCLE_MODEL_READY_CALLOUT_UNRESOLVED.** Implementation/live/Type111/ExternalDisplay remain NOT READY; LD_PRELOAD PARKED. Next: identify whether an existing Honda function call in the post-Setup success window can serve as an observational/wrapper seam without displacing Honda logic. See [43L.2 report](step-reports/43l2-session-finalizer-extension-audit.md).
+
 ## Step 43H — callback fingerprint and serialization boundary (offline)
 
 Honda's checked-in disassembly proves CFType callback-table use for a separate `/info` dictionary and global screen array, but not for the Setup response or Setup `streams` array. Type110 entry/container ownership remains unknown/partial. The response graph is synchronously serialized and released before HTTP queue/write failures, so those failures do not require CF graph rollback. Project listener/session cleanup after connection failure remains unknown. Design remains `NEEDS_MORE_STATIC_PROOF`; implementation/live/JMCS/ExternalDisplay gates remain NO; LD_PRELOAD remains PARKED. See [Step 43H](step-reports/43h-cf-callback-fingerprint.md).

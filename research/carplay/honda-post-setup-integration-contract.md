@@ -51,4 +51,4 @@ Pre-serialization project failures can fail open by discarding project-only stat
 | Project failures | CONDITIONAL fail-open before serialization; serializer failure follows Honda error path |
 | Transaction model | PARTIAL; no runtime integration mechanism decision in this step |
 
-The six-function neutral inventory, including VA/mode/symbol/callers/prologue fingerprints, is recorded in the [43L report](../../step-reports/43l-post-setup-transaction-seam.md). No deployment mechanism has been selected. `jmcs` implementation and live validation remain NOT READY.
+The six-function neutral inventory, including VA/mode/symbol/callers/prologue fingerprints, is recorded in the [43L report](../../step-reports/43l-post-setup-transaction-seam.md). Step 43L.2 confirms no non-destructive finalizer subscriber carrying session identity. Child cleanup is project-owned through exact generations and bounded leases; integration remains blocked only on a safe callout site. No deployment mechanism has been selected. `jmcs` implementation and live validation remain NOT READY.
