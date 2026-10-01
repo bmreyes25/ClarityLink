@@ -407,6 +407,15 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Current replay decode status | `src/claritylink-sim/synthetic_type111_replay.py`; `demo/type111/replay-data.json` | Existing replay payload is parser-shaped, not valid H.264; it is never decoded and fallback is labeled. |
 | Host tool availability | Step 42G report | No FFmpeg/PyAV/OpenCV/imageio decoder on this host; real decode test skipped explicitly. Live integration readiness unchanged. |
 
+## Step 42I — actual synthetic decode
+
+| Question | Evidence | Conclusion |
+|---|---|---|
+| Host tools | `step-reports/42i-real-synthetic-h264-decode.md`; `probe_ffmpeg_capabilities()` | FFmpeg/ffprobe 9.0.2, libx264, H.264 decoder, and RGBA output available on this Mac; no install needed. |
+| Real synthetic encode/decode | `tests/sim/test_host_h264_decoder.py`; in-memory test pattern | Actual 320×180 synthetic pattern encoded to Annex-B H.264 and decoded; 230,400-byte RGBA frame validated. |
+| Renderer handoff | Same test; `src/claritylink-sim/export_visual_demo.py --decode-synthetic-h264` | Actual decoded frame reached mock Display 1; generated JSON records `HOST-DECODED SYNTHETIC H264`. |
+| Honda/CarPlay meaning | `research/simulator/host-h264-decode-stage.md` | Independent synthetic test only; parser fixture is not decoded; Type111/Honda and live ExternalDisplay remain unproven. |
+
 ## Step 42H — synthetic H.264 validation
 
 | Question | Evidence | Conclusion |

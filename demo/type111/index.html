@@ -14,10 +14,10 @@
 <body>
 <main>
   <header>
-    <div><div class="kicker">ClarityLink · Step 42F</div><h1>Two-display digital twin</h1><p class="lead">A visual replay of the proposed experience: stock center CarPlay stays active while a synthetic secondary frame is shown on a mock cluster. The second stream is hypothetical and the cluster view is a schematic.</p></div>
+    <div><div class="kicker">ClarityLink · Offline digital twin</div><h1>Two-display digital twin</h1><p class="lead">A visual replay of the proposed experience: stock center CarPlay stays active while a synthetic secondary frame is shown on a mock cluster. The second stream is hypothetical and the cluster view is a schematic.</p></div>
     <span class="badge synthetic" id="source-badge">Replay output</span>
   </header>
-  <div class="notice"><strong>Offline model only.</strong> No Honda Type111 stream or ExternalDisplay integration is running here. The replay access unit is a parser fixture, not valid H.264. Current status: <strong>HOST DECODER UNAVAILABLE</strong>. This view uses a synthetic pattern fallback and does not replace or cover the real cluster UI.</div>
+  <div class="notice"><strong>Offline model only.</strong> No Honda Type111 stream or ExternalDisplay integration is running here. The replay access unit is a parser fixture, not valid H.264. Synthetic decode validation: <strong id="decoder-status">not run</strong>. Any decoded frame shown here comes from a separate synthetic test pattern, not CarPlay or Honda. This view does not replace or cover the real cluster UI.</div>
 
   <nav class="toolbar" aria-label="Replay mode"><span>Replay mode</span><button id="strict-button" type="button" aria-pressed="true">Strict Honda</button><button id="hypothetical-button" type="button" aria-pressed="false">Hypothetical Type111</button><span id="mode-status" role="status"></span></nav>
 
@@ -57,7 +57,7 @@
       <div class="status-row"><span class="status-pill" id="audio-status">Audio · unchanged</span><span class="status-pill off" id="live-status">Live test · NOT READY</span><span class="status-pill off" id="preload-status">LD_PRELOAD · PARKED</span></div>
     </article>
   </section>
-  <p class="footnote">Evidence key: <span class="badge honda">HONDA_CONFIRMED</span> recovered stock behavior · <span class="badge hypothesis">MHI2_DERIVED_HYPOTHESIS</span> prior-art response profile · <span class="badge synthetic">SYNTHETIC_TEST_VALUE</span> generated demo data · <span class="badge unknown">UNKNOWN</span> unproven Honda behavior. The cluster illustration is synthetic; no H.264 decode ran. A host FFmpeg adapter is optional, but FFmpeg is unavailable in this environment. Safety overlay composition, crop/mask, and ExternalDisplay handoff remain unproven.</p>
+  <p class="footnote">Evidence key: <span class="badge honda">HONDA_CONFIRMED</span> recovered stock behavior · <span class="badge hypothesis">MHI2_DERIVED_HYPOTHESIS</span> prior-art response profile · <span class="badge synthetic">SYNTHETIC_TEST_VALUE</span> generated demo data · <span class="badge unknown">UNKNOWN</span> unproven Honda behavior. The cluster illustration is synthetic. If a decoded status is shown, it refers only to an independent generated H.264 test pattern; the ScreenStream parser fixture is not decoded. Safety overlay composition, crop/mask, and ExternalDisplay handoff remain unproven.</p>
   <p class="error" id="error" role="alert"></p>
 </main>
 <script>
@@ -66,6 +66,8 @@ const readable=value=>value.replaceAll('_',' ');
 function render(){if(!data)return;const state=data.modes[mode],hypothetical=mode==='hypothetical_type111';
   $('strict-button').setAttribute('aria-pressed',String(!hypothetical));$('hypothetical-button').setAttribute('aria-pressed',String(hypothetical));
   $('mode-status').textContent=hypothetical?'Hypothetical candidate · synthetic only':'Honda stock behavior';
+  const decode=data.host_decode_validation||{};
+  $('decoder-status').textContent=decode.status==='HOST_DECODED_SYNTHETIC_H264'?'HOST-DECODED SYNTHETIC H264 · not Honda/CarPlay':decode.status==='ATTEMPTED_FAILED'?'HOST DECODER ATTEMPTED — FAILED':decode.status==='NOT_RUN'?(state.cluster_frame.decode_status==='HOST_DECODER_UNAVAILABLE'?'SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE':'SYNTHETIC FRAME SOURCE — no valid H.264 generated'):'not run';
   $('type110-status').innerHTML=state.type110.active&&state.type110.unchanged?'<b>ACTIVE</b> · unchanged':'CHECK';
   $('cluster-screen').classList.toggle('empty',!state.cluster_frame.visible);$('synthetic-map').toggleAttribute('hidden',!state.cluster_frame.visible);
   $('cluster-message').textContent=state.cluster_frame.visible?state.cluster_frame.status_label:'Strict Honda mode: Type111 skipped';

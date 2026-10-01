@@ -1,7 +1,31 @@
 {
   "schema": "claritylink.synthetic-type111-visual-demo.v1",
   "generated_at": "2026-09-30T00:00:00+00:00",
-  "source": "STEP_42E_REPLAY_OUTPUT",
+  "source": "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_FFMPEG_VALIDATION",
+  "host_decode_validation": {
+    "status": "HOST_DECODED_SYNTHETIC_H264",
+    "backend": "FFMPEG_CLI/libx264",
+    "ffmpeg_version": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+    "output_format": "ANNEXB",
+    "encoded_bytes": 7877,
+    "capabilities": {
+      "ffmpeg_available": true,
+      "libx264_available": true,
+      "h264_decoder_available": true,
+      "rgba_output_available": true,
+      "version": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers"
+    },
+    "dimensions": [
+      320,
+      180
+    ],
+    "rgba_payload_size": 230400,
+    "presentation_timestamp_ns": 1000000000,
+    "frame_index": 0,
+    "renderer_target": "Display 1 mock",
+    "evidence": "SYNTHETIC_TEST_VALUE",
+    "separate_from_type111_fixture": true
+  },
   "live_test": "NOT_READY",
   "jmcs_noop_test": "NOT_READY",
   "externaldisplay_live_render_test": "NOT_READY",
@@ -39,8 +63,8 @@
         "height": null,
         "presentation_timestamp": null,
         "evidence": "SYNTHETIC_TEST_VALUE",
-        "decode_status": "HOST_DECODER_UNAVAILABLE",
-        "decode_backend": "MOCK_ONLY",
+        "decode_status": "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264",
+        "decode_backend": "FFMPEG_CLI",
         "status_label": "No frame in strict Honda mode"
       },
       "renderer": {
@@ -85,7 +109,7 @@
         },
         {
           "element": "Host H.264 decode",
-          "label": "UNKNOWN"
+          "label": "SYNTHETIC_TEST_VALUE"
         },
         {
           "element": "Mock renderer submission",
@@ -196,9 +220,9 @@
         "height": 480,
         "presentation_timestamp": "SYNTHETIC_TEST_VALUE",
         "evidence": "SYNTHETIC_TEST_VALUE",
-        "decode_status": "HOST_DECODER_UNAVAILABLE",
-        "decode_backend": "MOCK_ONLY",
-        "status_label": "SYNTHETIC FRAME SOURCE \u2014 HOST DECODER UNAVAILABLE"
+        "decode_status": "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264",
+        "decode_backend": "FFMPEG_CLI",
+        "status_label": "HOST-DECODED SYNTHETIC H264"
       },
       "renderer": {
         "target": "Display 1 \u00b7 ExternalDisplay host mock",
@@ -242,7 +266,7 @@
         },
         {
           "element": "Host H.264 decode",
-          "label": "UNKNOWN"
+          "label": "SYNTHETIC_TEST_VALUE"
         },
         {
           "element": "Mock renderer submission",
@@ -339,7 +363,7 @@
         },
         {
           "event": "host_decode_not_run",
-          "backend_available": false,
+          "backend_available": true,
           "reason": "replay access unit is synthetic parser fixture, not valid H.264"
         },
         {

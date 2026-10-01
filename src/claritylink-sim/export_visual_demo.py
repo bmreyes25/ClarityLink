@@ -10,12 +10,66 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(ROOT / "src/claritylink-renderer"))
 
 from capability_gating import ReplayMode
+from host_h264_decoder import (
+    DecodeStatus, FfmpegCliDecoder, generate_synthetic_h264, probe_ffmpeg_capabilities,
+)
+from model import ClarityLinkRenderer, MockDisplay1Backend
 from synthetic_type111_replay import synthetic_type111_cluster_replay
 
 
-def build_visual_demo_payload() -> dict[str, Any]:
+def run_synthetic_decode_validation() -> dict[str, Any]:
+    """Encode/decode one generated test pattern in memory and submit it to mock Display 1."""
+    capabilities = probe_ffmpeg_capabilities()
+    try:
+        encoded = generate_synthetic_h264()
+    except RuntimeError as exc:
+        return {"status": "ATTEMPTED_FAILED", "reason": str(exc), "evidence": "SYNTHETIC_TEST_VALUE",
+                "capabilities": capabilities.__dict__}
+    result = FfmpegCliDecoder().decode_access_unit(
+        encoded, width=320, height=180, timestamp_ns=1_000_000_000, frame_index=0,
+    )
+    if result.status is not DecodeStatus.DECODED or result.frame is None:
+        return {"status": "ATTEMPTED_FAILED", "reason": result.reason or result.status.value,
+                "evidence": "SYNTHETIC_TEST_VALUE", "capabilities": capabilities.__dict__}
+    backend = MockDisplay1Backend()
+    renderer = ClarityLinkRenderer(backend)
+    try:
+        renderer.start()
+        renderer.submit(result.frame)
+        submitted = len(backend.frames) == 1 and backend.frames[0] == result.frame
+    except (RuntimeError, ValueError) as exc:
+        submitted = False
+        reason = str(exc)
+    else:
+        reason = "mock renderer did not accept decoded frame"
+    finally:
+        renderer.close()
+    if not submitted:
+        return {"status": "ATTEMPTED_FAILED", "reason": reason,
+                "evidence": "SYNTHETIC_TEST_VALUE", "capabilities": capabilities.__dict__}
+    return {
+        "status": "HOST_DECODED_SYNTHETIC_H264",
+        "backend": "FFMPEG_CLI/libx264",
+        "ffmpeg_version": capabilities.version,
+        "output_format": "ANNEXB",
+        "encoded_bytes": len(encoded),
+        "capabilities": capabilities.__dict__,
+        "dimensions": [result.frame.width, result.frame.height],
+        "rgba_payload_size": len(result.frame.rgba or b""),
+        "presentation_timestamp_ns": result.frame.presentation_time_ns,
+        "frame_index": 0,
+        "renderer_target": "Display 1 mock",
+        "evidence": "SYNTHETIC_TEST_VALUE",
+        "separate_from_type111_fixture": True,
+    }
+
+
+def build_visual_demo_payload(
+    host_decode_validation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     modes: dict[str, Any] = {}
     for mode in ReplayMode:
         replay = synthetic_type111_cluster_replay(mode)
@@ -59,7 +113,11 @@ def build_visual_demo_payload() -> dict[str, Any]:
                 "decode_status": replay["host_decode"]["status"],
                 "decode_backend": replay["host_decode"]["backend"],
                 "status_label": (
-                    "SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE"
+                    "HOST-DECODED SYNTHETIC H264"
+                    if host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264"
+                    else "HOST DECODER ATTEMPTED — FAILED"
+                    if host_decode_validation and host_decode_validation.get("status") == "ATTEMPTED_FAILED"
+                    else "SYNTHETIC FRAME SOURCE — HOST DECODER UNAVAILABLE"
                     if not replay["host_decode"]["backend_available"]
                     else "SYNTHETIC FRAME SOURCE — VALID H.264 TEST MEDIA NOT GENERATED"
                 ) if submitted else "No frame in strict Honda mode",
@@ -80,7 +138,10 @@ def build_visual_demo_payload() -> dict[str, Any]:
                 {"element": "Display-to-stream correlation", "label": "UNKNOWN"},
                 {"element": "Type111 security/key derivation", "label": "UNKNOWN"},
                 {"element": "Synthetic frame after Annex-B", "label": "SYNTHETIC_TEST_VALUE"},
-                {"element": "Host H.264 decode", "label": "UNKNOWN"},
+                {"element": "Host H.264 decode", "label": (
+                    "SYNTHETIC_TEST_VALUE" if host_decode_validation and
+                    host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264" else "UNKNOWN"
+                )},
                 {"element": "Mock renderer submission", "label": "SYNTHETIC_TEST_VALUE"},
                 {"element": "Real ExternalDisplay integration", "label": "UNKNOWN"},
                 {"element": "Cluster crop/mask", "label": "UNKNOWN"},
@@ -99,7 +160,12 @@ def build_visual_demo_payload() -> dict[str, Any]:
     return {
         "schema": "claritylink.synthetic-type111-visual-demo.v1",
         "generated_at": datetime(2026, 9, 30, tzinfo=timezone.utc).isoformat(),
-        "source": "STEP_42E_REPLAY_OUTPUT",
+        "source": "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_FFMPEG_VALIDATION"
+        if host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264"
+        else "STEP_42E_REPLAY_OUTPUT",
+        "host_decode_validation": host_decode_validation or {
+            "status": "NOT_RUN", "reason": "no external synthetic encode/decode validation supplied"
+        },
         "live_test": "NOT_READY",
         "jmcs_noop_test": "NOT_READY",
         "externaldisplay_live_render_test": "NOT_READY",
@@ -115,8 +181,13 @@ def main() -> int:
         default=ROOT / "demo/type111/replay-data.json",
         help="output JSON path (default: demo/type111/replay-data.json)",
     )
+    parser.add_argument(
+        "--decode-synthetic-h264", action="store_true",
+        help="encode/decode one in-memory synthetic H.264 frame and record renderer-mock status",
+    )
     args = parser.parse_args()
-    payload = build_visual_demo_payload()
+    validation = run_synthetic_decode_validation() if args.decode_synthetic_h264 else None
+    payload = build_visual_demo_payload(validation)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote synthetic Step 42E replay summary: {args.output}")

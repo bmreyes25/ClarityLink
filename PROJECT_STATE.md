@@ -1,5 +1,9 @@
 # ClarityLink project state — 2026-09-30
 
+## Step 42I — real synthetic H.264 encode/decode (offline)
+
+FFmpeg was already installed at `/opt/homebrew/bin/ffmpeg` (9.0.2), with libx264, H.264 decode, RGBA output, and ffprobe; no installation was needed. The exact real synthetic test passed: generated a 320×180 `testsrc2`, encoded in memory to Annex-B H.264, decoded to 230,400 RGBA bytes, and submitted the actual decoded frame to mock Display 1. The visual JSON records `HOST-DECODED SYNTHETIC H264`; the static map remains an SVG schematic. This test is separate from the replay parser fixture and does not establish Honda Type111 compatibility. All live gates remain NOT READY. See `step-reports/42i-real-synthetic-h264-decode.md`.
+
 ## Step 42H — FFmpeg synthetic H.264 validation
 
 Rechecked this host without installing dependencies: FFmpeg, ffprobe, PyAV, OpenCV, imageio, and Pillow are unavailable. The new capability probe reports FFmpeg/libx264/H.264 decode/RGBA unavailable; no media was generated and the actual encode/decode test skipped explicitly. Existing parser-fixture AVCC-to-Annex-B tests and mocked decoder-to-renderer adapter checks still pass, but no actual decoded frame reached the renderer. The visual demo remains on its synthetic pattern fallback. Digital twin remains READY; live Type111, jmcs no-op, and ExternalDisplay live rendering remain NOT READY. See `step-reports/42h-ffmpeg-synthetic-h264-validation.md`.

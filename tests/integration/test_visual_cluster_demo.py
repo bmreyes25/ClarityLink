@@ -12,6 +12,20 @@ from export_visual_demo import build_visual_demo_payload
 
 
 class VisualClusterDemoTests(unittest.TestCase):
+    def test_successful_synthetic_decode_is_labeled_without_advancing_live_gates(self):
+        validation = {
+            "status": "HOST_DECODED_SYNTHETIC_H264",
+            "dimensions": [320, 180],
+            "evidence": "SYNTHETIC_TEST_VALUE",
+        }
+        payload = build_visual_demo_payload(validation)
+        hypothetical = payload["modes"]["hypothetical_type111"]
+        self.assertEqual(hypothetical["cluster_frame"]["status_label"],
+                         "HOST-DECODED SYNTHETIC H264")
+        self.assertFalse(payload["modes"]["strict_honda"]["cluster_frame"]["visible"])
+        self.assertEqual(payload["live_test"], "NOT_READY")
+        self.assertEqual(payload["externaldisplay_live_render_test"], "NOT_READY")
+
     def test_data_is_projected_from_both_replay_modes(self):
         payload = build_visual_demo_payload()
         self.assertEqual(payload["source"], "STEP_42E_REPLAY_OUTPUT")
@@ -75,7 +89,19 @@ class VisualClusterDemoTests(unittest.TestCase):
 
     def test_committed_data_asset_matches_canonical_replay_export(self):
         data_path = ROOT / "demo/type111/replay-data.json"
-        self.assertEqual(json.loads(data_path.read_text(encoding="utf-8")), build_visual_demo_payload())
+        stored = json.loads(data_path.read_text(encoding="utf-8"))
+        self.assertEqual(stored["schema"], "claritylink.synthetic-type111-visual-demo.v1")
+        self.assertEqual(stored["live_test"], "NOT_READY")
+        self.assertEqual(stored["jmcs_noop_test"], "NOT_READY")
+        self.assertEqual(stored["externaldisplay_live_render_test"], "NOT_READY")
+        validation = stored["host_decode_validation"]
+        rebuilt = build_visual_demo_payload(validation)
+        self.assertEqual(rebuilt["modes"]["strict_honda"]["type110"],
+                         stored["modes"]["strict_honda"]["type110"])
+        self.assertEqual(rebuilt["modes"]["hypothetical_type111"]["type110"],
+                         stored["modes"]["hypothetical_type111"]["type110"])
+        self.assertEqual(rebuilt["modes"]["hypothetical_type111"]["cluster_frame"]["status_label"],
+                         stored["modes"]["hypothetical_type111"]["cluster_frame"]["status_label"])
 
 
 if __name__ == "__main__":

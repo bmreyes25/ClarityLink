@@ -34,3 +34,5 @@ Step 42F's static visual demo reads a generated summary of this replay in both m
 Step 42G adds an optional FFmpeg CLI host decoder and synthetic in-memory H.264 generator. The replay fixture remains parser-only and is never presented to the decoder as valid media. This environment has no FFmpeg, so the real decode test skips; visual output explicitly reports the pattern fallback and decoder status. See `research/simulator/host-h264-decode-stage.md`.
 
 Step 42H rechecked the host and added a capability probe. FFmpeg, libx264, H.264 decoder, and RGBA output are unavailable, so no valid H.264 media or decoded RGBA frame was generated. Annex-B parser tests still pass on synthetic parser values; this does not mean the replay contains decodable H.264.
+
+Step 42I ran a separate synthetic FFmpeg validation: generated test pattern → libx264 Annex-B → host decoder → validated 320×180 RGBA frame → mock Display 1. The parser-shaped replay access unit remains untouched and is still not decoded. The separate success is recorded in `demo/type111/replay-data.json` and is labeled synthetic, not Honda/CarPlay.
