@@ -608,3 +608,12 @@ Honda-specific source notes remain separately indexed below; no external project
 | Rollback | Public CF array API includes count/get/create-copy/mutable/append, no public indexed remove/set wrapper found. Use LAST_MUTATION candidate; selective append/remove rollback is unsupported. |
 | Response transaction | Same Honda response object retained; type-based stream lookup; pre-serializer fail-open conditional; serializer failure does not promise Type110 delivery. Child commit candidate `0x28afbe`; cleanup subscription and callout safety unproven. |
 | Status | `POST_SETUP_TRANSACTION_MODEL: PARTIAL`; `JMCS integration design: NOT READY`; report `step-reports/43l-post-setup-transaction-seam.md`. |
+## Step 43L.1 — callout safety and cleanup reachability
+
+| Evidence | Finding |
+|---|---|
+| Caller ABI and callout candidates | `research/carplay/honda-post-setup-callout-safety.md`: 8-byte aligned caller frame; request `[sp+0x1c]`, response `[sp+0x54]`, status `[sp+0x50]`, session `[r10+0xf4]`; `0x28afb2` is structurally best, but occupied and CANDIDATE_ONLY. No helper callout safety or spare instruction slot is proven. |
+| Serializer result | `0x289ff8` returns `0xc8` on body success, `0x1f4` on helper failure; statusOut records `HTTPMessageSetBody`/error result. RESPONSE_READY predicate is `r0==0xc8 && statusOut==0`. |
+| Cleanup reachability | `research/carplay/honda-project-child-cleanup-reachability.md`: HTTP close conditionally tears down non-null session; Honda session finalization is proven but project child cannot reach it through a supported subscription. Response graph is released before network delivery. |
+| Generation guard | `project-session-registry.md`: generation and idempotent cleanup exist synthetically; watchdog timing/renewal and Honda event hookup are unknown. Required; model PARTIAL. |
+| Decision | [43L.1 report](step-reports/43l1-callout-safety-cleanup-reachability.md): CALLOUT CANDIDATE_ONLY; ABI PARTIAL; cleanup PARTIAL/NOT_PROVEN; integration NEEDS_MORE_STATIC_PROOF. |

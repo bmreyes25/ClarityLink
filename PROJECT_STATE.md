@@ -1,5 +1,9 @@
 # Step 43K — offline project-session registry (2026-10-01)
 
+## Step 43L.1 update (2026-10-01)
+
+Static caller-frame audit at `0x28afb2` confirms aligned stack and recoverable Setup state under an AAPCS-conforming helper, but no safe callout is proven: every candidate occupies existing instructions, and Honda gives no callout/reentrancy contract. Serializer success predicate is corrected to `r0 == 0xc8 && statusOut == 0`. HTTP close reaches receiver teardown only conditionally; session finalization is Honda-owned and has no proven project-child subscription. **CALLOUT SAFETY: CANDIDATE_ONLY. HELPER ABI: PARTIAL. HONDA CLEANUP REACHABILITY: PARTIAL. PROJECT CHILD CLEANUP VIA HONDA: NOT_PROVEN. GENERATION GUARD REQUIRED: YES; MODEL PARTIAL. JMCS INTEGRATION DESIGN: NEEDS_MORE_STATIC_PROOF.** Live gates remain NOT READY; LD_PRELOAD PARKED. Details: [43L.1 report](step-reports/43l1-callout-safety-cleanup-reachability.md).
+
 ## Step 43L update (2026-10-01)
 
 43L proves the hash-matched Honda caller's structural post-Setup/pre-serialization window (`0x28af7e–0x28afba`) and synchronous serializer/body-install result (`0x28afbe`). Candidate response-ready/child commit is successful helper return, but safe callout and Honda project-child cleanup linkage remain unproven. Pre-serializer failures can fail open; serializer failures follow Honda's error path and Type110 delivery is not guaranteed. Use same response identity, type-based stream lookup, and LAST_MUTATION append. **POST_SETUP_TRANSACTION_MODEL: PARTIAL; JMCS integration design: NOT READY.** 43K offline lifecycle remains ready; JMCS implementation, live test, Type111 live and ExternalDisplay render remain NOT READY; LD_PRELOAD PARKED. Details: [43L report](step-reports/43l-post-setup-transaction-seam.md).

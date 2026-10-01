@@ -17,7 +17,7 @@ At `0x28af72`, `_connectionHandleMessage` calls Setup with `r0=[r10+0xf4]`, requ
 
 ## Serializer barrier (`0x289f60`)
 
-The helper checks/initializes response headers, then for non-null plist input calls `CFPropertyListCreateData` at `0x289fb2` (format `0xc8`). Null data branches to `0x289ffc`, sets HTTP status `0x1f4`, sets result `r7` from constant `0xffffe5d4`, and returns through common cleanup. Successful data yields byte pointer (`0x289fbc`) and length (`0x289fc4`), then `HTTPMessageSetBody` at `0x289fdc`. It maps body-set return zero to status `0xc8` and nonzero to `0x1f4`; writes that setter result through statusOut at `0x289ff6`, releases temporary CFData at `0x289ff0`, and returns status at `0x289ff8`. Header initialization failure at `0x289f9a` branches to 500 path before plist creation. The helper reads the response graph synchronously and creates a separate CFData.
+The helper checks/initializes response headers, then for non-null plist input calls `CFPropertyListCreateData` at `0x289fb2` (format `0xc8`). Null data branches to `0x289ffc`, sets HTTP status `0x1f4`, sets result `r7` from constant `0xffffe5d4`, and returns through common cleanup. Successful data yields byte pointer (`0x289fbc`) and length (`0x289fc4`), then `HTTPMessageSetBody` at `0x289fdc`. It maps body-set return zero to status `0xc8` and nonzero to `0x1f4`; writes that setter result through statusOut at `0x289ff6`, releases temporary CFData at `0x289ff0`, and returns status at `0x289ff8`. Header initialization failure at `0x289f9a` branches to 500 path before plist creation. The helper reads the response graph synchronously and creates a separate CFData. Its local success predicate is `r0 == 0xc8` with statusOut zero; this is not an OSStatus-zero convention.
 
 `HTTPMessageSetBody` sets body length, uses `memmove` when the source differs from the HTTP body's current buffer (`0x29d046`), then sets content-length/content-type headers. The data copy is statically visible. Its mutation is to HTTP message state, not the CF response graph. Serializer success therefore proves local serialization and body installation only; it does not prove HTTP state-machine acceptance or socket delivery.
 
@@ -33,7 +33,7 @@ Project preparation can occur after stock Setup success and before response muta
 
 Pre-serialization project failures can fail open by discarding project-only state and invoking the unmodified stock serializer. If the serializer itself fails after append, stock Type110 remains present in the CF graph, but there is no proof the same request can be retried using the original graph; helper returns an HTTP error. Roll back project resources and let Honda's ordinary error/session path proceed. The preferred policy is conditional fail-open before serialization, not a guarantee that every serializer failure sends Type110.
 
-`RESPONSE_READY` is best mapped to successful `_requestSendPlistResponse` return at `0x28afbe`: data exists and body installation succeeded, so local graph rollback is no longer needed. This is not delivery. It is the earliest candidate for PREPARED→ACTIVE, but project child cleanup linkage on every later Honda failure is not proven from this static audit; mark commit point CANDIDATE, not PROVEN. Do not activate on append or before serializer success. HTTPConnectionSendResponse acceptance is later and its error path closes/finalizes; first socket write is later still.
+`RESPONSE_READY` is best mapped to `_requestSendPlistResponse` returning `0xc8` with statusOut zero at `0x28afbe`: data exists and body installation succeeded, so local graph rollback is no longer needed. This is not delivery. It is the earliest candidate for PREPARED→ACTIVE, but project child cleanup linkage on every later Honda failure is not proven from this static audit; mark commit point CANDIDATE, not PROVEN. Do not activate on append or before serializer success. HTTPConnectionSendResponse acceptance is later and its error path closes/finalizes; first socket write is later still.
 
 ## Honda evidence boundaries / decision
 
@@ -46,7 +46,7 @@ Pre-serialization project failures can fail open by discarding project-only stat
 | Type110 index | SEARCH_BY_TYPE |
 | Rollback strategy | LAST_MUTATION |
 | Serialization barrier | PROVEN for synchronous plist→CFData→HTTP body path; return status handling proven |
-| Response-ready | successful helper return at `0x28afbe`, candidate event |
+| Response-ready | `r0==0xc8 && statusOut==0` at `0x28afbe`, candidate event |
 | Child commit | CANDIDATE after successful helper return; Honda cleanup subscription remains unproven |
 | Project failures | CONDITIONAL fail-open before serialization; serializer failure follows Honda error path |
 | Transaction model | PARTIAL; no runtime integration mechanism decision in this step |

@@ -41,3 +41,18 @@ Until those facts are established, this is portable synthetic implementation onl
 ## Step 43L Honda transaction boundary
 
 43L maps the portable response transaction to a Honda structural interval: stock Setup succeeds at `0x28af76`; stock caller metadata work ends at `CFObjectSetProperty` return after `0x28afae`; same response enters synchronous plist/body helper at `0x28afba`; helper success returns at `0x28afbe`. Keep the registry PREPARED until that successful return. It is only a candidate ACTIVE commit because Honda's safe callout and direct child cleanup subscription remain unproven. Project preparation and all entry construction precede append; append is the last local response mutation. Pre-serializer project errors fail open to stock. Serializer errors go through Honda's error path and cannot promise stock response delivery. See [43L report](../../step-reports/43l-post-setup-transaction-seam.md).
+## Step 43L.1 cleanup guard boundary
+
+Honda cleanup does not presently provide a project-child lookup edge: the HTTP connection's session pointer is conditional; the session delegate is Honda-owned and whole-table replacement would discard its callbacks; PlatformFinalize runs in the finalizer but no child subscription is proven. Therefore a project-owned guard is required if any child is prepared.
+
+Bounded synthetic guard model (not Honda behavior):
+
+1. **Session-start boundary:** Honda's `_AirPlayHandleSessionCreated` runs during receiver session creation, but project observation of it is not proven. A project may mint a generation only at its first safely observed event; treating successful Setup as that event is a hypothesis until an integration seam exists. Key every transaction/resource by `(opaque session pointer, generation)` and never dereference the pointer for registry lookup.
+2. The PREPARED transaction exclusively owns the listener, security bytes, parser/renderer state. It has a short preparation lease; expiration before serializer-success always rolls back.
+3. Successful serializer return (`0xc8` plus zero statusOut) is the local activation boundary, not phone receipt. Failure/timeout before it rolls back. Duplicate Setup for an already-prepared/active generation is rejected fail-open unless a fully ordered replacement protocol is defined.
+4. A stale callback or timeout must carry generation and may close only the matching generation. A newer generation is never stopped by old cleanup.
+5. A project-owned activity lease/inactivity watchdog is needed after activation if no Honda finalizer notification can be safely observed. Its duration and renewal signal are not established; this is a material unresolved policy and can terminate a healthy but quiet connection if guessed.
+6. **Teardown boundary:** Honda has request-driven `AirPlayReceiverSessionTearDown` and object `_Finalize`/PlatformFinalize boundaries, but neither is proven to notify the project child. On response mutation failure, leave/restore stock graph only when mutation has not begun; otherwise do not claim selective rollback. On serializer failure, detach and close project resources. On HTTP delivery failure or normal session teardown, cleanup must be driven by a proven project notification or the bounded project watchdog; Honda teardown alone is not enough until linked.
+7. Cleanup is idempotent, closes resources in reverse acquisition order, erases project secrets, and retains no Honda-owned response/session references beyond the defined transaction.
+
+The phase/generation/idempotence portions are already `OFFLINE_PROJECT_IMPLEMENTATION`; the required timeout policy and a real event that renews/stops an active child are not proven. Thus `GENERATION GUARD REQUIRED: YES`, `GENERATION GUARD MODEL: PARTIAL`.
