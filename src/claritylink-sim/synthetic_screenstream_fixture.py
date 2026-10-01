@@ -168,6 +168,7 @@ def run_fixture_through_transport(
     renderer.start()
     renderer.submit(decode.frame)
     rendered = len(backend.frames) == 1 and backend.frames[0] == decode.frame
+    renderer_frame = backend.frames[0] if rendered else None
     target = backend.target.display_id if backend.target else None
     renderer.close()
     return {
@@ -179,6 +180,7 @@ def run_fixture_through_transport(
         "frame": decode.frame,
         "rendered": rendered,
         "renderer_target": target,
+        "renderer_frame": renderer_frame,
         "evidence": "SYNTHETIC_TEST_VALUE",
         "crypto_mode": fixture.crypto_mode,
         "packet_lengths": {

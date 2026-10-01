@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+import struct
 import sys
 from typing import Any
+import zlib
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -17,6 +20,7 @@ from host_h264_decoder import (
     DecodeStatus, FfmpegCliDecoder, generate_synthetic_h264, probe_ffmpeg_capabilities,
 )
 from model import ClarityLinkRenderer, MockDisplay1Backend
+from model import DecodedFrame, PIXEL_FORMAT
 from synthetic_type111_replay import synthetic_type111_cluster_replay
 from synthetic_screenstream_fixture import (
     create_synthetic_screenstream_fixture, run_fixture_through_transport,
@@ -113,12 +117,88 @@ def run_screenstream_h264_validation() -> dict[str, Any]:
         "renderer_target": "Display 1 mock",
         "evidence": "SYNTHETIC_TEST_VALUE",
         "separate_from_honda_type111": True,
+        # In-process only. main() removes this before serializing JSON.
+        "_decoded_frame": result["renderer_frame"],
+    }
+
+
+def _png_chunk(kind: bytes, payload: bytes) -> bytes:
+    body = kind + payload
+    return struct.pack(">I", len(payload)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+
+def encode_rgba_png(frame: DecodedFrame) -> bytes:
+    """Encode the accepted renderer frame as a standards-compliant PNG in memory."""
+    frame.validate(require_cpu=True)
+    if frame.pixel_format != PIXEL_FORMAT or frame.width > 1920 or frame.height > 1080:
+        raise ValueError("unsupported visual demo frame format or dimensions")
+    rgba = frame.rgba
+    assert rgba is not None
+    if frame.row_stride == frame.width * 4:
+        packed = rgba[:frame.row_stride * frame.height]
+    else:
+        packed = b"".join(
+            rgba[row * frame.row_stride:row * frame.row_stride + frame.width * 4]
+            for row in range(frame.height)
+        )
+    if len(packed) != frame.width * frame.height * 4:
+        raise ValueError("RGBA payload length does not match image dimensions")
+    scanlines = b"".join(
+        b"\x00" + packed[row * frame.width * 4:(row + 1) * frame.width * 4]
+        for row in range(frame.height)
+    )
+    header = struct.pack(">IIBBBBB", frame.width, frame.height, 8, 6, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", header) + _png_chunk(b"IDAT", zlib.compress(scanlines, 9)) + _png_chunk(b"IEND", b"")
+
+
+def clear_visual_frame_artifacts(runtime_dir: Path) -> None:
+    """Remove prior output before any new attempt, preventing stale success display."""
+    for name in ("type111-frame.png", "frame-metadata.json", ".type111-frame.png.tmp",
+                 ".frame-metadata.json.tmp"):
+        path = runtime_dir / name
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def write_visual_frame(frame: DecodedFrame, runtime_dir: Path) -> dict[str, Any]:
+    """Atomically materialize ephemeral PNG and return pixel provenance metadata."""
+    frame.validate(require_cpu=True)
+    assert frame.rgba is not None
+    expected = frame.width * frame.height * 4
+    if len(frame.rgba) != expected:
+        raise ValueError("decoded RGBA payload length is not tightly packed width × height × 4")
+    png = encode_rgba_png(frame)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    final_path = runtime_dir / "type111-frame.png"
+    temporary_path = runtime_dir / ".type111-frame.png.tmp"
+    try:
+        temporary_path.write_bytes(png)
+        temporary_path.replace(final_path)
+    except OSError:
+        temporary_path.unlink(missing_ok=True)
+        final_path.unlink(missing_ok=True)
+        raise
+    return {
+        "available": True,
+        "asset": "runtime/type111-frame.png",
+        "source": "screenstream_synthetic_decode",
+        "width": frame.width,
+        "height": frame.height,
+        "pixelFormat": "RGBA8888",
+        "rgbaBytes": expected,
+        "sha256": hashlib.sha256(frame.rgba).hexdigest(),
+        "evidence": "SYNTHETIC_TEST_VALUE",
+        "displayLabel": "ACTUAL DECODED SYNTHETIC FRAME",
+        "provenanceLabel": "ScreenStream → H264 → RGBA",
     }
 
 
 def build_visual_demo_payload(
     host_decode_validation: dict[str, Any] | None = None,
     screenstream_validation: dict[str, Any] | None = None,
+    visual_frame_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     modes: dict[str, Any] = {}
     for mode in ReplayMode:
@@ -131,10 +211,16 @@ def build_visual_demo_payload(
         submitted = "type111_frame_submitted_to_renderer" in event_names
         if not submitted:
             decode_status_label = "No frame in strict Honda mode"
+        elif visual_frame_metadata and visual_frame_metadata.get("available"):
+            decode_status_label = "ACTUAL DECODED SYNTHETIC FRAME VIA SCREENSTREAM"
         elif screenstream_validation and screenstream_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264_VIA_SCREENSTREAM":
-            decode_status_label = "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE"
+            decode_status_label = "FRAME ARTIFACT UNAVAILABLE"
         elif screenstream_validation and screenstream_validation.get("status") == "ATTEMPTED_FAILED":
-            decode_status_label = "HOST DECODER ATTEMPTED — FAILED"
+            capabilities = screenstream_validation.get("capabilities", {})
+            if not capabilities.get("ffmpeg_available", False):
+                decode_status_label = "HOST DECODER UNAVAILABLE"
+            else:
+                decode_status_label = "DECODE FAILED"
         elif host_decode_validation and host_decode_validation.get("status") == "HOST_DECODED_SYNTHETIC_H264":
             decode_status_label = "HOST-DECODED SYNTHETIC H264"
         elif host_decode_validation and host_decode_validation.get("status") == "ATTEMPTED_FAILED":
@@ -180,6 +266,11 @@ def build_visual_demo_payload(
                 "decode_status": replay["host_decode"]["status"],
                 "decode_backend": replay["host_decode"]["backend"],
                 "status_label": decode_status_label,
+                "actual_frame": visual_frame_metadata if submitted and visual_frame_metadata else {
+                    "available": False,
+                    "fallback": decode_status_label,
+                    "evidence": "SYNTHETIC_TEST_VALUE",
+                },
             },
             "renderer": {
                 "target": "Display 1 · ExternalDisplay host mock" if submitted else "inactive",
@@ -256,12 +347,48 @@ def main() -> int:
         help="run synthetic H.264 through modeled ScreenStream parsing, decode, and Display 1 mock",
     )
     args = parser.parse_args()
+    runtime_dir = ROOT / "demo/type111/runtime"
+    clear_visual_frame_artifacts(runtime_dir)
     validation = run_synthetic_decode_validation() if args.decode_synthetic_h264 else None
     screenstream_validation = run_screenstream_h264_validation() if args.screenstream_h264 else None
-    payload = build_visual_demo_payload(validation, screenstream_validation)
+    visual_frame_metadata = None
+    artifact_error = None
+    decoded_frame = screenstream_validation.pop("_decoded_frame", None) if screenstream_validation else None
+    if decoded_frame is not None:
+        try:
+            visual_frame_metadata = write_visual_frame(decoded_frame, runtime_dir)
+            metadata_temp = runtime_dir / ".frame-metadata.json.tmp"
+            metadata_temp.write_text(json.dumps(visual_frame_metadata, indent=2) + "\n", encoding="utf-8")
+            metadata_temp.replace(runtime_dir / "frame-metadata.json")
+        except (OSError, ValueError) as exc:
+            artifact_error = str(exc)
+            visual_frame_metadata = None
+            clear_visual_frame_artifacts(runtime_dir)
+    if screenstream_validation is not None:
+        screenstream_validation["visual_artifact_status"] = (
+            "READY" if visual_frame_metadata else "ARTIFACT_WRITE_FAILED" if artifact_error
+            else "FRAME_ARTIFACT_UNAVAILABLE"
+        )
+        if artifact_error:
+            screenstream_validation["visual_artifact_error"] = artifact_error
+    payload = build_visual_demo_payload(validation, screenstream_validation, visual_frame_metadata)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote synthetic Step 42E replay summary: {args.output}")
+    temp_output = args.output.with_suffix(args.output.suffix + ".tmp")
+    try:
+        temp_output.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        temp_output.replace(args.output)
+    except OSError:
+        temp_output.unlink(missing_ok=True)
+        clear_visual_frame_artifacts(runtime_dir)
+        raise
+    print(f"Wrote synthetic replay metadata: {args.output}")
+    if visual_frame_metadata:
+        print(f"Wrote ephemeral decoded frame: {runtime_dir / 'type111-frame.png'}")
+    elif args.screenstream_h264:
+        reason = artifact_error or (screenstream_validation or {}).get("reason") or "decoded frame unavailable"
+        print(f"Visual fallback: {(screenstream_validation or {}).get('visual_artifact_status')} — {reason}")
+        return 1
+    print("View locally: python3 -m http.server 8000 --bind 127.0.0.1 --directory demo/type111")
     return 0
 
 

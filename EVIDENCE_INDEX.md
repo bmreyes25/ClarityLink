@@ -425,6 +425,15 @@ Correcting Step 31: `_connectionHandleMessage` dispatches `/info` to `_requestPr
 | Renderer handoff | Same test; `research/display/type111-renderer-handoff-contract.md` | Fake-process RGBA adapter check passes; actual decoded-frame submission remains skipped. |
 | Twin and live readiness | `PROJECT_STATE.md`; Step 42H report | Offline twin remains ready; live Type111, jmcs no-op, and ExternalDisplay rendering remain NOT READY. |
 
+## Step 42K — actual decoded pixels in visual twin (2026-09-30)
+
+| Area | Evidence | Finding |
+|---|---|---|
+| Source path | `src/claritylink-sim/synthetic_screenstream_fixture.py`; `src/claritylink-sim/export_visual_demo.py` | The PNG is generated from the exact `DecodedFrame` retained as accepted by the ScreenStream pipeline's Display 1 mock; no parallel browser/media frame source is used |
+| Pixel provenance | `demo/type111/replay-data.json`; `demo/type111/runtime/` (ignored); `tests/integration/test_visual_frame_artifact.py` | Metadata stores dimensions, RGBA byte count, raw-pixel SHA-256, and `SYNTHETIC_TEST_VALUE`; test decodes PNG IDAT and verifies pixel equality. Generated PNG stays ignored |
+| UI/fallback | `demo/type111/index.html`; `demo/type111/README.md` | Hypothetical mode displays the frame only after loading at matching dimensions; strict Honda mode stays empty; missing asset falls back to an identified schematic |
+| Invariants/readiness | `tests/sim/test_synthetic_screenstream_fixture.py`; `step-reports/42k-actual-decoded-frame-visual-demo.md` | Type110/audio isolation and stale-output clearing pass. This remains synthetic/mock evidence; live Type111, jmcs integration and ExternalDisplay rendering are NOT READY |
+
 ## Step 42J — valid synthetic H.264 through ScreenStream model
 
 | Area | Primary evidence | Finding |

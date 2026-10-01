@@ -4,7 +4,7 @@
 
 ## Current engineering stage
 
-The active executable work is the offline digital twin. Step 42J exercises generated synthetic H.264 through the modeled ScreenStream parser, AVCC-to-Annex-B extraction, FFmpeg decode, and a mock Display 1 renderer. This validates a host-side synthetic pipeline only.
+The active executable work is the offline digital twin. Step 42K carries the exact RGBA frame accepted by the Step 42J ScreenStream/FFmpeg/Display 1 mock pipeline into the local visual twin as an ignored, ephemeral PNG, with source-pixel hash metadata and stale-artifact protection. This validates visual handoff from the host mock only.
 
 ## Evidence-backed target
 
@@ -24,7 +24,7 @@ flowchart LR
 
 | Workstream | Current state | Next gate |
 |---|---|---|
-| Offline digital twin | Ready for modeled/synthetic behavior | Optional in-memory RGBA preview based on the Step 42J decoded frame |
+| Offline digital twin | Ready; actual decoded synthetic frame appears in local visual twin | Honda `/info` descriptor differential audit |
 | Honda `/info` and Type111 schema | Type110 confirmed; stock Type111 skipped; external fields are not Honda facts | Differential audit of the descriptor and control-plane paths |
 | Type111 security/session | Honda Type110 KDF inputs known; Type111 reuse unknown | Trace whether a second connection ID can own independent crypto state |
 | jmcs integration | No safe proven load seam | Bounded stock-first seam analysis with rollback and exact-build checks |

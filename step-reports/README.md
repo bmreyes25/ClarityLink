@@ -6,7 +6,7 @@ The existing reports remain in place and are not rewritten by the index.
 
 ## Latest completed engineering milestone
 
-[Step 42J — valid synthetic H.264 ScreenStream fixture](42j-valid-h264-screenstream-fixture.md) is the latest completed engineering milestone. The active technical next action is maintained separately in [NEXT_ACTION.md](../NEXT_ACTION.md).
+[Step 42K — actual decoded frame in the visual twin](42k-actual-decoded-frame-visual-demo.md) is the latest completed engineering milestone. The active technical next action is maintained separately in [NEXT_ACTION.md](../NEXT_ACTION.md).
 
 ## Chronological index
 
@@ -78,5 +78,6 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 42H — FFmpeg synthetic H.264 validation](42h-ffmpeg-synthetic-h264-validation.md)
 - [Step 42I — real synthetic H.264 decode on Mac](42i-real-synthetic-h264-decode.md)
 - [Step 42J — valid synthetic H.264 through ScreenStream fixture](42j-valid-h264-screenstream-fixture.md)
+- [Step 42K — actual decoded frame in the offline visual twin](42k-actual-decoded-frame-visual-demo.md)
 - [Step reports](README.md)
 - [Step 5 run status](RUN_STATUS.md)

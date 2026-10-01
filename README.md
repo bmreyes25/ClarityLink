@@ -51,7 +51,7 @@ python3 src/claritylink-sim/export_visual_demo.py --screenstream-h264
 python3 -m http.server 8000 --bind 127.0.0.1 --directory demo/type111
 ```
 
-Open `http://localhost:8000`. The generated media stays in memory; the page shows a schematic, not real Honda video. Details and limitations are in [the demo guide](demo/type111/README.md).
+Open `http://localhost:8000` and select Hypothetical Type111. The exporter decodes the synthetic ScreenStream fixture, submits the RGBA frame to the renderer mock, and writes an ignored PNG for the browser; source-pixel SHA-256 and dimensions are recorded in metadata. If decode or artifact loading fails, the page identifies its schematic fallback. No generated media is committed. Details and limitations are in [the demo guide](demo/type111/README.md).
 
 ## Testing
 

@@ -37,7 +37,8 @@
     "rgba_payload_size": 230400,
     "renderer_target": "Display 1 mock",
     "evidence": "SYNTHETIC_TEST_VALUE",
-    "separate_from_honda_type111": true
+    "separate_from_honda_type111": true,
+    "visual_artifact_status": "READY"
   },
   "live_test": "NOT_READY",
   "jmcs_noop_test": "NOT_READY",
@@ -78,7 +79,12 @@
         "evidence": "SYNTHETIC_TEST_VALUE",
         "decode_status": "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264",
         "decode_backend": "FFMPEG_CLI",
-        "status_label": "No frame in strict Honda mode"
+        "status_label": "No frame in strict Honda mode",
+        "actual_frame": {
+          "available": false,
+          "fallback": "No frame in strict Honda mode",
+          "evidence": "SYNTHETIC_TEST_VALUE"
+        }
       },
       "renderer": {
         "target": "inactive",
@@ -235,7 +241,20 @@
         "evidence": "SYNTHETIC_TEST_VALUE",
         "decode_status": "NOT_RUN_SYNTHETIC_FIXTURE_NOT_VALID_H264",
         "decode_backend": "FFMPEG_CLI",
-        "status_label": "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE"
+        "status_label": "ACTUAL DECODED SYNTHETIC FRAME VIA SCREENSTREAM",
+        "actual_frame": {
+          "available": true,
+          "asset": "runtime/type111-frame.png",
+          "source": "screenstream_synthetic_decode",
+          "width": 320,
+          "height": 180,
+          "pixelFormat": "RGBA8888",
+          "rgbaBytes": 230400,
+          "sha256": "dc240a0e4a0f82a79bf39119e997d07a2f234637813821bbc5fdcd820f890e80",
+          "evidence": "SYNTHETIC_TEST_VALUE",
+          "displayLabel": "ACTUAL DECODED SYNTHETIC FRAME",
+          "provenanceLabel": "ScreenStream \u2192 H264 \u2192 RGBA"
+        }
       },
       "renderer": {
         "target": "Display 1 \u00b7 ExternalDisplay host mock",

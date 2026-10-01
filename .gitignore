@@ -13,6 +13,8 @@
 !/.github/**
 !/docs/
 !/docs/**
+!/demo/
+!/demo/**
 !/tools/run_tests.sh
 !/research/
 !/step-reports/
@@ -67,6 +69,7 @@
 /research/simulator/*captured*.jsonl
 /research/simulator/guidance-card
 /research/simulator/guidance-ocr
+/demo/type111/runtime/
 /research/extracted/
 /research/probes/**/build/
 /research/probes/**/apktool.yml

@@ -22,15 +22,17 @@ class VisualClusterDemoTests(unittest.TestCase):
         payload = build_visual_demo_payload(screenstream_validation=passed)
         state = payload["modes"]["hypothetical_type111"]
         self.assertEqual(payload["source"], "STEP_42E_REPLAY_OUTPUT+SYNTHETIC_SCREENSTREAM_H264_VALIDATION")
-        self.assertEqual(state["cluster_frame"]["status_label"],
-                         "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE")
+        self.assertEqual(state["cluster_frame"]["status_label"], "FRAME ARTIFACT UNAVAILABLE")
         self.assertTrue(state["cluster_frame"]["decoded_from_h264"])
+        self.assertFalse(state["cluster_frame"]["actual_frame"]["available"])
         self.assertEqual(payload["live_test"], "NOT_READY")
         self.assertFalse(payload["modes"]["strict_honda"]["cluster_frame"]["visible"])
 
-        failed = build_visual_demo_payload(screenstream_validation={"status": "ATTEMPTED_FAILED"})
+        failed = build_visual_demo_payload(screenstream_validation={
+            "status": "ATTEMPTED_FAILED", "capabilities": {"ffmpeg_available": True},
+        })
         self.assertEqual(failed["modes"]["hypothetical_type111"]["cluster_frame"]["status_label"],
-                         "HOST DECODER ATTEMPTED — FAILED")
+                         "DECODE FAILED")
 
     def test_successful_synthetic_decode_is_labeled_without_advancing_live_gates(self):
         validation = {
@@ -90,11 +92,12 @@ class VisualClusterDemoTests(unittest.TestCase):
         for text in (
             "HONDA_CONFIRMED", "MHI2_DERIVED_HYPOTHESIS", "SYNTHETIC_TEST_VALUE", "UNKNOWN",
             "Strict Honda", "Hypothetical Type111", "Unknown register", "replay-data.json",
-            "NOT READY", "CROP / MASK UNKNOWN", "not valid H.264", "HOST DECODER UNAVAILABLE", "Evidence labels",
+            "NOT READY", "CROP / MASK UNKNOWN", "SYNTHETIC SCHEMATIC FALLBACK", "HOST DECODER UNAVAILABLE", "Evidence labels",
             "toggleAttribute('hidden'",
             "Candidate response fields", "MHI2 hypothesis",
-            "HOST-DECODED SYNTHETIC H264 VIA SCREENSTREAM FIXTURE", "screenstream_validation",
-            "not Honda output, a real CarPlay frame, or live Type111",
+            "ACTUAL DECODED SYNTHETIC FRAME", "screenstream_validation",
+            "Not Honda output · Not CarPlay content · Offline test fixture",
+            "FRAME ARTIFACT UNAVAILABLE — SCHEMATIC FALLBACK",
         ):
             self.assertIn(text, html)
         self.assertNotIn("PRESENTED_AS_LIVE_READY", html)
@@ -117,7 +120,8 @@ class VisualClusterDemoTests(unittest.TestCase):
         self.assertEqual(stored["jmcs_noop_test"], "NOT_READY")
         self.assertEqual(stored["externaldisplay_live_render_test"], "NOT_READY")
         validation = stored["host_decode_validation"]
-        rebuilt = build_visual_demo_payload(validation, stored.get("screenstream_validation"))
+        visual_frame = stored["modes"]["hypothetical_type111"]["cluster_frame"].get("actual_frame")
+        rebuilt = build_visual_demo_payload(validation, stored.get("screenstream_validation"), visual_frame)
         self.assertEqual(rebuilt["modes"]["strict_honda"]["type110"],
                          stored["modes"]["strict_honda"]["type110"])
         self.assertEqual(rebuilt["modes"]["hypothetical_type111"]["type110"],

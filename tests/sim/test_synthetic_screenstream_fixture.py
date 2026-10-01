@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +18,7 @@ from screen_parser import HEADER_SIZE, ScreenFrameParser
 from synthetic_screenstream_fixture import (
     build_avcc_config, create_synthetic_screenstream_fixture, run_fixture_through_transport,
 )
+from export_visual_demo import write_visual_frame
 from video_config import VideoConfigError, VideoConfigParser
 
 
@@ -65,6 +68,7 @@ class SyntheticScreenStreamEndToEndTests(unittest.TestCase):
         self.assertEqual(frame.presentation_time_ns, 1_000_000_000)
         self.assertTrue(result["rendered"])
         self.assertEqual(result["renderer_target"], 1)
+        self.assertEqual(result["renderer_frame"], frame)
         self.assertEqual(result["evidence"], "SYNTHETIC_TEST_VALUE")
         self.assertEqual(stock_type110, stock_before)
         self.assertEqual(audio, audio_before)
@@ -126,6 +130,23 @@ class SyntheticScreenStreamEndToEndTests(unittest.TestCase):
         renderer.close()
         self.assertEqual(stock, before_stock)
         self.assertEqual(audio, before_audio)
+
+    def test_exact_screenstream_renderer_frame_becomes_visual_png_provenance(self):
+        result = run_fixture_through_transport(self.fixture)
+        self.assertEqual(result["status"], "PASS", result.get("reason"))
+        frame = result["renderer_frame"]
+        self.assertEqual(frame, result["frame"])
+        self.assertEqual(len(frame.rgba), frame.width * frame.height * 4)
+        with tempfile.TemporaryDirectory() as scratch:
+            metadata = write_visual_frame(frame, Path(scratch))
+            self.assertEqual(metadata["source"], "screenstream_synthetic_decode")
+            self.assertEqual(metadata["width"], 320)
+            self.assertEqual(metadata["height"], 180)
+            self.assertEqual(metadata["pixelFormat"], "RGBA8888")
+            self.assertEqual(metadata["rgbaBytes"], 230400)
+            self.assertEqual(metadata["sha256"], hashlib.sha256(frame.rgba).hexdigest())
+            self.assertEqual(metadata["evidence"], "SYNTHETIC_TEST_VALUE")
+            self.assertTrue((Path(scratch) / "type111-frame.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
 
 
 def _packet(opcode: int, body: bytes) -> bytes:
