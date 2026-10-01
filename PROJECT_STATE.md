@@ -1,5 +1,9 @@
 # Step 43K — offline project-session registry (2026-10-01)
 
+## Step 43O update (2026-10-01)
+
+The intentional legacy AES/43O research was preserved in `80e4c53` after verifying the local main included remote CI fix `6144222d`. A separate pinned PlayPort checkout (`9a0882dd`, branch `claritylink-type111-lab`) now has an opt-in synthetic Type111 profile, independent browser decoders/canvases and per-stream routing/lifecycle, and JSON diagnostics with centralized allowlisting. Type111 socket EOF is isolated from the main AirPlay session. The offline profile defaults to 800×480@30 with no physical dimensions; those are `SYNTHETIC_TEST_VALUE`, never Honda geometry. Baseline and post-edit Gradle/web tests pass. **PLAYPORT TYPE111 LAB: READY_OFFLINE; DUAL UI: READY_SYNTHETIC; REDACTED ORACLE: READY; LIVE IPHONE: NOT RUN.** Pinned PlayPort's parser uses modern ChaCha framing; the diagnostic classification describes its local parser branch only. Honda Type110 legacy behavior remains confirmed; Honda Type111 crypto remains `HONDA_UNKNOWN`. No Honda/phone/MFi path was exercised. Next is separately scoped Step 43P. Details: [43O report](step-reports/43o-playport-type111-lab.md).
+
 ## Step 43N update (2026-10-01)
 
 The exact `jmcs` hash and `0x28afba` Thumb BL were reverified. The offline target planner now also validates the callsite context and `_connectionHandleMessage` prologue fingerprints; a synthetic control-flow/ABI contract models saving the original continuation LR, calling Honda's serializer once with original `r0-r3`, and restoring SP/LR while preserving the stock `r0` and `statusOut`. It does not emit code or patch bytes. **TRAMPOLINE CONTRACT: READY_OFFLINE; JMCS ATTACHMENT: DESIGNED_NOT_DEPLOYED.**

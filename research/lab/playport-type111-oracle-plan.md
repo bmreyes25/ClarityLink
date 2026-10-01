@@ -1,6 +1,6 @@
 # PlayPort Mac/iPhone Type111 oracle plan — offline design
 
-**Status: DESIGN_READY, not executed.** Step 43O builds an isolated, opt-in PlayPort oracle and prepares redacted diagnostics. Step 43O does not connect an iPhone; any current-iPhone trace is a separate Step 43P scope. This plan targets only the pinned PlayPort `9a0882dd0ffe48e467b59d58b12d81391df55ade`, with xcertplay `17c92439413638dfd1d7f91d7e1c2e7358398762` as a source-level protocol reference. It does not require Honda access, credentials in Git, or changes to ClarityLink's production artifacts.
+**Status: IMPLEMENTED OFFLINE; no phone session performed.** Step 43O built an isolated, opt-in PlayPort lab and redacted diagnostics. A current-iPhone trace remains a separate Step 43P scope. The plan targets only the pinned PlayPort `9a0882dd0ffe48e467b59d58b12d81391df55ade`, with xcertplay `17c92439413638dfd1d7f91d7e1c2e7358398762` as a source-level protocol reference. It does not require Honda access, credentials in Git, or changes to ClarityLink's production artifacts.
 
 ## Minimal lab change
 
@@ -26,7 +26,7 @@ Do not record accessory private keys, pairing material, session secrets, or comp
 4. Confirm actual iPhone request/response/media behavior for that iOS build; label it external physical/device observation, not Honda evidence.
 5. Keep the center-screen 110 path active throughout the lab run; stop on any session/authentication failure rather than changing keys or pairing identity.
 
-The current milestone performs none of these phone operations. It only establishes that the pinned protocol supports Type111 plumbing and that the normal web renderer still needs a second canvas path.
+Step 43O performed none of these phone operations. The pinned protocol supports Type111 plumbing; the local lab now has a separate browser canvas/decoder and redacted observation events. Implementation details and verification are in [the lab implementation report](playport-type111-oracle-implementation.md).
 
 ## xcertplay reference baseline
 
@@ -38,7 +38,7 @@ The oracle should answer, for the recorded iOS build: `altScreenURLs` presence, 
 
 Use the confirmed xcertplay, DiPlay, PlayPort, MHI2, and CPC200 material as reference profiles only. Do not add a protocol command whose purpose is to explicitly “create Type111.” The external working hypothesis is that a coherent secondary-display advertisement/feature negotiation may cause the phone to request a Type111 stream; only Step 43P observation can confirm or refute that for a specified iOS build.
 
-Prepare redacted diagnostics for the following, without emitting raw authentication plists or secrets:
+The lab prepares redacted diagnostics for the following, without emitting raw authentication plists or secrets. It cannot yet establish the phone's answers:
 
 ### Phone requests and negotiation
 

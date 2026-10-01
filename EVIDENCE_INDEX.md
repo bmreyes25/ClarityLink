@@ -666,3 +666,11 @@ Honda-specific source notes remain separately indexed below; no external project
 | Honda crypto boundary | `research/carplay/honda-vs-modern-type111-security.md`; Honda `jmcs` Type110 crypto audit | Honda Type110 AES-CTR remains `HONDA_CONFIRMED`; Honda Type111 remains `HONDA_UNKNOWN`. Hypothesis updated to `LEGACY_PER_SCREEN_KDF_STRONGLY_SUPPORTED; HONDA ABI/STATE VALIDATION REQUIRED`. |
 | Step 43O / 43P / 43Q plan | `research/lab/playport-type111-oracle-plan.md`; `NEXT_ACTION.md`; `docs/research/honda-type111-research-plan.md` | 43O prepares isolated oracle + redacted diagnostics without phone connection; 43P separately scopes current-iPhone observation; 43Q is conditional offline crypto/lifecycle modeling only after 43P review. |
 | Lifetime / negotiation questions | Pinned xcertplay, DiPlay, PlayPort, MHI2 and CPC200 sources; same lab plan | External references motivate recording request order and separate Type111 setup/socket/video/stop/teardown while Type110 remains active. They do not establish Honda behavior or a universal iOS trigger/lifecycle. |
+
+## Step 43O lab implementation (2026-10-01)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Pinned PlayPort lab | Separate checkout `../playport-type111-lab`, base `9a0882dd0ffe48e467b59d58b12d81391df55ade`, branch `claritylink-type111-lab` | `OFFLINE_PROJECT_IMPLEMENTATION`: opt-in synthetic cluster profile, separate 110/111 browser decoding/routing, isolated Type111 socket EOF, and synthetic lifecycle tests. No phone session. |
+| Diagnostics contract | `research/lab/playport-redaction-contract.md`; `research/lab/playport-type111-oracle-implementation.md` | `OFFLINE_PROJECT_IMPLEMENTATION`: allowlisted structured events; no raw stream IDs, bodies, media, or authentication/key material. Current PlayPort security mode labels its parser path only. |
+| Readiness boundary | `step-reports/43o-playport-type111-lab.md`; `research/carplay/current-ios-type111-questions.md` | Lab/oracle `READY_OFFLINE`; current iOS facts remain unobserved. Honda Type111 crypto `HONDA_UNKNOWN`; Honda runtime and live gates unchanged. Next: separately scoped 43P. |
