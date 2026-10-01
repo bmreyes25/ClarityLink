@@ -1,3 +1,14 @@
+# Step 43N — offline trampoline model and external Type111 oracle evidence
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Honda callsite and ABI frame | `extracted/system/system/bin/jmcs`, SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`; LLVM Thumb disassembly; `tools/jmcs_integration/callsite_plan.py` | `HONDA_CONFIRMED`: `0x28afba` bytes `fe f7 d1 ff`, direct BL to `0x289f60`, continuation `0x28afbe`, saved LR `0x28afbf`; 0x2d8 frame delta keeps callsite SP aligned assuming AAPCS entry alignment. Planner gates hash, instruction, surrounding context, and caller prologue. |
+| Trampoline control-flow contract | `src/claritylink-negotiation/trampoline_contract.py`; `tests/negotiation/test_trampoline_contract.py` | `OFFLINE_PROJECT_IMPLEMENTATION` / `SYNTHETIC_TEST_VALUE`: caller LR saved/restored, original args passed, stock call once, serializer result/statusOut preserved; no patch bytes or code emitted. |
+| DiPlay Type111 behavior | pinned commit `f2d06951b4e8114dbb62f551c12a32a845a3042f`; [DiPlay differential](research/carplay/diplay-type111-differential.md) | `EXTERNAL_PRIOR_ART`: second display 111, URLs, view areas, enabled features, own dataPort, UUID-scoped UI/keyframe controls, modern DataStream crypto. Pinned docs report a physical iOS 27 cluster test: `EXTERNAL_PHYSICAL_VALIDATION`. None is Honda fact. |
+| PlayPort protocol/oracle | pinned commit `9a0882dd0ffe48e467b59d58b12d81391df55ade`; [PlayPort differential](research/carplay/playport-type111-differential.md); [lab plan](research/lab/playport-type111-oracle-plan.md) | `EXTERNAL_PRIOR_ART`: protocol supports 110/111 and preserves type through media and web wire; default server has no cluster and current browser UI has one canvas. Oracle is design only; no phone test. |
+| Security boundary | [Honda vs modern security](research/carplay/honda-vs-modern-type111-security.md); `research/carplay/honda-screen-crypto.md` | Honda Type110 AES-CTR is `HONDA_CONFIRMED`; DiPlay/PlayPort DataStream HKDF + ChaCha20-Poly1305 is `EXTERNAL_PRIOR_ART`; Honda Type111 crypto remains `HONDA_UNKNOWN`. |
+| Readiness | [Step 43N report](step-reports/43n-trampoline-and-type111-oracle.md); `PROJECT_STATE.md`; `NEXT_ACTION.md` | Trampoline contract ready offline, attachment designed not deployed; Type111 model has stronger external evidence; Honda live and Type111 live remain NOT READY; LD_PRELOAD PARKED. |
+
 # Step 43M — existing-call wrapper seam (offline)
 
 | Evidence item | Source | Finding / classification |

@@ -1,3 +1,3 @@
 # Next action
 
-Design and validate a synthetic stock-delegating Thumb callsite trampoline model for `0x28afba`, including ABI preservation, branch/continuation behavior, and fail-closed hash/byte gates; do not modify or emit a patched Honda binary.
+Step 43O — build an isolated, opt-in PlayPort Type111 Mac lab with separate 110/111 browser canvases and redacted protocol diagnostics; keep iPhone connection and any credential use out of scope until separately authorized.
