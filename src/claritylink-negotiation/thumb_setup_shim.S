@@ -17,7 +17,8 @@ shim_entry:
     mov     r12, sp
     push.w  {r4-r11, lr}
     sub     sp, #4                  /* preserve AAPCS 8-byte call alignment */
-    sub     sp, #48                 /* 11-word context plus alignment word */
+    sub     sp, #64
+    sub     sp, #64                 /* wire context plus caller-owned txn storage */
     str     r12, [sp, #0]           /* original_sp */
     str     r0,  [sp, #20]          /* serializer_r0 */
     str     r1,  [sp, #24]          /* serializer_r1 */
@@ -33,6 +34,8 @@ shim_entry:
     str     r5, [sp, #12]           /* status_out */
     add     r5, r12, #0x50
     str     r5, [sp, #44]           /* expected callsite statusOut address */
+    add     r5, sp, #64
+    str     r5, [sp, #48]           /* caller-owned ClPreparedTxn storage */
     movs    r5, #0
     cmp     r10, #0
     beq     1f
@@ -75,31 +78,19 @@ shim_entry:
 2:  movs    r0, #0                  /* project rollback */
 3:  mov     r1, r7
     bl      project_finish
+    str     r0, [r7, #52]           /* preserve project cleanup status */
 
     mov     r0, r4                  /* exact stock return value */
-    add     sp, #48
+    add     sp, #64
+    add     sp, #64
     add     sp, #4
     pop.w   {r4-r11, pc}            /* saved LR returns to 0x28afbf state */
 .size shim_entry, .-shim_entry
 
-/* Offline stubs are supplied by the emulator harness via address hooks. */
-.global project_prepare
-.thumb_func
-project_prepare:
-    push    {r4, lr}
-    sub     sp, #64
-    add     sp, #64
-    pop     {r4, pc}
+/* The stock serializer is an external Honda-call boundary in the harness. */
 .global stock_serializer
 .thumb_func
 stock_serializer:
-    push    {r4, lr}
-    sub     sp, #64
-    add     sp, #64
-    pop     {r4, pc}
-.global project_finish
-.thumb_func
-project_finish:
     push    {r4, lr}
     sub     sp, #64
     add     sp, #64

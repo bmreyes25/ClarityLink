@@ -154,3 +154,7 @@ Starting HEAD `5abb244fdeb7bf652cb2982991cb04c4fc4a0045`; final implementation H
 ## 43S1 historical follow-up
 
 The historical 43S decision above is unchanged. 43S1 completed offline from `c3408f08373c61514e58c25cbc7266b374bb21a6` and returned **`43S1_NO_GO`**: executable shim and host listener evidence were added, but G19 remains open. The next action is **43S2 — native helper/reentrancy proof and repeat readiness review**. See [43S1 report](43s1-executable-trampoline-listener-proof.md).
+
+## 43S2 gate update (historical 43S decision preserved)
+
+43S2 completed offline from `6df9998cd69838400d22e8e072af4d3c3eeed77b` with **`43S2_PASS`** for its native-helper/reentrancy objective. It does not change 43S's original NO_GO and does not authorize Type111 negotiation. The compiled Thumb shim and compiled C transaction helpers run in one Unicorn address space; G5 and G12 pass within emulator/host evidence bounds, G11 remains partial pending Honda interface/reachability observation, G19 passes for the clean-room offline seam with Honda CoreFoundation bridging explicitly unresolved, and G21 passes structurally without a Honda timing claim. The separately recommended next step is a read-only preflight plan/review, not a live preflight or negotiation. See the [43S2 report](43s2-native-helper-reentrancy-readiness.md).

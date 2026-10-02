@@ -88,5 +88,6 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 43A — Honda `/info` Type111 differential](43a-honda-info-type111-differential.md)
 - [Step 43S — Honda runtime readiness review](43s-honda-runtime-readiness-review.md)
 - [Step 43S1 — executable trampoline and listener proof](43s1-executable-trampoline-listener-proof.md)
+- [Step 43S2 — native helper / reentrancy readiness](43s2-native-helper-reentrancy-readiness.md)
 - [Step reports](README.md)
 - [Step 5 run status](RUN_STATUS.md)
