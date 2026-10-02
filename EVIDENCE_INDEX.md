@@ -789,3 +789,10 @@ Honda-specific source notes remain separately indexed below; no external project
 | Proposed observational collection | [ECC preflight](step-reports/43t0-ecc-preflight-review.md), [40E capture report](step-reports/40e-readonly-runtime-preflight.md), [40F-Lite](research/runtime/step40f-lite.md) | `43T0_ECC_NO_GO`: 40E already captured a three-phase unprivileged session; proposed repeat lacks a specific new G11 question and exact reviewed collector. No Honda contact in ECC review. |
 | Read-only claim | Same preflight | Future bounded wording: `NO_INTENTIONAL_MUTATION_OCCURRED`, if verified; ADB, file reads and stock CarPlay can cause ordinary bookkeeping. `su` and SuperSU prohibited. |
 | Next action | [Next action](NEXT_ACTION.md) | Analyze existing host-only evidence offline, then review any precise missing observation and minimal delta before vehicle access. Runtime/deployment and Type111 negotiation remain disabled. |
+
+# Step 43T0-D — host enumeration stopped before Honda reads
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Approved collector attempt | [43T0-D report](step-reports/43t0d-read-only-honda-network-delta.md); private host bundle outside Git | `HOST_ONLY_OBSERVED`: one `adb devices` command returned zero targets; collector `AMBIGUOUS_ADB_TARGET`. No identity/network phase or Honda target command. |
+| G11 and safety boundary | Same report; [40E reanalysis](step-reports/43t0a-40e-network-evidence-reanalysis.md) | `UNRESOLVED`: G11 unchanged. CAR-OFF message issued immediately; no further Honda/ADB commands. `NO_INTENTIONAL_MUTATION_OCCURRED`, target writes 0. |

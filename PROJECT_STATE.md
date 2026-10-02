@@ -62,6 +62,10 @@ Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly 
 
 # ClarityLink project state — 2026-09-30
 
+## Step 43T0-D update (2026-10-02)
+
+The approved collector stopped after its sole host enumeration returned zero ADB targets: **`43T0_D_NO_GO`** / `AMBIGUOUS_ADB_TARGET`. No Honda target command, identity check, or network phase ran; G11 A-F remain at 43T0-C status. Codex issued the mandatory CAR-OFF message immediately after collector exit and used no further Honda/ADB commands. Private host evidence remains outside Git. See the [43T0-D report](step-reports/43t0d-read-only-honda-network-delta.md). Next is a separate offline ECC review of the existing ADB-over-Wi-Fi precondition and retry plan; Type111 and runtime/deployment remain disabled.
+
 ## Step 43T0-D0 update (2026-10-02)
 
 The [executable Mac-side collector](tools/step43t0d0_collector.py) passed offline ECC-method equivalence review against the [43T0-C plan](step-reports/43t0c-identity-gated-delta-ecc-review.md): **`43T0_COLLECTOR_ECC_GO`** for a separately initiated read-only 43T0-D session only. The [D0 report](step-reports/43t0d0-executable-collector-ecc-review.md) records one host enumeration, seven exact identity reads, 15 fixed network reads, human phase gates, bounded host-only capture, no fallback, and mocked failure tests. No Honda/ADB contact or target write occurred in D0. G11 A-F remain at 43T0-C status; Type111/runtime/deployment remain disabled. Next is 43T0-D only when separately initiated.
