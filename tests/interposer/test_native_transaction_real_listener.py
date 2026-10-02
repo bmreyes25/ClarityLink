@@ -74,9 +74,11 @@ def native_library(tmp_path_factory):
         pytest.skip("clang not available for native listener integration")
     tmp_path = tmp_path_factory.mktemp("native-listener")
     source = ROOT / "src/claritylink-negotiation/native_setup_txn.c"
-    output = tmp_path / "libnative_setup_txn.dylib"
+    library_flag = "-dynamiclib" if sys.platform == "darwin" else "-shared"
+    library_suffix = ".dylib" if sys.platform == "darwin" else ".so"
+    output = tmp_path / f"libnative_setup_txn{library_suffix}"
     subprocess.run([clang, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O1",
-                    "-dynamiclib", "-fPIC", "-I", str(source.parent), str(source),
+                    library_flag, "-fPIC", "-I", str(source.parent), str(source),
                     "-o", str(output)], check=True, capture_output=True, text=True)
     lib = ctypes.CDLL(str(output))
     lib.cl_setup_prepare.argtypes = [ctypes.POINTER(SetupCall), ctypes.POINTER(PreparedTxn),
