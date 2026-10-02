@@ -1,3 +1,11 @@
+# Step 43T0-C — identity-gated delta dry run / ECC re-review
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Trusted identity reference | Verified host-only 40E preflight files; [43T0-C plan](step-reports/43t0c-identity-gated-delta-ecc-review.md) | Full normalized shell `id` and `/proc/version` hashes plus five exact selected properties. Historical endpoint is a secondary signal, never physical identity proof. |
+| Offline dry run and tests | [43T0-C tool](tools/step43t0c_identity_delta_dry_run.py); [focused tests](tests/honda/test_step43t0c_dry_run.py) | `OFFLINE_PROJECT_IMPLEMENTATION`: ordered enumeration/human/identity/gate/15-read plan, pure fail-closed model, no ADB execution path. No Honda observation. |
+| Decision and limit | [43T0-C plan](step-reports/43t0c-identity-gated-delta-ecc-review.md) | `43T0_DELTA_ECC_GO` for a separately initiated observational procedure only. `ifconfig` and new proc-path runtime availability unresolved; G11 E/F unchanged. No car session started. |
+
 # Step 43T0-B — ECC exact delta review
 
 | Evidence item | Source | Finding / classification |

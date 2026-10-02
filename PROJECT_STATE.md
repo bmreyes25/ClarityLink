@@ -62,6 +62,10 @@ Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly 
 
 # ClarityLink project state — 2026-09-30
 
+## Step 43T0-C update (2026-10-02)
+
+ECC-method re-review returned **`43T0_DELTA_ECC_GO` for the exact future observational procedure only**. The [43T0-C plan](step-reports/43t0c-identity-gated-delta-ecc-review.md) requires one current `device` target, parked-Honda human confirmation, historical endpoint equality as a secondary signal, exact UID/group/kernel/property fingerprint match, and stop on any reconnect before the five fixed network reads across baseline, connected and post-disconnect. The [dry-run tool](tools/step43t0c_identity_delta_dry_run.py) has no ADB execution path. `ifconfig` output remains a fail-closed runtime uncertainty; G11 evidence has not advanced. No Honda, ADB, target write, Type111, listener or attachment occurred. Next: separately scoped 43T0-D read-only delta, with any executable collector reviewed against this plan first.
+
 ## Step 43T0-B update (2026-10-02)
 
 ECC offline review returned **`43T0_DELTA_ECC_NO_GO`** for the current 43T0-A dry run. The five interface/address/route reads across three phases are narrowly justified, and the archived firmware contains an `ifconfig` toolbox symlink. The dry run has no independent current-target identity gate; old ADB serial alone cannot establish current Honda identity. `ifconfig` zero-argument live output and new proc-path availability remain unverified and must fail closed if unavailable. See the [43T0-B review](step-reports/43t0b-exact-delta-ecc-review.md). Next is offline 43T0-C identity-gated dry run and ECC re-review. G11 A-D remain partial/unresolved; E/F remain unchanged. No Honda, ADB, target writes, or Type111 activity occurred.
