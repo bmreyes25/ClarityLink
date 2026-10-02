@@ -20,4 +20,8 @@ The previous live attempt left an ADB connection precondition unresolved. The [o
 
 ## Verification
 
-Synthetic parser and scenario tests, malformed/truncation tests, validator prefix/command/integrity tests, source immutability, path safety, privacy, report generation, and G11-F invariant are in `tests/tools/test_step43t0d_prep.py`. The committed [synthetic JSON example](../research/runtime/43t0d-synthetic-example.json) is explicitly labeled synthetic and contains no raw capture. Focused suite: 40 passed. Configured offline suite: 500 passed, 3 skipped (plus smoke and simulator checks). `git diff --check` and edited Markdown link validation passed. Hosted CI remains to be checked after push.
+Synthetic parser and scenario tests, malformed/truncation tests, validator prefix/command/integrity tests, source immutability, path safety, privacy, report generation, and G11-F invariant are in `tests/tools/test_step43t0d_prep.py`. The committed [synthetic JSON example](../research/runtime/43t0d-synthetic-example.json) is explicitly labeled synthetic and contains no raw capture. Focused suite: 40 passed. Configured offline suite: 500 passed, 3 skipped (plus smoke and simulator checks). `git diff --check` and edited Markdown link validation passed. Hosted Offline CI passed for the first pushed code commit; see the decision below.
+
+## DPREP decision
+
+**`43T0_DPREP_COMPLETE`** for the offline software and documentation scope. ECC security-review checklist findings: no unresolved code safety or privacy blocker; no independent reviewer approval is claimed. The first pushed code commit `230a2fe735a0f5f7d74ac433727a78ceb542ce6f` passed [hosted Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/37045008284). The only remaining requirement before the real 43T0-D retry is the separate offline ECC review of the ADB-over-Wi-Fi connection precondition and a separately initiated parked-car session. No Honda session begins from this decision.
