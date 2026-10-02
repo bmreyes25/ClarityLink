@@ -2,7 +2,7 @@
 
 ## Step 43Q-B update (2026-10-01)
 
-The 43Q-A screen twin is now composed with the existing project generation registry. `TYPE111_SYNTHETIC` has explicit role-scoped generations, exact-object cleanup, idempotent B-only teardown, supersession/restart, bounded renewal leases, and revisioned lease tickets so stale expiry callbacks cannot retire a renewed or newer B generation. Deterministic tests preserve the same active Type110 receiver/parser/CTR across B lifecycle events; explicit parent destruction remains separate. **43Q-B: OFFLINE IMPLEMENTATION VERIFIED LOCALLY; HONDA TYPE111 LIFECYCLE: HONDA_UNKNOWN.** Local full suite: 329 passed, 4 skipped. Hosted CI follows the scoped push. See [43Q-B report](step-reports/43q-b-type111-lifecycle-twin.md).
+The 43Q-A screen twin is now composed with the existing project generation registry. `TYPE111_SYNTHETIC` has explicit role-scoped generations, exact-object cleanup, idempotent B-only teardown, supersession/restart, bounded renewal leases, and revisioned lease tickets so stale expiry callbacks cannot retire a renewed or newer B generation. Deterministic tests preserve the same active Type110 receiver/parser/CTR across B lifecycle events; explicit parent destruction remains separate. **43Q-B: COMPLETE OFFLINE; HONDA TYPE111 LIFECYCLE: HONDA_UNKNOWN.** Local full suite: 329 passed, 4 skipped; [hosted Offline CI passed](https://github.com/bmreyes25/ClarityLink/actions/runs/36964359541). See [43Q-B report](step-reports/43q-b-type111-lifecycle-twin.md).
 
 ## Step 43Q-A update (2026-10-01)
 

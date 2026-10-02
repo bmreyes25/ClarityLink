@@ -1,6 +1,6 @@
 # Step 43Q-B — offline synthetic Type111 generation and lifecycle twin
 
-**Status: IMPLEMENTED AND LOCALLY VERIFIED.** Hosted CI will run after the scoped commit is pushed. This is an offline simulator ownership model. Honda Type111 independent teardown/restart remains `HONDA_UNKNOWN`.
+**Status: COMPLETE.** This is an offline simulator ownership model. Honda Type111 independent teardown/restart remains `HONDA_UNKNOWN`.
 
 ## Starting point and scope
 
@@ -26,7 +26,7 @@ Tests use an injected fake clock and explicit callback ordering. No sleeps or wa
 
 The new `tests/transport/test_type111_lifecycle_twin.py` adds **14 deterministic test cases** covering simultaneous A/B activity; explicit generation; exact and idempotent B teardown; B1→B2 restart/supersession; fresh state; late teardown/failure/activation/renewal; stale lease after replacement; stale expiry after renewal; current lease expiry; malformed-B failure and restart; duplicate ID; separate parent lifecycle state; and parent-versus-child cleanup. Existing `tests/carplay-session-model/test_project_lifecycle.py` continues to exercise registry transactions, idempotent cleanup, generation supersession, expiry, and race ordering.
 
-Verification: focused lifecycle + registry + 43Q-A crypto/parser/KDF set: **105 passed**; 43Q-A regression module and related KDF/parser tests are included. Configured full offline suite: **329 passed, 4 skipped**; self-locator smoke: **3 passed**; configured simulator JavaScript checks: **all passed**; redaction/security tests are included in the full suite; `git diff --check`: **passed**. Relative Markdown links in changed project records: **passed**. Hosted CI is pending the push.
+Verification: focused lifecycle + registry + 43Q-A crypto/parser/KDF set: **105 passed**; 43Q-A regression module and related KDF/parser tests are included. Configured full offline suite: **329 passed, 4 skipped**; self-locator smoke: **3 passed**; configured simulator JavaScript checks: **all passed**; redaction/security tests are included in the full suite; `git diff --check`: **passed**. Relative Markdown links in changed project records: **passed**. Hosted GitHub Actions [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/36964359541) passed on implementation commit `3942b9e4ac175e144fa25331ac787205ed831fe5`; only runner/toolchain deprecation annotations were reported.
 
 ## ECC review
 
