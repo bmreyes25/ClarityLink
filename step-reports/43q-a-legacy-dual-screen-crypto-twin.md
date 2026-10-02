@@ -32,7 +32,7 @@ The new focused module has 14 test cases covering:
 
 The AES block callable in these tests is a deterministic XOR fixture expressly documented as a CTR state-mechanics test double, not AES. Existing fixed Type110 SHA-512 KDF regression vectors remain in `tests/negotiation/test_setup_contract.py`; existing continuous CTR regression coverage remains in `tests/transport/test_screen_parser.py`.
 
-Verification: focused crypto/KDF/parser set **63 passed** (including 14 new twin test cases); configured full offline suite **315 passed, 4 skipped**; self-locator smoke **3 passed**; simulator JavaScript checks all passed; `git diff --check` passed. The first full-suite invocation used the system Python without pytest and stopped at the runner's dependency preflight; rerunning with the repository's `.venv` passed. No hosted CI run has been observed yet.
+Verification: focused crypto/KDF/parser set **63 passed** (including 14 new twin test cases); configured full offline suite **315 passed, 4 skipped**; self-locator smoke **3 passed**; simulator JavaScript checks all passed; `git diff --check` passed. The first full-suite invocation used the system Python without pytest and stopped at the runner's dependency preflight; rerunning with the repository's `.venv` passed. GitHub Actions [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/36962873043) passed on milestone commit `f3f578b0f67753a34c2395c4b715e344f45a259e`; its annotations were runner/toolchain deprecation notices only.
 
 ## ECC review
 
