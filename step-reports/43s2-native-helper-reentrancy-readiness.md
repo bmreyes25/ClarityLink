@@ -47,6 +47,7 @@ Recoverable expected project failures return status values and retain the stock 
 - Self-locator smoke: 3 passed.
 - Simulator checks: passed.
 - `git diff --check`: passed.
+- Hosted Offline CI passed on implementation commit `00f7055` ([run 37026413739](https://github.com/bmreyes25/ClarityLink/actions/runs/37026413739)). The first hosted run on `5c90894` exposed a Linux/macOS shared-library flag mismatch in the real-listener test; the test now selects the platform flag/suffix and the rerun passed.
 
 ## Authorization recommendation and next milestone
 
