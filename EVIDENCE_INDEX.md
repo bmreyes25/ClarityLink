@@ -1,3 +1,12 @@
+# Step 43T0-B — ECC exact delta review
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Five reads / three phases | [43T0-B review](step-reports/43t0b-exact-delta-ecc-review.md); [43T0-A dry run](tools/step43t0a_delta_dry_run.py) | `NECESSARY` with read-only semantics and fail-closed availability/output caveats. No socket recapture or maps/FD retry. |
+| `ifconfig` presence | Preserved `extracted/system-vendor/system/bin/ifconfig` toolbox symlink; [43T0-B review](step-reports/43t0b-exact-delta-ecc-review.md) | `HONDA_STATIC_COMPATIBILITY` only; zero-argument live output and current availability `UNRESOLVED`. |
+| Current-target identity | 43T0-A dry-run source; host-only 40E manifest; [43T0-B review](step-reports/43t0b-exact-delta-ecc-review.md) | Old ADB endpoint is historical selection, not current identity proof. Current unit must match fixed 40E identity fingerprint and UID before network reads. |
+| Decision | [43T0-B review](step-reports/43t0b-exact-delta-ecc-review.md) | `43T0_DELTA_ECC_NO_GO`; next is offline identity-gated dry run and re-review. No Honda visit authorized. |
+
 # Step 43T0-A — offline 40E network/G11 reanalysis
 
 | Evidence item | Source | Finding / classification |

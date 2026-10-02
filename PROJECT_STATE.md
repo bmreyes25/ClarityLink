@@ -62,6 +62,10 @@ Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly 
 
 # ClarityLink project state — 2026-09-30
 
+## Step 43T0-B update (2026-10-02)
+
+ECC offline review returned **`43T0_DELTA_ECC_NO_GO`** for the current 43T0-A dry run. The five interface/address/route reads across three phases are narrowly justified, and the archived firmware contains an `ifconfig` toolbox symlink. The dry run has no independent current-target identity gate; old ADB serial alone cannot establish current Honda identity. `ifconfig` zero-argument live output and new proc-path availability remain unverified and must fail closed if unavailable. See the [43T0-B review](step-reports/43t0b-exact-delta-ecc-review.md). Next is offline 43T0-C identity-gated dry run and ECC re-review. G11 A-D remain partial/unresolved; E/F remain unchanged. No Honda, ADB, target writes, or Type111 activity occurred.
+
 ## Step 43T0-A update (2026-10-02)
 
 Offline reanalysis of the checksum-verified 40E host bundle found stock-CarPlay-correlated IPv6 link-local socket changes, but the original collection omitted interface inventory, address-to-interface mapping, and routes. `jmcs` FD denial still prevents socket ownership attribution; listener reachability is unproven. **`40E_PARTIAL_PRECISE_DELTA_REQUIRED`**; G11 remains partial. The [43T0-A report](step-reports/43t0a-40e-network-evidence-reanalysis.md) specifies the exact minimal proposed delta for separate ECC review. No Honda contact, ADB, Type111 negotiation, target write, or deployment occurred. 40E is Honda/stock CarPlay with no Type111; 43P is Mac/iPhone/PlayPort with no Honda.
