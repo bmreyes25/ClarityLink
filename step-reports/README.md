@@ -1,3 +1,4 @@
+- [43T0-DPREP offline live-capture analysis pipeline](43t0d-prep-offline-analysis-pipeline.md)
 # Step reports
 
 This directory preserves the chronological milestone record. Reports reflect what was known at that time; for current status use [PROJECT_STATE.md](../PROJECT_STATE.md), [EVIDENCE_INDEX.md](../EVIDENCE_INDEX.md), and [NEXT_ACTION.md](../NEXT_ACTION.md).

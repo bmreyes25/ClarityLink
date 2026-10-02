@@ -1,0 +1,97 @@
+{
+  "G11_A": "YES_OBSERVED",
+  "G11_B": "YES_OBSERVED",
+  "G11_C": "IPv6",
+  "G11_D": "YES",
+  "G11_E": "NO / READ_BLOCKED_WITHOUT_PRIVILEGE",
+  "G11_F": "NO",
+  "candidate_address_family": "IPv6",
+  "candidate_interface": "cp0",
+  "candidate_route_policy": {
+    "address_family": "IPv6",
+    "evidence_class": "HONDA_OBSERVED_NETWORK_POLICY_INPUT",
+    "interface_name": "cp0",
+    "local_address": "WITHHELD",
+    "route_present": true,
+    "scope_id_required": true,
+    "wildcard_binding_recommended": false
+  },
+  "candidate_state": "SINGLE_STRONG_CANDIDATE",
+  "candidates": [
+    {
+      "evidence_class": "HONDA_OBSERVED_NETWORK_POLICY_INPUT",
+      "interface": "cp0",
+      "reasons": [
+        "APPEARS_WITH_CARPLAY",
+        "IPV6_LINK_LOCAL_ADDRESS_AND_SCOPE",
+        "IPV6_ROUTE_ON_INTERFACE",
+        "PHASE_REVERSAL_CORRELATION",
+        "MATCHES_40E_SOCKET_ADDRESS_CLASS"
+      ]
+    }
+  ],
+  "capture_status": "CAPTURE_VALID",
+  "completed_phases": [
+    "baseline",
+    "connected",
+    "post-disconnect"
+  ],
+  "conflicting_interfaces": [],
+  "correlation_40e": {
+    "address_class": "IPv6_LINK_LOCAL",
+    "candidate_address_class_match": true,
+    "process_ownership": "READ_BLOCKED_WITHOUT_PRIVILEGE",
+    "provenance": "step-reports/43t0a-40e-network-evidence-reanalysis.md",
+    "route_supports_candidate": true,
+    "stock_carplay_correlation": true,
+    "topology_reversal": true
+  },
+  "evidence_classes": [
+    "OBSERVED_ON_HONDA_READ_ONLY",
+    "HONDA_RUNTIME_CORRELATION",
+    "HONDA_OBSERVED_NETWORK_POLICY_INPUT"
+  ],
+  "fact_provenance": {
+    "40E": "HONDA_RUNTIME_CORRELATION",
+    "G11_A": "OBSERVED_ON_HONDA_READ_ONLY",
+    "G11_B": "OBSERVED_ON_HONDA_READ_ONLY",
+    "G11_C": "HONDA_OBSERVED_NETWORK_POLICY_INPUT",
+    "G11_D": "HONDA_OBSERVED_NETWORK_POLICY_INPUT",
+    "G11_E": "READ_BLOCKED_WITHOUT_PRIVILEGE",
+    "G11_F": "UNRESOLVED"
+  },
+  "identity_status": "IDENTITY_MATCH",
+  "interfaces": [
+    "cp0"
+  ],
+  "limitations": [
+    "G11-E and G11-F unresolved by observational capture"
+  ],
+  "next_recommendation": "43T1-PREP \u2014 offline reversible RAM-only listener/attachment readiness design",
+  "phase_deltas": [
+    {
+      "category": "APPEARS_WITH_CARPLAY",
+      "interface": "cp0",
+      "ipv4_added": [],
+      "ipv4_reversed": false,
+      "ipv4_routes_added": 0,
+      "ipv6_added": [
+        "IPv6_LINK_LOCAL_WITHHELD"
+      ],
+      "ipv6_reversed": true,
+      "ipv6_routes_added": 1,
+      "phase_reversal_correlation": true,
+      "present": [
+        false,
+        true,
+        false
+      ],
+      "routes_reversed": true,
+      "structural": true,
+      "traffic_delta": null
+    }
+  ],
+  "privacy_status": "SANITIZED",
+  "provenance": "SANITIZED_SYNTHETIC_FIXTURE_ONLY_NO_HONDA_CAPTURE",
+  "synthetic_example": true
+}

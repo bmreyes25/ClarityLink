@@ -1,3 +1,11 @@
+# Step 43T0-DPREP — offline capture analysis
+
+| Evidence | Source | Boundary |
+|---|---|---|
+| D0 contract validator and five parsers | [Analyzer](tools/analyze_43t0d_capture.py), [offline model](tools/step43t0d_offline.py), [synthetic tests](tests/tools/test_step43t0d_prep.py) | `OFFLINE_PROJECT_IMPLEMENTATION`; no live capture or Honda G11 promotion in DPREP. |
+| 40E socket adapter | [43T0-A sanitized reanalysis](step-reports/43t0a-40e-network-evidence-reanalysis.md) | `HONDA_RUNTIME_CORRELATION` for stock CarPlay IPv6 link-local global socket rows; `jmcs` ownership remains `READ_BLOCKED_WITHOUT_PRIVILEGE`. |
+| Live sequence and next gate | [DPREP report](step-reports/43t0d-prep-offline-analysis-pipeline.md), [runbook](research/runtime/43t0d-live-runbook.md) | Prior 43T0-D zero-target ADB precondition still needs offline ECC review before a separately initiated retry. |
+
 # Step 43T0-D0 — executable collector offline equivalence
 
 | Evidence item | Source | Finding / classification |
