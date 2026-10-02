@@ -6,13 +6,15 @@ The existing reports remain in place and are not rewritten by the index.
 
 ## Latest completed research milestone
 
-[Step 43A — Honda `/info` Type111 differential](43a-honda-info-type111-differential.md) is the latest completed research milestone. It verified the pinned xcertplay descriptor fields and classified Honda literal/descriptor evidence without advancing implementation or live gates.
+[Step 43S — Honda runtime attachment and Type111 negotiation readiness review](43s-honda-runtime-readiness-review.md) is the current readiness decision. It returns `NO_GO`; exact static fingerprints pass, but executable trampoline ABI and real listener/runtime prerequisites remain unproven.
 
 ## Latest completed engineering milestone
 
-[Step 42K — actual decoded frame in the visual twin](42k-actual-decoded-frame-visual-demo.md) is the latest completed engineering milestone. The active technical next action is maintained separately in [NEXT_ACTION.md](../NEXT_ACTION.md).
+[Step 43S — same-generation presentation state model](43s-honda-runtime-readiness-review.md) adds a synthetic control/layout model that retains the active Type111 generation through UI ownership, keyframe and ViewArea updates. The active technical next action is maintained separately in [NEXT_ACTION.md](../NEXT_ACTION.md).
 
 ## Chronological index
+
+- [Step 43S — Honda runtime attachment and Type111 negotiation readiness review](43s-honda-runtime-readiness-review.md)
 
 - [Step 1 — Evidence baseline and repository normalization](01-evidence-baseline.md)
 - [Step 2 — Factory navigation viewport and offline twin](02-cluster-viewport.md)
