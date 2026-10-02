@@ -1,3 +1,12 @@
+# Step 43R — offline Type111 SETUP/listener contract
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Request ordering and structure | [43P summary](research/lab/captures/43p/session-summary.json); [synthetic replay fixture](research/simulator/43r-type111-first-setup.json) | `CURRENT_IOS_LAB_CONFIRMED`: canonical iPhone request order was Type111 before Type110 with distinct IDs/ports. Fixture values are synthetic and do not copy captured identifiers, packets, media, or secrets. |
+| Honda stock serializer seam | [callsite audit](research/carplay/honda-post-setup-existing-call-map.md); [response seam](research/carplay/honda-post-setup-response-seam.md) | `HONDA_CONFIRMED`: direct call at `0x28afba`, continuation `0x28afbe`, local predicate `r0 == 0xc8 && statusOut == 0`. Predicate proves local serialization only. |
+| Offline contract/listener ownership | `src/claritylink-negotiation/type111_setup_contract.py`; 43R focused tests | `LAB_SYNTHETIC_CONFIRMED` after tests: exact-generation listener ownership, appended `{type:111,dataPort}`, exactly-once serializer call, return/status propagation, rollback, duplicate-ID fail-closed behavior, and Type110 preservation. |
+| Evidence boundary / next | [43R report](step-reports/43r-type111-setup-listener-contract.md); [Next action](NEXT_ACTION.md) | Honda acceptance, Type111 listener ABI, security, crypto, and media remain `HONDA_UNKNOWN`. Next bounded milestone: 43S runtime attachment/readiness review; no deployment is implied. |
+
 # Step 43Q-B — offline Type111 generation and lifecycle twin
 
 | Evidence item | Source | Finding / classification |

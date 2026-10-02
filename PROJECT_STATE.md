@@ -1,3 +1,7 @@
+# Step 43R — offline Type111 SETUP response/listener contract (2026-10-01)
+
+43R implements a deterministic offline Type111 SETUP/listener transaction on the 43Q-B exact-generation lifecycle façade. It parses Type111-first and Type110-first requests, reserves a fake generation-owned listener, appends only `{type: 111, dataPort}`, invokes the modeled Honda serializer once, preserves its return/status, and rolls back the exact B generation on preparation or serialization failure. Local verification passed: 349 full-suite tests with 4 expected skips, simulator checks, self-locator, scoped documentation links, and whitespace validation. Hosted Offline CI is pending the scoped push. Honda Type111 acceptance, listener ABI, security, and media remain `HONDA_UNKNOWN`; no Honda or runtime work occurred. See [43R report](step-reports/43r-type111-setup-listener-contract.md). Next after completion: **43S readiness review**, not deployment.
+
 # Step 43K — offline project-session registry (2026-10-01)
 
 ## Step 43Q-B update (2026-10-01)

@@ -69,10 +69,10 @@ class ProjectChildState:
     _lock: RLock = field(default_factory=RLock, repr=False, compare=False)
 
     def add_resource(self, resource: ResourceHandle) -> bool:
-        """Transfer ownership if preparing; close immediately after stop starts."""
+        """Transfer ownership while prepared; close immediately after stop starts."""
         close_now = False
         with self._lock:
-            if self.phase is ChildPhase.PREPARING and not self.cleanup_started:
+            if self.phase in (ChildPhase.PREPARING, ChildPhase.PREPARED) and not self.cleanup_started:
                 if any(existing is resource for existing in self.resources):
                     raise ValueError("resource already owned by child")
                 self.resources.append(resource)

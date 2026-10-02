@@ -1,0 +1,22 @@
+{
+  "schema": "claritylink.43r.synthetic-setup.v1",
+  "evidence_class": "LAB_SYNTHETIC_CONFIRMED",
+  "structural_basis": "CURRENT_IOS_LAB_CONFIRMED 43P showed Type111 requested before Type110 with distinct stream IDs and separate data ports; all values below are synthetic",
+  "request": {
+    "streams": [
+      {"type": 111, "streamConnectionID": 2201, "synthetic": true},
+      {"type": 110, "streamConnectionID": 1101, "synthetic": true}
+    ]
+  },
+  "stock_response": {
+    "streams": [
+      {"type": 110, "dataPort": 41100, "synthetic": true}
+    ]
+  },
+  "expected_project_response_append": {"type": 111, "dataPort": 41000},
+  "serializer": {"r0": 200, "statusOut": 0, "invocations": 1},
+  "limitations": [
+    "No captured 43P identifier, packet, media, key, authentication value, or real dataPort is included.",
+    "This fixture does not establish Honda Type111 response acceptance, listener ABI, or security mode."
+  ]
+}

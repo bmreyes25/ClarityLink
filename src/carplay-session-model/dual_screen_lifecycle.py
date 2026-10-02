@@ -77,6 +77,16 @@ class Type111Generation:
         except RuntimeError:
             return False
 
+    def own_resource(self, resource: object) -> bool:
+        """Attach a project resource to this exact prepared generation."""
+        if not self._owner._is_current(self) or self.phase is not ChildPhase.PREPARED:
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
+            return False
+        child = self._owner._registry.child(self.key)
+        return bool(child and child.add_resource(resource))
+
     def feed(self, data: bytes | bytearray | memoryview) -> list[ReceiverEvent]:
         if not self._owner._is_current(self) or self.phase is not ChildPhase.ACTIVE:
             raise RuntimeError("Type111 generation is not active")
