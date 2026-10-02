@@ -1,5 +1,6 @@
 import sys
 import json
+import socket
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ sys.path[:0] = [
     str(ROOT / "src/claritylink-transport"),
     str(ROOT / "src/claritylink-negotiation"),
     str(ROOT / "src/carplay-session-model"),
+    str(ROOT / "src/claritylink-interposer"),
 ]
 
 from dual_screen_lifecycle import DualScreenLifecycleTwin
@@ -21,6 +23,7 @@ from type111_setup_contract import (
     Type111SetupContract,
     parse_setup_request,
 )
+from real_listener import InterfaceKind, InterfacePolicy, RealListenerAllocator
 
 
 def _twin():
@@ -35,6 +38,113 @@ def _serializer(result=SerializerResult(0xC8, 0)):
         calls.append(response)
         return result
     return calls, invoke
+
+
+def test_real_host_listener_is_ready_before_stock_serializer_and_owned_by_generation():
+    lifecycle, type110 = _twin()
+    allocator = RealListenerAllocator(InterfacePolicy(InterfaceKind.LOOPBACK_TEST))
+    stock = {"streams": [{"type": 110, "dataPort": 41001}], "audio": "stock"}
+    calls = []
+    client = None
+
+    def serializer(response):
+        listener = allocator.reservations[0]
+        assert listener.state == "READY"
+        assert listener.sock.getsockname()[1] == response["streams"][-1]["dataPort"]
+        calls.append(response)
+        return SerializerResult(0xC8, 0)
+
+    result = Type111SetupContract(lifecycle, allocator).process(
+        {"streams": [{"type": 111, "streamConnectionID": 2201}]}, stock, serializer
+    )
+    listener = allocator.reservations[0]
+    try:
+        assert result.committed and result.serializer_invocations == len(calls) == 1
+        assert result.data_port == listener.port
+        assert result.response["streams"][0] == stock["streams"][0]
+        assert type110.active and lifecycle.current_type111.phase is ChildPhase.ACTIVE
+        # A client can connect as soon as the stock serialization boundary returns.
+        client = socket.socket()
+        client.connect(("127.0.0.1", result.data_port))
+        accepted = listener.wait_accepted()
+        assert accepted is not None
+        assert lifecycle.current_type111.teardown()
+        assert listener.sock.fileno() == -1 and accepted.fileno() == -1
+        assert listener.close_count == 1 and not listener.worker.is_alive()
+    finally:
+        if client is not None:
+            client.close()
+        if listener.state != "CLOSED":
+            listener.close()
+
+
+def test_real_listener_failure_and_serializer_failure_roll_back_once():
+    lifecycle, type110 = _twin()
+    stock = {"streams": [{"type": 110, "dataPort": 41001}]}
+    calls = []
+
+    def serializer(response):
+        calls.append(response)
+        return SerializerResult(0x1F4, 1)
+
+    allocator = RealListenerAllocator(InterfacePolicy(InterfaceKind.LOOPBACK_TEST))
+    result = Type111SetupContract(lifecycle, allocator).process(
+        {"streams": [{"type": 111, "streamConnectionID": 2201}]}, stock, serializer
+    )
+    listener = allocator.reservations[0]
+    assert not result.committed and len(calls) == result.serializer_invocations == 1
+    assert calls[0]["streams"][0] == stock["streams"][0]
+    assert listener.state == "CLOSED" and listener.sock.fileno() == -1
+    assert listener.close_count == 1 and not listener.worker.is_alive()
+    assert lifecycle.current_type111 is None and type110.active
+
+    failed_lifecycle, failed_type110 = _twin()
+    for phase, stream_id in (("listen", 3301), ("accept", 3302)):
+        failed_lifecycle, failed_type110 = _twin()
+        failed_allocator = RealListenerAllocator(
+            InterfacePolicy(InterfaceKind.LOOPBACK_TEST), failure_at=phase)
+        failed_calls = []
+        failed = Type111SetupContract(failed_lifecycle, failed_allocator).process(
+            {"streams": [{"type": 111, "streamConnectionID": stream_id}]}, stock,
+            lambda response: (failed_calls.append(response) or SerializerResult(0xC8, 0)),
+        )
+        assert failed.error_code and failed.serializer_invocations == len(failed_calls) == 1
+        assert failed_calls[0] == stock
+        assert not failed_allocator.reservations
+        assert failed_lifecycle.current_type111 is None and failed_type110.active
+
+
+def test_real_listener_commit_failure_and_parent_teardown_close_exact_resources():
+    lifecycle, type110 = _twin()
+    allocator = RealListenerAllocator(InterfacePolicy(InterfaceKind.LOOPBACK_TEST))
+    calls = []
+
+    def superseding_serializer(response):
+        calls.append(response)
+        lifecycle.current_type111.fail()
+        return SerializerResult(0xC8, 0)
+
+    result = Type111SetupContract(lifecycle, allocator).process(
+        {"streams": [{"type": 111, "streamConnectionID": 4401}]},
+        {"streams": [{"type": 110, "dataPort": 41001}]}, superseding_serializer,
+    )
+    listener = allocator.reservations[0]
+    assert not result.committed and result.serializer_invocations == len(calls) == 1
+    assert listener.sock.fileno() == -1 and listener.close_count == 1
+    assert not listener.worker.is_alive() and type110.active
+
+    parent, parent_type110 = _twin()
+    parent_allocator = RealListenerAllocator(InterfacePolicy(InterfaceKind.LOOPBACK_TEST))
+    parent_result = Type111SetupContract(parent, parent_allocator).process(
+        {"streams": [{"type": 111, "streamConnectionID": 4402}]},
+        {"streams": []}, _serializer()[1],
+    )
+    parent_listener = parent_allocator.reservations[0]
+    assert parent_result.committed
+    assert parent.destroy_parent()
+    assert parent_listener.sock.fileno() == -1
+    assert parent_listener.close_count == 1 and not parent_listener.worker.is_alive()
+    assert not parent_type110.active
 
 
 def test_type111_first_and_type110_first_preserve_request_order_and_unknown_fields():

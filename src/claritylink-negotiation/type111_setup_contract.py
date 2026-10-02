@@ -181,7 +181,7 @@ class Type111SetupContract:
                 listener = self.listeners.reserve(generation)
                 if not generation.own_resource(listener):
                     raise SetupContractError("listener_ownership_rejected")
-                if listener.state is ListenerState.CLOSED:
+                if getattr(listener.state, "value", listener.state) == ListenerState.CLOSED.value:
                     raise SetupContractError("listener_closed_before_commit")
                 if fail_response_mutation:
                     raise SetupContractError("response_mutation_failed")

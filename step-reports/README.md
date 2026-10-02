@@ -86,5 +86,7 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 42J — valid synthetic H.264 through ScreenStream fixture](42j-valid-h264-screenstream-fixture.md)
 - [Step 42K — actual decoded frame in the offline visual twin](42k-actual-decoded-frame-visual-demo.md)
 - [Step 43A — Honda `/info` Type111 differential](43a-honda-info-type111-differential.md)
+- [Step 43S — Honda runtime readiness review](43s-honda-runtime-readiness-review.md)
+- [Step 43S1 — executable trampoline and listener proof](43s1-executable-trampoline-listener-proof.md)
 - [Step reports](README.md)
 - [Step 5 run status](RUN_STATUS.md)

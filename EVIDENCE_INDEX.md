@@ -726,3 +726,14 @@ Honda-specific source notes remain separately indexed below; no external project
 | Control/presentation | 43P and synthetic presentation state | Four `suggestUI` events observed; `showUI`, `stopUI`, `forceKeyFrame` not observed. Same-generation synthetic UI/ViewArea/SafeArea updates are `LAB_SYNTHETIC_CONFIRMED`; current phone/Honda behavior unknown. |
 | External validation | [MHI2](https://github.com/harman-f/mhi2_altscreen_carplay/blob/main/README.md), [MHI2Q](https://github.com/yuedizhibo/MHI2Q-CarPlay-AltScreen/blob/main/README_EN.md), [iOS 27 capability notes](https://github.com/lvalen91/carlink_linux/blob/main/docs/CARPLAY_CAPABILITIES.md), [Apple CarPlay](https://developer.apple.com/carplay/) | `EXTERNAL_PHYSICAL_VALIDATION` / `EXTERNAL_PRIOR_ART`; validates general Type111 cluster architecture and separation of transport from presentation. Not Honda evidence. |
 | Decision / next | [43S report](step-reports/43s-honda-runtime-readiness-review.md); `NEXT_ACTION.md` | `NO_GO`: G5, G11, G12, G19 fail. Deployment remains disabled. Next is offline 43S1, no Honda work. |
+
+## Step 43S1 — executable trampoline and listener (2026-10-02)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Honda jmcs fingerprint/callsite | preserved jmcs + `tests/tools/test_43s1_artifact_revalidation.py` | `HONDA_CONFIRMED`: exact SHA-256, ARM/EABI5 Thumb caller, `0x28afba` bytes and independently decoded BL to `0x289f60`, continuation/frame facts match. Offline only. |
+| Executable shim | `thumb_setup_shim.S`, Unicorn tests, [ABI report](research/carplay/executable-trampoline-abi.md) | `LAB_EXECUTABLE_CONFIRMED`: standalone Thumb code exercises context snapshot, serializer-once, success predicate, register/SP restore and continuation. Project helper bodies are still synthetic callback boundaries. |
+| Host listener | `real_listener.py`, real socket integration tests, [runtime contract](research/carplay/type111-listener-runtime-contract.md) | `LAB_HOST_RUNTIME_CONFIRMED`: listen-ready-before-advertise, immediate connect, joinable worker, exact-generation FD ownership and rollback. Does not establish Honda interface reachability. |
+| jmcs socket/thread imports | preserved jmcs ELF symbols | `HONDA_STATIC_COMPATIBILITY`: socket/bind/listen/getsockname/accept/close/fcntl/poll/select and pthread symbols exist; no Bionic runtime claim. |
+| External Type111 AltScreen vehicles | [MHI2 project](https://github.com/harman-f/mhi2_altscreen_carplay), [MHI2Q project](https://github.com/yuedizhibo/MHI2Q-CarPlay-AltScreen/blob/main/README_EN.md) | `EXTERNAL_PHYSICAL_VALIDATION` on stated VW/Audi targets and `EXTERNAL_PRIOR_ART` for ClarityLink; no Honda inference. |
+| Readiness outcome | [43S1 report](step-reports/43s1-executable-trampoline-listener-proof.md) | `43S1_NO_GO`: G19 is still open; runtime/deployment remains disabled; next offline work is 43S2. |

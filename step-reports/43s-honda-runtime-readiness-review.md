@@ -150,3 +150,7 @@ Because required gates G5, G11, G12 and G19 fail, the required result is **`NO_G
 ## Completion record
 
 Starting HEAD `5abb244fdeb7bf652cb2982991cb04c4fc4a0045`; final implementation HEAD `19102b0256c2fa2e04a84c15201c26e38112a01f`. Offline review committed and pushed; hosted Offline CI passed (run 36967581461). Honda runtime remains disabled; decision `NO_GO`.
+
+## 43S1 historical follow-up
+
+The historical 43S decision above is unchanged. 43S1 completed offline from `c3408f08373c61514e58c25cbc7266b374bb21a6` and returned **`43S1_NO_GO`**: executable shim and host listener evidence were added, but G19 remains open. The next action is **43S2 — native helper/reentrancy proof and repeat readiness review**. See [43S1 report](43s1-executable-trampoline-listener-proof.md).
