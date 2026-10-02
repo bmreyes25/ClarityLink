@@ -27,9 +27,12 @@ class ScreenCryptoModel:
         self._encrypt_block = encrypt_block
         self._position = 0
         self._keystream = b""
+        self._destroyed = False
 
     def update(self, ciphertext: bytes | bytearray | memoryview) -> bytes:
         """Decrypt one body, retaining partial keystream/counter state."""
+        if self._destroyed:
+            raise RuntimeError("screen crypto state is destroyed")
         source = memoryview(ciphertext).cast("B")
         plaintext = bytearray(len(source))
         for index, value in enumerate(source):
@@ -51,8 +54,18 @@ class ScreenCryptoModel:
 
     def reset(self, iv: bytes) -> None:
         """Start a new screen-security generation with a supplied synthetic IV."""
+        if self._destroyed:
+            raise RuntimeError("screen crypto state is destroyed")
         if len(iv) != 16:
             raise ValueError("Honda screen AES IV must be 16 bytes")
         self._counter = bytearray(iv)
         self._position = 0
         self._keystream = b""
+
+    def destroy(self) -> None:
+        """Invalidate this screen context and clear its mutable byte state."""
+        self._key = bytes(16)
+        self._counter = bytearray(16)
+        self._position = 0
+        self._keystream = bytes(16)
+        self._destroyed = True

@@ -1,3 +1,12 @@
+# Step 43Q-A — offline legacy dual-screen crypto/session twin
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Role-owned model | `src/claritylink-transport/legacy_dual_screen_twin.py`; existing `screen_kdf.py`, `crypto_model.py`, and `receiver_core.py` | Offline implementation reuses validated Type110 primitives. `TYPE111_SYNTHETIC` use of the legacy KDF remains `EXTERNAL_PRIOR_ART` / `HYPOTHESIS`, not Honda-confirmed. |
+| State isolation | `tests/transport/test_legacy_dual_screen_twin.py` | `LAB_SYNTHETIC_CONFIRMED`: separate key/IV/CTR/parser/receiver instances; interleave/control equivalence; reset/destroy/recreate B; malformed B containment; duplicate-ID fail-closed policy; cross-session isolation. |
+| Evidence boundary | [43Q-A report](step-reports/43q-a-legacy-dual-screen-crypto-twin.md); [legacy AES cross-reference](research/carplay/legacy-aes-type111-cross-reference.md) | Honda Type110 crypto remains `HONDA_CONFIRMED`; Honda Type111 security mode, KDF success, response acceptance, listener/session ABI, and Type111-only lifecycle remain `HONDA_UNKNOWN`. 43P modern ChaCha classification is not used as legacy AES evidence. |
+| Next action | [Next action](NEXT_ACTION.md) | 43Q-A complete offline; next is 43Q-B generation/teardown/restart lifecycle twin. No runtime, Honda, phone, or deployment work. |
+
 # Step 43P — current-iOS Mac/PlayPort observation
 
 | Evidence item | Source | Finding / classification |
