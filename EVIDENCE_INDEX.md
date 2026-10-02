@@ -1,3 +1,11 @@
+# Step 43T0-D0 — executable collector offline equivalence
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Collector command boundary | [D0 collector](tools/step43t0d0_collector.py); [canonical 43T0-C plan](step-reports/43t0c-identity-gated-delta-ecc-review.md); [D0 report](step-reports/43t0d0-executable-collector-ecc-review.md) | `OFFLINE_PROJECT_IMPLEMENTATION`: independently fixed allowlist matches 7 identity and 5 network suffixes; 15 phase reads, plus one `adb devices` host enumeration. No live execution in D0. |
+| Fake-runner and hard-bound tests | [D0 tests](tests/honda/test_step43t0d0_collector.py) | `LAB_SYNTHETIC_CONFIRMED`: phase and identity gates, denied commands, no fallback, bounded output/timeout, private host storage, source and binary pinning. No Android/Honda evidence. |
+| ECC decision | [D0 report](step-reports/43t0d0-executable-collector-ecc-review.md) | `43T0_COLLECTOR_ECC_GO` for separately initiated parked-car read-only 43T0-D only. G11 status unchanged; Type111/runtime/deployment disabled. |
+
 # Step 43T0-C — identity-gated delta dry run / ECC re-review
 
 | Evidence item | Source | Finding / classification |
