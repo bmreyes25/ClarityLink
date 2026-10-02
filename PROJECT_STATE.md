@@ -62,6 +62,10 @@ Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly 
 
 # ClarityLink project state — 2026-09-30
 
+## Step 43T0-A update (2026-10-02)
+
+Offline reanalysis of the checksum-verified 40E host bundle found stock-CarPlay-correlated IPv6 link-local socket changes, but the original collection omitted interface inventory, address-to-interface mapping, and routes. `jmcs` FD denial still prevents socket ownership attribution; listener reachability is unproven. **`40E_PARTIAL_PRECISE_DELTA_REQUIRED`**; G11 remains partial. The [43T0-A report](step-reports/43t0a-40e-network-evidence-reanalysis.md) specifies the exact minimal proposed delta for separate ECC review. No Honda contact, ADB, Type111 negotiation, target write, or deployment occurred. 40E is Honda/stock CarPlay with no Type111; 43P is Mac/iPhone/PlayPort with no Honda.
+
 ## Step 43O / legacy AES evidence update (2026-10-01)
 
 Pinned MHI2 (`c2f811f…`) explicitly documents Type111 reusing that target's authenticated legacy AES session material and stock per-screen SHA-512 KDF with the Type111 `streamConnectionID`, then an independent AES-CTR screen context. Pinned `45clouds/WirelessCarPlay` (`51145ef…`) source independently shows the legacy screen path feeding its screen `streamConnectionID` and session AES key into the screen derivation routine; its PairVerify path is modern ChaCha and is generation/mode-specific. These are `EXTERNAL_PRIOR_ART`, not Honda facts. The Honda Type111 crypto hypothesis is now **LEGACY_PER_SCREEN_KDF_STRONGLY_SUPPORTED; HONDA ABI/STATE VALIDATION REQUIRED**; Honda Type111 remains `HONDA_UNKNOWN`.

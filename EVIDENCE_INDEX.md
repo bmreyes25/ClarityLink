@@ -1,3 +1,12 @@
+# Step 43T0-A — offline 40E network/G11 reanalysis
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Bundle provenance | Host-only 40E manifest and 1,944 verified checksum entries; [43T0-A report](step-reports/43t0a-40e-network-evidence-reanalysis.md) | Three network phases: baseline, stock CarPlay connected, post-disconnect. `OBSERVED_ON_HONDA_READ_ONLY`. Raw bundle remains outside Git. |
+| Interface, address, route | 40E manifest/artifact inventory | No interface inventory, address-to-interface mapping, or route reads. `UNRESOLVED`; no specific bind policy yet. |
+| Socket correlation | 40E global TCP/UDP snapshots; [43T0-A report](step-reports/43t0a-40e-network-evidence-reanalysis.md) | IPv6 link-local connected rows appear with stock CarPlay and close after disconnect. `HONDA_RUNTIME_CORRELATION`; phone-facing role `INFERRED`, `jmcs` ownership `READ_BLOCKED_WITHOUT_PRIVILEGE`. |
+| Next gate | [43T0-A report](step-reports/43t0a-40e-network-evidence-reanalysis.md) | `40E_PARTIAL_PRECISE_DELTA_REQUIRED` / `RETURN_TO_ECC_WITH_EXACT_DELTA_PLAN`. No Honda visit authorized. 40E Honda and 43P PlayPort remain separate evidence. |
+
 # Step 43R — offline Type111 SETUP/listener contract
 
 | Evidence item | Source | Finding / classification |
