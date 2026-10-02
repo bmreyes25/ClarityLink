@@ -1,3 +1,11 @@
+# Step 43T0-D1 — route-header format stop
+
+| Evidence | Source | Boundary |
+|---|---|---|
+| Live partial capture | [D1 report](step-reports/43t0d1-route-header-format-stop.md), private capture outside Git | `OBSERVED_ON_HONDA_READ_ONLY`: current identity matched; baseline net-dev succeeded; route header format gate stopped. No complete network phase or topology conclusion. |
+| Sanitized derived result | [Partial summary](research/runtime/43t0d1-sanitized-partial-summary.json) | `CAPTURE_VALID_PARTIAL`; G11 A/D/F unresolved, B retains 40E inference. Exact addresses and endpoints withheld. |
+| D0-2 narrow correction | [Collector](tools/step43t0d0_collector.py), [regression tests](tests/tools/test_step43t0d_prep.py) | Same approved command sequence and gates; route header whitespace normalization only. No Honda command in the offline fix. |
+
 # Step 43T0-DPREP — offline capture analysis
 
 | Evidence | Source | Boundary |

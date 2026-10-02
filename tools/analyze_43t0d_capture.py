@@ -8,7 +8,7 @@ import os
 import re
 from pathlib import Path
 
-from step43t0d_offline import (COLLECTOR_HASH, FILES, IDENTITY, KERNEL_HASH, NETWORK, PHASES,
+from step43t0d_offline import (COLLECTOR_HASHES, FILES, IDENTITY, KERNEL_HASH, NETWORK, PHASES,
     PLAN_COMMIT, PROPERTIES, RESULTS, SHELL_HASH, FormatError, decide, privacy_scan, public_summary, snapshot)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +48,7 @@ def validate_capture(root: Path) -> tuple[str,str,dict,dict]:
         return result
     manifest=json.loads(safe_file(root,"manifest.json",MAX_MANIFEST),object_pairs_hook=unique_object,
                         parse_constant=lambda _value: (_ for _ in ()).throw(FormatError("invalid JSON constant")))
-    if not isinstance(manifest,dict) or manifest.get("collector_version")!="43T0-D0-1" or manifest.get("collector_source_sha256")!=COLLECTOR_HASH or manifest.get("approved_plan_commit")!=PLAN_COMMIT:
+    if not isinstance(manifest,dict) or manifest.get("collector_version") not in COLLECTOR_HASHES or manifest.get("collector_source_sha256")!=COLLECTOR_HASHES[manifest["collector_version"]] or manifest.get("approved_plan_commit")!=PLAN_COMMIT:
         raise FormatError("collector provenance")
     if not re.fullmatch(r"[0-9a-f]{40}",manifest.get("project_commit","")):
         raise FormatError("project commit")
@@ -79,8 +79,10 @@ def validate_capture(root: Path) -> tuple[str,str,dict,dict]:
         if i==0 and row["result_class"]=="SUCCESS":
             try:
                 lines=data.decode("utf-8","strict").splitlines()
-                if len(lines)!=2 or lines[0].strip()!="List of devices attached": raise ValueError
-                token,state=lines[1].split()
+                if not lines or lines[0].strip()!="List of devices attached": raise ValueError
+                target_lines=[line for line in lines[1:] if line.strip()]
+                if len(target_lines)!=1: raise ValueError
+                token,state=target_lines[0].split()
                 if state!="device" or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}",token): raise ValueError
                 endpoint=token
             except (ValueError,UnicodeError):
@@ -196,7 +198,7 @@ def main() -> None:
         prior=args.__dict__["40e_capture"]
         if prior is not None:
             if not prior.is_dir() or prior.is_symlink(): raise FormatError("40E reference directory")
-            if hashlib.sha256(safe_file(prior,"manifest.json",1048576)).hexdigest()!="248427ae4d5dc7ce75888425ab254d308c68e6021a3032a62877c92ef3811f77":
+            if hashlib.sha256(safe_file(prior,"manifest.json",2097152)).hexdigest()!="248427ae4d5dc7ce75888425ab254d308c68e6021a3032a62877c92ef3811f77":
                 raise FormatError("40E manifest checksum mismatch")
         result=analyze(args.capture,args.output,private_binding_detail=args.private_binding_detail)
     except (FormatError,ValueError,UnicodeError,OSError,TypeError,KeyError) as exc:

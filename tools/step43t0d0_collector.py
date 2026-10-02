@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 
-VERSION = "43T0-D0-1"
+VERSION = "43T0-D0-2"
 ADB_TOKEN = "adb"
 CURRENT_TARGET = "<validated-current-target>"
 MANIFEST_SHA256 = "248427ae4d5dc7ce75888425ab254d308c68e6021a3032a62877c92ef3811f77"
@@ -253,7 +253,7 @@ def classify_format(suffix: tuple[str, ...], raw: bytes) -> str:
             return "UNEXPECTED_FORMAT"
     elif suffix == ("shell", "cat", "/proc/net/route"):
         lines = text.splitlines()
-        if not lines or not lines[0].startswith("Iface\tDestination\tGateway\tFlags"):
+        if not lines or lines[0].split() != ["Iface", "Destination", "Gateway", "Flags", "RefCnt", "Use", "Metric", "Mask", "MTU", "Window", "IRTT"]:
             return "UNEXPECTED_FORMAT"
         for line in lines[1:]:
             fields = line.split()

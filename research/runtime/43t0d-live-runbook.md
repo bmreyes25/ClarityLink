@@ -2,7 +2,7 @@
 
 **Current precondition:** the prior 43T0-D attempt found zero ADB targets and stopped. Before a retry, complete the offline ECC review of the existing ADB-over-Wi-Fi connection precondition. This runbook does not authorize reconnection or change to Honda networking.
 
-1. Park the car. Head unit on, Mac connected, normal CarPlay disconnected. Have the immutable 40E manifest and the reviewed D0 collector. The host output path must be new and outside Git. Confirm the intended Honda in person.
+1. Park the car. Head unit on, Mac connected, normal CarPlay disconnected. Have the immutable 40E manifest and the reviewed D0-2 collector. The host output path must be new and outside Git. Confirm the intended Honda in person.
 2. After the connection precondition has been separately approved, invoke only the reviewed collector:
    `python3 tools/step43t0d0_collector.py --host-output ~/CLARITY_43T0D_<timestamp> --execute-approved-43t0-delta --adb-path /opt/homebrew/bin/adb --historical-manifest ~/CLARITY_RUNTIME_20260929_195051/manifest.json`
 3. Respond `CONFIRM` only after each real observation. The collector performs one target enumeration, seven identity reads, then the fixed five network reads per phase. The identity gate must pass before network capture.

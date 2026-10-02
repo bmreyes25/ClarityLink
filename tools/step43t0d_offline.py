@@ -23,6 +23,8 @@ RESULTS = {"SUCCESS", "COMMAND_UNAVAILABLE", "PERMISSION_DENIED", "TIMEOUT", "OU
            "UNEXPECTED_FORMAT", "ADB_TRANSPORT_FAILURE", "IDENTITY_MISMATCH", "IDENTITY_INCOMPLETE",
            "AMBIGUOUS_ADB_TARGET", "UNEXPECTED_PRIVILEGE", "USER_ABORT", "STOCK_SANITY_FAILURE"}
 COLLECTOR_HASH = "2162e795568307cfe34dbf7bc8a6de1f70d358119e4aca22e9c6e29789809afc"
+COLLECTOR_HASHES = {"43T0-D0-1": COLLECTOR_HASH,
+                    "43T0-D0-2": "13eff7c72689756d0554329ee31348afdada87a079b7898daee00b927a2c3bb4"}
 PLAN_COMMIT = "fdb3da178febc2df88947d5f73f4c630f46fdc1d"
 SHELL_HASH = "590cc36f1a98082e64e0e2d836c94c125bef1c73fcb7daf981b7286c6b310992"
 KERNEL_HASH = "8fa1c06d864d3dab9be4c53c13ddecb421516bd02ace3a27ef7811a7ee79c451"
@@ -65,7 +67,10 @@ def interface(value: str) -> str:
 
 def parse_dev(raw: bytes) -> dict:
     rows = lines(raw)
-    if len(rows) < 2 or not re.fullmatch(r"\s*Inter-\|\s*Receive\s*\|\s*Transmit\s*", rows[0]) or not re.fullmatch(r"\s*face\s*\|\s*bytes packets errs drop fifo frame compressed multicast\s*\|\s*bytes packets errs drop fifo colls carrier compressed\s*", rows[1]):
+    if (len(rows) < 2 or [part.strip() for part in rows[0].split("|")] != ["Inter-", "Receive", "Transmit"]
+            or [part.split() for part in rows[1].split("|")] !=
+            [["face"], ["bytes", "packets", "errs", "drop", "fifo", "frame", "compressed", "multicast"],
+             ["bytes", "packets", "errs", "drop", "fifo", "colls", "carrier", "compressed"]]):
         raise FormatError("net-dev header")
     out = {}
     for row in rows[2:]:
@@ -259,7 +264,7 @@ def decide(snapshots: dict[str,NetworkPhaseSnapshot], *, private=False) -> dict:
     return dict(candidate_state=state,candidates=candidate_details,conflicting_interfaces=conflicts,candidate_interface=chosen[0]["interface"] if chosen else None,
                 candidate_address_family=family,candidate_route_policy=policy,
                 G11_A="YES_OBSERVED" if strong else "LIKELY_INFERRED" if chosen else "NO",
-                G11_B="YES_OBSERVED" if strong else "LIKELY_INFERRED" if chosen else "NO",
+                G11_B="YES_OBSERVED" if strong else "LIKELY_INFERRED",
                 G11_C=family if strong else "UNKNOWN",G11_D="YES" if strong else "PARTIAL" if chosen else "NO",
                 G11_E="NO / READ_BLOCKED_WITHOUT_PRIVILEGE",G11_F="NO",
                 evidence_classes=["OBSERVED_ON_HONDA_READ_ONLY","HONDA_RUNTIME_CORRELATION","HONDA_OBSERVED_NETWORK_POLICY_INPUT"] if strong else ["INFERRED","UNRESOLVED","READ_BLOCKED_WITHOUT_PRIVILEGE"],

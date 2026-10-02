@@ -1,3 +1,7 @@
+## Step 43T0-D1 — route-header format stop (2026-10-02)
+
+A separately initiated parked-car read-only attempt reached the approved identity gate, then stopped on the baseline IPv4 route header because D0-1 required literal tab spacing. Honda contacted YES through nine read-only target commands; target writes 0; CarPlay never connected. CAR-OFF was issued immediately. Offline analysis validated the immutable capture as partial with identity match; G11 remains unresolved. Collector D0-2 makes a narrow whitespace-tolerant header check with no command change. See [D1 report](step-reports/43t0d1-route-header-format-stop.md).
+
 ## Step 43T0-DPREP — offline live-capture analysis pipeline (2026-10-02)
 
 Offline analyzer, five deterministic parsers, phase delta/G11 engine, sanitized outputs, synthetic tests, and car-session runbook are prepared. Honda contacted NO; ADB used NO; target writes 0 in DPREP. The actual latest 43T0-D attempt remains fail-closed after zero ADB targets, so the existing connection precondition requires separate offline ECC review before a future live retry. 43T0-D remains the live observation; Honda runtime and Type111 remain disabled. See [DPREP report](step-reports/43t0d-prep-offline-analysis-pipeline.md).

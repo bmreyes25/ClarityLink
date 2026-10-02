@@ -1,5 +1,7 @@
 # Next action
 
+43T0-D1 stopped fail-closed after a valid baseline route header used extra whitespace. The [D1 report](step-reports/43t0d1-route-header-format-stop.md) records the partial capture and the narrow D0-2 collector correction. Next: a separately initiated 43T0-D parked-car read-only retry only after confirming the car remains parked/on with CarPlay disconnected. No manual ADB inspection or runtime modification.
+
 43T0-DPREP built the offline analyzer and [one-page live runbook](research/runtime/43t0d-live-runbook.md). The next live milestone is still **43T0-D parked-car read-only observation**, but the prior zero-target attempt first requires the already identified **offline ECC review of the ADB-over-Wi-Fi connection precondition and separately initiated retry plan**. Do not begin a car session automatically.
 
 43T0-D ended fail-closed with **`43T0_D_NO_GO`**: the one approved host `adb devices` enumeration found zero targets. No target identity or network read ran, so G11 is unchanged. The [43T0-D report](step-reports/43t0d-read-only-honda-network-delta.md) records the immediate CAR-OFF boundary, private capture integrity, and absence of later Honda/ADB commands. Next: **offline ECC review of the existing ADB-over-Wi-Fi connection precondition and a separately initiated retry plan**. No reconnection, network change, additional command, Type111, listener, or runtime modification is authorized.

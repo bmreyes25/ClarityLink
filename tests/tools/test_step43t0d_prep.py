@@ -147,7 +147,7 @@ def test_failed_final_command_is_bounded_partial(tmp_path,monkeypatch):
     (root/"manifest.json").write_text(json.dumps(manifest))
     assert analyzer.validate_capture(root)[0]=="CAPTURE_VALID_PARTIAL"
     summary=analyzer.analyze(root,tmp_path/"derived")
-    assert summary["G11_A"]=="NO" and summary["G11_F"]=="NO"
+    assert summary["G11_A"]=="NO" and summary["G11_B"]=="LIKELY_INFERRED" and summary["G11_F"]=="NO"
 
 @pytest.mark.parametrize("change",["duplicate_index","extra_command","reorder","result_class","source_hash","byte_count","target_reference"])
 def test_manifest_fail_closed(tmp_path,monkeypatch,change):
@@ -230,3 +230,31 @@ def test_synthetic_summary_and_report_golden():
     manifest=dict(project_commit="a"*40,commands=[None]*23,final_status="SUCCESS")
     report="# SYNTHETIC GOLDEN FIXTURE — NO HONDA CAPTURE\n"+analyzer.render_report(actual,manifest)
     assert report==(root/"tests/fixtures/43t0d-prep-synthetic-report.golden.md").read_text()
+
+def test_honda_route_header_whitespace_regression():
+    from step43t0d0_collector import VERSION, classify_format
+    assert VERSION=="43T0-D0-2"
+    header=b"Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT   \n"
+    body=b"cp0\t00000000\t00000000\t0001\t0\t0\t0\t00000000\t0\t0\t0\n"
+    assert classify_format(("shell","cat","/proc/net/route"),header+body)=="SUCCESS"
+    assert m.parse_ipv4_routes(header+body)[0]["interface"]=="cp0"
+    assert classify_format(("shell","cat","/proc/net/route"),header.replace(b"Gateway",b"Unknown")+body)=="UNEXPECTED_FORMAT"
+
+def test_d0_2_capture_accepted_and_old_hash_still_pinned(tmp_path,monkeypatch):
+    root,manifest=fixture(tmp_path,monkeypatch)
+    manifest["collector_version"]="43T0-D0-2"
+    manifest["collector_source_sha256"]=m.COLLECTOR_HASHES["43T0-D0-2"]
+    (root/"manifest.json").write_text(json.dumps(manifest))
+    assert analyzer.validate_capture(root)[0]=="CAPTURE_VALID"
+    manifest["collector_source_sha256"]=m.COLLECTOR_HASH
+    (root/"manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(m.FormatError): analyzer.validate_capture(root)
+
+def test_preflight_trailing_blank_line_accepted(tmp_path,monkeypatch):
+    root,manifest=fixture(tmp_path,monkeypatch)
+    raw=b"List of devices attached\nsynthetic-endpoint\tdevice\n\n"
+    (root/"preflight/devices.raw").write_bytes(raw)
+    manifest["commands"][0]["stdout_bytes"]=len(raw)
+    manifest["commands"][0]["stdout_sha256"]=hashlib.sha256(raw).hexdigest()
+    (root/"manifest.json").write_text(json.dumps(manifest))
+    assert analyzer.validate_capture(root)[0]=="CAPTURE_VALID"
