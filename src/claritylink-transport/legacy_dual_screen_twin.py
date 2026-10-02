@@ -149,10 +149,23 @@ class LegacyDualScreenTwin:
         except KeyError:
             raise KeyError("screen role is not active") from None
 
-    def destroy_screen(self, role: ScreenRole) -> None:
-        screen = self._screens.pop(role, None)
+    def destroy_screen(
+        self,
+        role: ScreenRole,
+        *,
+        expected_screen: LegacyScreenSession | None = None,
+    ) -> bool:
+        """Destroy one screen, optionally requiring an exact owned instance."""
+        if expected_screen is None:
+            screen = self._screens.pop(role, None)
+        else:
+            screen = expected_screen
+            if self._screens.get(role) is expected_screen:
+                self._screens.pop(role)
         if screen is not None:
             screen.destroy()
+            return True
+        return False
 
     def __repr__(self) -> str:
         return f"LegacyDualScreenTwin(roles={[role.value for role in self.roles]!r})"

@@ -45,6 +45,18 @@ class ProjectSessionKey:
             raise ValueError("generation must be a positive integer")
 
 
+@dataclass(frozen=True)
+class LeaseTicket:
+    """Versioned expiration callback bound to one exact child generation."""
+
+    key: ProjectSessionKey
+    revision: int
+
+    def __post_init__(self) -> None:
+        if isinstance(self.revision, bool) or not isinstance(self.revision, int) or self.revision < 1:
+            raise ValueError("lease revision must be a positive integer")
+
+
 @dataclass
 class ProjectChildState:
     key: ProjectSessionKey
@@ -127,6 +139,7 @@ class ProjectSessionRegistry:
         self._lease_seconds = lease_seconds
         self._clock = clock
         self._lease_deadline: dict[ProjectSessionKey, float] = {}
+        self._lease_revision: dict[ProjectSessionKey, int] = {}
         self._children: dict[ProjectSessionKey, ProjectChildState] = {}
         self._latest_generation: dict[Hashable, int] = {}
         self._last_prepared_generation: dict[Hashable, int] = {}
@@ -164,6 +177,7 @@ class ProjectSessionRegistry:
             child = ProjectChildState(key)
             self._children[key] = child
             self._lease_deadline[key] = self._clock() + self._lease_seconds
+            self._lease_revision[key] = 1
             self._last_prepared_generation[key.session_identity] = key.generation
 
         try:
@@ -196,9 +210,18 @@ class ProjectSessionRegistry:
         with self._lock:
             child = self._children.pop(key, None)
             self._lease_deadline.pop(key, None)
+            self._lease_revision.pop(key, None)
             if self._active_key.get(key.session_identity) == key:
                 self._active_key.pop(key.session_identity, None)
             return child
+
+    def lease_ticket(self, key: ProjectSessionKey) -> LeaseTicket | None:
+        """Capture the current exact-generation lease version for a callback."""
+        with self._lock:
+            if key not in self._lease_deadline or key not in self._children:
+                return None
+            revision = self._lease_revision.get(key)
+            return LeaseTicket(key, revision) if revision is not None else None
 
     def renew_lease(self, key: ProjectSessionKey) -> bool:
         """Renew only the exact current generation after project-owned activity."""
@@ -209,25 +232,52 @@ class ProjectSessionRegistry:
             if child is None or child.phase not in (ChildPhase.PREPARED, ChildPhase.ACTIVE):
                 return False
             self._lease_deadline[key] = self._clock() + self._lease_seconds
+            self._lease_revision[key] = self._lease_revision.get(key, 0) + 1
             return True
+
+    def reap_lease(self, ticket: LeaseTicket, *, now: float | None = None) -> bool:
+        """Expire only the lease version named by a delayed callback ticket."""
+        current = self._clock() if now is None else now
+        with self._lock:
+            if self._lease_revision.get(ticket.key) != ticket.revision:
+                return False
+            deadline = self._lease_deadline.get(ticket.key)
+            if deadline is None or deadline > current:
+                return False
+            child = self._children.pop(ticket.key, None)
+            self._lease_deadline.pop(ticket.key, None)
+            self._lease_revision.pop(ticket.key, None)
+            if self._active_key.get(ticket.key.session_identity) == ticket.key:
+                self._active_key.pop(ticket.key.session_identity, None)
+        if child is None:
+            return False
+        child.stop()
+        if child.failures:
+            self.diagnostics.extend(f"{ticket.key}: {failure}" for failure in child.failures)
+        self.diagnostics.append(f"stopped {ticket.key}: generation lease expired")
+        return True
 
     def reap_expired(self, *, now: float | None = None) -> tuple[ProjectSessionKey, ...]:
         """Stop expired exact generations; stale cleanup cannot touch replacements."""
         current = self._clock() if now is None else now
         with self._lock:
-            expired = tuple(key for key, deadline in self._lease_deadline.items() if deadline <= current)
-        for key in expired:
-            self.stop_child(key, "generation lease expired")
-        return expired
+            expired = tuple(
+                LeaseTicket(key, self._lease_revision[key])
+                for key, deadline in self._lease_deadline.items()
+                if deadline <= current and key in self._lease_revision
+            )
+        reaped = tuple(ticket.key for ticket in expired if self.reap_lease(ticket, now=current))
+        return reaped
 
-    def stop_child(self, key: ProjectSessionKey, reason: str) -> None:
+    def stop_child(self, key: ProjectSessionKey, reason: str) -> bool:
         child = self._detach(key)
         if child is None:
-            return
+            return False
         child.stop()
         if child.failures:
             self.diagnostics.extend(f"{key}: {failure}" for failure in child.failures)
         self.diagnostics.append(f"stopped {key}: {reason}")
+        return True
 
     def rollback_child(self, key: ProjectSessionKey) -> None:
         self.stop_child(key, "rollback")

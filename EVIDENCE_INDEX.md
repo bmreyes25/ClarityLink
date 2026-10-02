@@ -1,3 +1,13 @@
+# Step 43Q-B — offline Type111 generation and lifecycle twin
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Role/generation ownership | `src/carplay-session-model/dual_screen_lifecycle.py`; `src/carplay-session-model/project_lifecycle.py` | `OFFLINE_PROJECT_IMPLEMENTATION`: role-scoped Type111 identity with monotonically increasing `ProjectSessionKey` generation; Type110 excluded from project child ownership. |
+| Teardown/restart/supersession | `tests/transport/test_type111_lifecycle_twin.py` | `LAB_SYNTHETIC_CONFIRMED`: exact B cleanup is idempotent, B2 uses fresh receiver/parser/CTR state, stale B1 cleanup/failure cannot reach B2, and A state/generation remain fixed. |
+| Lease callback safety | `ProjectSessionRegistry` `LeaseTicket` / `reap_lease`; lifecycle tests | `LAB_SYNTHETIC_CONFIRMED`: revisions invalidate stale pre-renewal tickets; expired callbacks detach only an exact expired generation. This does not define a Honda timer/ABI. |
+| Evidence boundary | [43Q-B report](step-reports/43q-b-type111-lifecycle-twin.md); [43P report](step-reports/43p-current-ios-type111-oracle.md) | The twin lifecycle is synthetic; 43P proved simultaneous streams only. Honda Type111 independent teardown/restart remains `HONDA_UNKNOWN`. |
+| Next action | [Next action](NEXT_ACTION.md) | 43R offline Type111 Setup response/listener contract based on sanitized 43P trace; no runtime/deployment work. |
+
 # Step 43Q-A — offline legacy dual-screen crypto/session twin
 
 | Evidence item | Source | Finding / classification |

@@ -1,5 +1,9 @@
 # Step 43K — offline project-session registry (2026-10-01)
 
+## Step 43Q-B update (2026-10-01)
+
+The 43Q-A screen twin is now composed with the existing project generation registry. `TYPE111_SYNTHETIC` has explicit role-scoped generations, exact-object cleanup, idempotent B-only teardown, supersession/restart, bounded renewal leases, and revisioned lease tickets so stale expiry callbacks cannot retire a renewed or newer B generation. Deterministic tests preserve the same active Type110 receiver/parser/CTR across B lifecycle events; explicit parent destruction remains separate. **43Q-B: OFFLINE IMPLEMENTATION VERIFIED LOCALLY; HONDA TYPE111 LIFECYCLE: HONDA_UNKNOWN.** Local full suite: 329 passed, 4 skipped. Hosted CI follows the scoped push. See [43Q-B report](step-reports/43q-b-type111-lifecycle-twin.md).
+
 ## Step 43Q-A update (2026-10-01)
 
 At canonical 43P base `4efcf017817ab35315c7aa28a8afbacc5042a434`, the offline legacy dual-screen crypto/session twin is implemented. Explicit `TYPE110` and `TYPE111_SYNTHETIC` sessions reuse the existing Type110 KDF/CTR/parser primitives while owning separate derived crypto, receiver, parser, and buffered state. Synthetic tests establish interleaved CTR equivalence, B reset/destroy/recreate isolation, malformed-B containment, and duplicate-ID rejection. The AES block test double proves state mechanics only. **43Q-A: OFFLINE MODEL IMPLEMENTED; HONDA TYPE111 CRYPTO: HONDA_UNKNOWN.** No runtime, phone, Honda, or PlayPort action occurred. Details and final verification: [43Q-A report](step-reports/43q-a-legacy-dual-screen-crypto-twin.md). Next: **43Q-B — offline synthetic Type111 generation, teardown, and restart lifecycle twin**; generation/restart integration is not implemented here.
