@@ -1,3 +1,11 @@
+# Step 43T0-D2 — zero-argument ifconfig stop
+
+| Evidence | Source | Boundary |
+|---|---|---|
+| Live partial capture | [D2 report](step-reports/43t0d2-zero-argument-ifconfig-stop.md), private capture outside Git | `OBSERVED_ON_HONDA_READ_ONLY`: identity match and four baseline files; zero-argument `ifconfig` returned zero output and stopped. No complete phase. |
+| Sanitized analysis | [D2 summary](research/runtime/43t0d2-sanitized-partial-summary.json) | `CAPTURE_VALID_PARTIAL`; G11 unchanged; exact addresses/endpoints withheld. |
+| IPv6 route parser correction | [Offline parser](tools/step43t0d_offline.py), [synthetic regression](tests/tools/test_step43t0d_prep.py) | Repeated visible route rows preserved; structural deltas remain set-based. No collector command change. |
+
 # Step 43T0-D1 — route-header format stop
 
 | Evidence | Source | Boundary |

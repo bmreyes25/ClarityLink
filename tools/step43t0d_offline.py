@@ -130,7 +130,7 @@ def parse_if_inet6(raw: bytes) -> list[dict]:
 
 def parse_ipv6_routes(raw: bytes) -> list[dict]:
     """Linux v3.1 net/ipv6/route.c rt6_info_route proc serializer."""
-    out, seen = [], set()
+    out = []
     for row in lines(raw):
         if not row.strip(): continue
         f=row.split()
@@ -139,9 +139,7 @@ def parse_ipv6_routes(raw: bytes) -> list[dict]:
         dp,sp=(hexfield(f[i],2) for i in (1,3))
         if dp>128 or sp>128: raise FormatError("IPv6 route prefix")
         metric,refcnt,use,flags=(hexfield(f[i],8) for i in (5,6,7,8))
-        name=interface(f[9]); key=(name,dest,dp,src,sp,hop,metric,flags)
-        if key in seen: raise FormatError("duplicate IPv6 route")
-        seen.add(key)
+        name=interface(f[9])
         out.append(dict(interface=name,destination=dest,destination_prefix_length=dp,source=src,
                         source_prefix_length=sp,next_hop=hop,metric=metric,refcnt=refcnt,use=use,flags=flags))
     return out

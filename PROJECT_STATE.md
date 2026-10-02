@@ -1,3 +1,7 @@
+## Step 43T0-D2 — zero-argument ifconfig stop (2026-10-02)
+
+The separately initiated D0-2 retry passed identity and four baseline reads, then stopped because zero-argument `ifconfig` returned zero bytes. Honda contacted through read-only target commands; writes 0; CarPlay never connected; CAR-OFF issued immediately. The capture is valid partial with no complete phase, and G11 remains unchanged. No more D0-2 retry; the next work is an offline ECC review of an IPv4-address observation plan. See [D2 report](step-reports/43t0d2-zero-argument-ifconfig-stop.md).
+
 ## Step 43T0-D1 — route-header format stop (2026-10-02)
 
 A separately initiated parked-car read-only attempt reached the approved identity gate, then stopped on the baseline IPv4 route header because D0-1 required literal tab spacing. Honda contacted YES through nine read-only target commands; target writes 0; CarPlay never connected. CAR-OFF was issued immediately. Offline analysis validated the immutable capture as partial with identity match; G11 remains unresolved. Collector D0-2 makes a narrow whitespace-tolerant header check with no command change. See [D1 report](step-reports/43t0d1-route-header-format-stop.md).

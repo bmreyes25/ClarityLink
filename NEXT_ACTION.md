@@ -1,5 +1,7 @@
 # Next action
 
+**Stop live 43T0-D retries under D0-2.** The zero-argument `ifconfig` read returned zero bytes and the collector stopped before a complete phase. The [D2 report](step-reports/43t0d2-zero-argument-ifconfig-stop.md) records the bounded partial evidence. Next: **offline ECC review of a new fixed read-only IPv4 address observation contract or a justified IPv6-only delta plan**. Do not run another car session, fallback command, Type111, listener, or runtime modification from the current plan.
+
 43T0-D1 stopped fail-closed after a valid baseline route header used extra whitespace. The [D1 report](step-reports/43t0d1-route-header-format-stop.md) records the partial capture and the narrow D0-2 collector correction. Next: a separately initiated 43T0-D parked-car read-only retry only after confirming the car remains parked/on with CarPlay disconnected. No manual ADB inspection or runtime modification.
 
 43T0-DPREP built the offline analyzer and [one-page live runbook](research/runtime/43t0d-live-runbook.md). The next live milestone is still **43T0-D parked-car read-only observation**, but the prior zero-target attempt first requires the already identified **offline ECC review of the ADB-over-Wi-Fi connection precondition and separately initiated retry plan**. Do not begin a car session automatically.

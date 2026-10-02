@@ -258,3 +258,9 @@ def test_preflight_trailing_blank_line_accepted(tmp_path,monkeypatch):
     manifest["commands"][0]["stdout_sha256"]=hashlib.sha256(raw).hexdigest()
     (root/"manifest.json").write_text(json.dumps(manifest))
     assert analyzer.validate_capture(root)[0]=="CAPTURE_VALID"
+
+def test_linux_ipv6_route_can_repeat_identical_visible_rows():
+    raw=v6route(("cp0",))*3
+    rows=m.parse_ipv6_routes(raw)
+    assert len(rows)==3
+    assert rows[0]==rows[1]==rows[2]

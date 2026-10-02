@@ -1,3 +1,5 @@
+> **STOP:** D0-2 cannot complete baseline on the observed Honda: zero-argument `ifconfig` returned no output. Do not use this runbook for another live attempt until a new read-only command plan receives offline ECC review.
+
 # 43T0-D live runbook — separately initiated read-only retry
 
 **Current precondition:** the prior 43T0-D attempt found zero ADB targets and stopped. Before a retry, complete the offline ECC review of the existing ADB-over-Wi-Fi connection precondition. This runbook does not authorize reconnection or change to Honda networking.
