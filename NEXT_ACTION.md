@@ -1,5 +1,9 @@
 # Next action
 
+**43T0-D3 offline ECC decision: `43T0_D3_NETCFG_ECC_GO`.** The preserved Honda `netcfg` binary supports a zero-argument observational enumeration path in static review. The versioned D0-3 collector replaces only the unusable zero-argument `ifconfig` phase read with zero-argument `netcfg`; the analyzer and [live runbook](research/runtime/43t0d-live-runbook.md) are updated. D3 contacted no Honda and ran no ADB. **Next remains a separately initiated 43T0-D parked-car read-only observation**, with exactly one intended target and the reviewed connection precondition; no retry of D0-2, no fallback, Type111, listener, or runtime change. See the [D3 review](step-reports/43t0d3-ipv4-observer-ecc-review.md).
+
+## Prior milestones (historical)
+
 **Stop live 43T0-D retries under D0-2.** The zero-argument `ifconfig` read returned zero bytes and the collector stopped before a complete phase. The [D2 report](step-reports/43t0d2-zero-argument-ifconfig-stop.md) records the bounded partial evidence. Next: **offline ECC review of a new fixed read-only IPv4 address observation contract or a justified IPv6-only delta plan**. Do not run another car session, fallback command, Type111, listener, or runtime modification from the current plan.
 
 43T0-D1 stopped fail-closed after a valid baseline route header used extra whitespace. The [D1 report](step-reports/43t0d1-route-header-format-stop.md) records the partial capture and the narrow D0-2 collector correction. Next: a separately initiated 43T0-D parked-car read-only retry only after confirming the car remains parked/on with CarPlay disconnected. No manual ADB inspection or runtime modification.

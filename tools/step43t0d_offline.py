@@ -19,12 +19,16 @@ IDENTITY = (("id.raw", ("shell", "id")), ("proc-version.raw", ("shell", "cat", "
 NETWORK = (("shell", "cat", "/proc/net/dev"), ("shell", "cat", "/proc/net/route"),
            ("shell", "cat", "/proc/net/ipv6_route"), ("shell", "cat", "/proc/net/if_inet6"),
            ("shell", "ifconfig"))
+NETWORK_NETCFG = NETWORK[:4] + (("shell", "netcfg"),)
+FILES_NETCFG = FILES[:4] + ("netcfg.raw",)
 RESULTS = {"SUCCESS", "COMMAND_UNAVAILABLE", "PERMISSION_DENIED", "TIMEOUT", "OUTPUT_LIMIT_EXCEEDED",
            "UNEXPECTED_FORMAT", "ADB_TRANSPORT_FAILURE", "IDENTITY_MISMATCH", "IDENTITY_INCOMPLETE",
            "AMBIGUOUS_ADB_TARGET", "UNEXPECTED_PRIVILEGE", "USER_ABORT", "STOCK_SANITY_FAILURE"}
 COLLECTOR_HASH = "2162e795568307cfe34dbf7bc8a6de1f70d358119e4aca22e9c6e29789809afc"
 COLLECTOR_HASHES = {"43T0-D0-1": COLLECTOR_HASH,
-                    "43T0-D0-2": "13eff7c72689756d0554329ee31348afdada87a079b7898daee00b927a2c3bb4"}
+                    "43T0-D0-2": "13eff7c72689756d0554329ee31348afdada87a079b7898daee00b927a2c3bb4",
+                    "43T0-D0-3": "a156f7707462714872b49e917231385cd3562cd6ed54da64314f8fc53745fccd"}
+D3_PLAN_SHA256 = "68ec3ccd3ff69d533bdee3d3d38dc2df389015ba960e9effa10450776f68647f"
 PLAN_COMMIT = "fdb3da178febc2df88947d5f73f4c630f46fdc1d"
 SHELL_HASH = "590cc36f1a98082e64e0e2d836c94c125bef1c73fcb7daf981b7286c6b310992"
 KERNEL_HASH = "8fa1c06d864d3dab9be4c53c13ddecb421516bd02ace3a27ef7811a7ee79c451"
@@ -161,6 +165,43 @@ def parse_ifconfig(raw: bytes) -> list[dict]:
         out.append(dict(interface=name,address=None if address=="0.0.0.0" else address,netmask=mask,flags=flags.split(","),up="up" in flags.split(",")))
     return out
 
+NETCFG_RE = re.compile(
+    r"(?P<iface>[A-Za-z0-9_.-]{1,15})\s+(?P<state>UP|DOWN)\s+"
+    r"(?P<address>(?:[0-9]{1,3}\.){3}[0-9]{1,3})/(?P<prefix>[0-9]{1,2})\s+"
+    r"0x(?P<flags>[0-9a-fA-F]{8})(?:\s+(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})?"
+)
+
+
+def parse_netcfg(raw: bytes) -> list[dict]:
+    """Parse Android 4.2-style zero-argument netcfg; discard hardware addresses."""
+    rows = lines(raw)
+    if not rows:
+        raise FormatError("empty netcfg")
+    out, seen = [], set()
+    for row in rows:
+        match = NETCFG_RE.fullmatch(row.strip())
+        if not match:
+            raise FormatError("UNEXPECTED_FORMAT")
+        name = interface(match["iface"])
+        if name in seen:
+            raise FormatError("duplicate netcfg interface")
+        seen.add(name)
+        try:
+            address = str(ipaddress.IPv4Address(match["address"]))
+        except ipaddress.AddressValueError as exc:
+            raise FormatError("invalid netcfg IPv4") from exc
+        prefix = int(match["prefix"])
+        if prefix > 32:
+            raise FormatError("invalid netcfg prefix")
+        flags = int(match["flags"], 16)
+        up = match["state"] == "UP"
+        if bool(flags & 1) != up:
+            raise FormatError("netcfg state/flags mismatch")
+        out.append(dict(interface=name, address=address, prefix_length=prefix,
+                        state=match["state"], flags=flags, up=up,
+                        has_ipv4_address=address != "0.0.0.0"))
+    return out
+
 @dataclass
 class NetworkPhaseSnapshot:
     phase: str
@@ -175,9 +216,14 @@ class NetworkPhaseSnapshot:
 
 def snapshot(phase: str, raw: dict[str,bytes]) -> NetworkPhaseSnapshot:
     if phase not in PHASES: raise FormatError("phase")
+    if "ifconfig.raw" in raw and "netcfg.raw" in raw:
+        raise FormatError("ambiguous IPv4 observer")
     s=NetworkPhaseSnapshot(phase)
     parsers={FILES[0]:("interfaces",parse_dev),FILES[1]:("ipv4_routes",parse_ipv4_routes),FILES[2]:("ipv6_routes",parse_ipv6_routes),
              FILES[3]:("ipv6_addresses",parse_if_inet6),FILES[4]:("ipv4_addresses",parse_ifconfig)}
+    if "netcfg.raw" in raw:
+        del parsers["ifconfig.raw"]
+        parsers["netcfg.raw"] = ("ipv4_addresses", parse_netcfg)
     for name,(attr,parser) in parsers.items():
         if name in raw:
             setattr(s,attr,parser(raw[name])); s.source_hashes[name]=hashlib.sha256(raw[name]).hexdigest()
@@ -186,7 +232,7 @@ def snapshot(phase: str, raw: dict[str,bytes]) -> NetworkPhaseSnapshot:
     return s
 
 def _items(rows: list, name: str) -> set:
-    return {r["address"] if "address" in r else (r["destination"],r.get("destination_prefix_length"),r.get("gateway"),r.get("next_hop")) for r in rows if r["interface"]==name and r.get("address","NON_ADDRESS") is not None}
+    return {r["address"] if "address" in r else (r["destination"],r.get("destination_prefix_length"),r.get("gateway"),r.get("next_hop")) for r in rows if r["interface"]==name and r.get("address","NON_ADDRESS") not in (None,"0.0.0.0")}
 
 def phase_deltas(snapshots: dict[str,NetworkPhaseSnapshot]) -> list[dict]:
     b=snapshots.get("baseline"); c=snapshots.get("connected"); p=snapshots.get("post-disconnect")

@@ -6,6 +6,7 @@ Never run that branch during 43T0-D0.
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -18,13 +19,14 @@ from pathlib import Path
 from typing import Callable, Protocol
 
 
-VERSION = "43T0-D0-2"
+VERSION = "43T0-D0-3"
 ADB_TOKEN = "adb"
 CURRENT_TARGET = "<validated-current-target>"
 MANIFEST_SHA256 = "248427ae4d5dc7ce75888425ab254d308c68e6021a3032a62877c92ef3811f77"
 EXPECTED_ADB_PATH = Path("/opt/homebrew/bin/adb")
 EXPECTED_ADB_SHA256 = "1811e253b21b12cbfda7201ebaf86c10e7ddcb5c606a7a81f7c82b4c429c2d3b"
 APPROVED_PLAN_SHA256 = "0dc6bf88c3c51d7bed3088f811ecf0e1802a8b4ae4722ca25114ef87c0dfec01"
+D3_PLAN_SHA256 = "68ec3ccd3ff69d533bdee3d3d38dc2df389015ba960e9effa10450776f68647f"
 SHELL_ID_SHA256 = "590cc36f1a98082e64e0e2d836c94c125bef1c73fcb7daf981b7286c6b310992"
 KERNEL_SHA256 = "8fa1c06d864d3dab9be4c53c13ddecb421516bd02ace3a27ef7811a7ee79c451"
 PROPERTIES = (
@@ -51,7 +53,7 @@ NETWORK = (
     (("shell", "cat", "/proc/net/route"), "net-route.raw"),
     (("shell", "cat", "/proc/net/ipv6_route"), "ipv6-route.raw"),
     (("shell", "cat", "/proc/net/if_inet6"), "if-inet6.raw"),
-    (("shell", "ifconfig"), "ifconfig.raw"),
+    (("shell", "netcfg"), "netcfg.raw"),
 )
 ALLOWED_SUFFIXES = frozenset((suffix for _key, suffix, _name in IDENTITY)) | frozenset(
     suffix for suffix, _name in NETWORK
@@ -63,6 +65,11 @@ RESULT_CLASSES = frozenset({
     "UNEXPECTED_PRIVILEGE", "USER_ABORT", "STOCK_SANITY_FAILURE",
 })
 ENDPOINT_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+NETCFG_LINE_RE = re.compile(
+    r"(?P<iface>[A-Za-z0-9_.-]{1,15})\s+(?P<state>UP|DOWN)\s+"
+    r"(?P<address>(?:[0-9]{1,3}\.){3}[0-9]{1,3})/(?P<prefix>[0-9]{1,2})\s+"
+    r"0x(?P<flags>[0-9a-fA-F]{8})(?:\s+(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})?"
+)
 
 
 def utc_now() -> str:
@@ -73,6 +80,9 @@ def verify_approved_plan() -> None:
     source = Path(__file__).with_name("step43t0c_identity_delta_dry_run.py")
     if hashlib.sha256(source.read_bytes()).hexdigest() != APPROVED_PLAN_SHA256:
         raise ValueError("approved 43T0-C plan source changed")
+    revised = Path(__file__).with_name("step43t0d3_netcfg_plan.py")
+    if hashlib.sha256(revised.read_bytes()).hexdigest() != D3_PLAN_SHA256:
+        raise ValueError("approved D3 netcfg plan source changed")
 
 
 def read_git_commit(repo_root: Path) -> str:
@@ -273,10 +283,22 @@ def classify_format(suffix: tuple[str, ...], raw: bytes) -> str:
                 return "UNEXPECTED_FORMAT"
             if any(not re.fullmatch(r"[0-9a-fA-F]+", v) for v in fields[:5]):
                 return "UNEXPECTED_FORMAT"
-    elif suffix == ("shell", "ifconfig"):
+    elif suffix == ("shell", "netcfg"):
         lines = text.splitlines()
-        if not lines or not all(re.match(r"^\S+: ip (?:\d{1,3}\.){3}\d{1,3} mask (?:\d{1,3}\.){3}\d{1,3} flags \[", line) for line in lines):
+        if not lines or len(lines) > 4096:
             return "UNEXPECTED_FORMAT"
+        seen = set()
+        for line in lines:
+            match = NETCFG_LINE_RE.fullmatch(line.strip())
+            if not match or match["iface"] in seen or int(match["prefix"]) > 32:
+                return "UNEXPECTED_FORMAT"
+            seen.add(match["iface"])
+            try:
+                ipaddress.IPv4Address(match["address"])
+            except ipaddress.AddressValueError:
+                return "UNEXPECTED_FORMAT"
+            if (int(match["flags"], 16) & 1 != 0) != (match["state"] == "UP"):
+                return "UNEXPECTED_FORMAT"
     return "SUCCESS"
 
 
@@ -347,6 +369,7 @@ class CaptureStore:
 
     def flush(self, final_status: str | None = None) -> None:
         data = {"collector_version": VERSION, "approved_plan_commit": "fdb3da178febc2df88947d5f73f4c630f46fdc1d",
+                "revised_plan_sha256": D3_PLAN_SHA256,
                 "project_commit": self.project_commit,
                 "collector_source_sha256": self.collector_source_sha256,
                 "started_utc": self.started_utc, "updated_utc": utc_now(),

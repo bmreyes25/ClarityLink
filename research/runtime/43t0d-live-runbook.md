@@ -1,13 +1,14 @@
-> **STOP:** D0-2 cannot complete baseline on the observed Honda: zero-argument `ifconfig` returned no output. Do not use this runbook for another live attempt until a new read-only command plan receives offline ECC review.
+> **D3 offline review:** `43T0_D3_NETCFG_ECC_GO` applies only to the versioned D0-3 observational contract. A future car session must be separately initiated. Zero-argument `netcfg` has static Honda compatibility; its live output remains unobserved.
 
 # 43T0-D live runbook — separately initiated read-only retry
 
-**Current precondition:** the prior 43T0-D attempt found zero ADB targets and stopped. Before a retry, complete the offline ECC review of the existing ADB-over-Wi-Fi connection precondition. This runbook does not authorize reconnection or change to Honda networking.
+**Current precondition:** D2 stopped after zero-argument `ifconfig` returned zero bytes. Do not rerun D0-2. The D0-3 collector uses zero-argument `netcfg` with no fallback. Before any separately initiated attempt, confirm the parked car, intended Honda, and exactly one already-connected ADB target using the reviewed connection precondition.
 
-1. Park the car. Head unit on, Mac connected, normal CarPlay disconnected. Have the immutable 40E manifest and the reviewed D0-2 collector. The host output path must be new and outside Git. Confirm the intended Honda in person.
-2. After the connection precondition has been separately approved, invoke only the reviewed collector:
+1. Park the car. Head unit on, Mac connected, normal CarPlay disconnected. Have the immutable 40E manifest and the reviewed D0-3 collector. The host output path must be new and outside Git. Confirm the intended Honda in person.
+2. After the connection precondition is satisfied, invoke only the reviewed collector:
    `python3 tools/step43t0d0_collector.py --host-output ~/CLARITY_43T0D_<timestamp> --execute-approved-43t0-delta --adb-path /opt/homebrew/bin/adb --historical-manifest ~/CLARITY_RUNTIME_20260929_195051/manifest.json`
 3. Respond `CONFIRM` only after each real observation. The collector performs one target enumeration, seven identity reads, then the fixed five network reads per phase. The identity gate must pass before network capture.
+   Each phase reads `/proc/net/dev`, `/proc/net/route`, `/proc/net/ipv6_route`, `/proc/net/if_inet6`, then zero-argument `netcfg`.
 4. Confirm baseline stock state with CarPlay disconnected. Baseline capture follows.
 5. At the prompt, **connect normal wired CarPlay**. Confirm center display, audio, and cluster are normal. Connected capture follows.
 6. At the prompt, **disconnect normal CarPlay**. Confirm stock center, audio, and cluster returned. Post-disconnect capture follows.

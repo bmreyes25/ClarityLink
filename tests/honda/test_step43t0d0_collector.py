@@ -13,6 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 import step43t0c_identity_delta_dry_run as approved  # noqa: E402
+import step43t0d3_netcfg_plan as revised  # noqa: E402
 import step43t0d0_collector as collector  # noqa: E402
 
 
@@ -24,7 +25,7 @@ DEV = b"Inter-|   Receive |  Transmit\n face |bytes packets errs drop fifo frame
 ROUTE = b"Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\neth0\t00000000\t00000000\t0001\t0\t0\t0\t00000000\t0\t0\t0\n"
 IPV6_ROUTE = (b"0" * 32 + b" 00 " + b"0" * 32 + b" 00 " + b"0" * 32 + b" 00000001 00000000 00000000 00000001 eth0\n")
 IF_INET6 = b"00000000000000000000000000000001 01 80 10 80 eth0\n"
-IFCONFIG = b"eth0: ip 192.0.2.1 mask 255.255.255.0 flags [up]\n"
+NETCFG = b"eth0     UP  192.0.2.1/24  0x00000001 02:00:00:00:00:01\n"
 
 
 @pytest.fixture(autouse=True)
@@ -58,7 +59,7 @@ class FakeRunner:
             ("shell", "cat", "/proc/net/route"): ROUTE,
             ("shell", "cat", "/proc/net/ipv6_route"): IPV6_ROUTE,
             ("shell", "cat", "/proc/net/if_inet6"): IF_INET6,
-            ("shell", "ifconfig"): IFCONFIG,
+            ("shell", "netcfg"): NETCFG,
         }
         outputs.update({("shell", "getprop", key): (value + "\r\n").encode()
                         for key, value, _ in approved.PROPERTIES})
@@ -89,7 +90,7 @@ def test_dry_run_default_spawns_no_process(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(sys, "argv", ["collector", "--host-output", str(tmp_path / "proposed")])
     collector.main()
     rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
-    assert rows == approved.plan(tmp_path / "proposed")
+    assert [row["argv"] for row in rows if "argv" in row] == [row["argv"] for row in revised.plan(tmp_path / "proposed") if "argv" in row]
     assert not (tmp_path / "proposed").exists()
 
 
@@ -98,9 +99,9 @@ def test_canonical_command_equivalence_and_success(tmp_path):
     assert result == "SUCCESS"
     assert len(runner.calls) == 23  # enumeration + seven identity + fifteen network
     assert runner.calls[0] == (ADB, "devices")
-    planned = [row for row in approved.plan(store.root) if row["step"] in ("identity", "network")]
+    planned = [row for row in revised.plan(store.root) if row["step"] in ("identity", "network")]
     assert runner.calls[1:] == [
-        tuple(ENDPOINT if part == approved.CURRENT_TARGET else part for part in row["argv"])
+        tuple(ENDPOINT if part == revised.TARGET else part for part in row["argv"])
         for row in planned
     ]
     assert collector.ALLOWED_SUFFIXES == {tuple(row["argv"][3:]) for row in planned}
@@ -117,7 +118,8 @@ def test_canonical_command_equivalence_and_success(tmp_path):
     assert len(manifest["commands"]) == 23
     assert (store.root.stat().st_mode & 0o777) == 0o700
     assert (store.root / "identity" / "id.raw").stat().st_mode & 0o777 == 0o600
-    assert (store.root / "post-disconnect" / "ifconfig.raw").exists()
+    assert (store.root / "post-disconnect" / "netcfg.raw").exists()
+    assert manifest["revised_plan_sha256"] == collector.D3_PLAN_SHA256
 
 
 @pytest.mark.parametrize("devices", [
@@ -151,7 +153,7 @@ def test_endpoint_mismatch_and_user_abort_stop(tmp_path):
 def test_identity_mismatch_never_reaches_network(tmp_path, suffix, data):
     result, runner, _asked, _store, _manifest = run_case(tmp_path, FakeRunner(override={suffix: data}))
     assert result in {"IDENTITY_MISMATCH", "IDENTITY_INCOMPLETE", "UNEXPECTED_PRIVILEGE"}
-    assert all("/proc/net/" not in " ".join(call) and "ifconfig" not in call for call in runner.calls)
+    assert all("/proc/net/" not in " ".join(call) and "netcfg" not in call for call in runner.calls)
 
 
 @pytest.mark.parametrize("number,status", [
@@ -172,7 +174,7 @@ def test_command_failures_stop_without_retry(tmp_path, number, status):
     (("shell", "cat", "/proc/net/route"), b"garbage"),
     (("shell", "cat", "/proc/net/ipv6_route"), b"garbage"),
     (("shell", "cat", "/proc/net/if_inet6"), b"garbage"),
-    (("shell", "ifconfig"), b"usage: ifconfig interface [up|down]"),
+    (("shell", "netcfg"), b"usage: netcfg [interface]"),
 ])
 def test_malformed_network_output_stops(tmp_path, suffix, output):
     result, runner, _asked, _store, manifest = run_case(tmp_path, FakeRunner(override={suffix: output}))
@@ -197,7 +199,7 @@ def test_human_phase_gates_stop(tmp_path, gate, status):
 
 
 def test_fixed_allowlist_rejects_writes_and_shell_metacharacters():
-    allowed = (ADB, "-s", ENDPOINT, "shell", "ifconfig")
+    allowed = (ADB, "-s", ENDPOINT, "shell", "netcfg")
     assert collector.allowed_argv(allowed, ENDPOINT)
     for extra in ("wlan0", "up", "1.2.3.4", ">", ">>", "|", ";", "&&", "||", "$()", "`bad`"):
         assert not collector.allowed_argv(allowed + (extra,), ENDPOINT)
@@ -209,6 +211,7 @@ def test_fixed_allowlist_rejects_writes_and_shell_metacharacters():
     for command in ("push", "pull", "root", "connect"):
         assert not collector.allowed_argv((ADB, command), ENDPOINT)
     assert not collector.allowed_argv((ADB, "-s", ENDPOINT, "shell", "cat", "/proc/42/mem"), ENDPOINT)
+    assert not collector.allowed_argv((ADB, "-s", ENDPOINT, "shell", "ifconfig"), ENDPOINT)
 
 
 def test_host_storage_rejects_inside_repo_and_existing_path(tmp_path):
@@ -253,6 +256,13 @@ def test_dry_run_rejects_output_inside_repo(monkeypatch):
 
 def test_changed_approved_plan_stops_before_adb(tmp_path, monkeypatch):
     monkeypatch.setattr(collector, "APPROVED_PLAN_SHA256", "0" * 64)
+    result, runner, _asked, _store, _manifest = run_case(tmp_path)
+    assert result == "UNEXPECTED_FORMAT"
+    assert runner.calls == []
+
+
+def test_changed_d3_plan_stops_before_adb(tmp_path, monkeypatch):
+    monkeypatch.setattr(collector, "D3_PLAN_SHA256", "0" * 64)
     result, runner, _asked, _store, _manifest = run_case(tmp_path)
     assert result == "UNEXPECTED_FORMAT"
     assert runner.calls == []

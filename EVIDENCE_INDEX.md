@@ -1,3 +1,12 @@
+# Step 43T0-D3 — offline IPv4 observer repair
+
+| Evidence | Location | Class and boundary |
+|---|---|---|
+| Android 4.2.2 `ifconfig` and `netcfg` source semantics | [D3 report](step-reports/43t0d3-ipv4-observer-ecc-review.md) | `EXTERNAL_PRIOR_ART` / `EXTERNAL_STATIC_SEMANTICS`; no Honda runtime inference by itself. |
+| Preserved Honda `netcfg` and zero-argument control flow | [Static inventory checker](tools/step43t0d3_static_review.py), [D3 report](step-reports/43t0d3-ipv4-observer-ecc-review.md) | `HONDA_PRESERVED_NETCFG_PRESENT`; `HONDA_STATIC_COMPATIBILITY` only. Live output unobserved. |
+| Versioned D0-3 command and parser | [Collector](tools/step43t0d0_collector.py), [analyzer](tools/analyze_43t0d_capture.py), [tests](tests/tools/test_step43t0d3_netcfg.py) | `OFFLINE_PROJECT_IMPLEMENTATION`; 15 fixed phase reads, zero-argument `netcfg`, MAC removal, no fallback. |
+| Prior D2 capture | [D2 report](step-reports/43t0d2-zero-argument-ifconfig-stop.md) | Immutable `CAPTURE_VALID_PARTIAL`; no complete phase or G11 promotion. |
+
 # Step 43T0-D2 — zero-argument ifconfig stop
 
 | Evidence | Source | Boundary |

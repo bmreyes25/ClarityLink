@@ -87,7 +87,7 @@ def test_scenarios():
     assert "fe80:" not in json.dumps(public)
     assert m.correlate_40e()["process_ownership"]=="READ_BLOCKED_WITHOUT_PRIVILEGE"
 
-def fixture(tmp, monkeypatch, count=23):
+def fixture(tmp, monkeypatch, count=23, version="43T0-D0-1"):
     root=tmp/"capture"; root.mkdir()
     monkeypatch.setattr(analyzer,"SHELL_HASH",hashlib.sha256(b"uid=2000(shell) gid=2000(shell) groups=2000(shell)").hexdigest())
     monkeypatch.setattr(analyzer,"KERNEL_HASH",hashlib.sha256(b"synthetic kernel").hexdigest())
@@ -95,15 +95,18 @@ def fixture(tmp, monkeypatch, count=23):
     data=[]
     for phase in m.PHASES:
         names=("cp0",) if phase=="connected" else ()
-        data.extend((dev(names),route(),v6route(names),inet6(names),config(names)))
+        observer = (b"".join(f"{n:<8} UP  0.0.0.0/0  0x00000001 02:00:00:00:00:01\n".encode() for n in names)
+                    or b"lo       UP  127.0.0.1/8  0x00000001 00:00:00:00:00:00\n") if version=="43T0-D0-3" else config(names)
+        data.extend((dev(names),route(),v6route(names),inet6(names),observer))
     values+=data; commands=[]
-    for i,(phase,suffix,rel) in enumerate(analyzer.expected()[:count]):
+    for i,(phase,suffix,rel) in enumerate(analyzer.expected(version)[:count]):
         raw=values[i]; path=root/rel; path.parent.mkdir(exist_ok=True); path.write_bytes(raw)
         commands.append(dict(phase=phase,command_index=i+1,argv=["adb","devices"] if i==0 else ["adb","-s","synthetic-endpoint",*suffix],
                              target_reference="redacted",result_class="SUCCESS",stdout_bytes=len(raw),stderr_bytes=0,
                              stdout_sha256=hashlib.sha256(raw).hexdigest(),stderr_sha256=hashlib.sha256(b"").hexdigest()))
-    manifest=dict(collector_version="43T0-D0-1",collector_source_sha256=m.COLLECTOR_HASH,approved_plan_commit=m.PLAN_COMMIT,
+    manifest=dict(collector_version=version,collector_source_sha256=m.COLLECTOR_HASHES[version],approved_plan_commit=m.PLAN_COMMIT,
                   project_commit="a"*40,commands=commands,final_status="SUCCESS" if count==23 else "USER_ABORT")
+    if version=="43T0-D0-3": manifest["revised_plan_sha256"]=m.D3_PLAN_SHA256
     (root/"manifest.json").write_text(json.dumps(manifest))
     return root,manifest
 
@@ -233,7 +236,7 @@ def test_synthetic_summary_and_report_golden():
 
 def test_honda_route_header_whitespace_regression():
     from step43t0d0_collector import VERSION, classify_format
-    assert VERSION=="43T0-D0-2"
+    assert VERSION=="43T0-D0-3"
     header=b"Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT   \n"
     body=b"cp0\t00000000\t00000000\t0001\t0\t0\t0\t00000000\t0\t0\t0\n"
     assert classify_format(("shell","cat","/proc/net/route"),header+body)=="SUCCESS"
@@ -247,6 +250,27 @@ def test_d0_2_capture_accepted_and_old_hash_still_pinned(tmp_path,monkeypatch):
     (root/"manifest.json").write_text(json.dumps(manifest))
     assert analyzer.validate_capture(root)[0]=="CAPTURE_VALID"
     manifest["collector_source_sha256"]=m.COLLECTOR_HASH
+    (root/"manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(m.FormatError): analyzer.validate_capture(root)
+
+def test_d0_3_capture_accepted_and_uses_netcfg(tmp_path,monkeypatch):
+    root,manifest=fixture(tmp_path,monkeypatch,version="43T0-D0-3")
+    assert analyzer.validate_capture(root)[0:2]==("CAPTURE_VALID","IDENTITY_MATCH")
+    before=hashlib.sha256((root/"connected/netcfg.raw").read_bytes()).hexdigest()
+    summary=analyzer.analyze(root,tmp_path/"derived")
+    assert summary["G11_F"]=="NO"
+    assert "02:00:00:00:00:01" not in (tmp_path/"derived/43t0d-network-summary.json").read_text()
+    assert "02:00:00:00:00:01" not in (tmp_path/"derived/43t0d-read-only-honda-network-delta.md").read_text()
+    assert before==hashlib.sha256((root/"connected/netcfg.raw").read_bytes()).hexdigest()
+    manifest["revised_plan_sha256"]="0"*64
+    (root/"manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(m.FormatError): analyzer.validate_capture(root)
+
+def test_d0_3_partial_prefix_and_no_fallback(tmp_path,monkeypatch):
+    root,manifest=fixture(tmp_path,monkeypatch,count=13,version="43T0-D0-3")
+    assert analyzer.validate_capture(root)[0]=="CAPTURE_VALID_PARTIAL"
+    assert (root/"baseline/netcfg.raw").exists()
+    manifest["commands"][-1]["argv"][-1]="ifconfig"
     (root/"manifest.json").write_text(json.dumps(manifest))
     with pytest.raises(m.FormatError): analyzer.validate_capture(root)
 

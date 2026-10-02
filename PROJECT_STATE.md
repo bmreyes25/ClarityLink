@@ -1,3 +1,7 @@
+## Step 43T0-D3 — offline IPv4 observer contract repair (2026-10-02)
+
+**`43T0_D3_NETCFG_ECC_GO` for a future separately initiated read-only 43T0-D session.** AOSP explains D2's zero-byte zero-argument `ifconfig`; static review of preserved Honda `system/bin/netcfg` supports its zero-argument interface enumeration. Versioned D0-3 substitutes `netcfg` for the fifth read in each phase, with strict parser, MAC stripping, no arguments/fallback, and historical D0-1/D0-2 capture compatibility. D2 remains immutable valid partial; duplicate IPv6 route rows remain accepted without inflated deltas. No Honda contact, ADB, or target writes occurred in D3. See [D3 ECC review](step-reports/43t0d3-ipv4-observer-ecc-review.md). Next remains separately initiated 43T0-D; Type111/runtime/deployment remain disabled.
+
 ## Step 43T0-D2 — zero-argument ifconfig stop (2026-10-02)
 
 The separately initiated D0-2 retry passed identity and four baseline reads, then stopped because zero-argument `ifconfig` returned zero bytes. Honda contacted through read-only target commands; writes 0; CarPlay never connected; CAR-OFF issued immediately. The capture is valid partial with no complete phase, and G11 remains unchanged. No more D0-2 retry; the next work is an offline ECC review of an IPv4-address observation plan. See [D2 report](step-reports/43t0d2-zero-argument-ifconfig-stop.md).

@@ -8,7 +8,8 @@ import os
 import re
 from pathlib import Path
 
-from step43t0d_offline import (COLLECTOR_HASHES, FILES, IDENTITY, KERNEL_HASH, NETWORK, PHASES,
+from step43t0d_offline import (COLLECTOR_HASHES, D3_PLAN_SHA256, FILES, FILES_NETCFG,
+    IDENTITY, KERNEL_HASH, NETWORK, NETWORK_NETCFG, PHASES,
     PLAN_COMMIT, PROPERTIES, RESULTS, SHELL_HASH, FormatError, decide, privacy_scan, public_summary, snapshot)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,10 +17,11 @@ MAX_MANIFEST = 131072
 MAX_FILE = 65536
 
 
-def expected() -> list[tuple[str, tuple[str,...], str]]:
+def expected(version: str = "43T0-D0-2") -> list[tuple[str, tuple[str,...], str]]:
     rows=[("preflight", ("devices",), "preflight/devices.raw")]
     rows.extend(("identity", suffix, "identity/"+name) for name,suffix in IDENTITY)
-    rows.extend((phase, suffix, phase+"/"+name) for phase in PHASES for suffix,name in zip(NETWORK,FILES,strict=True))
+    network, files = (NETWORK_NETCFG, FILES_NETCFG) if version == "43T0-D0-3" else (NETWORK, FILES)
+    rows.extend((phase, suffix, phase+"/"+name) for phase in PHASES for suffix,name in zip(network,files,strict=True))
     return rows
 
 
@@ -50,11 +52,14 @@ def validate_capture(root: Path) -> tuple[str,str,dict,dict]:
                         parse_constant=lambda _value: (_ for _ in ()).throw(FormatError("invalid JSON constant")))
     if not isinstance(manifest,dict) or manifest.get("collector_version") not in COLLECTOR_HASHES or manifest.get("collector_source_sha256")!=COLLECTOR_HASHES[manifest["collector_version"]] or manifest.get("approved_plan_commit")!=PLAN_COMMIT:
         raise FormatError("collector provenance")
+    version = manifest["collector_version"]
+    if version == "43T0-D0-3" and manifest.get("revised_plan_sha256") != D3_PLAN_SHA256:
+        raise FormatError("revised command plan")
     if not re.fullmatch(r"[0-9a-f]{40}",manifest.get("project_commit","")):
         raise FormatError("project commit")
     commands=manifest.get("commands")
     if not isinstance(commands,list) or len(commands)>23: raise FormatError("command count")
-    planned=expected(); raw={}; successful={}; endpoint=None
+    planned=expected(version); raw={}; successful={}; endpoint=None
     for i,row in enumerate(commands):
         if not isinstance(row,dict) or row.get("command_index")!=i+1 or row.get("phase")!=planned[i][0] or row.get("target_reference")!="redacted":
             raise FormatError("sequence/index/target reference")
@@ -166,8 +171,9 @@ def analyze(capture: Path, output: Path, *, private_binding_detail: bool = False
     status,identity,manifest,raw=validate_capture(capture)
     snapshots={}
     if identity=="IDENTITY_MATCH":
+        files = FILES_NETCFG if manifest["collector_version"] == "43T0-D0-3" else FILES
         for phase in PHASES:
-            subset={name:raw[phase+"/"+name] for name in FILES if phase+"/"+name in raw}
+            subset={name:raw[phase+"/"+name] for name in files if phase+"/"+name in raw}
             if subset: snapshots[phase]=snapshot(phase,subset)
     decision=decide(snapshots)
     private_policy=decide(snapshots,private=True)["candidate_route_policy"] if private_binding_detail else None

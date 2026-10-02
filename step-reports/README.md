@@ -1,3 +1,5 @@
+- [43T0-D3 offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
+
 - [43T0-D2 zero-argument ifconfig baseline stop](43t0d2-zero-argument-ifconfig-stop.md)
 - [43T0-D1 live route-header format stop and offline correction](43t0d1-route-header-format-stop.md)
 - [43T0-DPREP offline live-capture analysis pipeline](43t0d-prep-offline-analysis-pipeline.md)
