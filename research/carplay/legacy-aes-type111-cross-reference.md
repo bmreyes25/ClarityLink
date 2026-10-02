@@ -34,9 +34,9 @@ The candidate model should take only synthetic session master material and synth
 
 ## 43O and 43P implications
 
-Step 43O's purpose is a controlled, opt-in PlayPort oracle and redacted diagnostic preparation—not to prove Honda compatibility or gather a trace. Step 43P may collect a separately scoped current-iPhone trace to determine which display/features/streams the selected iOS build requests and whether Type111 has a separate socket/config/frame/stop lifecycle while Type110 remains active. Record observed receiver source version and media framing/security category without logging secrets. Do not claim that PlayPort's modern crypto represents Honda.
+Step 43O prepared a controlled, opt-in PlayPort oracle and redacted diagnostics. Step 43P then observed the phone request Type111 before Type110, use a distinct `streamConnectionID`, connect to a separate dataPort, and deliver Type111 video while Type110 remained active. The selected PlayPort parser classified both streams as `MODERN_CHACHA_SCREEN`. This confirms two-stream topology for that lab profile; it does not prove Honda compatibility or Honda Type111 crypto. See the [43P report](../../step-reports/43p-current-ios-type111-oracle.md) and [sanitized trace](../lab/captures/43p/oracle-events.redacted.jsonl). Honda Type111 crypto/lifecycle remain `HONDA_UNKNOWN`.
 
-Step 43Q is only a **conditional future task** after the 43O oracle exists and 43P evidence is reviewed: build the offline legacy Type111 crypto/lifecycle twin from Honda-confirmed Type110 primitives plus explicitly external Type111 evidence. It is not authorized or performed by this addendum.
+Step 43Q may now build an **offline-only** legacy Type111 crypto/lifecycle twin using Honda-confirmed Type110 primitives, synthetic second-stream inputs, and explicitly external Type111 evidence. The current-iOS modern ChaCha observation must not be used as the legacy AES derivation. Prove state and teardown isolation offline; do not treat the result as Honda Type111 confirmation. No Honda runtime action is authorized or performed by this addendum.
 
 ## Pinned source links
 

@@ -34,15 +34,15 @@ Cross-platform legacy evidence now narrows this from an unknown crypto design to
 
 Step 43N added an offline-only model and target compatibility planner. No loader, installer, patch bytes, or Honda runtime behavior is proven. `LD_PRELOAD` remains parked.
 
-### 5. PlayPort Mac/iPhone Type111 oracle (43O offline build complete; phone observation in 43P)
+### 5. PlayPort Mac/iPhone Type111 oracle (43P observation complete)
 
-Step 43O implemented an isolated opt-in cluster profile, separate 110/111 frontend render paths, Type111 teardown isolation, and allowlisted diagnostics for feature/order, endpoint, media category, and independent lifecycle. Full Gradle and web builds pass. The current PlayPort screen parser is ChaCha-based; its diagnostic value describes the local parser path only. Step 43O made no phone connection. Step 43P is the next separately scoped trace for a selected iOS build. Do not vendor upstream code. See the [oracle implementation](../../research/lab/playport-type111-oracle-implementation.md) and [redaction contract](../../research/lab/playport-redaction-contract.md).
+Step 43O implemented an isolated opt-in cluster profile, separate 110/111 frontend render paths, Type111 teardown isolation, and allowlisted diagnostics. Step 43P observed two sessions; the later sanitized trace is canonical. It confirms Type111 requested before Type110, a distinct connection ID, a separate connected dataPort, VideoConfig/frames on both streams, and the Type110 path remaining active while Type111 media flowed. The selected PlayPort parser classified both streams as modern ChaCha. Exact iPhone/iOS build and codec remain unknown. Server shutdown stopped both streams, so independent Type111-only stop/restart was not tested. These observations are `CURRENT_IOS_LAB_CONFIRMED`, not Honda evidence. See the [43P report](../../step-reports/43p-current-ios-type111-oracle.md), [observation matrix](../../research/lab/current-ios-type111-observation.md), [oracle implementation](../../research/lab/playport-type111-oracle-implementation.md), and [redaction contract](../../research/lab/playport-redaction-contract.md). Do not vendor upstream code.
 
 For this one non-Honda 43P lab observation, the user explicitly permits PlayPort's documented shared DiPlay experimental identity, classified `EXPERIMENTAL_LAB_ONLY`. This is not a private/unique production identity, not Apple certification, and not Honda evidence. Use only a checksum-verified current official release; keep the identity outside both repositories with owner-only permissions; never log, commit, redistribute, or include it in capture artifacts. Validate the certificate/key pair using PlayPort's test before Bluetooth pairing. Physical MFi chip, Xcode, and iPhone Developer Mode are not required for the receiver authentication exchange. This exception does not change any later ClarityLink or Honda credential requirements.
 
-### 5a. Conditional Step 43Q: offline legacy Type111 crypto/lifecycle twin
+### 5a. Step 43Q: offline legacy Type111 crypto/lifecycle twin (authorized next; offline only)
 
-Only after 43O is built and 43P observations are reviewed, model a second legacy AES screen context using Honda-confirmed Type110 primitives and synthetic second IDs. Prove independent keys/IVs/CTR state and that Type111 stop, restart, or malformed frames cannot affect Type110. This is not runtime attachment or Honda Type111 confirmation.
+Use Honda-confirmed Type110 primitives and synthetic second IDs to model a second legacy AES screen context. Prove independent keys/IVs/CTR state and that Type111 stop, restart, or malformed frames cannot affect Type110. Use 43P only for the confirmed two-stream topology; its modern ChaCha result is not legacy AES evidence. Preserve Honda Type111 crypto as `HONDA_UNKNOWN`. This is offline modeling only, not runtime attachment or Honda Type111 confirmation.
 
 ### 6. ExternalDisplay synthetic renderer proof
 

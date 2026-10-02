@@ -1,0 +1,121 @@
+{
+  "schema": "claritylink.current-ios-type111-oracle.v1",
+  "evidence_class": "CURRENT_IOS_LAB_CONFIRMED",
+  "auth_class": "EXPERIMENTAL_LAB_ONLY",
+  "capture": {
+    "source": "PlayPort Type111 allowlist-only diagnostics",
+    "canonical_session": 2,
+    "source_log_sessions_observed": 2,
+    "source_events_in_canonical_session": 945,
+    "source_was_append_only": true,
+    "canonical_selection_note": "The later of two naturally captured sessions is preserved. The first session proposed hevc; the later session did not. No PlayPort profile flags, geometry, initialURL, sourceVersion, or codec preference were changed by the operator during the baseline observation."
+  },
+  "profile": {
+    "claritylink_commit": "4940b06497e9ef8fcd46f357fce88462909b23b0",
+    "playport_commit": "f2679a26a593f544ba7822dfbac870544b4af92a",
+    "playport_branch": "claritylink-type111-lab",
+    "macos_version": "27.2",
+    "macos_build": "26B5091g",
+    "iphone_model": "UNKNOWN_NOT_CAPTURED",
+    "ios_version_build": "UNKNOWN_NOT_CAPTURED",
+    "transport": "wireless Bluetooth iAP2 bootstrap followed by Wi-Fi CarPlay",
+    "sourceVersion_advertised": "366.0",
+    "lab_flags": ["--wireless", "--cluster", "--type111-diagnostics"],
+    "main_display": {
+      "streamType": 110,
+      "width_pixels": 1280,
+      "height_pixels": 720,
+      "fps": 60,
+      "classification": "SYNTHETIC_TEST_VALUE"
+    },
+    "cluster_display": {
+      "streamType": 111,
+      "width_pixels": 800,
+      "height_pixels": 480,
+      "fps": 30,
+      "initialURL": "maps:/car/instrumentcluster/map",
+      "classification": "SYNTHETIC_TEST_VALUE"
+    },
+    "wifi_password_recorded": false
+  },
+  "authentication": {
+    "identity_location": "owner-only directory outside both repositories",
+    "files": ["identity.pk8", "certificate.p7b"],
+    "permissions": "0600 files; owner bmreyes24",
+    "git_tracked": false,
+    "validation": "MfiIdentityTest PASS (2 tests, 0 skipped)",
+    "private_unique_credential": false
+  },
+  "negotiation": {
+    "altScreenURLs_request_key_present": true,
+    "advertised_altScreenURLs_safe_values": [],
+    "requested_features": ["uiContext", "viewAreas", "cornerMasks", "focusTransfer", "h.264Level5.1", "mainBuffered", "altScreen", "enhancedSiri", "vehicleStateProtocol", "sessionManagement", "videoPlayback", "logTransfer", "iAPChannel"],
+    "enabled_features": ["iAPChannel", "viewAreas", "altScreen"],
+    "display_count": 2,
+    "viewAreas_present": true,
+    "initialViewArea_present": true
+  },
+  "streams": {
+    "type111": {
+      "requested": true,
+      "setup_order": "BEFORE_110",
+      "streamConnectionID_present": true,
+      "distinct_from_110": true,
+      "dataPort": 59841,
+      "socket_connected": true,
+      "videoConfig_received": true,
+      "first_frame_received": true,
+      "first_frame_size_bytes": 7765,
+      "first_frame_keyframe": true,
+      "sustained_frame_summary_events": 489,
+      "codec": "UNKNOWN_NOT_RETAINED_BY_DIAGNOSTIC_EVENT",
+      "security_mode": "MODERN_CHACHA_SCREEN"
+    },
+    "type110": {
+      "requested": true,
+      "setup_order": "AFTER_111",
+      "streamConnectionID_present": true,
+      "distinct_from_111": true,
+      "dataPort": 59842,
+      "socket_connected": true,
+      "videoConfig_received": true,
+      "first_frame_received": true,
+      "first_frame_size_bytes": 639,
+      "first_frame_keyframe": true,
+      "sustained_frame_summary_events": 430,
+      "codec": "UNKNOWN_NOT_RETAINED_BY_DIAGNOSTIC_EVENT",
+      "security_mode": "MODERN_CHACHA_SCREEN"
+    },
+    "simultaneous_110_and_111_media": true
+  },
+  "controls": {
+    "suggestUI_events": 4,
+    "forceKeyFrame_observed": false,
+    "showUI_observed": false,
+    "stopUI_observed": false
+  },
+  "lifecycle": {
+    "type111_stop_seen": true,
+    "type110_stop_seen": true,
+    "stop_context": "PlayPort server shutdown; both streams stopped",
+    "type111_only_teardown_while_110_active": false,
+    "type111_restart_with_main_alive": false,
+    "independent_lifecycle_result": "NOT_TESTED"
+  },
+  "limitations": [
+    "Two sessions were observed in the append-only source log; this report preserves the later session as the canonical profile and records the earlier session as an additional observation.",
+    "The iPhone model and iOS version/build were not retained in the allowlisted diagnostics and remain unknown.",
+    "The actual codec was not retained in the diagnostic event; do not infer it from the server default.",
+    "MODERN_CHACHA_SCREEN describes the active PlayPort parser branch, not Honda media security.",
+    "The shutdown teardown affected Type110 and Type111 together and does not prove independent Type111 stop/restart behavior."
+  ],
+  "safety": {
+    "honda_used": false,
+    "honda_adb_targets": 0,
+    "raw_connection_ids_recorded": false,
+    "auth_secrets_recorded": false,
+    "session_or_media_keys_recorded": false,
+    "browser_token_recorded": false,
+    "wifi_password_recorded": false
+  }
+}

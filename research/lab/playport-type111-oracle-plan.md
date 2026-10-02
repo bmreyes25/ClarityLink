@@ -1,6 +1,6 @@
 # PlayPort Mac/iPhone Type111 oracle plan — offline design
 
-**Status: IMPLEMENTED OFFLINE; 43P auth-source policy revised; live session pending validation.** Step 43O built an isolated, opt-in PlayPort lab and redacted diagnostics. Step 43P is one controlled current-iPhone trace. The plan targets the pinned PlayPort `9a0882dd0ffe48e467b59d58b12d81391df55ade`, with xcertplay `17c92439413638dfd1d7f91d7e1c2e7358398762` as a source-level protocol reference. It does not require Honda access, credentials in Git, or changes to ClarityLink's production artifacts.
+**Status: 43P OBSERVATION COMPLETE.** The sanitized current-iOS lab trace confirmed Type111-before-Type110 setup, distinct connection IDs, separate connected data ports, and simultaneous video. The PlayPort parser used modern ChaCha on both streams; this is not Honda security evidence. See the [43P report](../../step-reports/43p-current-ios-type111-oracle.md). Step 43Q may proceed as an offline-only legacy twin using Honda-confirmed Type110 inputs and synthetic second-stream values. Honda Type111 crypto remains `HONDA_UNKNOWN`. The plan targets the pinned PlayPort `9a0882dd0ffe48e467b59d58b12d81391df55ade`, with xcertplay `17c92439413638dfd1d7f91d7e1c2e7358398762` as a source-level protocol reference. It does not require Honda access, credentials in Git, or changes to ClarityLink's production artifacts.
 
 ## Minimal lab change
 

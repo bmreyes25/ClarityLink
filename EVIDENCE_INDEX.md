@@ -1,3 +1,14 @@
+# Step 43P — current-iOS Mac/PlayPort observation
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Current-phone negotiation and streams | [Sanitized 43P events](research/lab/captures/43p/oracle-events.redacted.jsonl); [summary](research/lab/captures/43p/session-summary.json) | `CURRENT_IOS_LAB_CONFIRMED`: canonical session requested/accepted `altScreen`; Type111 setup preceded Type110; IDs were present/distinct; separate ports connected; both streams produced VideoConfig and frames simultaneously. Phone model/iOS build and actual codec remain unknown. |
+| Current receiver security path | Same capture; [43P report](step-reports/43p-current-ios-type111-oracle.md) | PlayPort classified both streams `MODERN_CHACHA_SCREEN`; this is local parser behavior, not Honda crypto evidence. Honda Type110 AES-CTR remains `HONDA_CONFIRMED`; Honda Type111 crypto remains `HONDA_UNKNOWN`. |
+| Type111 lifetime | Same capture | Both streams stopped when PlayPort shut down. No Type111-only stop/restart while Type110 remained active was observed; Honda lifecycle remains `HONDA_UNKNOWN`. |
+| Experimental identity and preflight | [43P report](step-reports/43p-current-ios-type111-oracle.md); external owner-only identity directory | `EXPERIMENTAL_LAB_ONLY`; PlayPort identity consistency test passed 2/2; files were outside both repositories and untracked. This is not production, private, or Honda evidence. |
+| Synthetic display profile | [Session metadata](research/lab/captures/43p/session-metadata.md) | `SYNTHETIC_TEST_VALUE`: 1280×720@60 main and 800×480@30 cluster, with synthetic map initial URL. |
+| Decision | [Next action](NEXT_ACTION.md); [43P observation matrix](research/lab/current-ios-type111-observation.md) | Proceed only to an offline 43Q legacy twin using Honda-confirmed Type110 primitives and synthetic second-stream inputs. Do not use modern PlayPort crypto as Honda evidence; no Honda runtime action. |
+
 # Step 43N — offline trampoline model and external Type111 oracle evidence
 
 | Evidence item | Source | Finding / classification |
