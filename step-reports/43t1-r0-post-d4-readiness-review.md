@@ -44,7 +44,7 @@ This is a fresh offline readiness decision after D4. Prior 43S/43S2/PREP2 record
 
 ECC security-review, safety-boundary, evidence-provenance, and fail-closed guidance was applied manually to the capture and readiness decision. The new Honda network observations are classified only as read-only observations and `HONDA_OBSERVED_NETWORK_POLICY_INPUT`. D4 does not promote system-wide sockets to `jmcs` ownership and does not close G11-E/F or G13. No independent ECC reviewer service was available; this is not an independent external audit.
 
-Verification after CAR-OFF: focused relevant tests **227 passed**; configured full suite **642 passed, 3 skipped**; self-locator **3/3 passed**; simulator checks passed. The private capture analyzer validated all 23 collector commands and the public summary's privacy gate. Private binding details remain outside Git.
+Verification after CAR-OFF: focused relevant tests **227 passed**; configured full suite **642 passed, 3 skipped**; self-locator **3/3 passed**; simulator checks passed. The private capture analyzer validated all 23 collector commands and the public summary's privacy gate. Private binding details remain outside Git. The sanitized D4/R0 report commit `03faacae9ce34d7f358d5dbe7a2fed423c2700c2` was pushed to `main`; hosted [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/37136534247) and [CodeQL](https://github.com/bmreyes25/ClarityLink/actions/runs/37136534210) passed.
 
 ## Decision and next step
 

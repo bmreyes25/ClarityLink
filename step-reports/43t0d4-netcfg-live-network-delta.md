@@ -42,6 +42,7 @@ ECC security-review, fail-closed, evidence-classification, and privacy guidance 
 - Focused D0-3 parser/collector, route/duplicate-route, analyzer, and PREP2 model/integration tests: **227 passed**.
 - Configured offline suite: **642 passed, 3 skipped**; self-locator **3/3 passed**; configured simulator checks passed.
 - Analyzer privacy gate: passed with exact addresses and MACs withheld. Repository health checker: passed with 110/110 eligible milestone/support reports indexed and no broken curated links. `git diff --check`: passed.
+- Sanitized D4/R0 records were committed and pushed to `main` in `03faacae9ce34d7f358d5dbe7a2fed423c2700c2`. Hosted [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/37136534247) passed; hosted [CodeQL](https://github.com/bmreyes25/ClarityLink/actions/runs/37136534210) passed for all five configured languages.
 
 ## Boundary and next action
 
