@@ -10,6 +10,8 @@ This index preserves the engineering chronology and negative results. For curren
 
 ## Latest milestones
 
+- [CodeQL wildcard listener security fix](codeql-listener-security-fix.md)
+
 - [Step 43T1-R1 — offline runtime feasibility/restoration review](43t1-r1-runtime-feasibility-review.md)
 - [Step 43T1-R0 — post-D4 offline readiness review](43t1-r0-post-d4-readiness-review.md)
 - [Step 43T0-D4 — live read-only Honda network observation](43t0d4-netcfg-live-network-delta.md)

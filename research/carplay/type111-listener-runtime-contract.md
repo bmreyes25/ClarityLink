@@ -12,10 +12,10 @@ The worker handles accept away from the serializer thread, accepts at most one s
 
 - `LOOPBACK_TEST`: binds `127.0.0.1`.
 - `SPECIFIC_ADDRESS`: binds only the explicit caller-provided local IPv4 address.
-- `WILDCARD_TEST_ONLY`: binds `0.0.0.0`, clearly marked test-only.
+- `WILDCARD_TEST_ONLY`: rejected before socket creation; no wildcard test bind exists.
 - Production `HONDA_INTERFACE_POLICY`: **UNRESOLVED**. No Mac policy is transferred to Honda.
 
-Tests exercise each available host policy; no network client leaves the host. IPv6 is not enabled by this reference contract. A future Honda runtime observation must establish the phone-reachable address/family/interface and firewall/routing context before any listener can be approved there.
+Tests exercise loopback and valid specific-address policies; wildcard policy and unspecified addresses are rejection-only cases. No network client leaves the host. IPv6 is not enabled by this reference contract. A future Honda runtime observation must establish the phone-reachable address/family/interface and firewall/routing context before any listener can be approved there.
 
 ## Failure and expected behavior
 

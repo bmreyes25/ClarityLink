@@ -12,6 +12,7 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [CodeQL wildcard listener security fix](step-reports/codeql-listener-security-fix.md)
 - [43T0-D4 read-only network observation](step-reports/43t0d4-netcfg-live-network-delta.md)
 - [43T1-R0 post-D4 readiness decision](step-reports/43t1-r0-post-d4-readiness-review.md)
 - [43T1-R1 offline runtime feasibility review](step-reports/43t1-r1-runtime-feasibility-review.md)

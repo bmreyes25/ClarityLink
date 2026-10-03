@@ -59,12 +59,61 @@ def test_listen_and_worker_are_ready_before_immediate_client_connects():
     listener.close()  # idempotent; no double-close
 
 
-def test_interface_policies_are_explicit_and_honda_policy_is_not_selected():
-    specific = InterfacePolicy(InterfaceKind.SPECIFIC_ADDRESS, "127.0.0.1")
-    wildcard = InterfacePolicy(InterfaceKind.WILDCARD_TEST_ONLY)
-    for key, policy in (("loop", loopback()), ("specific", specific), ("wildcard", wildcard)):
-        listener = PreparedListener.create(key, policy)
+def test_loopback_policy_binds_only_ipv4_loopback():
+    listener = PreparedListener.create("loop", loopback())
+    try:
+        assert listener.sock.getsockname()[0] == "127.0.0.1"
+    finally:
         listener.close()
+
+
+def test_specific_address_accepts_non_wildcard_ipv4_address():
+    listener = PreparedListener.create(
+        "specific", InterfacePolicy(InterfaceKind.SPECIFIC_ADDRESS, "127.0.0.1")
+    )
+    try:
+        assert listener.sock.getsockname()[0] == "127.0.0.1"
+    finally:
+        listener.close()
+
+
+@pytest.mark.parametrize("address", ["0.0.0.0", "::", "", None])
+def test_specific_address_rejects_wildcard_or_missing_address_before_socket_creation(address):
+    socket_calls = []
+
+    def factory(*args):
+        socket_calls.append(args)
+        raise AssertionError("invalid policy must be rejected before socket creation")
+
+    policy = InterfacePolicy(InterfaceKind.SPECIFIC_ADDRESS, address)
+    with pytest.raises(ListenerError):
+        PreparedListener.create("invalid", policy, socket_factory=factory)
+    assert socket_calls == []
+
+
+def test_wildcard_test_policy_is_rejected_before_socket_creation():
+    socket_calls = []
+    bind_calls = []
+
+    class FakeSocket:
+        def bind(self, address):
+            bind_calls.append(address)
+            raise AssertionError("wildcard policy reached bind")
+
+    def factory(*args):
+        socket_calls.append(args)
+        return FakeSocket()
+
+    with pytest.raises(ListenerError, match="wildcard_bind_prohibited"):
+        PreparedListener.create(
+            "wildcard", InterfacePolicy(InterfaceKind.WILDCARD_TEST_ONLY),
+            socket_factory=factory,
+        )
+    assert socket_calls == []
+    assert bind_calls == []
+
+
+def test_interface_policy_rejects_missing_specific_address():
     with pytest.raises(ListenerError, match="interface_policy_invalid"):
         InterfacePolicy(InterfaceKind.SPECIFIC_ADDRESS).bind_address()
 

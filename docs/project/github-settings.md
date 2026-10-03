@@ -1,6 +1,6 @@
 # GitHub settings checklist
 
-Read-only review of `bmreyes25/ClarityLink` on 2026-10-03. Repository settings were not changed by this documentation pass.
+Repository settings reviewed and updated on 2026-10-03 for the listener security maintenance. GitHub CLI confirmed administrator permission before applying the explicitly requested minimum `main` protection.
 
 | Setting | Status | Finding / owner action |
 |---|---|---|
@@ -13,10 +13,14 @@ Read-only review of `bmreyes25/ClarityLink` on 2026-10-03. Repository settings w
 | Push protection | **VERIFIED — DISABLED** | API reports disabled. Enable after reviewing the project's deliberate synthetic/test fixtures and ignore policy. |
 | Private vulnerability reporting | **VERIFIED — DISABLED** | API reports disabled. Enable it so `SECURITY.md` has a private repository route. |
 | Code scanning default setup | **NOT CONFIGURED** | API reports `not-configured`. A CodeQL workflow is included in the repository; owner should confirm its first successful run and resulting alert visibility. |
-| Branch protection/ruleset | **VERIFIED — NOT CONFIGURED** | API reports no branch protection for `main`. Consider requiring successful Offline CI and review before merge. |
+| Branch protection | **VERIFIED — CONFIGURED** | `main` blocks force pushes and deletion. Required status checks and PR reviews are not enabled; direct pushes remain allowed. Admin enforcement is enabled. |
 | Action allowlist / SHA pinning | **VERIFIED — RECOMMENDED** | API reports all actions allowed and SHA pinning not required. Consider narrowing allowed actions and requiring full commit-SHA pins under the project's maintenance policy. |
 
-Manual owner checklist: enable secret scanning, push protection, and private vulnerability reporting; decide whether to protect `main` with required Offline CI/review; review action allowlisting and SHA pinning. Do not treat this checklist as evidence that any setting was changed.
+## Manual branch protection steps
+
+The low-friction protection is already applied. To review or change it manually, open **Settings → Rules → Rulesets or Branches**, target `main`, and verify **block force pushes** and **block deletion**. Optional stronger settings for a future workflow change: require a pull request before merging, require the exact status checks `Offline CI` and `CodeQL` (both verified from recent workflow runs), and require the branch to be up to date before merging. Requiring PRs would stop direct pushes.
+
+Other owner actions still pending: enable secret scanning, push protection, and private vulnerability reporting; review action allowlisting and SHA pinning.
 
 ## GitHub documentation
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import ipaddress
 import socket
 import threading
 import time
@@ -35,10 +36,18 @@ class InterfacePolicy:
         if self.kind is InterfaceKind.LOOPBACK_TEST:
             return "127.0.0.1"
         if self.kind is InterfaceKind.WILDCARD_TEST_ONLY:
-            return "0.0.0.0"
-        if self.kind is InterfaceKind.SPECIFIC_ADDRESS and self.address:
-            return self.address
-        raise ListenerError("interface_policy_invalid")
+            raise ListenerError("wildcard_bind_prohibited")
+        if self.kind is not InterfaceKind.SPECIFIC_ADDRESS or not self.address:
+            raise ListenerError("interface_policy_invalid")
+        try:
+            address = ipaddress.ip_address(self.address)
+        except ValueError as exc:
+            raise ListenerError("interface_policy_invalid") from exc
+        if address.is_unspecified:
+            raise ListenerError("wildcard_bind_prohibited")
+        if address.version != 4:
+            raise ListenerError("interface_policy_invalid")
+        return str(address)
 
 
 @dataclass
@@ -78,6 +87,8 @@ class PreparedListener:
         cancelled = threading.Event()
         worker_errors: list[str] = []
         listener_holder: dict[str, "PreparedListener"] = {}
+        # Resolve and validate policy before creating any real socket.
+        bind_address = policy.bind_address()
 
         def notify_failure(code: str) -> None:
             worker_errors.append(code)
@@ -98,7 +109,7 @@ class PreparedListener:
             sock.settimeout(accept_timeout)
             if failure_at == "bind":
                 raise ListenerError("bind_failed")
-            sock.bind((policy.bind_address(), 0))
+            sock.bind((bind_address, 0))
             if failure_at == "getsockname":
                 raise ListenerError("getsockname_failed")
             port = int(sock.getsockname()[1])
