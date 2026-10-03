@@ -12,6 +12,9 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [43T1-R3B lifecycle cleanup static closure](step-reports/43t1-r3b-lifecycle-cleanup-static-closure.md)
+- [43T1-R3B cleanup coverage matrix](research/runtime/43t1-r3b-cleanup-coverage-matrix.md)
+- [43T1-R3B finalizer ownership map](research/runtime/43t1-r3b-finalizer-ownership-map.md)
 - [43T1-R3A non-inline seam evidence inventory](step-reports/43t1-r3a-non-inline-seam-evidence-inventory.md)
 - [43T1-R3A seam inventory](research/runtime/43t1-r3a-non-inline-seam-evidence-inventory.md)
 - [43T1-R3A Setup path seam map](research/runtime/43t1-r3a-setup-path-seam-map.md)

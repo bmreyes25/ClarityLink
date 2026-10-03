@@ -41,3 +41,21 @@
 ## Universal stop rule
 
 Any unrecognized state, incomplete observation, host loss, timeout, changed thread set, unknown byte, mismatched generation, or failed independent verifier yields `UNKNOWN` and prohibits transition to `VERIFIED` or `DETACHED`. Never infer “volatile means safe” or “reboot means stock” without post-event observation.
+
+## 43T1-R3B project-child cleanup ownership gaps
+
+Static Honda cleanup described below is limited to Honda-owned session/context and the recognized stock 100/101/110 paths. It does not establish cleanup ownership for a project-created Type111 child. Model-only rows are not Honda evidence.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Project-child cleanup unreachable | Honda finalizer/teardown runs without a project registry lookup or child pointer | Listener/resource leak or stale project generation | Do not attach project child until a supported, session-addressable cleanup owner is statically evidenced | No | Unknown | `HONDA_CONFIRMED` Honda callback path; project edge `UNKNOWN` |
+| Finalizer signal lacks project session identity | App event contains interface+event, not AirPlay session or project generation | Cleanup could miss child or select wrong generation | Do not use global app event as child owner; do not replace callback slot | No | Unknown | `HONDA_CONFIRMED` |
+| Finalizer skips unknown type | `tearDownStreams` sees Type111 as unknown | Type111 resource/child teardown is skipped | Do not infer Type110 cleanup covers Type111; reject project integration through this path | No | Unknown | `HONDA_CONFIRMED` for recovered parser |
+| Global callback replacement risk | New `event_cb` or session delegate replaces existing record | Honda event/control/finalizer behavior may be displaced | Reject callback/table replacement; require an evidenced append-only API | Yes before replacement; after replacement unknown | Unknown | `HONDA_CONFIRMED` fixed-record replacement |
+| Duplicate generation cleanup | Duplicate setup or stale close races with a replacement generation | Wrong child/listener may be closed or leaked | Exact-key cleanup is a `MODEL_ONLY` policy; no Honda generation association is known | No Honda path | Unknown | `MODEL_ONLY` |
+| Stale generation cleanup | Delayed cleanup runs after a new session reuses an opaque pointer | New resources may be closed or stale ones leaked | Do not act on raw pointer alone; future project design would require validated generation, not supplied by current Honda callback | No Honda path | Unknown | `MODEL_ONLY` guard; Honda generation `UNKNOWN` |
+| Listener resource leak | Honda finalizer has no listener handle or project child reference | Listener may outlive session | Do not create runtime listener absent independent project-owned cleanup; host listener tests do not prove Honda cleanup | No | Unknown | `MODEL_ONLY` listener lifecycle; Honda reachability `UNKNOWN` |
+| Cleanup after serializer failure | Local response is released, but no project resource cleanup call is shown | Prepared child/listener may leak | No runtime preparation; future project rollback needs a proven caller-owned path | No | Unknown | `HONDA_CONFIRMED` response lifetime; project cleanup `MODEL_ONLY`/`UNKNOWN` |
+| Cleanup after phone disconnect | Stock teardown handles recognized 100/101/110; Type111 is skipped and disconnect-to-finalizer coverage is incomplete | Project Type111 child may remain active | Do not rely on Honda disconnect cleanup for project child | No | Unknown | `HONDA_CONFIRMED` bounded path; coverage `UNKNOWN` |
+| Cleanup after process crash | In-process finalizer/reaper cannot be assumed to execute | External listener/worker or project state may survive or become orphaned | No recovery proof; keep runtime interposition NO-GO until an independent bounded owner exists | No | Unknown | `UNKNOWN` |
+| Cleanup after power loss | No process callback executes during power loss; post-power state is not inferred | Resource/restart behavior unknown | No claim of cleanup; would require separately authorized post-event verification | No | Unknown | `UNKNOWN` |

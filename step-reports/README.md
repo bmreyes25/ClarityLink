@@ -10,6 +10,7 @@ This index preserves the engineering chronology and negative results. For curren
 
 ## Latest milestones
 
+- [Step 43T1-R3B — lifecycle cleanup static closure](43t1-r3b-lifecycle-cleanup-static-closure.md)
 - [Step 43T1-R3A — non-inline seam evidence inventory](43t1-r3a-non-inline-seam-evidence-inventory.md)
 - [Step 43T1-R2 — API-17 ARM/Bionic and CFLite static readiness](43t1-r2-api17-arm-bionic-cflite-readiness.md)
 - [CodeQL wildcard listener security fix](codeql-listener-security-fix.md)
