@@ -25,7 +25,7 @@ The design preserves the stock Type110 path and unrelated safety UI. Type111 is 
 | Cluster rendering | A host-side renderer mock exists; handoff to the real Honda cluster remains unproven. |
 | Vehicle deployment | Not implemented or authorized. |
 
-See [current project state](PROJECT_STATE.md), [next action](NEXT_ACTION.md), and the [claim-level evidence index](EVIDENCE_INDEX.md). The current next step is offline 43T1-R0 follow-up; no modifying Honda experiment is authorized.
+See [current project state](PROJECT_STATE.md), [next action](NEXT_ACTION.md), and the [claim-level evidence index](EVIDENCE_INDEX.md). The current next step is offline 43T1-R2 API-17 ARM/Bionic and CFLite ownership work; no modifying Honda experiment is authorized.
 
 ## Architecture
 

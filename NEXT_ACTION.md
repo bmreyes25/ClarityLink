@@ -2,7 +2,7 @@
 
 ## Current action
 
-**Continue offline under 43T1-R0.** D4 completed a valid three-phase read-only capture and resolved the specific-address IPv6 network binding policy. Prepare a concrete nonpersistent RAM-only feasibility and independent restoration plan, then obtain a fresh ECC readiness decision. Do not connect ADB, contact Honda, attach RAM, create a listener, negotiate Type111, or modify the vehicle under this action. See the [D4 result](step-reports/43t0d4-netcfg-live-network-delta.md) and [43T1-R0 review](step-reports/43t1-r0-post-d4-readiness-review.md).
+**43T1-R1 returns `RETURN_TO_OFFLINE_WORK`.** Continue offline with 43T1-R2: build a compatible API-17 ARM/Bionic harness and complete the static Honda CFLite constructor/getter ownership audit. No Honda contact, ADB, RAM attachment, listener, Type111, or vehicle work is authorized by this action. See the [R1 review](step-reports/43t1-r1-runtime-feasibility-review.md), [future experiment checklist](research/runtime/43t1-r1-future-experiment-checklist.md), and [failure matrix](docs/safety/runtime-failure-matrix.md).
 
 ## Historical context
 

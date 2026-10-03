@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -8,9 +9,28 @@ import pytest
 from prep2_cf_bridge import CFError, CFType, FakeCF, prepare_type111, commit_type111, finish_type111
 from prep2_runtime import (
     AttachState, AttachmentModel, ExperimentState, NetworkEvidence, PolicyResult,
-    PrefixClass, RestorationFacts, RestoreState, STOCK_CALLSITE, SimMemory,
+    PrefixClass, RestorationFacts, RollbackAttemptEvidence, RestoreState, STOCK_CALLSITE, SimMemory,
     NegotiationController, classify_type111_prefix, evaluate_binding, verify_restoration,
 )
+
+
+def restore_facts(**overrides):
+    digest = hashlib.sha256(STOCK_CALLSITE).hexdigest()
+    attempt = RollbackAttemptEvidence("RESTORED", 0x1000, 2, STOCK_CALLSITE, digest,
+                                     STOCK_CALLSITE, 0x289F60)
+    retry = RollbackAttemptEvidence("ALREADY_RESTORED", 0x1000, 2, STOCK_CALLSITE, digest,
+                                    STOCK_CALLSITE, 0x289F60)
+    facts = dict(callsite=STOCK_CALLSITE, surrounding_context_matches=True, bl_target=0x289F60,
+                 continuation=0x28AFBE, generation_absent=True, listener_absent=True,
+                 accepted_fd_absent=True, worker_absent=True, bridge_inactive=True,
+                 expected_address=0x1000, observed_address=0x1000,
+                 expected_alignment=2, observed_alignment=2,
+                 expected_instruction_sequence=STOCK_CALLSITE,
+                 observed_instruction_sequence=STOCK_CALLSITE,
+                 expected_hash=digest, observed_hash=digest,
+                 rollback_attempts=(attempt, retry), rollback_completed=True)
+    facts.update(overrides)
+    return RestorationFacts(**facts)
 
 
 def stock_graph(runtime, entries=None):
@@ -225,8 +245,7 @@ def test_attachment_lease_expiry_detaches_ram_and_crash_paths_are_not_persistenc
     crash_after_activation = AttachmentModel(); assert crash_after_activation.attach()
     # Process loss is modeled as volatile memory loss, not a Honda reboot guarantee.
     crash_after_activation.memory.code[:] = STOCK_CALLSITE
-    assert verify_restoration(RestorationFacts(STOCK_CALLSITE, True, 0x289F60, 0x28AFBE,
-                                               True, True, True, True, True)) is RestoreState.RESTORED_TO_VERIFIED_STOCK
+    assert verify_restoration(restore_facts()) is RestoreState.RESTORED_TO_VERIFIED_STOCK
 
 
 @pytest.mark.parametrize("state", [AttachState.ATTACHMENT_VERIFIED, AttachState.BOUNDED_TEST_ACTIVE,
@@ -271,20 +290,28 @@ def test_detach_failure_identifies_first_unreleased_resource(failure):
     {"callsite": b"bad"}, {"surrounding_context_matches": False}, {"bl_target": 0},
     {"continuation": 0}, {"generation_absent": False}, {"listener_absent": False},
     {"accepted_fd_absent": False}, {"worker_absent": False}, {"bridge_inactive": False},
+    {"observed_address": 0x1002}, {"observed_alignment": 4},
+    {"observed_instruction_sequence": b"bad"}, {"observed_hash": "bad"},
+    {"rollback_attempts": ()}, {"rollback_completed": False}, {"interrupted": True},
     {"fresh": False}, {"listener_absent": "false"}, {"generation_absent": "false"},
 ])
 def test_independent_verifier_requires_every_fresh_fact(overrides):
-    facts = dict(callsite=STOCK_CALLSITE, surrounding_context_matches=True, bl_target=0x289F60,
-                 continuation=0x28AFBE, generation_absent=True, listener_absent=True,
-                 accepted_fd_absent=True, worker_absent=True, bridge_inactive=True)
-    facts.update(overrides)
-    assert verify_restoration(RestorationFacts(**facts)) is RestoreState.RESTORATION_NOT_PROVEN
+    facts = restore_facts(**overrides)
+    assert verify_restoration(facts) is RestoreState.RESTORATION_NOT_PROVEN
 
 
 def test_independent_verifier_exact_stock_and_not_applicable():
-    facts = RestorationFacts(STOCK_CALLSITE, True, 0x289F60, 0x28AFBE, True, True, True, True, True)
+    facts = restore_facts()
     assert verify_restoration(facts) is RestoreState.RESTORED_TO_VERIFIED_STOCK
     assert verify_restoration(RestorationFacts(None, False, None, None, False, False, False, False, False, applicable=False)) is RestoreState.NOT_APPLICABLE
+
+
+def test_independent_verifier_accepts_only_explicit_final_readback_after_interruption():
+    assert verify_restoration(restore_facts(interrupted=True, final_readback_after_interruption=True)) is RestoreState.RESTORED_TO_VERIFIED_STOCK
+    facts = restore_facts()
+    bad_retry = RollbackAttemptEvidence("RESTORED", 0x1000, 2, STOCK_CALLSITE,
+        hashlib.sha256(STOCK_CALLSITE).hexdigest(), STOCK_CALLSITE, 0x289F60)
+    assert verify_restoration(restore_facts(rollback_attempts=(facts.rollback_attempts[0], bad_retry))) is RestoreState.RESTORATION_NOT_PROVEN
 
 
 def ev(**kw):

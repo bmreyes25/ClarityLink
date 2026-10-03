@@ -8,6 +8,7 @@ import veneer_ranges
 import veneer_allocator_model
 import rendezvous_model
 import pytest
+import runtime_safety_model as safety
 
 
 def test_page_cover_one_and_crossing_pages():
@@ -86,6 +87,37 @@ def test_rendezvous_proof_rejects_timeout_thread_churn_and_saved_pc():
         rendezvous_model.validate_parked_snapshot(**{**baseline, "generation_after": 8})
     with pytest.raises(RuntimeError, match="saved PC"):
         rendezvous_model.validate_parked_snapshot(**{**baseline, "saved_pcs": {1: 0x100, 2: 0x510}})
+
+
+def test_runtime_state_machine_allows_bounded_success_and_routes_incomplete_restore_to_unknown():
+    machine = safety.RuntimeStateMachine()
+    for state in (safety.RuntimeState.ATTACH_PENDING, safety.RuntimeState.ATTACHED,
+                  safety.RuntimeState.PREPARED, safety.RuntimeState.PATCHED,
+                  safety.RuntimeState.VERIFYING, safety.RuntimeState.ROLLBACK_PENDING,
+                  safety.RuntimeState.RESTORING, safety.RuntimeState.VERIFIED,
+                  safety.RuntimeState.DETACHED):
+        machine.advance(state, preconditions_met=True)
+    assert machine.state is safety.RuntimeState.DETACHED
+    with pytest.raises(ValueError, match="forbidden transition"):
+        machine.advance(safety.RuntimeState.PATCHED, preconditions_met=True)
+
+    failed = safety.RuntimeStateMachine(safety.RuntimeState.RESTORING)
+    assert failed.advance(safety.RuntimeState.VERIFIED, preconditions_met=True,
+                          exit_evidence_complete=False) is safety.RuntimeState.UNKNOWN
+
+
+def test_machine_checkable_runtime_invariants_reject_missing_proof_and_type110_changes():
+    baseline = dict(type110_unchanged=True, serializer_calls=1, stock_return_preserved=True,
+                    wildcard_bind=False, generation_owned_by_transaction=True,
+                    stale_generation_cleanup_attempted=False, rollback_complete=True,
+                    restoration_complete=True, cf_objects_owned_or_borrowed_explicitly=True,
+                    listener_owned_by_generation=True, pointers_validated_before_use=True,
+                    null_checked_before_dereference=True)
+    safety.assert_runtime_invariants(safety.RuntimeSafetyInvariants(**baseline))
+    for field, value in (("type110_unchanged", False), ("serializer_calls", 2),
+                         ("wildcard_bind", True), ("restoration_complete", False)):
+        with pytest.raises(ValueError, match="unproven"):
+            safety.assert_runtime_invariants(safety.RuntimeSafetyInvariants(**{**baseline, field: value}))
 
 
 def test_veneer_release_waits_for_restore_and_zero_in_flight_callers():

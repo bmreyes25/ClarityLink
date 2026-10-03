@@ -14,6 +14,7 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 - [43T0-D4 read-only network observation](step-reports/43t0d4-netcfg-live-network-delta.md)
 - [43T1-R0 post-D4 readiness decision](step-reports/43t1-r0-post-d4-readiness-review.md)
+- [43T1-R1 offline runtime feasibility review](step-reports/43t1-r1-runtime-feasibility-review.md)
 - [43T1-PREP2 offline models and limits](step-reports/43t1-prep2-offline-runtime-integration-readiness.md)
 - [43T0-D3 read-only observer repair](step-reports/43t0d3-ipv4-observer-ecc-review.md)
 - [43P current-iOS lab observation](step-reports/43p-current-ios-type111-oracle.md)
@@ -34,6 +35,18 @@ This is the claim-level provenance ledger. Read each classification with its sou
 | Decision | Source | Boundary |
 |---|---|---|
 | `RETURN_TO_OFFLINE_WORK` | [Fresh R0 review](step-reports/43t1-r0-post-d4-readiness-review.md) | Network mapping is resolved; actual target attachment/permission, CF ownership, Honda listener reachability, and independent restoration remain unproven. No modifying test authorized. |
+
+# Step 43T1-R1 — offline runtime feasibility and fault containment
+
+| Evidence item | Source | Result / classification |
+|---|---|---|
+| API-17 Android/Bionic and ARM source review | [Runtime analysis](research/runtime/runtime-feasibility-analysis.md) | `DOCUMENTED_ANDROID` / `DOCUMENTED_ARM` claims are version-scoped; neither substitutes for vendor Honda runtime proof. |
+| CF ownership review | [Ownership audit](research/runtime/43t1-r1-memory-ownership-audit.md) | Apple CF rules are `EXTERNAL_REFERENCE`; Honda CFLite callback/getter ownership and Type111 object lifetimes remain `UNKNOWN`/partial. |
+| Restoration verifier | [Verifier contract](research/runtime/43t1-restoration-verifier.md); `verify_restoration` | Strict host evidence evaluator for exact address/bytes/hash/alignment/instruction/branch, rollback traces and interruption; no target reader/writer. |
+| State machine and invariants | [Contract](research/runtime/43t1-r1-runtime-state-machine.md); `runtime_safety_model.py` | Offline legal-transition/invariant checks; no process or memory backend. |
+| Failure containment and future experiment | [Failure matrix](docs/safety/runtime-failure-matrix.md); [checklist](research/runtime/43t1-r1-future-experiment-checklist.md) | `NOT AUTHORIZED / NOT EXECUTABLE`; atomicity/thread-rendezvous and independent recovery are unresolved. |
+| Evidence wording audit | [Audit](research/runtime/43t1-r1-evidence-language-audit.md) | Historical scopes preserved; R1 summary is current and retains unknowns. |
+| Decision | [R1 review](step-reports/43t1-r1-runtime-feasibility-review.md) | `RETURN_TO_OFFLINE_WORK`; no Honda/ADB/runtime modification. |
 
 # Step 43T1-PREP2 (2026-10-02)
 

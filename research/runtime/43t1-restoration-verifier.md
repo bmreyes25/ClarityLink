@@ -1,10 +1,10 @@
 # Independent restoration verifier — 43T1-PREP2
 
-**Decision: `RESTORATION_VERIFIER_MODEL_READY`.** The verifier is `verify_restoration` in `src/claritylink-honda/prep2_runtime.py`; it has a distinct immutable `RestorationFacts` input and no installer success flag or shared mutable installer state.
+**PREP2 status (historical): `RESTORATION_VERIFIER_MODEL_READY`. R1 status: verifier contract strengthened; target restoration remains unproven.** The verifier is `verify_restoration` in `src/claritylink-honda/prep2_runtime.py`; it has a distinct immutable `RestorationFacts` input and no installer success flag or shared mutable installer state.
 
-It returns `RESTORED_TO_VERIFIED_STOCK` only when all fresh observations match exact stock callsite bytes, surrounding context, BL target and continuation, and show no project generation, listener, accepted FD, worker, or bridge. Stale/mismatching/incomplete facts yield `RESTORATION_NOT_PROVEN`; non-applicable yields `NOT_APPLICABLE`.
+R1 additionally requires expected and observed address equality, Thumb alignment, exact stock instruction sequence and SHA-256, an explicit rollback-completed fact, at least two separately recorded exact readback observations (first `RESTORED`, subsequent `ALREADY_RESTORED`), and a fresh final readback after interruption. Stale/mismatching/incomplete facts yield `RESTORATION_NOT_PROVEN`; non-applicable yields `NOT_APPLICABLE`. The R1 records are verifier inputs in tests, not real process reads. The verifier never writes memory and cannot prove that a future reader is independent or truthful.
 
-The PREP2 integration test builds the facts after local resource close and simulated detach. This is `LAB_SYNTHETIC_CONFIRMED`, not an independent Honda process read or post-reboot observation.
+The PREP2 integration test builds the facts after local resource close and simulated detach. This is `LAB_CONFIRMED`, not an independent Honda process read or post-reboot observation.
 
 ## Future post-reboot observational checklist
 

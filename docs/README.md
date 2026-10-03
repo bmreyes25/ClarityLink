@@ -35,6 +35,7 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 ## Safety and vehicle testing
 
 - [Vehicle testing and evidence gates](safety/vehicle-testing.md)
+- [43T1-R1 runtime failure matrix](safety/runtime-failure-matrix.md)
 - [Vehicle test proposal form](../.github/ISSUE_TEMPLATE/vehicle-test-proposal.yml)
 - [Security reporting policy](../SECURITY.md)
 

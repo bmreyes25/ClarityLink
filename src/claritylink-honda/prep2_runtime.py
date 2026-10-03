@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ipaddress
+import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -184,6 +185,40 @@ class RestorationFacts:
     bridge_inactive: bool
     fresh: bool = True
     applicable: bool = True
+    expected_address: int | None = None
+    observed_address: int | None = None
+    expected_alignment: int | None = None
+    observed_alignment: int | None = None
+    expected_instruction_sequence: bytes | None = None
+    observed_instruction_sequence: bytes | None = None
+    expected_hash: str | None = None
+    observed_hash: str | None = None
+    rollback_attempts: tuple["RollbackAttemptEvidence", ...] = ()
+    interrupted: bool = False
+    final_readback_after_interruption: bool = False
+    rollback_completed: bool = False
+
+
+@dataclass(frozen=True)
+class RollbackAttemptEvidence:
+    """Independent readback record for one modeled rollback attempt; never writes memory."""
+    status: str
+    address: int | None
+    alignment: int | None
+    observed_bytes: bytes | None
+    observed_hash: str | None
+    instruction_sequence: bytes | None
+    branch_target: int | None
+
+
+def _rollback_attempt_is_stock(attempt: RollbackAttemptEvidence) -> bool:
+    return (isinstance(attempt, RollbackAttemptEvidence) and
+            attempt.status in ("RESTORED", "ALREADY_RESTORED") and
+            isinstance(attempt.address, int) and not isinstance(attempt.address, bool) and
+            attempt.address >= 0 and attempt.alignment == 2 and attempt.address % 2 == 0 and
+            attempt.observed_bytes == STOCK_CALLSITE and
+            attempt.observed_hash == hashlib.sha256(STOCK_CALLSITE).hexdigest() and
+            attempt.instruction_sequence == STOCK_CALLSITE and attempt.branch_target == 0x289F60)
 
 
 def verify_restoration(facts: RestorationFacts) -> RestoreState:
@@ -191,7 +226,24 @@ def verify_restoration(facts: RestorationFacts) -> RestoreState:
         return RestoreState.RESTORATION_NOT_PROVEN
     if facts.applicable is False:
         return RestoreState.NOT_APPLICABLE
+    attempts_valid = (isinstance(facts.rollback_attempts, tuple) and len(facts.rollback_attempts) >= 2 and
+                      all(_rollback_attempt_is_stock(attempt) for attempt in facts.rollback_attempts) and
+                      all(attempt.address == facts.expected_address for attempt in facts.rollback_attempts) and
+                      facts.rollback_attempts[0].status == "RESTORED" and
+                      all(a.status == "ALREADY_RESTORED" for a in facts.rollback_attempts[1:]))
+    interrupted_valid = (facts.interrupted is False or
+                         (facts.interrupted is True and facts.final_readback_after_interruption is True))
     exact = (facts.applicable is True and facts.fresh is True and facts.callsite == STOCK_CALLSITE and
+             isinstance(facts.expected_address, int) and not isinstance(facts.expected_address, bool) and
+             facts.expected_address >= 0 and isinstance(facts.observed_address, int) and
+             not isinstance(facts.observed_address, bool) and facts.observed_address == facts.expected_address and
+             facts.expected_alignment == 2 and facts.observed_alignment == facts.expected_alignment and
+             facts.expected_address % 2 == 0 and
+             facts.expected_instruction_sequence == STOCK_CALLSITE and
+             facts.observed_instruction_sequence == facts.expected_instruction_sequence and
+             facts.expected_hash == hashlib.sha256(STOCK_CALLSITE).hexdigest() and
+             facts.observed_hash == facts.expected_hash and attempts_valid and interrupted_valid and
+             facts.rollback_completed is True and
              facts.surrounding_context_matches is True and facts.bl_target == 0x289F60 and
              facts.continuation == 0x28AFBE and facts.generation_absent is True and
              facts.listener_absent is True and facts.accepted_fd_absent is True and

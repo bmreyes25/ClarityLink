@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 import socket
 import sys
 import time
@@ -10,11 +11,25 @@ sys.path[:0] = [str(ROOT / "src/claritylink-negotiation"), str(ROOT / "src/clari
 
 from prep2_cf_bridge import CFError, FakeCF, prepare_type111, commit_type111, finish_type111
 from prep2_runtime import (AttachmentModel, ExperimentState, NetworkEvidence, PolicyResult,
-                           RestorationFacts, RestoreState, evaluate_binding,
+                           RestorationFacts, RollbackAttemptEvidence, RestoreState, STOCK_CALLSITE, evaluate_binding,
                            verify_restoration, NegotiationController, classify_type111_prefix,
                            PrefixClass)
 from real_listener import (GenerationListenerRegistry, InterfaceKind, InterfacePolicy,
                            PreparedListener, ListenerError)
+
+
+def _verified_restore_facts(**changes):
+    digest = hashlib.sha256(STOCK_CALLSITE).hexdigest()
+    first = RollbackAttemptEvidence("RESTORED", 0x1000, 2, STOCK_CALLSITE, digest, STOCK_CALLSITE, 0x289F60)
+    second = RollbackAttemptEvidence("ALREADY_RESTORED", 0x1000, 2, STOCK_CALLSITE, digest, STOCK_CALLSITE, 0x289F60)
+    facts = dict(callsite=STOCK_CALLSITE, surrounding_context_matches=True, bl_target=0x289F60,
+        continuation=0x28AFBE, generation_absent=True, listener_absent=True, accepted_fd_absent=True,
+        worker_absent=True, bridge_inactive=True, expected_address=0x1000, observed_address=0x1000,
+        expected_alignment=2, observed_alignment=2, expected_instruction_sequence=STOCK_CALLSITE,
+        observed_instruction_sequence=STOCK_CALLSITE, expected_hash=digest, observed_hash=digest,
+        rollback_attempts=(first, second), rollback_completed=True)
+    facts.update(changes)
+    return RestorationFacts(**facts)
 
 
 def _response(rt):
@@ -77,9 +92,10 @@ def test_synthetic_full_success_localhost_listener_cf_oracle_and_independent_res
     assert attach.detach()
     controller.advance(ExperimentState.RESTORATION_VERIFIED)
     controller.advance(ExperimentState.COMPLETE)
-    facts = RestorationFacts(bytes(attach.memory.code), True, 0x289F60, 0x28AFBE,
-        True, not registry.owned_generations, accepted.fileno() == -1,
-        not listener.worker.is_alive(), True)
+    facts = _verified_restore_facts(callsite=bytes(attach.memory.code),
+        generation_absent=not registry.owned_generations, listener_absent=not registry.owned_generations,
+        accepted_fd_absent=accepted.fileno() == -1, worker_absent=not listener.worker.is_alive(),
+        bridge_inactive=True)
     assert verify_restoration(facts) is RestoreState.RESTORED_TO_VERIFIED_STOCK
     assert controller.type110_closed is False and controller.audio_changed is False
 
@@ -106,7 +122,8 @@ def test_synthetic_rollback_after_response_append_failure_cleans_listener_and_at
     attach.generation_active = attach.accepted_fd_active = False
     assert attach.detach()
     assert response.get("streams") is original
-    facts = RestorationFacts(bytes(attach.memory.code), True, 0x289F60, 0x28AFBE,
-        True, not registry.owned_generations, listener.accepted is None,
-        not listener.worker.is_alive(), True)
+    facts = _verified_restore_facts(callsite=bytes(attach.memory.code),
+        generation_absent=not registry.owned_generations, listener_absent=not registry.owned_generations,
+        accepted_fd_absent=listener.accepted is None, worker_absent=not listener.worker.is_alive(),
+        bridge_inactive=True)
     assert verify_restoration(facts) is RestoreState.RESTORED_TO_VERIFIED_STOCK

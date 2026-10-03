@@ -5,11 +5,12 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current readiness decision: [43T1-R0](43t1-r0-post-d4-readiness-review.md) returns `RETURN_TO_OFFLINE_WORK`; no modifying experiment is authorized.
+- Current readiness decision: [43T1-R1](43t1-r1-runtime-feasibility-review.md) returns `RETURN_TO_OFFLINE_WORK`; no modifying experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
 
+- [Step 43T1-R1 — offline runtime feasibility/restoration review](43t1-r1-runtime-feasibility-review.md)
 - [Step 43T1-R0 — post-D4 offline readiness review](43t1-r0-post-d4-readiness-review.md)
 - [Step 43T0-D4 — live read-only Honda network observation](43t0d4-netcfg-live-network-delta.md)
 - [Step 43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md)
