@@ -115,7 +115,8 @@ def test_machine_checkable_runtime_invariants_reject_missing_proof_and_type110_c
                     null_checked_before_dereference=True)
     safety.assert_runtime_invariants(safety.RuntimeSafetyInvariants(**baseline))
     for field, value in (("type110_unchanged", False), ("serializer_calls", 2),
-                         ("wildcard_bind", True), ("restoration_complete", False)):
+                         ("wildcard_bind", True), ("restoration_complete", False),
+                         ("cf_objects_owned_or_borrowed_explicitly", False)):
         with pytest.raises(ValueError, match="unproven"):
             safety.assert_runtime_invariants(safety.RuntimeSafetyInvariants(**{**baseline, field: value}))
 

@@ -450,3 +450,58 @@ def test_prefix_deterministic_bounded_malformed_sweep():
 @pytest.mark.parametrize("limit", [0, -1, 257, 10**9, True, 1.5])
 def test_prefix_capture_limit_cannot_be_increased(limit):
     assert classify_type111_prefix(header(), max_bytes=limit).classification is PrefixClass.UNSUPPORTED
+
+
+def test_bridge_rollback_preserves_borrowed_honda_response_streams_and_type110_refs():
+    rt = FakeCF()
+    response = stock_graph(rt)
+    streams = response.get("streams")
+    type110 = streams.value[0]
+    baseline_refs = (response.refs, streams.refs, type110.refs)
+    txn = prepare_type111(rt, response, 43126)
+    assert response.refs == baseline_refs[0]
+    assert type110.refs == baseline_refs[2] + 1  # candidate array's modeled retain
+    assert streams.refs == baseline_refs[1] + 1  # explicit project retain; getter itself borrowed
+    candidate = txn.candidate_array
+    child = txn.entry
+    assert candidate is not None and child is not None
+    finish_type111(rt, txn, serializer_ok=False)
+    assert (response.refs, streams.refs, type110.refs) == baseline_refs
+    assert response.alive and streams.alive and type110.alive
+    assert not candidate.alive and not child.alive
+
+
+def test_type111_candidate_cleanup_drops_only_its_type110_retain_and_is_idempotent():
+    rt = FakeCF()
+    response = stock_graph(rt)
+    stock_streams = response.get("streams")
+    type110 = stock_streams.value[0]
+    original_refs = (response.refs, stock_streams.refs, type110.refs)
+    txn = prepare_type111(rt, response, 43127)
+    commit_type111(txn)
+    finish_type111(rt, txn, serializer_ok=False)
+    assert response.get("streams") is stock_streams
+    assert (response.refs, stock_streams.refs, type110.refs) == original_refs
+    assert type110.alive and type110.get("type").value == 110
+    with pytest.raises(CFError, match="transaction_already_finished"):
+        finish_type111(rt, txn, serializer_ok=False)
+
+
+def test_serializer_window_keeps_response_borrowed_and_project_graph_is_owned_until_finish():
+    rt = FakeCF()
+    response = stock_graph(rt)
+    streams = response.get("streams")
+    type110 = streams.value[0]
+    baseline_refs = (response.refs, streams.refs, type110.refs)
+    txn = prepare_type111(rt, response, 43128)
+    child, candidate = txn.entry, txn.candidate_array
+    assert child is not None and candidate is not None
+    commit_type111(txn)
+    assert response.refs == baseline_refs[0]
+    assert streams.refs == baseline_refs[1]
+    assert type110.refs == baseline_refs[2] + 1  # candidate array owns a second reference until finish
+    assert child.alive and candidate.alive
+    finish_type111(rt, txn, serializer_ok=True)
+    assert response.get("streams") is candidate and candidate.alive
+    assert child.alive and type110.alive
+    assert txn.response is txn.original_streams is txn.candidate_array is txn.entry is None

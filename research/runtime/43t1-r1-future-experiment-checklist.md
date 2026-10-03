@@ -29,6 +29,8 @@ Observe whether one preapproved, four-byte Thumb callsite RAM-only substitution 
 
 The two-write budget is viable only if pre-session lab proof shows the entire restore operation is safe for all possible result states of the single install attempt. The current Honda callsite crosses a 4-byte fetch group and no single atomic full-instruction store is established; **this prerequisite currently fails**. Thus the checklist is not presently executable.
 
+**R2 clarification:** The host-only two-halfword model enumerates mixed instruction states for either store order. Alignment alone does not remove the partial-write states. Until an API-17-compatible all-thread stop/re-entry protocol and independent recovery are demonstrated, the proposed write budget is not evidence of viability. Treat any downstream checklist text suggesting otherwise as superseded by this explicit stop condition.
+
 ## Sequence and success criteria
 
 1. Verify normal stock state and exact process/image identity; no stale address reuse.
@@ -56,4 +58,3 @@ Immediately before any future target contact: parked/stationary, normal powered 
 ## Exact CAR OFF point
 
 For a future approved run, the instant the one target-side attempt exits or any stop condition occurs: state **“CAR MAY BE TURNED OFF NOW. No further Honda or ADB commands will be used in this milestone.”** Then issue no more Honda/ADB commands and continue only offline. This R1 work itself has not contacted Honda, used ADB, or required a CAR-OFF boundary.
-

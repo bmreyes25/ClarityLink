@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import pytest
 ROOT=Path(__file__).resolve().parents[2]
-for p in (ROOT/'src/claritylink-honda',ROOT/'src/claritylink-interposer'):
+for p in (ROOT/'src/claritylink-honda',ROOT/'src/claritylink-interposer',ROOT/'tools/honda-readonly-preflight'):
     sys.path.insert(0,str(p))
 
 

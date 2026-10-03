@@ -5,11 +5,12 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current readiness decision: [43T1-R1](43t1-r1-runtime-feasibility-review.md) returns `RETURN_TO_OFFLINE_WORK`; no modifying experiment is authorized.
+- Current readiness decision: [43T1-R2](43t1-r2-api17-arm-bionic-cflite-readiness.md) returns `RETURN_TO_OFFLINE_WORK`; no modifying experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
 
+- [Step 43T1-R2 — API-17 ARM/Bionic and CFLite static readiness](43t1-r2-api17-arm-bionic-cflite-readiness.md)
 - [CodeQL wildcard listener security fix](codeql-listener-security-fix.md)
 
 - [Step 43T1-R1 — offline runtime feasibility/restoration review](43t1-r1-runtime-feasibility-review.md)

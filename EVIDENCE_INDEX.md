@@ -12,6 +12,7 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [43T1-R2 offline API-17 harness and CFLite ownership audit](step-reports/43t1-r2-api17-arm-bionic-cflite-readiness.md)
 - [CodeQL wildcard listener security fix](step-reports/codeql-listener-security-fix.md)
 - [43T0-D4 read-only network observation](step-reports/43t0d4-netcfg-live-network-delta.md)
 - [43T1-R0 post-D4 readiness decision](step-reports/43t1-r0-post-d4-readiness-review.md)
@@ -21,6 +22,16 @@ This is the claim-level provenance ledger. Read each classification with its sou
 - [43P current-iOS lab observation](step-reports/43p-current-ios-type111-oracle.md)
 
 ---
+
+# Step 43T1-R2 — API-17 ARM/Bionic harness and CFLite static ownership
+
+| Evidence item | Source | Result / boundary |
+|---|---|---|
+| API-17 and ARM source review | [Harness analysis](research/runtime/api17-arm-bionic-harness-analysis.md) | Tagged AOSP facts remain version scoped; ARM ABI/cache references do not prove Honda permission, atomicity, or rendezvous. Apple CF is reference only. |
+| Two-halfword patch model | `src/claritylink-honda/runtime_safety/thumb_patch_model.py`; `tests/honda/test_thumb_patch_harness.py` | `MODEL_ONLY` bytearray simulation enumerates mixed states, cache/protection events, interruptions and modeled restore. It has no process/device backend and cannot authorize an experiment. |
+| Honda CFLite stock graph | [Static ownership audit](research/runtime/honda-cflite-ownership-static-audit.md) | VA-aware hash-matched static findings resolve stock response/array/Type110 callbacks and observed borrowed getters; arbitrary Type111 insertion, re-entry and failure lifecycle remain `UNKNOWN`. |
+| Integration seams and failure updates | [Seam options](research/runtime/43t1-r2-integration-seam-options.md); [failure matrix](docs/safety/runtime-failure-matrix.md); [future checklist](research/runtime/43t1-r1-future-experiment-checklist.md) | Inline patch requires unproven thread stop and independent restoration; current posture remains NO-GO. |
+| Decision | [R2 report](step-reports/43t1-r2-api17-arm-bionic-cflite-readiness.md) | `RETURN_TO_OFFLINE_WORK`; no RAM experiment review justified. Honda/ADB/runtime writes: none. |
 
 # Step 43T0-D4 — live read-only network observation (2026-10-03)
 
