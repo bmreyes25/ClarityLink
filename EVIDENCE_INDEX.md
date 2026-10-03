@@ -12,6 +12,9 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [43T1-R3A non-inline seam evidence inventory](step-reports/43t1-r3a-non-inline-seam-evidence-inventory.md)
+- [43T1-R3A seam inventory](research/runtime/43t1-r3a-non-inline-seam-evidence-inventory.md)
+- [43T1-R3A Setup path seam map](research/runtime/43t1-r3a-setup-path-seam-map.md)
 - [43T1-R2 offline API-17 harness and CFLite ownership audit](step-reports/43t1-r2-api17-arm-bionic-cflite-readiness.md)
 - [CodeQL wildcard listener security fix](step-reports/codeql-listener-security-fix.md)
 - [43T0-D4 read-only network observation](step-reports/43t0d4-netcfg-live-network-delta.md)
