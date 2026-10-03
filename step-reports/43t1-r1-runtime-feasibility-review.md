@@ -5,6 +5,7 @@
 ## Scope and start state
 
 - Starting HEAD: `9117b4f2f458adc14e30452ac1e9a01e3429b0ae` on clean `main`, equal to `origin/main`.
+- Ending implementation HEAD: `32a61241cb4cd54a0b4062715a0cc774ebe31226` (`Add 43T1-R1 runtime safety evidence`).
 - Honda contacted: no.
 - ADB used: no.
 - RAM attachment/runtime modification/deployment/vehicle work: none.
@@ -79,9 +80,9 @@ Yes. The proposed checklist identifies a concrete contradiction: the expected fo
 
 ## Verification
 
-Focused PREP2, restoration-verifier, state-machine, and ownership suites: **143 passed**. Full configured offline suite: **652 passed, 3 skipped**, plus self-locator **3/3**, simulator checks passed, and `git diff --check` passed. Repository health: **446 Markdown files, 111 indexed reports, 0 curated broken links, 0 forbidden tracked file extensions**. Hosted CI is pending push of this scoped change set. No ADB binary or Honda command was invoked.
+Focused PREP2, restoration-verifier, state-machine, and ownership suites: **143 passed**. Full configured offline suite: **652 passed, 3 skipped**, plus self-locator **3/3**, simulator checks passed, and `git diff --check` passed. Repository health: **446 Markdown files, 111 indexed reports, 0 curated broken links, 0 forbidden tracked file extensions**. Hosted [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/37138637250) and [CodeQL](https://github.com/bmreyes25/ClarityLink/actions/runs/37138637128) passed on the implementation HEAD above. No ADB binary or Honda command was invoked.
 
-ECC review result: manual audit applied; no independent reviewer/service was available. Focused and full offline verification support the model contract only. Final review and ending HEAD will be recorded after hosted CI.
+ECC review result: manual audit applied; no independent reviewer/service was available. Focused and full offline verification support the model contract only. The ending implementation HEAD is the code-and-deliverables commit above; the report's CI links document its hosted checks.
 
 ## Next milestone
 
