@@ -5,7 +5,7 @@
 ## Scope and repository state
 
 - Starting branch/HEAD: `main` / `b603859c089915547070eb8d6b63af5afca57d14`.
-- Final HEAD: filled after implementation and result-record commits.
+- Final R2 implementation HEAD: `ff90d02d1d1c6c3427d34917e4611dfbd4874810` (`Add 43T1-R2 offline runtime safety evidence`). Hosted outcomes below are tied to this commit; the report-only result update follows it.
 - Honda contacted: NO.
 - ADB used: NO.
 - Vehicle/runtime writes: 0.
@@ -31,12 +31,13 @@ ECC security-review, research-ops, Python testing, and safety guidance was appli
 - Full offline suite (`./tools/run_tests.sh`): **674 passed, 3 skipped**; self-locator smoke and all configured simulator checks passed.
 - Repository health: **passed**; 451 Markdown files, 113 indexed milestone/support reports, 0 broken curated links, 0 forbidden tracked extensions.
 - Diff/whitespace check: **passed**.
-- Hosted Offline CI: pending push and workflow result.
-- Hosted CodeQL: pending push and workflow result; no suppression is added.
+- Hosted Offline CI: **passed** on the R2 implementation HEAD ([run 37145662690](https://github.com/bmreyes25/ClarityLink/actions/runs/37145662690)).
+- Hosted CodeQL: **passed** on the R2 implementation HEAD across all configured language jobs ([run 37145662714](https://github.com/bmreyes25/ClarityLink/actions/runs/37145662714)).
+- CodeQL `py/bind-socket-all-network-interfaces`: GitHub code scanning reports the alert as **fixed**; there are no open alerts for this rule. It was fixed by the earlier listener code change, not dismissed or suppressed.
 
 ## Branch protection and hygiene
 
-Starting baseline stated `main` is protected against force push/deletion. This milestone makes no branch protection change. GitHub CLI authentication is available for repository inspection and push; no admin permission change is requested here. Only source, tests, and sanitized reports are added; no new firmware, private capture, binding values, endpoint, key, binary output, or compiled harness output is included.
+GitHub's branch-protection API confirms `main` has force pushes disabled and deletion disabled; required status checks are not configured. This milestone makes no branch protection change. GitHub CLI authentication was available for repository inspection and push. Only source, tests, and sanitized reports are added; no new firmware, private capture, binding values, endpoint, key, binary output, or compiled harness output is included.
 
 ## Required decision
 
