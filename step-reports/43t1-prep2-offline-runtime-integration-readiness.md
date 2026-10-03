@@ -1,6 +1,6 @@
 # Step 43T1-PREP2 — offline runtime integration readiness
 
-**Decision: `43T1_PREP2_COMPLETE`.** Start: `952907dfcb6376c046d4a7f9dbd5e18d8be8b788` (`main`, clean). End: PREP2 implementation commit (recorded below after commit; report-only metadata follows). This report covers only offline work. Honda contacted: **NO**. ADB used: **NO**. Target writes: **0**. No iPhone, CAN, USB injection, live Honda listener, vehicle session, Honda negotiation, deployment, binary modification, APK, startup, `/system`, `/data`, or block-device action occurred. The only socket test is host loopback.
+**Decision: `43T1_PREP2_COMPLETE`.** Start: `952907dfcb6376c046d4a7f9dbd5e18d8be8b788` (`main`, clean). End: implementation commit `ba4d7ea461d32d5a5ee860d4fc047d7f09230baa`; this report metadata is recorded in a follow-up documentation commit. This report covers only offline work. Honda contacted: **NO**. ADB used: **NO**. Target writes: **0**. No iPhone, CAN, USB injection, live Honda listener, vehicle session, Honda negotiation, deployment, binary modification, APK, startup, `/system`, `/data`, or block-device action occurred. The only socket test is host loopback.
 
 ## Workstream results
 
@@ -42,7 +42,7 @@ The fake CF runtime and end-to-end twin are explicitly synthetic and do not prov
 - Focused PREP2 tests: **117 passed**, including CF bridge 26, attachment/detach 26, restoration verifier 13, binding policy 27, controller 6, oracle 17, and composed loopback integration 3 (some cross-cutting cases are counted in more than one category).
 - Configured full offline suite (`tools/run_tests.sh`): **642 passed, 3 skipped**. Native host checks compiled and passed plain, ASan/UBSan, and TSan runs; self-locator smoke passed 3/3; all configured simulator JavaScript checks passed.
 - Python compile/import validation and `git diff --check`: passed. Markdown relative-link validation: passed with no missing targets. Privacy/secret scan found no secret, MAC, private capture, or unredacted phone identifier in the new artifacts; wildcard strings are policy examples only. Historical capture-backed scripts remained skipped by the configured suite as intended.
-- Commit/push/hosted Offline CI: pending.
+- Implementation commit `ba4d7ea461d32d5a5ee860d4fc047d7f09230baa` was pushed to `main`. Hosted Offline CI run [37096334485](https://github.com/bmreyes25/ClarityLink/actions/runs/37096334485) passed (offline-tests, 1m3s). The report metadata update is committed separately; its push also receives hosted CI.
 
 ## Decision and next step
 
