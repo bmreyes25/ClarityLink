@@ -4,12 +4,14 @@ This index preserves the engineering chronology and negative results. For curren
 
 ## Current project status
 
-- Latest completed milestone: [43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md), complete for offline objectives only.
-- Current next action: separately initiate the read-only [43T0-D/D4 network observation](../NEXT_ACTION.md), subject to the reviewed connection and identity gates.
-- The previous D observation stopped at zero ADB targets before target-side reads. Honda Type111 negotiation and RAM attachment remain unauthorized.
+- Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
+- Current readiness decision: [43T1-R0](43t1-r0-post-d4-readiness-review.md) returns `RETURN_TO_OFFLINE_WORK`; no modifying experiment is authorized.
+- Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
 
+- [Step 43T1-R0 — post-D4 offline readiness review](43t1-r0-post-d4-readiness-review.md)
+- [Step 43T0-D4 — live read-only Honda network observation](43t0d4-netcfg-live-network-delta.md)
 - [Step 43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md)
 - [Step 43T0-D3 — offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
 - [Step 43T0-D2 — zero-argument ifconfig stops read-only baseline](43t0d2-zero-argument-ifconfig-stop.md)
@@ -128,7 +130,7 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 ### Type111, current-iOS, and runtime readiness (Step 43 onward)
 
 <details>
-<summary>38 preserved reports</summary>
+<summary>40 preserved reports</summary>
 
 - [Step 43A — Honda `/info` Type111 differential audit](43a-honda-info-type111-differential.md)
 - [Step 43B — Honda Screen property sources and descriptor xrefs](43b-screencopymain-property-source-trace.md)
@@ -167,6 +169,8 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 - [Step 43T0-D1 — live read-only route-header format stop and offline correction](43t0d1-route-header-format-stop.md)
 - [Step 43T0-D2 — zero-argument ifconfig stops read-only baseline](43t0d2-zero-argument-ifconfig-stop.md)
 - [Step 43T0-D3 — offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
+- [Step 43T0-D4 — live read-only Honda network observation](43t0d4-netcfg-live-network-delta.md)
+- [Step 43T1-R0 — post-D4 offline readiness review](43t1-r0-post-d4-readiness-review.md)
 - [Step 43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md)
 
 </details>

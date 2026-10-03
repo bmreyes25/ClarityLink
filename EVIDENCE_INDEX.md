@@ -12,11 +12,28 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [43T0-D4 read-only network observation](step-reports/43t0d4-netcfg-live-network-delta.md)
+- [43T1-R0 post-D4 readiness decision](step-reports/43t1-r0-post-d4-readiness-review.md)
 - [43T1-PREP2 offline models and limits](step-reports/43t1-prep2-offline-runtime-integration-readiness.md)
 - [43T0-D3 read-only observer repair](step-reports/43t0d3-ipv4-observer-ecc-review.md)
 - [43P current-iOS lab observation](step-reports/43p-current-ios-type111-oracle.md)
 
 ---
+
+# Step 43T0-D4 — live read-only network observation (2026-10-03)
+
+| Evidence | Source | Result / classification |
+|---|---|---|
+| Three-phase capture | [D4 report](step-reports/43t0d4-netcfg-live-network-delta.md); private owner-only capture | `CAPTURE_VALID`, `IDENTITY_MATCH`, 23 approved collector commands, target writes 0. Exact raw network values remain outside Git. |
+| Candidate interface/address/family/route | D4 private raw inputs and sanitized analyzer summary | One strong phase-correlated `usb0` candidate; G11-A/B `YES_OBSERVED`, G11-C `IPv6`, G11-D `YES`; link-local scope and route consistency validated. Exact address withheld. |
+| G11-E/F | D4 report | E remains `NO / READ_BLOCKED_WITHOUT_PRIVILEGE`; F remains `NO`, no listener created. |
+| PREP2 policy resolution | `evaluate_binding` with actual private D4 evidence; [R0 report](step-reports/43t1-r0-post-d4-readiness-review.md) | `BIND_POLICY_READY`; `HONDA_OBSERVED_NETWORK_POLICY_INPUT`, not Type111 acceptance or listener reachability. |
+
+# Step 43T1-R0 — post-D4 readiness review (2026-10-03)
+
+| Decision | Source | Boundary |
+|---|---|---|
+| `RETURN_TO_OFFLINE_WORK` | [Fresh R0 review](step-reports/43t1-r0-post-d4-readiness-review.md) | Network mapping is resolved; actual target attachment/permission, CF ownership, Honda listener reachability, and independent restoration remain unproven. No modifying test authorized. |
 
 # Step 43T1-PREP2 (2026-10-02)
 
@@ -26,10 +43,10 @@ This is the claim-level provenance ledger. Read each classification with its sou
 | Offline CF bridge | [Bridge contract](research/carplay/honda-cf-bridge-contract.md); `prep2_cf_bridge.py` | Borrowed inputs, deterministic fake ownership, copy-on-write replacement and injected rollback failures: `LAB_SYNTHETIC_CONFIRMED`; no Honda runtime claim. |
 | RAM attach/detach simulation | [State machine](research/runtime/43t1-ram-attachment-state-machine.md) | Exact fingerprint checks, compare-before-write and cleanup: `LAB_SYNTHETIC_CONFIRMED`; actual target permission/mechanism unknown. |
 | Independent restoration model | [Verifier](research/runtime/43t1-restoration-verifier.md) | Exact stock/context/resource-absence gate: `LAB_SYNTHETIC_CONFIRMED`; no live readback or reboot evidence. |
-| Network binding rules | [Policy](research/runtime/honda-listener-binding-policy.md) | Wildcards prohibited; evidence must bind one address/interface/route. `BIND_POLICY_PARTIAL` awaiting 43T0-D/D4. |
+| Network binding rules | [Policy](research/runtime/honda-listener-binding-policy.md); [43T0-D4](step-reports/43t0d4-netcfg-live-network-delta.md) | Wildcards prohibited; D4 supplies one observed interface/address/family/scope/route tuple and `BIND_POLICY_READY`. The exact address remains in private capture detail; this does not prove listener reachability. |
 | Negotiation sequence | [Controller](research/runtime/43t1-negotiation-only-controller.md) | Synthetic order, one connection, two-second accept/0.25-second first-byte/five-second total limits, 256-byte cap, Type110 isolation. No Honda acceptance or reachability evidence. |
 | First-byte oracle | [Oracle](research/carplay/type111-first-bytes-oracle.md) | `TYPE111_ORACLE_OFFLINE_READY`; structural-only, no decryptor/fallback; raw input remains unknown. Honda Type111 security remains `UNKNOWN`. |
-| Decision / next action | [PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md) | `43T1_PREP2_COMPLETE` for offline objectives; next is read-only 43T0-D/D4. No modifying test authorized. |
+| Decision / next action | [PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md) | `43T1_PREP2_COMPLETE` for offline objectives at that time; D4 subsequently resolved its network-policy placeholders. No modifying test authorized. |
 
 # Step 43T0-D3 — offline IPv4 observer repair
 

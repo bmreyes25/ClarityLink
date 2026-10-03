@@ -2,7 +2,7 @@
 
 ## Current action
 
-**Separately initiate the read-only 43T0-D/D4 Honda network observation using the reviewed D0-3 procedure, only after its connection and identity prerequisites are met.** The previous D observation stopped at zero ADB targets before any target command or network read. Stop on any ambiguity; do not retry, improvise, negotiate Type111, attach RAM, or modify the vehicle under this action. The 43T1-PREP2 offline milestone is complete and authorizes none of those activities. See the [PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md), [D3 ECC review](step-reports/43t0d3-ipv4-observer-ecc-review.md), and [D0-3 runbook](research/runtime/43t0d-live-runbook.md).
+**Continue offline under 43T1-R0.** D4 completed a valid three-phase read-only capture and resolved the specific-address IPv6 network binding policy. Prepare a concrete nonpersistent RAM-only feasibility and independent restoration plan, then obtain a fresh ECC readiness decision. Do not connect ADB, contact Honda, attach RAM, create a listener, negotiate Type111, or modify the vehicle under this action. See the [D4 result](step-reports/43t0d4-netcfg-live-network-delta.md) and [43T1-R0 review](step-reports/43t1-r0-post-d4-readiness-review.md).
 
 ## Historical context
 

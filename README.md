@@ -20,12 +20,12 @@ The design preserves the stock Type110 path and unrelated safety UI. Type111 is 
 | Honda firmware and Type110 | Static Honda evidence exists for examined artifacts and paths; the evidence index states each claim's scope. |
 | Type111 on current iOS | A separate Mac/iPhone lab observed two stream topology; it does not establish Honda Type111 behavior or security. |
 | Offline dual-display model | Synthetic model and visual demo are available; they prove only the modeled host behavior. |
-| Honda network preflight | D0-3 has an offline-reviewed, read-only plan. The previous D observation stopped at zero ADB targets; network values remain unresolved. |
+| Honda network preflight | D4 completed a valid three-phase read-only capture; G11-A-D and the specific-address IPv6 binding policy are resolved. Listener reachability and process ownership remain unknown. |
 | Honda Type111 negotiation | Not ready or authorized. Honda acceptance, framing, reachability, and security remain unknown. |
 | Cluster rendering | A host-side renderer mock exists; handoff to the real Honda cluster remains unproven. |
 | Vehicle deployment | Not implemented or authorized. |
 
-See [current project state](PROJECT_STATE.md), [next action](NEXT_ACTION.md), and the [claim-level evidence index](EVIDENCE_INDEX.md). Current next vehicle work remains a separately initiated, read-only 43T0-D/D4 network observation under its reviewed gates.
+See [current project state](PROJECT_STATE.md), [next action](NEXT_ACTION.md), and the [claim-level evidence index](EVIDENCE_INDEX.md). The current next step is offline 43T1-R0 follow-up; no modifying Honda experiment is authorized.
 
 ## Architecture
 

@@ -2,11 +2,11 @@
 
 ## Current snapshot — 2026-10-03
 
-- **Latest completed milestone:** 43T1-PREP2, complete for offline modeling and integration readiness only.
-- **Current readiness:** Honda runtime attachment, Type111 negotiation, and vehicle deployment remain not authorized. Honda Type111 acceptance, schema, listener reachability, and security remain unknown.
-- **Current blocker:** the read-only network observation has no completed target-side capture. The earlier attempt stopped before target reads when host ADB enumeration returned zero targets.
-- **Next action:** separately initiate read-only 43T0-D/D4 using reviewed D0-3, only after its connection and identity gates pass; stop on ambiguity.
-- **Latest report:** [43T1-PREP2 offline runtime integration readiness](step-reports/43t1-prep2-offline-runtime-integration-readiness.md).
+- **Latest completed observation:** 43T0-D4 completed with a valid, identity-matched three-phase read-only capture; the vehicle was released immediately afterward.
+- **Current readiness:** G11-A-D have observed network evidence and the PREP2 specific-address IPv6 binding policy is ready. G11-E/F, Honda listener reachability, Type111 acceptance/security, runtime attachment, and deployment remain unresolved or unauthorized.
+- **Current decision:** `RETURN_TO_OFFLINE_WORK` under 43T1-R0. No modifying Honda experiment is authorized.
+- **Next action:** offline feasibility and restoration planning for a strictly bounded, nonpersistent RAM-only experiment, then a fresh ECC readiness review. Do not perform another Honda/ADB action from this record.
+- **Latest reports:** [43T1-R0 post-D4 readiness review](step-reports/43t1-r0-post-d4-readiness-review.md) and [43T0-D4 read-only network observation](step-reports/43t0d4-netcfg-live-network-delta.md).
 - **Historical context:** the rolling ledger below is retained as written; consult its dates and milestone reports rather than treating old entries as current status.
 
 ## Step 43T1-PREP2 update (2026-10-02)
