@@ -1,5 +1,7 @@
 # Next action
 
+**43T1-PREP2 offline implementation is `43T1_PREP2_COMPLETE`.** Network values remain unresolved and Type111 security stays unknown by design; the prefix oracle is bounded and fails closed. No Honda/ADB use or target writes occurred during PREP2. The next vehicle milestone remains a separately initiated **43T0-D/D4 read-only Honda network observation using D0-3**. Do not move to 43T1, negotiate Type111, or attach RAM. See the [PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md).
+
 **43T0-D3 offline ECC decision: `43T0_D3_NETCFG_ECC_GO`.** The preserved Honda `netcfg` binary supports a zero-argument observational enumeration path in static review. The versioned D0-3 collector replaces only the unusable zero-argument `ifconfig` phase read with zero-argument `netcfg`; the analyzer and [live runbook](research/runtime/43t0d-live-runbook.md) are updated. D3 contacted no Honda and ran no ADB. **Next remains a separately initiated 43T0-D parked-car read-only observation**, with exactly one intended target and the reviewed connection precondition; no retry of D0-2, no fallback, Type111, listener, or runtime change. See the [D3 review](step-reports/43t0d3-ipv4-observer-ecc-review.md).
 
 ## Prior milestones (historical)

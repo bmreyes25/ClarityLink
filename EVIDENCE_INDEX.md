@@ -1,3 +1,16 @@
+# Step 43T1-PREP2 (2026-10-02)
+
+| Evidence item | Source | Result / classification |
+|---|---|---|
+| Preserved Honda response graph | [CF Setup map](research/carplay/honda-cf-setup-response-map.md); hash-matched `jmcs` | Mutable response construction, streams append path, synchronous binary-plist call and caller release: `HONDA_CONFIRMED` for static path. Arbitrary project mutation/CF runtime ABI remains `UNRESOLVED`. |
+| Offline CF bridge | [Bridge contract](research/carplay/honda-cf-bridge-contract.md); `prep2_cf_bridge.py` | Borrowed inputs, deterministic fake ownership, copy-on-write replacement and injected rollback failures: `LAB_SYNTHETIC_CONFIRMED`; no Honda runtime claim. |
+| RAM attach/detach simulation | [State machine](research/runtime/43t1-ram-attachment-state-machine.md) | Exact fingerprint checks, compare-before-write and cleanup: `LAB_SYNTHETIC_CONFIRMED`; actual target permission/mechanism unknown. |
+| Independent restoration model | [Verifier](research/runtime/43t1-restoration-verifier.md) | Exact stock/context/resource-absence gate: `LAB_SYNTHETIC_CONFIRMED`; no live readback or reboot evidence. |
+| Network binding rules | [Policy](research/runtime/honda-listener-binding-policy.md) | Wildcards prohibited; evidence must bind one address/interface/route. `BIND_POLICY_PARTIAL` awaiting 43T0-D/D4. |
+| Negotiation sequence | [Controller](research/runtime/43t1-negotiation-only-controller.md) | Synthetic order, one connection, two-second accept/0.25-second first-byte/five-second total limits, 256-byte cap, Type110 isolation. No Honda acceptance or reachability evidence. |
+| First-byte oracle | [Oracle](research/carplay/type111-first-bytes-oracle.md) | `TYPE111_ORACLE_OFFLINE_READY`; structural-only, no decryptor/fallback; raw input remains unknown. Honda Type111 security remains `UNKNOWN`. |
+| Decision / next action | [PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md) | `43T1_PREP2_COMPLETE` for offline objectives; next is read-only 43T0-D/D4. No modifying test authorized. |
+
 # Step 43T0-D3 — offline IPv4 observer repair
 
 | Evidence | Location | Class and boundary |
