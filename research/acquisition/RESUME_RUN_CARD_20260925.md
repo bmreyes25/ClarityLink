@@ -18,9 +18,9 @@ When the car is parked and powered, insert the same USB and enable Wi-Fi ADB. On
 cd /Users/bmreyes24/ClarityLab/clarity-analysis
 shasum -a 256 research/acquisition/generated/20260925_211500/resume-acquire_headunit.sh
 sh -n research/acquisition/generated/20260925_211500/resume-acquire_headunit.sh
-adb -s 192.168.86.102:5555 shell su -c sh < research/acquisition/generated/20260925_211500/resume-acquire_headunit.sh > research/acquisition/live-inventory/20260925T210625Z/resume.console.log 2>&1
+adb -s [REDACTED-PRIVATE-ENDPOINT]:5555 shell su -c sh < research/acquisition/generated/20260925_211500/resume-acquire_headunit.sh > research/acquisition/live-inventory/20260925T210625Z/resume.console.log 2>&1
 ```
 
-Use the current serial in place of `192.168.86.102:5555` if Wirebug changed it. Do not treat ADB's exit code alone as success: verify the console and USB `acquisition.log`, presence of `STORAGE_DONE.txt`, absence of `.partial`, and SHA-256 for every listed file. Keep the car powered until the script closes and the USB filesystem flushes. If it aborts, stop and inspect the named partial/error file; do not delete or overwrite a completed chunk.
+Use the current serial in place of `[REDACTED-PRIVATE-ENDPOINT]:5555` if Wirebug changed it. Do not treat ADB's exit code alone as success: verify the console and USB `acquisition.log`, presence of `STORAGE_DONE.txt`, absence of `.partial`, and SHA-256 for every listed file. Keep the car powered until the script closes and the USB filesystem flushes. If it aborts, stop and inspect the named partial/error file; do not delete or overwrite a completed chunk.
 
 The eight labeled runtime states remain a separate bounded capture using `runtime_snapshot.py` and normal parked UI actions. They should be captured only after the storage resume is complete, then the Mac finalizer can verify and create `FINISHED.txt`. Copy that **complete** USB sibling to a new complete Mac original and verify again; never replace `CLARITY_FORENSIC_20260925_211500_PARTIAL_ORIGINAL` or the September 18 pristine backup. The raw eMMC image is live/non-atomic and does not satisfy the boot-independent recovery gate.

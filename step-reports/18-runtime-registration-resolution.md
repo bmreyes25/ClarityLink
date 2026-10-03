@@ -35,7 +35,7 @@ First use existing read-only jmcs logs and process metadata/mappings. If these d
 
 ## Live session result (2026-09-29)
 
-ADB connected at `192.168.86.102:5555`; root succeeded. `pidof` is unavailable; `ps` found `/system/bin/jmcs` PID `26577`. The executable mapping begins at runtime `0x4008f000`, and the process has 45 mapped `.so` files, including `libcarplay_proxy.so`, `libmedia.so`, `libstagefright.so`, and `libgui.so`. The iPhone remained disconnected.
+ADB connected at `[REDACTED-PRIVATE-ENDPOINT]:5555`; root succeeded. `pidof` is unavailable; `ps` found `/system/bin/jmcs` PID `26577`. The executable mapping begins at runtime `0x4008f000`, and the process has 45 mapped `.so` files, including `libcarplay_proxy.so`, `libmedia.so`, `libstagefright.so`, and `libgui.so`. The iPhone remained disconnected.
 
 Current `MC`/`MCS` log queries and a targeted term filter returned no lines. DWARF identifies `mc_devs` (static `0x35acbc`, type `devmgr_h`), whose candidate runtime cell is `0x403e9cbc`. A read-only four-byte `/proc/26577/mem` read of that exact cell returned `Operation not permitted`. Therefore the manager pointer and registry head at manager `+0x08` could not be recovered. Registry populated with iPhone disconnected and iPhone requirement both remain **unknown**.
 

@@ -2,6 +2,10 @@
 
 <!-- What changed and why? -->
 
+## Scope
+
+<!-- Main code, docs, tooling, or records touched. Keep this concise for small changes. -->
+
 ## Evidence classification
 
 - [ ] Honda-confirmed evidence
@@ -26,7 +30,17 @@
 
 ## Risk / rollback
 
-<!-- Include failure behavior and rollback for any live interaction. -->
+<!-- For offline-only changes, state "None — offline only". For vehicle work, include failure behavior and rollback. -->
+
+## Target writes
+
+- [ ] NONE
+- [ ] Proposed — describe only within a separately reviewed milestone
+
+## Privacy review
+
+- [ ] No private captures, credentials, identifiers, or proprietary binaries added
+- [ ] Sanitized logs only
 
 ## Unknowns
 

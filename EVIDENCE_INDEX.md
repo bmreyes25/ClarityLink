@@ -1,3 +1,23 @@
+# Evidence index
+
+This is the claim-level provenance ledger. Read each classification with its source, date, and scope; synthetic, external, and static evidence must not be presented as live Honda behavior.
+
+## How to use this index
+
+- Start with the newest reviewed evidence below, then follow the linked milestone report and source artifact.
+- `HONDA_CONFIRMED` identifies a Honda artifact or behavior only within the stated scope. `OBSERVED_ON_HONDA_READ_ONLY` is limited to the commands and conditions actually observed.
+- `CURRENT_IOS_LAB_CONFIRMED`, `LAB_EXECUTABLE_CONFIRMED`, and `LAB_HOST_RUNTIME_CONFIRMED` describe separate lab/host contexts, not Honda behavior.
+- `EXTERNAL_PRIOR_ART` informs hypotheses but does not prove Honda requirements. `SYNTHETIC_TEST_VALUE`, `HYPOTHESIS`, and `UNKNOWN` must remain distinct from observations.
+- Historical entries are retained below; for the current action use [NEXT_ACTION.md](NEXT_ACTION.md), and for the rolling state use [PROJECT_STATE.md](PROJECT_STATE.md).
+
+## Current evidence entries
+
+- [43T1-PREP2 offline models and limits](step-reports/43t1-prep2-offline-runtime-integration-readiness.md)
+- [43T0-D3 read-only observer repair](step-reports/43t0d3-ipv4-observer-ecc-review.md)
+- [43P current-iOS lab observation](step-reports/43p-current-ios-type111-oracle.md)
+
+---
+
 # Step 43T1-PREP2 (2026-10-02)
 
 | Evidence item | Source | Result / classification |

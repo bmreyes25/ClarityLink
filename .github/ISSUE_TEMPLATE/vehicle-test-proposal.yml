@@ -21,6 +21,20 @@ body:
     validations:
       required: true
   - type: textarea
+    id: exact_actions
+    attributes:
+      label: Exact actions and authorization boundary
+      description: List exact commands/actions, what they may read or change, and what is out of scope.
+    validations:
+      required: true
+  - type: textarea
+    id: car_boundary
+    attributes:
+      label: Parked and car-off boundary
+      description: State when the vehicle must be parked/on or car-off and who confirms the boundary.
+    validations:
+      required: true
+  - type: textarea
     id: prerequisites
     attributes:
       label: Prerequisites, stop conditions, and rollback
@@ -31,5 +45,12 @@ body:
     attributes:
       label: Expected stock behavior and recovery plan
       description: Explain how center Type110 CarPlay and normal cluster behavior are preserved.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence handling
+      description: Specify limits, sanitization, private storage, and what may enter GitHub.
     validations:
       required: true

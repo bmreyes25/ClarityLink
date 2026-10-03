@@ -1,7 +1,7 @@
 # ClarityLink Step 5B status
 
 - Scope: independent secondary CarPlay display in the existing cluster Navigation map region; center display remains independent.
-- ADB: connected to `192.168.86.102:5555`; root confirmed with `su -c id`.
+- ADB: connected to `[REDACTED-PRIVATE-ENDPOINT]:5555`; root confirmed with `su -c id`.
 - Live display inventory: built-in display 0 and HDMI display 1, each 800×480 at about 60 Hz; two Tegra framebuffer nodes, likely aligned by index.
 - Framebuffer caution: both sysfs nodes report virtual size 800×960, stride 3200, but BPP 0. No raw framebuffer read was performed.
 - `screencap -d display-id` is available. Actual display-1 frame: pending normal Navigation page and user READY.

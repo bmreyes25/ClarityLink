@@ -1,3 +1,14 @@
+# ClarityLink project state
+
+## Current snapshot — 2026-10-03
+
+- **Latest completed milestone:** 43T1-PREP2, complete for offline modeling and integration readiness only.
+- **Current readiness:** Honda runtime attachment, Type111 negotiation, and vehicle deployment remain not authorized. Honda Type111 acceptance, schema, listener reachability, and security remain unknown.
+- **Current blocker:** the read-only network observation has no completed target-side capture. The earlier attempt stopped before target reads when host ADB enumeration returned zero targets.
+- **Next action:** separately initiate read-only 43T0-D/D4 using reviewed D0-3, only after its connection and identity gates pass; stop on ambiguity.
+- **Latest report:** [43T1-PREP2 offline runtime integration readiness](step-reports/43t1-prep2-offline-runtime-integration-readiness.md).
+- **Historical context:** the rolling ledger below is retained as written; consult its dates and milestone reports rather than treating old entries as current status.
+
 ## Step 43T1-PREP2 update (2026-10-02)
 
 PREP2 added clean-room models for the Honda CF response bridge, exact-gated RAM attachment/detach, an independent restoration verifier, evidence-based listener policy, a bounded negotiation-only sequencer, and a structural Type111 prefix oracle. Focused synthetic verification is recorded in [the PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md). Neither Honda nor ADB was contacted; target writes were 0. **`43T1_PREP2_COMPLETE` for offline objectives**; runtime CF/attachment and all Honda-only boundaries stay unresolved, and the network placeholders await 43T0-D/D4. The prefix oracle leaves Type111 security unknown and selects no crypto branch. Honda runtime/deployment stays disabled; Type111 negotiation and RAM attachment are not authorized. Next remains a separately initiated read-only 43T0-D/D4 observation.
@@ -79,8 +90,6 @@ Step 43G's exact CF callback tables and Type110 container graph remain proven. S
 ## Step 43G — Setup CF ownership and connection failure cleanup (offline, 2026-10-01)
 
 Against the reference-hash-matched Honda `jmcs`, VA-aware ARM/Thumb disassembly proves Setup passes Honda CFL CFType-style key and value callback tables to its response dictionary; `_AddResponseStream` passes the CFL CFType-style retaining table to `streams`. Type110 entry creation uses the same dictionary callbacks, append invokes the array retain callback, then Honda releases local entry/array references after insertion; the response release after synchronous serialization dispatches recursive array/dictionary finalizers. Terminal HTTP read/write failure stops and closes the HTTP connection; its finalizer can call `AirPlayReceiverSessionTearDown`. HTTP header-commit failure and any future project-child cleanup subscription remain unknown. Thus stock container ownership is proven, but the project seam remains `NEEDS_MORE_STATIC_PROOF`; jmcs integration, no-op, live, ExternalDisplay, and Type111 gates remain NOT READY; LD_PRELOAD remains PARKED. Synthetic delivery/lifecycle model and VA mapper tests are separate from Honda proof. See [Step 43G](step-reports/43g-setup-cf-ownership-and-network-cleanup.md) and linked research notes.
-
-# ClarityLink project state — 2026-09-30
 
 ## Step 43T0-D update (2026-10-02)
 

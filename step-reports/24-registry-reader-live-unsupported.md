@@ -6,7 +6,7 @@ Scope: one parked attempt; iPhone disconnected; no fallback.
 
 ## Preflight
 
-- ADB endpoint: `192.168.86.102:5555`, connected device reported as Honda Andromeda / MY16ADA.
+- ADB endpoint: `[REDACTED-PRIVATE-ENDPOINT]:5555`, connected device reported as Honda Andromeda / MY16ADA.
 - Root confirmed: `uid=0(root) gid=0(root)`.
 - Fresh `ps` identified `/system/bin/jmcs`, PID `19905`.
 - `/proc/19905/cmdline` matched exactly `/system/bin/jmcs` plus NUL, both before and after the attempt.

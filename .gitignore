@@ -7,6 +7,7 @@
 !/NEXT_ACTION.md
 !/EVIDENCE_INDEX.md
 !/CONTRIBUTING.md
+!/SECURITY.md
 !/requirements-test.txt
 !/.editorconfig
 !/.github/
@@ -23,6 +24,8 @@
 !/src/
 !/tools/
 /tools/*
+!/tools/README.md
+!/tools/check_repo_health.py
 !/tools/elf_va_map.py
 !/tools/jmcs_integration/
 !/tools/jmcs_integration/*.py
@@ -35,6 +38,8 @@
 !/tools/honda-readonly-preflight/**
 /tools/honda-readonly-preflight/__pycache__/
 /tools/honda-readonly-preflight/*.pyc
+/tools/**/__pycache__/
+/tools/**/*.pyc
 /src/**/__pycache__/
 /src/**/*.pyc
 
@@ -105,3 +110,8 @@
 *.tar
 *.tar.gz
 *.zip
+*.pcap
+*.pcapng
+*.cap
+*.dump
+*.raw

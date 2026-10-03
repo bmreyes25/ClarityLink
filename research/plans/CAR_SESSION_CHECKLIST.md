@@ -11,7 +11,7 @@
 
 ## Sequence in the car
 
-1. Power the head unit, open Wirebug, and note the `adb connect` address it currently displays. Tell me if it differs from `192.168.86.102:5555`.
+1. Power the head unit, open Wirebug, and note the `adb connect` address it currently displays. Tell me if it differs from `[REDACTED-PRIVATE-ENDPOINT]:5555`.
 2. Connect the iPhone, start Apple Maps guidance, and select the cluster Navigation page. Switch the center to Music while the route remains active.
 3. Photograph the *physical* cluster with its surrounding gauges and warning area. Say whether a spoken direction is audible. Capture the center Music/cluster Navigation state with casting **off** using `twin-survey`.
 4. If approved for this session, enable the already installed Honda Hack casting, photograph the physical cluster again, and run `twin-survey` a second time. Confirm spoken directions still work. Restore casting to its original state after this comparison. No factory navigation setter or vehicle-bus command is used.
@@ -25,10 +25,10 @@ The capture is bounded and saved only under `research/captures/`. The process-in
 From the analysis root, use one distinct output directory per casting state; never run two phases into the same phase folder:
 
 ```sh
-python3 research/scripts/cluster_readonly_capture.py --serial 192.168.86.102:5555 --output research/captures/SESSION-twin-off --phase twin-survey
-python3 research/scripts/cluster_readonly_capture.py --serial 192.168.86.102:5555 --output research/captures/SESSION-twin-on --phase twin-survey
-python3 research/scripts/cluster_readonly_capture.py --serial 192.168.86.102:5555 --output research/captures/SESSION-inventory --phase process-inventory
-python3 research/scripts/cluster_readonly_capture.py --serial 192.168.86.102:5555 --output research/captures/SESSION-capabilities --phase capability-survey
+python3 research/scripts/cluster_readonly_capture.py --serial [REDACTED-PRIVATE-ENDPOINT]:5555 --output research/captures/SESSION-twin-off --phase twin-survey
+python3 research/scripts/cluster_readonly_capture.py --serial [REDACTED-PRIVATE-ENDPOINT]:5555 --output research/captures/SESSION-twin-on --phase twin-survey
+python3 research/scripts/cluster_readonly_capture.py --serial [REDACTED-PRIVATE-ENDPOINT]:5555 --output research/captures/SESSION-inventory --phase process-inventory
+python3 research/scripts/cluster_readonly_capture.py --serial [REDACTED-PRIVATE-ENDPOINT]:5555 --output research/captures/SESSION-capabilities --phase capability-survey
 ```
 
 Replace `SESSION` with a UTC timestamp and the serial with Wirebug's current address. If time runs short, prioritize the physical off/on photos and two `twin-survey` captures, then the capability survey; existing static and September 18 evidence already cover many ordinary logs.

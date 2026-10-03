@@ -45,7 +45,7 @@ A precise CarPlay Screen match result also requires callback return values. If l
 
 ## Live read-only attempt (2026-09-29)
 
-ADB to `192.168.86.102:5555` connected; `adb devices -l` reported the Clarity device, and `su -c id` returned root. `pidof` is absent from this head unit, so `ps | grep '[j]mcs'` identified PID **26577**. The iPhone remained disconnected.
+ADB to `[REDACTED-PRIVATE-ENDPOINT]:5555` connected; `adb devices -l` reported the Clarity device, and `su -c id` returned root. `pidof` is absent from this head unit, so `ps | grep '[j]mcs'` identified PID **26577**. The iPhone remained disconnected.
 
 | Fact | Live result |
 |---|---|

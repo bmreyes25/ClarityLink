@@ -30,7 +30,7 @@ Avoid recursive repository scans, raw forensic images, whole-binary dumps, and g
 - Saved evidence reports Android built-in and HDMI outputs at 800×480. These do not establish native cluster resolution or the map destination rectangle.
 - Honda Hack casts into the cluster map area but follows the center display; its layout-local rectangle is not factory geometry.
 - Static receiver evidence configures one 800×480 CarPlay main screen. Exact iAP2 Identification bytes and display/session descriptor remain unknown.
-- Read-only ADB diagnostics connected to `192.168.86.102:5555`; root confirmed.
+- Read-only ADB diagnostics connected to `[REDACTED-PRIVATE-ENDPOINT]:5555`; root confirmed.
 - Android displays 0/1 are Built-in/HDMI, each 800×480 at ~60 Hz. fb0/fb1 link to tegradc.0/.1; likely aligned to display IDs, but BPP reports 0 and framebuffer format/size remain unverified.
 - `screencap -d 1` is available. No frame yet; next gate is the user displaying normal factory Navigation with casting off and replying READY.
 - usbmon, tcpdump and strace are unavailable. Filtered logs show iAP2/authentication and screen-transfer policy only, no raw Identification or descriptor. The user owns no USB analyzer; defer purchase until descriptor transport and remaining options are reviewed.

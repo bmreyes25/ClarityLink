@@ -1,6 +1,6 @@
 # ClarityLink cluster display diagnostics
 
-**Status: live ADB inventory and three paired display states collected; native factory Navigation rectangle still unknown.** Vehicle access was read-only. ADB connected to `192.168.86.102:5555`; `su -c id` returned root. Raw captures and full command outputs are local and ignored under `research/captures/`.
+**Status: live ADB inventory and three paired display states collected; native factory Navigation rectangle still unknown.** Vehicle access was read-only. ADB connected to `[REDACTED-PRIVATE-ENDPOINT]:5555`; `su -c id` returned root. Raw captures and full command outputs are local and ignored under `research/captures/`.
 
 ## Display inventory
 

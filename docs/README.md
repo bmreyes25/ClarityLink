@@ -1,41 +1,49 @@
 # ClarityLink documentation
 
-This index keeps the active project guide short while preserving the detailed forensic and milestone history in place.
+This hub points to curated current documentation. The detailed reverse-engineering and milestone archive remains preserved under [`research/`](../research/README.md) and [`step-reports/`](../step-reports/README.md).
 
 ## Start here
 
-- [Project landing page](../README.md)
-- [Current state](../PROJECT_STATE.md)
-- [One next technical action](../NEXT_ACTION.md)
+- [Project overview and status](../README.md)
+- [Architecture and invariants](architecture/overview.md)
 - [Roadmap](../ROADMAP.md)
-- [Evidence index](../EVIDENCE_INDEX.md)
+- [Glossary](glossary.md)
 
-## Architecture
+## Current engineering state
 
-- [Architecture overview and invariants](architecture/overview.md)
-- [Source-pinned CarPlay/AltScreen prior art](research/carplay-altscreen-prior-art.md)
-- [Honda-specific Type111 research plan](research/honda-type111-research-plan.md)
+- [Next action](../NEXT_ACTION.md) — the single current engineering action.
+- [Project state](../PROJECT_STATE.md) — detailed rolling ledger.
+- [Evidence index](../EVIDENCE_INDEX.md) — claim provenance and evidence limits.
+- [Project records guide](project/records.md) — explains how these records fit together.
 
 ## Development
 
-- [Testing setup and canonical test command](development/testing.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Testing](development/testing.md)
+- [Source tree guide](../src/README.md)
+- [Tests guide](../tests/README.md)
+- [Tools guide](../tools/README.md)
+
+## Research and evidence
+
+- [Research archive guide](../research/README.md)
 - [Evidence classification](development/evidence-classification.md)
-- [Contributor workflow](../CONTRIBUTING.md)
+- [Source-pinned CarPlay AltScreen prior art](research/carplay-altscreen-prior-art.md)
+- [Honda Type111 research plan](research/honda-type111-research-plan.md)
+- [Chronological step reports](../step-reports/README.md)
 
-## Research and simulator
+## Safety and vehicle testing
 
-- [Research tree guide](../research/README.md)
-- [Step report index](../step-reports/README.md)
-- [Offline visual twin](../demo/type111/README.md)
+- [Vehicle testing and evidence gates](safety/vehicle-testing.md)
+- [Vehicle test proposal form](../.github/ISSUE_TEMPLATE/vehicle-test-proposal.yml)
+- [Security reporting policy](../SECURITY.md)
 
-The root working-state files and historical report trees remain at their current paths to preserve established references and project history.
+## Offline demonstration
 
-## Vehicle integration
+- [Visual digital twin](../demo/type111/README.md)
 
-No live Type111, jmcs no-op, or real ExternalDisplay test is ready. The current vehicle-specific evidence gaps and ordered research gates are documented in the [Honda Type111 research plan](research/honda-type111-research-plan.md); the one active technical task is in [NEXT_ACTION.md](../NEXT_ACTION.md).
+## Project and GitHub health
 
-## Evidence and status
-
-- [Evidence index](../EVIDENCE_INDEX.md) — claim-level provenance.
-- [Project state](../PROJECT_STATE.md) — current milestone and readiness.
-- [Step reports](../step-reports/README.md) — historical milestone sequence.
+- [Repository organization report](../step-reports/repository-organization-and-github-health.md)
+- [GitHub settings checklist](project/github-settings.md)
+- [License decision](project/license-decision.md)

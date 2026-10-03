@@ -4,7 +4,9 @@
 
 ## Current engineering stage
 
-The active executable work is the offline digital twin. Step 42K carries the exact RGBA frame accepted by the Step 42J ScreenStream/FFmpeg/Display 1 mock pipeline into the local visual twin as an ignored, ephemeral PNG, with source-pixel hash metadata and stale-artifact protection. This validates visual handoff from the host mock only.
+The latest completed milestone is **43T1-PREP2**, an offline-only readiness/modeling milestone. Its CF bridge, attachment/restoration gates, listener policy, negotiation controller, and Type111 prefix oracle are synthetic or static-analysis artifacts. They do not establish Honda runtime behavior. Type111 acceptance/security, listener reachability, and real cluster rendering remain unknown; Honda runtime attachment and Type111 negotiation are not authorized.
+
+The next vehicle milestone remains a separately initiated **read-only 43T0-D/D4 network observation** using the reviewed D0-3 procedure and all of its prerequisites. The previous D observation stopped at zero ADB targets; no Honda network values were collected. See [NEXT_ACTION.md](NEXT_ACTION.md) and the [43T1-PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md).
 
 ## Evidence-backed target
 
@@ -24,12 +26,13 @@ flowchart LR
 
 | Workstream | Current state | Next gate |
 |---|---|---|
-| Offline digital twin | Ready; actual decoded synthetic frame appears in local visual twin | Honda `/info` descriptor differential audit |
-| Honda `/info` and Type111 schema | Type110 confirmed; stock Type111 skipped; external fields are not Honda facts | Differential audit of the descriptor and control-plane paths |
-| Type111 security/session | Honda Type110 KDF inputs known; Type111 reuse unknown | Trace whether a second connection ID can own independent crypto state |
-| jmcs integration | No safe proven load seam | Bounded stock-first seam analysis with rollback and exact-build checks |
-| ExternalDisplay rendering | Host exists; supported frame handoff not found | Synthetic renderer boundary/proof, then actual host interface evidence |
-| Live negotiation | Not ready | Only after control-plane and integration gates; first criterion need not include rendered video |
+| Offline digital twin | Synthetic visual and transaction models are available | Models remain distinct from Honda proof |
+| Honda `/info` / Type111 | Stock Type110 path has static evidence; Honda Type111 acceptance/schema unknown | Preserve as unknown until specifically evidenced |
+| Type111 security/session | Type110 evidence does not prove Type111 crypto or lifecycle | No crypto selection or negotiation authorization |
+| Honda network preflight | D0-3 read-only procedure reviewed; earlier attempt stopped before target reads | Separately initiated D4 observation under current gates |
+| `jmcs` integration | Offline seams/models exist; runtime install and cleanup unproven | No deployment or attachment authorization |
+| Cluster rendering | Host-side mock exists; real Display Audio frame handoff unresolved | Requires independent evidence and review |
+| Vehicle deployment | Not implemented or authorized | Requires separately scoped, reviewed milestones |
 
 ## Important distinction
 

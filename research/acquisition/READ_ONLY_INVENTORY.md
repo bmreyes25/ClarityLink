@@ -2,7 +2,7 @@
 
 **Run only the inventory first. No `dd`, tar archive, install, mount, `force_ro` change, or vehicle-bus command belongs in this pass.** Save command outputs on the Mac under `research/acquisition/live-inventory/<UTC timestamp>/`; the head unit is a read-only source. If permission is denied, record it and stop that check.
 
-Connect to Wirebug's current Wi-Fi ADB address, then run the commands below. Use the exact device serial returned by `adb devices -l`; the last known address was `192.168.86.102:5555`. `fdisk -l` may require existing root privileges; do not modify security settings to obtain it.
+Connect to Wirebug's current Wi-Fi ADB address, then run the commands below. Use the exact device serial returned by `adb devices -l`; the last known address was `[REDACTED-PRIVATE-ENDPOINT]:5555`. `fdisk -l` may require existing root privileges; do not modify security settings to obtain it.
 
 ```sh
 adb devices -l

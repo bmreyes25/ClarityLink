@@ -171,7 +171,7 @@ Completion evidence: [September 26 record](../acquisition/ACQUISITION_COMPLETION
 
 ## Car-time packet and equipment list
 
-There is **no new car task to approve this plan**. The next car session is the read-only storage/USB inventory in [the forensic run card](../acquisition/ON_CAR_FORENSIC_ACQUISITION_RUN_CARD.md). Bring the same FAT32/MBR USB with the existing backup, park and power the car, and connect the Mac over Wirebug Wi-Fi ADB (`192.168.86.102:5555` was the prior address). That session ends before bulk copying; its outputs set the exact acquisition size and commands for separate review. Later decoder coexistence or inline USB diagnostics require their own reviewed run cards. Do not restart CarPlay for ordinary logcat alone, and do not assume a full eMMC acquisition will fit a 10–15-minute window.
+There is **no new car task to approve this plan**. The next car session is the read-only storage/USB inventory in [the forensic run card](../acquisition/ON_CAR_FORENSIC_ACQUISITION_RUN_CARD.md). Bring the same FAT32/MBR USB with the existing backup, park and power the car, and connect the Mac over Wirebug Wi-Fi ADB (`[REDACTED-PRIVATE-ENDPOINT]:5555` was the prior address). That session ends before bulk copying; its outputs set the exact acquisition size and commands for separate review. Later decoder coexistence or inline USB diagnostics require their own reviewed run cards. Do not restart CarPlay for ordinary logcat alone, and do not assume a full eMMC acquisition will fit a 10–15-minute window.
 
 ## Review questions and change control
 

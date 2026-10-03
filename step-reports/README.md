@@ -1,25 +1,33 @@
-- [43T0-D3 offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
-
-- [43T0-D2 zero-argument ifconfig baseline stop](43t0d2-zero-argument-ifconfig-stop.md)
-- [43T0-D1 live route-header format stop and offline correction](43t0d1-route-header-format-stop.md)
-- [43T0-DPREP offline live-capture analysis pipeline](43t0d-prep-offline-analysis-pipeline.md)
 # Step reports
 
-This directory preserves the chronological milestone record. Reports reflect what was known at that time; for current status use [PROJECT_STATE.md](../PROJECT_STATE.md), [EVIDENCE_INDEX.md](../EVIDENCE_INDEX.md), and [NEXT_ACTION.md](../NEXT_ACTION.md).
+This index preserves the engineering chronology and negative results. For current status, use [PROJECT_STATE.md](../PROJECT_STATE.md), [NEXT_ACTION.md](../NEXT_ACTION.md), and [ROADMAP.md](../ROADMAP.md). Reports state what was known at the time and are not silently updated to match later conclusions.
 
-The existing reports remain in place and are not rewritten by the index.
+## Current project status
 
-## Latest completed research milestone
+- Latest completed milestone: [43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md), complete for offline objectives only.
+- Current next action: separately initiate the read-only [43T0-D/D4 network observation](../NEXT_ACTION.md), subject to the reviewed connection and identity gates.
+- The previous D observation stopped at zero ADB targets before target-side reads. Honda Type111 negotiation and RAM attachment remain unauthorized.
 
-[Step 43S — Honda runtime attachment and Type111 negotiation readiness review](43s-honda-runtime-readiness-review.md) is the current readiness decision. It returns `NO_GO`; exact static fingerprints pass, but executable trampoline ABI and real listener/runtime prerequisites remain unproven.
+## Latest milestones
 
-## Latest completed engineering milestone
+- [Step 43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md)
+- [Step 43T0-D3 — offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
+- [Step 43T0-D2 — zero-argument ifconfig stops read-only baseline](43t0d2-zero-argument-ifconfig-stop.md)
+- [Step 43T0-D1 — live read-only route-header format stop and offline correction](43t0d1-route-header-format-stop.md)
+- [STEP 43T0-DPREP — OFFLINE LIVE-CAPTURE ANALYSIS PIPELINE](43t0d-prep-offline-analysis-pipeline.md)
+- [Step 43T0-D0 — executable collector build and ECC equivalence review](43t0d0-executable-collector-ecc-review.md)
+- [Step 43T0-C — identity-gated delta dry run and ECC re-review](43t0c-identity-gated-delta-ecc-review.md)
+- [Step 43T0-B — ECC review of exact G11 network delta](43t0b-exact-delta-ecc-review.md)
+- [Step 43S2 — native helper / reentrancy proof (2026-10-02)](43s2-native-helper-reentrancy-readiness.md)
 
-[Step 43S — same-generation presentation state model](43s-honda-runtime-readiness-review.md) adds a synthetic control/layout model that retains the active Type111 generation through UI ownership, keyframe and ViewArea updates. The active technical next action is maintained separately in [NEXT_ACTION.md](../NEXT_ACTION.md).
+## Milestone eras
 
-## Chronological index
+Reports are grouped by project era; titles and links are navigation, not a claim that every report has equal status or evidentiary weight. Negative results, stops, and NO_GO decisions remain visible.
 
-- [Step 43S — Honda runtime attachment and Type111 negotiation readiness review](43s-honda-runtime-readiness-review.md)
+### Foundation and display discovery (Steps 01–24)
+
+<details>
+<summary>27 preserved reports</summary>
 
 - [Step 1 — Evidence baseline and repository normalization](01-evidence-baseline.md)
 - [Step 2 — Factory navigation viewport and offline twin](02-cluster-viewport.md)
@@ -48,6 +56,14 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 23 — ARMv7/API 17 registry reader build and audit](23-registry-reader-armv7-build.md)
 - [Step 24 — bounded ptrace registry reader (offline only)](24-ptrace-registry-reader.md)
 - [Step 24 — one-shot live registry reader result](24-registry-reader-live-unsupported.md)
+
+</details>
+
+### AltScreen and Type111 protocol investigation (Steps 25–38)
+
+<details>
+<summary>14 preserved reports</summary>
+
 - [Step 25 — AltScreen prior-art integration and Display-B pivot](25-altscreen-prior-art-pivot.md)
 - [Step 26 — Honda CarPlay SETUP response ABI (offline)](26-honda-setup-response-abi.md)
 - [Step 27 — trace Honda SETUP response to phone-facing send](27-honda-setup-send-path.md)
@@ -62,15 +78,23 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 36 — prove Honda screen header, AES-CTR, and media handoff](36-prove-screen-wire-format.md)
 - [Step 37 — close the Honda media pipeline and prepare Type111 implementation](37-video-config-media-pipeline.md)
 - [Step 38 — close Type111 Setup and security contract](38-type111-setup-security-contract.md)
+
+</details>
+
+### Integration and reversible-hook research (Steps 39–41)
+
+<details>
+<summary>17 preserved reports</summary>
+
 - [Step 39 — Host-only Display-B interposer](39-host-interposer.md)
 - [Step 40 — Honda hook integration boundary](40-honda-hook-harness.md)
+- [Step 40E4 — Zero-write privilege path decision](40E4-zero-write-privilege-path.md)
 - [Step 40B — reversible ARMv7 Thumb-2 call-site model](40b-thumb2-reversible-hook.md)
 - [Step 40C — runtime patch lifecycle gate](40c-runtime-patch-lifecycle.md)
 - [Step 40D — Honda kernel provenance and API-17 ARM lab](40d-honda-kernel-and-api17-runtime.md)
+- [Step 40E — Honda read-only runtime capture](40e-readonly-runtime-preflight.md)
 - [Step 40E2 — Offline capture review and privileged-read preparation](40e2-privileged-read-preparation.md)
 - [Step 40E3 — SuperSU provenance, integrity, and side-effect review](40e3-supersu-provenance-static-review.md)
-- [Step 40E4 — Zero-write privilege path decision](40E4-zero-write-privilege-path.md)
-- [Step 40E — Honda read-only runtime capture](40e-readonly-runtime-preflight.md)
 - [Step 41A — self-locating AltScreen interposer](41A-self-locating-altscreen-interposer.md)
 - [Step 41B — jmcs load seam and dladdr](41B-jmcs-load-seam-and-dladdr.md)
 - [Step 41C — recover Honda jmcs init service and load environment](41c-jmcs-init-service.md)
@@ -79,6 +103,14 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 41F — Honda linker preload fingerprint](41f-honda-linker-preload-fingerprint.md)
 - [Step 41G — Offline linker behavior lab or seam decision](41g-offline-linker-behavior-lab.md)
 - [Step 41G — Runtime preload compatibility probe build](41g-runtime-preload-probe.md)
+
+</details>
+
+### Digital twin and end-to-end modeling (Steps 42A–42K)
+
+<details>
+<summary>11 preserved reports</summary>
+
 - [Step 42A — Type111 display/stream correlation and Honda handoff audit](42a-type111-display-stream-correlation.md)
 - [Step 42B — Type111 architecture decision](42b-type111-architecture-decision.md)
 - [Step 42C — offline jmcs Type111 integration contract](42c-jmcs-integration-contract.md)
@@ -90,9 +122,65 @@ The existing reports remain in place and are not rewritten by the index.
 - [Step 42I — real synthetic H.264 decode on Mac](42i-real-synthetic-h264-decode.md)
 - [Step 42J — valid synthetic H.264 through ScreenStream fixture](42j-valid-h264-screenstream-fixture.md)
 - [Step 42K — actual decoded frame in the offline visual twin](42k-actual-decoded-frame-visual-demo.md)
-- [Step 43A — Honda `/info` Type111 differential](43a-honda-info-type111-differential.md)
-- [Step 43S — Honda runtime readiness review](43s-honda-runtime-readiness-review.md)
-- [Step 43S1 — executable trampoline and listener proof](43s1-executable-trampoline-listener-proof.md)
-- [Step 43S2 — native helper / reentrancy readiness](43s2-native-helper-reentrancy-readiness.md)
-- [Step reports](README.md)
-- [Step 5 run status](RUN_STATUS.md)
+
+</details>
+
+### Type111, current-iOS, and runtime readiness (Step 43 onward)
+
+<details>
+<summary>38 preserved reports</summary>
+
+- [Step 43A — Honda `/info` Type111 differential audit](43a-honda-info-type111-differential.md)
+- [Step 43B — Honda Screen property sources and descriptor xrefs](43b-screencopymain-property-source-trace.md)
+- [Step 43C — Honda ForceKeyFrame semantics](43c-forcekeyframe-semantics.md)
+- [Step 43D — Honda SETUP stream identity trace](43d-setup-stream-identity-correlation.md)
+- [Step 43E — Honda post-Setup / pre-serialization seam audit](43e-post-setup-response-seam.md)
+- [Step 43F — post-Setup caller liveness and CF cleanup guarantees](43f-caller-liveness-cf-cleanup.md)
+- [Step 43G — Honda CF callbacks and failure cleanup edges](43g-cf-callbacks-failure-cleanup.md)
+- [Step 43G — Setup CF ownership and connection failure cleanup](43g-setup-cf-ownership-and-network-cleanup.md)
+- [Step 43H — CF callback fingerprint and serialization boundary](43h-cf-callback-fingerprint.md)
+- [Step 43H — HTTP commit failure and project-child cleanup lifecycle](43h-http-commit-and-session-cleanup.md)
+- [Step 43I — Honda session delegate and finalizer audit](43i-honda-session-delegate-finalizer.md)
+- [Step 43J — Honda platform lifecycle seam (offline)](43j-platform-lifecycle-seam.md)
+- [Step 43K — offline project-session registry](43k-offline-project-session-registry.md)
+- [Step 43L — Honda post-Setup child transaction seam](43l-post-setup-transaction-seam.md)
+- [Step 43L.1 — callout safety and project-child cleanup reachability](43l1-callout-safety-cleanup-reachability.md)
+- [Step 43L.2 — session finalizer extension and cleanup attachment audit](43l2-session-finalizer-extension-audit.md)
+- [Step 43M — existing-call wrapper seam (offline, 2026-10-01)](43m-existing-call-wrapper-seam.md)
+- [Step 43N — trampoline model and Type111 oracle evidence (offline)](43n-trampoline-and-type111-oracle.md)
+- [Step 43O — isolated PlayPort Type111 lab](43o-playport-type111-lab.md)
+- [Step 43P authentication and preflight](43p-authentication-preflight.md)
+- [Step 43P — current-iOS Type111 oracle session](43p-current-ios-type111-oracle.md)
+- [Step 43Q-A — offline legacy dual-screen crypto/session twin](43q-a-legacy-dual-screen-crypto-twin.md)
+- [Step 43Q-B — offline synthetic Type111 generation and lifecycle twin](43q-b-type111-lifecycle-twin.md)
+- [Step 43R — offline Type111 SETUP response/listener contract](43r-type111-setup-listener-contract.md)
+- [Step 43S — Honda runtime attachment and Type111 negotiation readiness review](43s-honda-runtime-readiness-review.md)
+- [Step 43S1 — executable trampoline and real-listener contract proof](43s1-executable-trampoline-listener-proof.md)
+- [Step 43S2 — native helper / reentrancy proof (2026-10-02)](43s2-native-helper-reentrancy-readiness.md)
+- [43T0 — ECC preflight safety review (offline)](43t0-ecc-preflight-review.md)
+- [Step 43T0-A — offline 40E network / G11 reanalysis](43t0a-40e-network-evidence-reanalysis.md)
+- [Step 43T0-B — ECC review of exact G11 network delta](43t0b-exact-delta-ecc-review.md)
+- [Step 43T0-C — identity-gated delta dry run and ECC re-review](43t0c-identity-gated-delta-ecc-review.md)
+- [STEP 43T0-DPREP — OFFLINE LIVE-CAPTURE ANALYSIS PIPELINE](43t0d-prep-offline-analysis-pipeline.md)
+- [Step 43T0-D — read-only network delta, fail-closed preflight](43t0d-read-only-honda-network-delta.md)
+- [Step 43T0-D0 — executable collector build and ECC equivalence review](43t0d0-executable-collector-ecc-review.md)
+- [Step 43T0-D1 — live read-only route-header format stop and offline correction](43t0d1-route-header-format-stop.md)
+- [Step 43T0-D2 — zero-argument ifconfig stops read-only baseline](43t0d2-zero-argument-ifconfig-stop.md)
+- [Step 43T0-D3 — offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
+- [Step 43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md)
+
+</details>
+
+### Maintenance and repository health
+
+<details>
+<summary>1 preserved reports</summary>
+
+- [Repository organization and GitHub health review](repository-organization-and-github-health.md)
+
+</details>
+
+## Supporting files
+
+- [`RUN_STATUS.md`](RUN_STATUS.md) is a historical support record.
+- The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.

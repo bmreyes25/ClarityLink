@@ -23,10 +23,25 @@ body:
       label: Expected and actual behavior
     validations:
       required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, relevant version/commit, and tool versions. Omit vehicle identifiers.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove credentials, personal data, endpoints, MAC addresses, and private captures. Do not attach firmware or raw vehicle data.
+    validations:
+      required: false
   - type: dropdown
     id: vehicle
     attributes:
       label: Vehicle interaction
+      description: Did the reproduction involve vehicle access?
       options:
         - NONE — offline only
         - READ-ONLY

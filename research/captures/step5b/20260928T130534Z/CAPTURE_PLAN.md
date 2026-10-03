@@ -6,7 +6,7 @@ This revised plan replaces the original analyzer-first ordering. The objective i
 
 ## A. Read-only display inventory — completed
 
-ADB connected to `192.168.86.102:5555`; root was confirmed. The vehicle was queried read-only. No settings, files, buses, or firmware were changed. Findings are summarized in `research/cluster-display-diagnostics.md`; raw outputs remain local/ignored under `research/captures/display-diagnostics/20260928T-adb-session/`.
+ADB connected to `[REDACTED-PRIVATE-ENDPOINT]:5555`; root was confirmed. The vehicle was queried read-only. No settings, files, buses, or firmware were changed. Findings are summarized in `research/cluster-display-diagnostics.md`; raw outputs remain local/ignored under `research/captures/display-diagnostics/20260928T-adb-session/`.
 
 ## B. Read-only display inventory
 

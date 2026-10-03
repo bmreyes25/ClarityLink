@@ -34,4 +34,4 @@ Design a bounded read-only observation of the `mc_devs` registry. Documentation 
 - [Runtime layout](../research/carplay/runtime-registry-layout.md)
 - [Runtime registry evidence/status](../research/carplay/runtime-device-registry.md)
 
-The reader source and offline review are in [Step 22](../../step-reports/22-registry-reader-implementation.md). ARMv7 target build and target syscall permission/support remain unverified; do not execute on the car until separately reviewed.
+The reader source and offline review are in [Step 22](22-registry-reader-implementation.md). ARMv7 target build and target syscall permission/support remain unverified; do not execute on the car until separately reviewed.

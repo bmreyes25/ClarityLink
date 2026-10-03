@@ -18,9 +18,16 @@ body:
     validations:
       required: true
   - type: textarea
+    id: evidence_classes
+    attributes:
+      label: Acceptable evidence classes
+      description: Name which classes can answer this question, such as Honda evidence or external prior art.
+    validations:
+      required: true
+  - type: textarea
     id: bounds
     attributes:
       label: Scope and stop condition
-      description: Define what is out of scope and what result closes the task.
+      description: Define scope, exclusions, stop conditions, and what result closes the task.
     validations:
       required: true
