@@ -12,7 +12,7 @@ Repository settings reviewed and updated on 2026-10-03 for the listener security
 | Secret scanning | **VERIFIED — DISABLED** | API reports disabled. Owner should enable secret scanning. |
 | Push protection | **VERIFIED — DISABLED** | API reports disabled. Enable after reviewing the project's deliberate synthetic/test fixtures and ignore policy. |
 | Private vulnerability reporting | **VERIFIED — DISABLED** | API reports disabled. Enable it so `SECURITY.md` has a private repository route. |
-| Code scanning default setup | **NOT CONFIGURED** | API reports `not-configured`. A CodeQL workflow is included in the repository; owner should confirm its first successful run and resulting alert visibility. |
+| Code scanning default setup | **NOT CONFIGURED** | API reports `not-configured`; the tracked CodeQL workflow nevertheless completed successfully on 2026-10-03, and the wildcard listener alert is fixed by the code change. |
 | Branch protection | **VERIFIED — CONFIGURED** | `main` blocks force pushes and deletion. Required status checks and PR reviews are not enabled; direct pushes remain allowed. Admin enforcement is enabled. |
 | Action allowlist / SHA pinning | **VERIFIED — RECOMMENDED** | API reports all actions allowed and SHA pinning not required. Consider narrowing allowed actions and requiring full commit-SHA pins under the project's maintenance policy. |
 
