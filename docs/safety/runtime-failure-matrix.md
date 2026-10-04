@@ -216,3 +216,19 @@ These rows govern public-artifact sourcing and static review. Existing Rules v2 
 | Candidate artifact modified during analysis | Repacked/altered source artifact or checksum changes | Provenance/integrity lost | Read-only copy; record initial hash; work only on derived metadata | Yes offline | No | Integrity should be verified |
 | Partial Type111 implementation overclaimed as complete | Dispatch or second screen alone treated as full positive | Lifecycle/security/Type110 assumptions unsupported | Gate A requires linked response, screen, security, listener/media, teardown and Type110 path | Yes offline | No | Checklist-defined |
 | Receiver version mismatch | Notes from another version attributed to candidate build | Incorrect lineage or protocol conclusion | Pin exact version/hash and scope findings to inspected build | Yes offline | No | Current candidate binary absent |
+
+## 43T1-R5Y reusable sandbox failures
+
+These rows extend the R5X mock-security and mock-display overclaim controls above. They describe host-model limits, not target recovery.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Abstract adapter mistaken for Honda adapter | Protocol type treated as an implemented integration | R3C gate bypassed | Keep target adapter absent; require new Honda-specific evidence and separate review | Yes offline | No | `MODEL_ONLY` |
+| Synthetic serializer mistaken for CarPlay wire format | Canonical JSON snapshot cited as Setup body | False compatibility claim | Require `SYNTHETIC_MODEL_SERIALIZER` / `NOT_CARPLAY_WIRE_FORMAT` tags | Yes offline | No | `MODEL_ONLY` |
+| Resource-model success mistaken for runtime safety | Python counts reach zero and are called target cleanup proof | Leak/restoration risks hidden | Limit claim to model objects; require independent target lifecycle evidence | Yes offline | No | `MODEL_ONLY`; target `UNKNOWN` |
+| 100-cycle host test mistaken for vehicle soak | Fast deterministic loop cited as car endurance result | Stale/thermal/crash behavior overlooked | Label lifecycle invariant test, not runtime benchmark | Yes offline | No | `MODEL_ONLY` |
+| Future adapter interface mistaken for implementation permission | New Protocol prompts target code or experiment | Unauthorized runtime activity | R3C and Rules v2 remain governing; interface grants no authorization | Yes offline | No | Governance rule |
+| Static scope firewall bypass | Dynamic import/call, symlink, or unrecognized device API evades lexical AST guard | Deployable or target-capable code enters sandbox | Reject dynamic loading and symlinks; review staged diff and keep tests/CodeQL | Partly; static guard is not complete proof | No | `MODEL_ONLY` guard |
+| Stale-generation resource destruction | Old frame, listener or teardown acts on newer child | New display/resource lost | Exact-generation lookup/rejection and reconnect tests | Yes in model | No | `MODEL_ONLY` |
+| Partial initialization leak | Fault between child allocations leaves earlier mock active | Orphaned listener/security/display | Register each mock immediately; cleanup on every failure point; assert zero counts | Yes in model | No | `MODEL_ONLY` |
+| Secondary failure corrupts primary model | Rollback changes primary object or serialized primary snapshot | Type110 preservation contract broken | Identity and canonical snapshot oracle across all failure classes | Yes in model | No | `MODEL_ONLY`; Honda coexistence `UNKNOWN` |

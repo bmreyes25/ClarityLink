@@ -1,0 +1,43 @@
+{
+  "evidence": "MODEL_ONLY",
+  "expect": {
+    "final_state": "CLOSED",
+    "primary_preserved": true,
+    "secondary_total": 0
+  },
+  "name": "secondary_failure_primary_survives",
+  "steps": [
+    {
+      "generation": 1,
+      "op": "create",
+      "session_id": "session-001"
+    },
+    {
+      "enabled": true,
+      "generation": 1,
+      "op": "setup",
+      "secondary": true
+    },
+    {
+      "generation": 1,
+      "op": "start"
+    },
+    {
+      "generation": 1,
+      "op": "frame",
+      "sequence": 1,
+      "symbol": "frame-001"
+    },
+    {
+      "fault": "mid_stream_frame",
+      "generation": 1,
+      "op": "frame",
+      "sequence": 2,
+      "symbol": "frame-002"
+    },
+    {
+      "generation": 1,
+      "op": "teardown"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "evidence": "MODEL_ONLY",
+  "expect": {
+    "final_state": "CLOSED",
+    "primary_preserved": true,
+    "secondary_total": 0
+  },
+  "name": "rapid_reconnect",
+  "steps": [
+    {
+      "generation": 1,
+      "op": "create",
+      "session_id": "session-001"
+    },
+    {
+      "enabled": true,
+      "generation": 1,
+      "op": "setup",
+      "secondary": true
+    },
+    {
+      "generation": 2,
+      "op": "create",
+      "session_id": "session-002"
+    },
+    {
+      "enabled": true,
+      "generation": 2,
+      "op": "setup",
+      "secondary": true
+    },
+    {
+      "generation": 3,
+      "op": "create",
+      "session_id": "session-003"
+    },
+    {
+      "enabled": true,
+      "generation": 3,
+      "op": "setup",
+      "secondary": true
+    },
+    {
+      "generation": 3,
+      "op": "start"
+    },
+    {
+      "generation": 3,
+      "op": "frame",
+      "sequence": 1,
+      "symbol": "frame-001"
+    },
+    {
+      "generation": 3,
+      "op": "teardown"
+    }
+  ]
+}

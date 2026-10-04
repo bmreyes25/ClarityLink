@@ -2,6 +2,8 @@
 
 ## Current snapshot — 2026-10-04
 
+- **R5Y:** the reusable host-only Type111 receiver-core sandbox is complete at `MODEL_ONLY` / `NOT_DEPLOYABLE`. Typed state, Setup rollback, Type110 synthetic preservation, exact-generation cleanup, mock media/display, replay, resource accounting and future adapter contracts are covered by host tests. See the [R5Y report](step-reports/43t1-r5y-reusable-type111-receiver-core-sandbox.md). This changes no Honda evidence, does not reopen R3C, and authorizes no runtime or car action. Future Honda-specific evidence would map to narrow adapters; none exists. Continue lawful public artifact research under R5B's unresolved evidence gate.
+
 - **R5B:** public research found a closely related Civic/Andromeda family and public version metadata (`1.F1A5.15`), but no lawful, versioned descendant receiver payload was obtained. No Type111 binary triage was possible. Decision: `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`; recommendation: `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. R3C runtime NO-GO remains in force, R5X remains MODEL_ONLY, and R4D ordinary-app Display 1 remains possible but unproven. No vehicle action is authorized. See [R5B report](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md).
 
 - **R5X:** a host-only theoretical Type111 receiver patch sandbox is complete at `MODEL_ONLY`. It did not patch `jmcs`, prove Honda Type111, create a real listener/receiver, or authorize a car experiment. See the [R5X report](step-reports/43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md). R3C still controls `jmcs`/Type111 runtime NO-GO; R4D Display 1 app admission remains unproven and offline static research remains the technical next step.

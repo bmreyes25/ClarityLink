@@ -1,0 +1,7 @@
+# R5Y — resource ownership and cleanup
+
+`CleanupManager` owns an optional `_OwnedSecondary` bundle under exactly one `SessionGeneration`. The parent `PrimaryStreamState` is never registered as a child resource. The bundle can be partially initialized; every acquired mock is stored immediately. A setup failure calls cleanup before aborting the transaction. A stream failure clears display and cleans only the child. Teardown is exact-generation and idempotent. A stale teardown cannot remove a later bundle.
+
+Cleanup order is fixed: stop symbolic media; clear and close display; close decoder; destroy mock security; close listener; mark secondary stream inactive; remove the generation bundle. Synthetic teardown fault injection records `injected_teardown` while the built-in mocks still close. Unexpected future adapter close exceptions are recorded as sanitized error types; they do not prove a target resource was released and require adapter-specific review before any readiness claim.
+
+`ResourceSnapshot` counts open sessions, secondary streams, listeners, security contexts, decoders, display sinks, pending transactions, and unresolved ownership bundles. A built-in injected teardown fault still closes all mocks. An actual future adapter close exception leaves the bundle counted as unresolved; a repeated teardown retries it. Complete teardown must return zero for all project-owned secondary counts and zero open sessions. A 100-cycle host test checks this after each generation. These counts are Python model objects, not process descriptors or Honda resources.

@@ -1,0 +1,30 @@
+{
+  "evidence": "MODEL_ONLY",
+  "expect": {
+    "final_state": "CLOSED",
+    "primary_preserved": true,
+    "secondary_total": 0
+  },
+  "name": "duplicate_teardown",
+  "steps": [
+    {
+      "generation": 1,
+      "op": "create",
+      "session_id": "session-001"
+    },
+    {
+      "enabled": true,
+      "generation": 1,
+      "op": "setup",
+      "secondary": true
+    },
+    {
+      "generation": 1,
+      "op": "teardown"
+    },
+    {
+      "generation": 1,
+      "op": "teardown"
+    }
+  ]
+}
