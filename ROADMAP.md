@@ -4,7 +4,7 @@
 
 ## Current engineering stage
 
-The latest completed milestone is **43T1-R4C offline Display 1 access static review**. AOSP API17 offers a public `Presentation` candidate, but ordinary-app access to Honda Display 1, priority against Honda windows, physical safe area and warning visibility remain unproven. R4D is limited to more offline static display-policy and package-grant research. Expanded R3C closed current `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4C report](step-reports/43t1-r4c-display1-access-static-review.md), [matrix](research/runtime/43t1-r4c-display-access-matrix.md), and [feasibility gate](research/runtime/43t1-r4c-independent-display-app-feasibility-gate.md).
+The latest completed milestone is **43T1-R4D/R5A Display 1 policy and Type111 recovery research**. API17 `Presentation` remains possible but unproven for ordinary apps on Honda; the preserved permission snapshot and incomplete Honda policy evidence do not establish admission or safe warning z-order. R5A found promising descendant families but no Honda Type111-positive binary. Expanded R3C still controls `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. The next step is lawful public artifact/version research. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4D/R5A report](step-reports/43t1-r4d-r5a-display-policy-and-type111-recovery.md), [decision matrix](research/runtime/r4d-r5a-next-path-decision-matrix.md), and [R4D admission gate](research/runtime/43t1-r4d-ordinary-app-display1-admission-gate.md).
 
 ## Historical receiver target (superseded by R3C/R4A)
 

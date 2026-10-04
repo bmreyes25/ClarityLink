@@ -1,5 +1,6 @@
 ## Current / latest milestones
 
+- [43T1-R4D/R5A — Display policy and Type111 recovery research](43t1-r4d-r5a-display-policy-and-type111-recovery.md) — offline only; ordinary Display 1 admission possible but unproven; no Honda descendant Type111-positive binary found; next public artifact research.
 - [43T1-R4C offline Display 1 access static review](43t1-r4c-display1-access-static-review.md) — current decision; R4D more static display research next
 - [43T1-R4B host-only synthetic turn-card renderer model](43t1-r4b-host-turn-card-renderer-model.md) — host-model evidence only
 - [43T1-R4A offline architecture pivot](43t1-r4a-post-interposition-architecture-pivot.md) — selected host-only renderer direction
