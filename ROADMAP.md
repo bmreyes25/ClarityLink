@@ -4,7 +4,7 @@
 
 ## Current engineering stage
 
-[R5C public artifact provenance expansion](step-reports/43t1-r5c-public-artifact-provenance-expansion.md) is the latest research milestone: `R5C_NEW_HIGH_CONFIDENCE_ARTIFACT_LEAD_FOUND` / `GO_FOR_R5D_ARTIFACT_PROVENANCE_CLOSURE`. Honda bulletin 19-101 identifies `1.F197.60` (2016 Civic) and `1.F196.39` (2017 Civic) for specific EX/EX-T/Touring 2/4-door units, but its dealer workflow does not expose a public receiver payload. The preceding R5B result was no lawful analyzable artifact; its 2021 Civic EX `1.F1A5.15` Andromeda/vcm30t30 family remains a related lead. R3C runtime `jmcs`/Type111 NO-GO remains controlling; R4D ordinary-app Display 1 remains possible but unproven; R5X and R5Y remain host-only models. Rules v2 governs and only offline/public provenance research is authorized.
+[R5D artifact provenance closure](step-reports/43t1-r5d-artifact-provenance-closure.md) is the latest canonical research milestone: `R5D_HIGH_CONFIDENCE_PACKAGE_LEAD_FOUND` / `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. A reproduced EU Civic bulletin names MELCO MRC12.4, `1.F197.70` and `MRC_EU_SW_v12_4.zip`, but original PANEX access is gated and an available mirror lacks authenticated custody. The official US Civic `1.F197.60`/`1.F196.39` pair remains VIN/dealer selected. No lawful analyzable descendant receiver payload or Type111 triage resulted. Next research should seek original publisher hash/custody or a different publicly hosted package. R3C runtime `jmcs`/Type111 NO-GO controls; R4D Display 1 remains possible but unproven; R5X/R5Y and separate R5Z remain host-only models. Rules v2 governs and only offline/public research is authorized.
 
 ## Historical receiver target (superseded by R3C/R4A)
 

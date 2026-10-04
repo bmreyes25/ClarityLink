@@ -1,5 +1,6 @@
 ## Current / latest milestones
 
+- [43T1-R5D — artifact provenance closure](43t1-r5d-artifact-provenance-closure.md) — named EU Civic MELCO package lead; no authenticated receiver payload
 - [43T1-R5C — public artifact provenance expansion](43t1-r5c-public-artifact-provenance-expansion.md) — official Civic version lead; no lawful analyzable receiver package
 - [43T1-R5C — repository hygiene and state normalization](43t1-r5c-repository-hygiene-and-state-normalization.md) — R3 preserved, R5Y committed separately, state normalized
 - [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md) — preceding public research result; no lawful analyzable receiver payload
@@ -21,7 +22,7 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current research decision: [43T1-R5C](43t1-r5c-public-artifact-provenance-expansion.md) recommends public artifact provenance closure. [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
+- Current research decision: [43T1-R5D](43t1-r5d-artifact-provenance-closure.md) recommends further public package custody research. [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones

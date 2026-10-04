@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 from check_r5y_sandbox_boundary import check_tree as check_r5y_sandbox_tree
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_MILESTONE = "R5C"  # Advance with the current-state documents.
+CURRENT_MILESTONE = "R5D"  # Advance with the current-state documents.
 REQUIRED_PATHS = (
     "README.md",
     "CONTRIBUTING.md",

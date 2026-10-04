@@ -1,0 +1,18 @@
+# R5D Civic version lineage closure
+
+Research date: 2026-10-04. `OFFICIAL` means a Honda-authored bulletin on NHTSA; `PUBLIC_RESEARCH` means a named researcher's published observation; `INFERENCE` is explicitly unverified. The [source ledger](r5d-source-provenance-ledger.md) gives URLs and access boundaries.
+
+| Identifier | Vehicle / scope | Evidence class | What is established | Open link |
+|---|---|---|---|---|
+| `1.F197.60` | 2016 Civic EX/EX-T/Touring, 2/4 door | OFFICIAL | Honda bulletin 19-101 lists this completed version; VIN/trim-selected dealer download | No public package filename, hash, or receiver inventory |
+| `1.F196.39` | 2017 Civic EX/EX-T/Touring, 2/4 door | OFFICIAL | Same bulletin lists this distinct completed version | Same gap; not interchangeable with 2016 |
+| `39101-TBA-A21` | 19-101 warranty failed-part field | OFFICIAL | A failed-part number in the claim table | Does not identify every affected installed head unit; catalog shows other trim/navigation-specific numbers |
+| `1.F197.00` | 2017 Civic bulletin 18-001 | OFFICIAL | Honda screenshot identifies Mitsubishi Electric ADA component and this software-loader target | No public update payload or proof of same build as 19-101 |
+| `1.F197.70` | European Civic MELCO units, 2017 onward, per reproduced ST-10-005-02 | PUBLIC_RESEARCH (Honda-styled bulletin hosted by forum) | Bulletin copy gives exact version, affected body/model codes, MRC12.4 label, and PANEX package name | Original bulletin custody, official package bytes/hash and Clarity relation remain unverified |
+| `MRC_EU_SW_v12_4.zip` | European Civic MRC12.4 update | PUBLIC_RESEARCH | Reproduced bulletin says PANEX `Download Area > Software download > Honda Connect > Mitsubishi Audio Units > Civic 2017YM...`; about 900 MB / 62 items | PANEX is gated; forum MediaFire copy has no publisher hash or custody proof; no download |
+| `1.F1A5.15` | 2021 Civic EX Hatchback 4D | PUBLIC_RESEARCH | `ic1101` records DA version and ROM type `1115` | No matching official bulletin, package, receiver binary or proven relationship to MRC12.4 |
+| `1.F1A2.45` | Preserved 2018 Clarity MY16ADA | Project-preserved static evidence | Target build in Clarity `jmcs` notes | Similar syntax alone proves no Civic code ancestry |
+
+Honda's [19-101](https://static.nhtsa.gov/odi/tsbs/2019/MC-10169058-0001.pdf) explicitly says the update is specific to year and trim and requires the vehicle VIN in its dealer downloader. [18-001](https://static.nhtsa.gov/odi/tsbs/2018/MC-10141166-9999.pdf) displays a Mitsubishi Electric ADA component alongside `1.F197.00`. The [reproduced Spanish ST-10-005-02 bulletin](https://www.civicx.com/forum/attachments/25-05-2021-st-10-005-02-actualizaci%C3%B3n-del-software-de-honda-connect-pdf.412084/) states the MELCO scope, `1.F197.70` and package name. Its hosting does not establish it as an authenticated Honda distribution copy. [ic1101 update research](https://github.com/librick/ic1101/blob/main/docs/updates.md) corroborates the version and describes `SwUpdate.mdt`, `SwUpdate.txt`, and `SwUpdate2.txt` conventions for examined Civic software; it does not supply an authenticated package here.
+
+**Branch verdict:** `.60 → .70` is `UNKNOWN`: different markets/vehicle scopes and no before/after binary comparison. `1.F1A5.15` as descendant/sibling is `UNKNOWN`: matching version syntax and a common family description are insufficient. `SwUpdate.mdt` is a research-described inner archive name, not proof that any given package contains a full image, a delta, or `jmcs`. Package contents and receiver/MediaCore relationship remain `UNKNOWN` pending authenticated static inventory.
