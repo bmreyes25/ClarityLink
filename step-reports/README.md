@@ -1,7 +1,8 @@
 ## Current / latest milestones
 
-- [43T1-R5C — repository hygiene and state normalization](43t1-r5c-repository-hygiene-and-state-normalization.md) — protected R3 and concurrent R5Y work; repository disposition pending
-- [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md) — latest completed public research result; no lawful analyzable receiver payload
+- [43T1-R5C — public artifact provenance expansion](43t1-r5c-public-artifact-provenance-expansion.md) — official Civic version lead; no lawful analyzable receiver package
+- [43T1-R5C — repository hygiene and state normalization](43t1-r5c-repository-hygiene-and-state-normalization.md) — R3 preserved, R5Y committed separately, state normalized
+- [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md) — preceding public research result; no lawful analyzable receiver payload
 - [43T1-R5Y — reusable Type111 receiver-core sandbox](43t1-r5y-reusable-type111-receiver-core-sandbox.md) — completed separately at `a88d679`; host-only model, Honda adapters absent
 - [43T1-R5X — theoretical jmcs Type111 patch sandbox](43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md) — host-only `MODEL_ONLY`; R3C runtime NO-GO and R4D Display 1 unknowns remain
 - [43T1-R4D/R5A — Display policy and Type111 recovery research](43t1-r4d-r5a-display-policy-and-type111-recovery.md) — offline only; ordinary Display 1 admission possible but unproven; no Honda descendant Type111-positive binary found; next public artifact research.
@@ -20,7 +21,7 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current static-entry decision: [43T1-R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
+- Current research decision: [43T1-R5C](43t1-r5c-public-artifact-provenance-expansion.md) recommends public artifact provenance closure. [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
@@ -214,7 +215,3 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 
 - [`RUN_STATUS.md`](RUN_STATUS.md) is a historical support record.
 - The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.
-
-- [43T1-R3C — session-addressable static seam closure](43t1-r3c-session-addressable-static-seam-closure.md)
-
-- [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md)

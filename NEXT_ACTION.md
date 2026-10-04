@@ -2,11 +2,9 @@
 
 ## Current action
 
-**Latest completed public research milestone:** [43T1-R5B public Honda/Acura artifact research](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md). Decision: `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`; recommendation: `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. The strongest related lead is the later Civic Andromeda/vcm30t30 family, especially the 2021 Civic EX `1.F1A5.15` metadata. A lawful analyzable receiver payload is still missing; no descendant `jmcs` was analyzed. See the [acquisition log](research/runtime/r5b-artifact-acquisition-log.md) and [evidence gate](research/runtime/r5b-honda-descendant-evidence-gate.md).
+**Latest completed public research milestone: [43T1-R5C Honda/Acura artifact provenance expansion](step-reports/43t1-r5c-public-artifact-provenance-expansion.md).** Decision: `R5C_NEW_HIGH_CONFIDENCE_ARTIFACT_LEAD_FOUND`; recommendation: `GO_FOR_R5D_ARTIFACT_PROVENANCE_CLOSURE`. Honda bulletin 19-101 officially identifies `1.F197.60` for 2016 and `1.F196.39` for 2017 Civic EX/EX-T/Touring 2/4-door units. Its VIN-dependent dealer downloader does not expose a public payload. No lawful analyzable receiver artifact was obtained. See the [provenance graph](research/runtime/r5c-public-artifact-provenance-graph.md) and [candidate table](research/runtime/r5c-public-artifact-candidates.md).
 
-R5X is a completed host-only `MODEL_ONLY` sandbox and does not prove Honda Type111. R4D ordinary-app Display 1 remains possible but unproven. R3C's runtime `jmcs`/Type111 NO-GO remains controlling. Rules v2 governs. Current authorization is offline/public artifact research only; no Honda, ADB, runtime, installation, or vehicle work is authorized.
-
-R5Y subsequently completed as a separate host-only `MODEL_ONLY` sandbox at `a88d679`. It does not change the R5B artifact conclusion or the R3C boundary.
+R5B's preceding result was `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`; the 2021 Civic EX `1.F1A5.15` Andromeda/vcm30t30 family remains the strongest existing lineage lead. R5X and R5Y are completed host-only models and do not prove Honda Type111. R4D ordinary-app Display 1 remains possible but unproven. R3C's runtime `jmcs`/Type111 NO-GO remains controlling. Rules v2 governs. Current authorization is offline/public artifact provenance research only; no Honda, ADB, runtime, installation, or vehicle work is authorized.
 
 ## Historical context
 

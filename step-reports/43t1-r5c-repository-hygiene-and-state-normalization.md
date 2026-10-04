@@ -22,4 +22,4 @@ The baseline `.gitignore` already has a root allowlist, private capture exclusio
 
 ## Phase A decision
 
-**Repo hygiene decision: `R5C_REPO_CLEAN`** after the R3 historical draft and R5C state documents are committed and the worktree is verified clean. R5Y resolved independently at `a88d679`, so R5C can stage only its own files. The final commit hashes and status are recorded after verification. Phase B begins only after that clean state is reached. No Honda/ADB/runtime action was performed during Phase A.
+**Repo hygiene decision: `R5C_REPO_CLEAN`.** R5Y resolved independently at `a88d67960cb692c9058662b1757c73529133e80b`. R5C committed the R3 historical draft, ignore rules, audit, and state normalization at `07621b1c8c08a7e15c12037bd17427b6767c035c`, without staging R5Y. `git status --short` was empty immediately after the Phase A commit. No tracked dirty or untracked user files remained; ignored local recovery metadata remains local only. Phase B began after this clean boundary. No Honda/ADB/runtime action was performed during Phase A.

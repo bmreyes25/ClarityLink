@@ -56,5 +56,8 @@ The checkout changed during inspection: `ROADMAP.md`, the R5Y report, and the ig
 | `tests/sandbox/test_r5y_replay_and_boundary.py` | untracked | CURRENT_VALID_WORK | R5Y concurrent host-only sandbox | draft document or R5Y source/fixture | No; R5X model does not replace this work | Potentially, after standalone R5Y review | Temporarily | Preserve untouched; exclude from R5C staging |
 | `tests/sandbox/test_receiver_core.py` | untracked | CURRENT_VALID_WORK | R5Y concurrent host-only sandbox | draft document or R5Y source/fixture | No; R5X model does not replace this work | Potentially, after standalone R5Y review | Temporarily | Preserve untouched; exclude from R5C staging |
 | `ROADMAP.md` | tracked modified | STALE_STATE_TEXT | R4D/R5A, R5B, concurrent R5Y | state/index/safety/checker edits | R5B supersedes latest R4D/R5A wording | Yes | No | Normalize one current section; preserve dated history |
-| `step-reports/43t1-r5y-reusable-type111-receiver-core-sandbox.md` | untracked | CURRENT_VALID_WORK | R5Y concurrent host-only sandbox | draft document or R5Y source/fixture | No; R5X model does not replace this work | Potentially, after standalone R5Y review | Temporarily | Preserve untouched; exclude from R5C staging |
 | `tools/check_r5y_sandbox_boundary.py` | untracked, ignored by /tools/* | CURRENT_VALID_WORK | R5Y concurrent host-only sandbox | draft document or R5Y source/fixture | No; R5X model does not replace this work | Potentially, after standalone R5Y review | Temporarily | Preserve untouched; exclude from R5C staging |
+
+## Subsequent resolution
+
+R5Y was committed independently at `a88d67960cb692c9058662b1757c73529133e80b`, matching `origin/main` before R5C Phase A committed. The six R3 historical files and state normalization were committed in `07621b1c8c08a7e15c12037bd17427b6767c035c`. This table intentionally records the initial dirty classification; the subsequent commits resolved those paths without deleting the drafts.

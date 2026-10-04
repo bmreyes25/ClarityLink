@@ -4,9 +4,7 @@
 
 ## Current engineering stage
 
-The latest completed public research milestone is [R5B public artifact research](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md): `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND` / `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. The 2021 Civic EX `1.F1A5.15` metadata is the strongest related lead; no lawful analyzable receiver payload has been found. R3C's `jmcs`/Type111 runtime NO-GO remains controlling, R4D ordinary-app Display 1 remains possible but unproven, and [R5X](step-reports/43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md) remains a host-only model. Rules v2 governs. Only offline/public research is authorized.
-
-A separate [R5Y host-only receiver-core sandbox](step-reports/43t1-r5y-reusable-type111-receiver-core-sandbox.md) completed at `a88d679` during R5C inventory. It is a model, not Honda integration, and does not change the current evidence gate.
+[R5C public artifact provenance expansion](step-reports/43t1-r5c-public-artifact-provenance-expansion.md) is the latest research milestone: `R5C_NEW_HIGH_CONFIDENCE_ARTIFACT_LEAD_FOUND` / `GO_FOR_R5D_ARTIFACT_PROVENANCE_CLOSURE`. Honda bulletin 19-101 identifies `1.F197.60` (2016 Civic) and `1.F196.39` (2017 Civic) for specific EX/EX-T/Touring 2/4-door units, but its dealer workflow does not expose a public receiver payload. The preceding R5B result was no lawful analyzable artifact; its 2021 Civic EX `1.F1A5.15` Andromeda/vcm30t30 family remains a related lead. R3C runtime `jmcs`/Type111 NO-GO remains controlling; R4D ordinary-app Display 1 remains possible but unproven; R5X and R5Y remain host-only models. Rules v2 governs and only offline/public provenance research is authorized.
 
 ## Historical receiver target (superseded by R3C/R4A)
 

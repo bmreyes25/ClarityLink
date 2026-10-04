@@ -228,6 +228,13 @@ These rows govern public-artifact sourcing and static review. Existing Rules v2 
 | Partial Type111 implementation overclaimed as complete | Dispatch or second screen alone treated as full positive | Lifecycle/security/Type110 assumptions unsupported | Gate A requires linked response, screen, security, listener/media, teardown and Type110 path | Yes offline | No | Checklist-defined |
 | Receiver version mismatch | Notes from another version attributed to candidate build | Incorrect lineage or protocol conclusion | Pin exact version/hash and scope findings to inspected build | Yes offline | No | Current candidate binary absent |
 
+## 43T1-R5C public provenance boundaries
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Official version mistaken for authentic mirror | Honda bulletin version matches a forum file name but no original package hash or custody chain exists | Unverified or misattributed payload enters analysis | Keep `RESEARCH_METADATA_ONLY`; require original public publisher chain, hash, and access terms | Yes offline | No | `OFFICIAL_SOURCE` version; binary provenance `UNKNOWN` |
+| Dealer/portal gate treated as public artifact access | VIN-specific dealer downloader or vehicle-generated portal file is required | Unapproved vehicle/credential activity or false public-availability claim | Stop at public workflow documentation; no fabricated input or access-control bypass | Yes offline | No | Public workflow documented; package `UNKNOWN` |
+
 ## 43T1-R5Y reusable sandbox failures
 
 These rows extend the R5X mock-security and mock-display overclaim controls above. They describe host-model limits, not target recovery.
