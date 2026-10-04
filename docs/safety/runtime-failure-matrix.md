@@ -42,6 +42,20 @@
 
 Any unrecognized state, incomplete observation, host loss, timeout, changed thread set, unknown byte, mismatched generation, or failed independent verifier yields `UNKNOWN` and prohibits transition to `VERIFIED` or `DETACHED`. Never infer “volatile means safe” or “reboot means stock” without post-event observation.
 
+## Staged prototype governance failures
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Backups mistaken for safety proof | Backup exists but restore path, completeness, or independent verification is unproven | Irrecoverable or partial change is treated as safe | Treat backup as necessary only; require tested rollback and independent post-state verification in the exact plan | No | Unknown | `UNKNOWN` |
+| Host tests mistaken for Honda proof | Model or suite passes and is cited as target behavior | Unsupported target assumptions become deployment claims | Preserve `MODEL_ONLY`; obtain evidence at the correct level before promotion | Yes for evidence review | No | `MODEL_ONLY` |
+| Staged prototype gate skipped | Work jumps from offline research to device/vehicle activity | Unknown display, lifecycle, warning, or restoration hazards | Stop; require all workflow checks and exact written plan before any target step | Yes before action | No | `UNKNOWN` |
+| Implicit live-car authorization | Prior milestone or general project goal is treated as permission | Unreviewed commands/actions occur on a vehicle | No vehicle step automatically; require explicit user authorization for the exact written plan | Yes before action | No | `UNKNOWN` |
+| Unclear rollback | Plan lacks exact reversal actions or verified stock check | Modified or uncertain state remains after failure | Do not start; define rollback, stop conditions, and post-session stock verification | No | Unknown | `UNKNOWN` |
+| Stock restoration not verified | Prototype ends but center/cluster behavior is not checked | Degraded or altered stock behavior goes unnoticed | Stop and follow the approved recovery plan; record outcome as unknown until verified | No | Unknown | `UNKNOWN` |
+| Warning visibility not checked | Physical warning/status areas or priority remain unknown | Safety information may be covered or displaced | Do not proceed to prototype; establish protected-region evidence and verify visibility afterward | No | No | `UNKNOWN` |
+| Parked-only boundary violated | Vehicle moves or public-road use begins with prototype active | Distraction or safety hazard while driving | Stop prototype and restore stock under the exact run plan; no road use | Operator required | No | `UNKNOWN` |
+| Scope creep from static review to vehicle action | Static finding triggers install, ADB, or display action without a new plan | Unreviewed live behavior and expanded risk | End offline milestone; obtain exact plan and explicit authorization before any separate vehicle milestone | Yes before action | No | `UNKNOWN` |
+
 ## 43T1-R3B project-child cleanup ownership gaps
 
 Static Honda cleanup described below is limited to Honda-owned session/context and the recognized stock 100/101/110 paths. It does not establish cleanup ownership for a project-created Type111 child. Model-only rows are not Honda evidence.

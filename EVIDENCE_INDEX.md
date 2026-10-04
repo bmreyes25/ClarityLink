@@ -12,6 +12,7 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [ClarityLink Rules v2 — staged prototype discipline](docs/project/claritylink-rules-v2.md) — current governance; future prototypes remain gated and this milestone grants no vehicle authorization
 - [43T1-R4C Display 1 access static review](step-reports/43t1-r4c-display1-access-static-review.md) — latest decision; ordinary-app Honda entry `UNKNOWN`, physical safe area `UNKNOWN`
 - [R4C API17 review](research/runtime/43t1-r4c-api17-external-display-static-review.md), [Honda ownership](research/runtime/43t1-r4c-honda-display1-ownership-audit.md), [permissions/signing](research/runtime/43t1-r4c-display-permission-signing-audit.md), [physical boundary](research/runtime/43t1-r4c-physical-safe-area-and-warning-boundary.md), [access matrix](research/runtime/43t1-r4c-display-access-matrix.md), [feasibility gate](research/runtime/43t1-r4c-independent-display-app-feasibility-gate.md), [deployment constraints](research/runtime/43t1-r4c-renderer-deployment-constraints.md)
 - [43T1-R4B host-only synthetic renderer model](step-reports/43t1-r4b-host-turn-card-renderer-model.md) — prior host-model decision; `MODEL_ONLY`, Honda Display 1 compatibility `UNKNOWN`

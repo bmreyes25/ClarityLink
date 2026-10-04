@@ -7,6 +7,8 @@
 
 # Step reports
 
+- [43T1 staged prototype discipline rules v2](43t1-rules-v2-staged-prototype-discipline.md) — governance update; no car experiment authorized
+
 This index preserves the engineering chronology and negative results. For current status, use [PROJECT_STATE.md](../PROJECT_STATE.md), [NEXT_ACTION.md](../NEXT_ACTION.md), and [ROADMAP.md](../ROADMAP.md). Reports state what was known at the time and are not silently updated to match later conclusions.
 
 ## Current project status
