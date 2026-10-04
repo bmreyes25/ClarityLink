@@ -12,7 +12,9 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
-- [43T1-R4A offline architecture pivot](step-reports/43t1-r4a-post-interposition-architecture-pivot.md) — latest decision; host-only next path, Honda Display 1 independent entry `UNKNOWN`
+- [43T1-R4B host-only synthetic renderer model](step-reports/43t1-r4b-host-turn-card-renderer-model.md) — latest decision; `MODEL_ONLY`, Honda Display 1 compatibility `UNKNOWN`
+- [R4B requirements and proof boundary](research/runtime/43t1-r4b-turn-card-renderer-requirements.md) — schema, layout, freshness rules, preview and test scope
+- [43T1-R4A offline architecture pivot](step-reports/43t1-r4a-post-interposition-architecture-pivot.md) — prior architecture decision; Honda Display 1 independent entry `UNKNOWN`
 - [R4A architecture matrix](research/runtime/43t1-r4a-architecture-pivot-matrix.md), [cluster rendering](research/runtime/43t1-r4a-cluster-rendering-architecture.md), [navigation data sources](research/runtime/43t1-r4a-navigation-data-source-audit.md), [new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md), [ADR](research/adr/43t1-r4a-post-interposition-architecture-pivot.md)
 - [43T1-R3C expanded static entry/ownership closure](step-reports/43t1-r3c-static-entry-ownership-closure.md) — historical runtime-interposition NO-GO; `HONDA_CONFIRMED` static scope only
 - [R3C extension matrix and dynamic closure](research/runtime/43t1-r3c-extension-path-matrix.md)

@@ -26,6 +26,7 @@
 /tools/*
 !/tools/README.md
 !/tools/check_repo_health.py
+!/tools/r4b_preview.py
 !/tools/elf_va_map.py
 !/tools/jmcs_integration/
 !/tools/jmcs_integration/*.py

@@ -10,7 +10,7 @@
 | `claritylink-interposer/` | Host-side interposer, transaction, and listener models. |
 | `claritylink-negotiation/` | Offline SETUP, response, lifecycle, and Type111 contract models; native transaction core and shim artifacts. |
 | `claritylink-probes/` | Source for bounded preload probe experiments; builds/artifacts are not part of normal CI. |
-| `claritylink-renderer/` | Renderer model and API-17 Java adapter boundary. Real Honda handoff is unproven. |
+| `claritylink-renderer/` | Existing frame prototype/API-17 boundary plus R4B pure Python synthetic turn-card model. Real Honda handoff is unproven. |
 | `claritylink-sim/` | Synthetic replay and visual-demo helpers. |
 | `claritylink-transport/` | Screen parser, media extraction, and crypto/session models. Synthetic paths remain labeled. |
 

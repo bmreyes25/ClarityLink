@@ -4,7 +4,7 @@
 
 ## Current engineering stage
 
-The latest completed milestone is **43T1-R4A offline architecture pivot**. Its next path is a host-only synthetic cluster turn-card renderer model, with independent Honda Display 1 app access and physical safe area still unproven. Expanded R3C closed current `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4A report](step-reports/43t1-r4a-post-interposition-architecture-pivot.md), [pivot ADR](research/adr/43t1-r4a-post-interposition-architecture-pivot.md), and [new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md).
+The latest completed milestone is **43T1-R4B host-only synthetic turn-card renderer model**. Its route-card schema, 800×480 layout, stale/lost fail-safe behavior, fixtures and JSON preview are model evidence only. The next step is an offline static review of independent Honda Display 1 app access; physical safe area and stock-warning coexistence remain unproven. Expanded R3C closed current `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4B report](step-reports/43t1-r4b-host-turn-card-renderer-model.md), [requirements](research/runtime/43t1-r4b-turn-card-renderer-requirements.md), and [R4A new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md).
 
 ## Evidence-backed target
 

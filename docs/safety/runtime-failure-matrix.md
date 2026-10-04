@@ -114,3 +114,22 @@ These controls apply to host-only architecture work. They do not establish a Hon
 | HondaHack dependency | Xposed insertion treated as supported app API | Unsupported in-process modification | Keep as `HONDA_OBSERVED` precedent only; no Xposed use in R4A | Yes offline | No | `HONDA_OBSERVED` output; independent entry `UNKNOWN` |
 | API key leakage | Provider credential embedded in client or committed | Abuse and billing loss | No keys in R4B; later use scoped credentials, quota and secret review | Yes offline | No | `INFERENCE` risk |
 | Offline renderer overclaim | 800×480 host frame presented as physical cluster safe area or working on-car UI | False readiness and unsafe layout choice | Label synthetic; keep crop, z-order, app access and warnings as `UNKNOWN` | Yes offline | No | `HONDA_OBSERVED` canvas; physical safe area `UNKNOWN` |
+
+## 43T1-R4B host-only turn-card model failures
+
+These are design/model checks, not measured vehicle recovery procedures. The source trust flag is a synthetic input, not real authentication.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Wrong turn shown | Structurally valid but geographically incorrect step | Driver could follow incorrect guidance | R4B cannot detect it; label model not for driving; require separate route correctness and safety review | Not established | No model reboot | `MODEL_ONLY` limit |
+| Stale route data | Update age exceeds 5 model seconds | Old turn could remain | Replace turn fields with stale warning; above 30 seconds show lost | Yes in pure model | No | `MODEL_ONLY` tested |
+| Lost phone or route source | No update or explicit lost state | No current guidance | Clear maneuver/distance/street and show lost; real disconnect detection `UNKNOWN` | Yes in pure model | No | `MODEL_ONLY` tested |
+| Long road name overflow | Street exceeds model 30-character budget | Clipped/ambiguous road label | Deterministic ellipsis and bounds test; physical font legibility `UNKNOWN` | Yes in pure model | No | `MODEL_ONLY` tested |
+| Night/day mismatch | Wrong mode selected | Glare or low contrast | Expose explicit mode state; defer contrast and automatic switching to later review | No automatic detection | No | `MODEL_ONLY`; vehicle visibility `UNKNOWN` |
+| Cluster distraction | Too much or moving content | Driver attention diverted | Turn-card-only model; no animation; driving safety remains unproven | No vehicle proof | No | `INFERENCE` risk |
+| Warning banner hidden | Layout or later layer masks warning | Stale/invalid guidance may appear trustworthy | Reserve nonoverlapping banner; future z-order/physical crop evidence required | Model only | Unknown on car | `MODEL_ONLY` bounds; Honda visibility `UNKNOWN` |
+| Route source spoofing | Untrusted fixture flag or unauthenticated future source | Forged direction | Suppress synthetic untrusted branch; real pairing/authentication is absent and required before integration | Model only | No | `MODEL_ONLY` branch; real security `UNKNOWN` |
+| Renderer crash | Projection throws or future UI terminates | Guidance disappears or freezes | Host caller must fail closed/clear; no on-car recovery claim | Not established | Unknown on car | `UNKNOWN` integration |
+| Honda compatibility overclaim | JSON/card preview described as working Display 1 UI | False deployment readiness | Keep `MODEL_ONLY` label and independent Display 1 gate; no APK/vehicle work | Yes offline | No | `HONDA_OBSERVED` canvas only |
+| Accidental `jmcs` dependency | Model imports/uses Honda receiver path | R3C NO-GO bypassed | Dependency test rejects such coupling; no receiver interface in R4B | Yes offline | No | `MODEL_ONLY` static test |
+| Accidental Type111 dependency | Model expects Type111 stream or session | Runtime-interposition path reintroduced | Dependency test rejects coupling; synthetic route input only | Yes offline | No | `MODEL_ONLY` static test |

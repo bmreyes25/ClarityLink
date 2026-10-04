@@ -6,6 +6,7 @@ Tools are research utilities. Read the linked report/runbook and current authori
 |---|---|
 | [`run_tests.sh`](run_tests.sh) | Canonical offline test/smoke runner; safe for CI. |
 | [`check_repo_health.py`](check_repo_health.py) | Deterministic local docs/index/proprietary-path checks; no network or Honda access. |
+| [`r4b_preview.py`](r4b_preview.py) | Host-only JSON snapshots from checked-in synthetic turn-card fixtures; no device, network, or Android backend. |
 | `analyze_43t0d_capture.py`, `step43t0d_offline.py` | Offline analysis of a local, private host bundle; never collect data. |
 | `step43t0d3_static_review.py`, `step43t0d3_netcfg_plan.py`, `elf_va_map.py` | Static artifact and plan review helpers. Input provenance and output privacy still apply. |
 | `step43t0a_delta_dry_run.py`, `step43t0c_identity_delta_dry_run.py` | Dry-run procedure models; they have no ADB execution path. |
