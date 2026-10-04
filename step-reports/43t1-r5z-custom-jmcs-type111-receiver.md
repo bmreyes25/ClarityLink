@@ -2,7 +2,7 @@
 
 ## Scope and starting state
 
-- Branch/worktree: `experiment/r5z-custom-jmcs` at `../clarity-r5z-custom-jmcs`, created from clean `main` HEAD `500ee9a8ffdd4f3e91a99293c1e873435949533e`. The R5D worktree and canonical current-state files were not changed. Implementation/final HEAD is recorded by the branch history after commit; no merge to `main` is part of R5Z.
+- Branch/worktree: `experiment/r5z-custom-jmcs` at `../clarity-r5z-custom-jmcs`, created from clean `main` HEAD `500ee9a8ffdd4f3e91a99293c1e873435949533e`. Implementation commit: `5d3bd6d`; hosted-check workflow commit: `6ad322e1aa4b1700581e11cb7907be2e867109c0`. The final report commit is the later branch HEAD containing this document; a Git commit cannot contain its own hash. The R5D worktree and canonical current-state files were not changed. No merge to `main` is part of R5Z.
 - Honda contacted: **NO**; ADB used: **NO**; vehicle connected: **NO**; Honda files modified: **NO**; `jmcs` modified on Honda: **NO**; Type111 used on Honda: **NO**. No real iPhone negotiation, MFi authentication, key use, or deployment occurred.
 - R3C still rejects runtime interposition into stock `jmcs`. R5Z explores an offline replacement architecture, not a hook. Rules v2's evidence levels and vehicle authorization gate remain in force.
 
@@ -38,7 +38,7 @@ The existing `step43t0d0_collector.py` could not read the branch ref in a Git wo
 - Full `PYTHON=.venv/bin/python ./tools/run_tests.sh`: `834 passed, 14 skipped`; configured standard-library and simulator checks passed.
 - Repository health: passed, zero curated broken links and zero forbidden tracked extensions. `git diff --check`: passed.
 - CLI `synthetic-client`: one generated frame decoded, final resource counts zero.
-- Offline CI and CodeQL on exact pushed experimental branch HEAD: pending at report creation; results will be reported separately. No old run is used as R5Z verification.
+- [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/37240389457) and [CodeQL](https://github.com/bmreyes25/ClarityLink/actions/runs/37240389415) **passed** on pushed experimental branch HEAD `6ad322e1aa4b1700581e11cb7907be2e867109c0`. The branch-only workflow trigger was added after the implementation commit because the existing workflows ran only on `main` pushes and PRs. The final report-only commit will be checked separately and its exact runs recorded in the task response. No old run is used as R5Z verification.
 
 ## Decision and next milestone
 
