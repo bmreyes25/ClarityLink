@@ -5,7 +5,7 @@
 - Starting branch: `main`.
 - Starting HEAD: `7eecb1815404a5eea596d13486414bf1e1f70e22`.
 - Starting worktree: pre-existing modifications in `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`; six untracked R3 draft files. All were preserved; no reset, clean, stash, restore, or overwrite was used.
-- Final HEAD at implementation/reporting: to be recorded after the scoped commit.
+- Implementation HEAD verified by hosted checks: `84cbb4d710f15ae5fae8fa0f34063402a5a079cc`.
 - Worktree status: pre-existing R3 edits/drafts remain unstaged and uncommitted. Root `CLAUDE.md` exists locally but is ignored by the repository's root ignore rule and is not tracked.
 
 ## Boundaries and outcome
@@ -47,8 +47,8 @@ Manual @ECC-guided governance/safety review checked provenance boundaries, gener
 - Full suite: `PYTHON=.venv/bin/python ./tools/run_tests.sh` — **700 passed, 3 skipped**; self-locator **3 passed**; configured simulator checks passed. Capture-backed replay scripts were skipped because private fixtures are not CI inputs.
 - Repository health: **passed**, 496 Markdown files, 122 indexed milestone/support reports, 0 curated broken links, 0 forbidden tracked file extensions.
 - `git diff --check`: **passed** after edits.
-- Hosted Offline CI: pending scoped commit and push; verify this exact pushed commit.
-- Hosted CodeQL: pending scoped commit and push; verify this exact pushed commit.
+- Hosted Offline CI: **passed** on the exact implementation HEAD [`84cbb4d`](https://github.com/bmreyes25/ClarityLink/actions/runs/37215344928).
+- Hosted CodeQL: **passed** on the same exact implementation HEAD [`84cbb4d`](https://github.com/bmreyes25/ClarityLink/actions/runs/37215344945); no findings were suppressed for this milestone.
 
 ## Decision and next milestone
 
