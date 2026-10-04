@@ -4,7 +4,8 @@
 
 - Starting branch: `main`.
 - Starting HEAD: `4999006d426d8180e63594e59244d407e9cb07bc`.
-- Final HEAD: recorded after the R3C-scoped documentation commit.
+- R3C evidence commit: `375e3ced570f7e45c397d080e3967d806aefb2e8`.
+- Final HEAD: this report-only follow-up commit is recorded in the final handoff; the evidence commit above contains all substantive R3C findings.
 - Worktree was already dirty at start. Pre-existing modified files included `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`; untracked R3 drafts were also present. These were preserved. Only R3C additions and the requested R3A inventory/matrix additions are in scope.
 - Honda contacted: **NO**.
 - ADB used: **NO**.
@@ -50,5 +51,5 @@ Manual @ECC-guided review covered evidence provenance, pointer-vs-generation cla
 - Full `PYTHON=.venv/bin/python ./tools/run_tests.sh`: **674 passed, 3 skipped**; self-locator **3 passed**; all configured simulator checks passed. Private capture-backed scripts were skipped because ignored/private fixtures are not CI inputs.
 - `.venv/bin/python tools/check_repo_health.py`: **passed** after indexing the new milestone report; 470 Markdown files, 117 indexed milestone/support reports, 0 curated broken links, 0 forbidden tracked extensions.
 - `git diff --check`: **passed**.
-- Hosted Offline CI: pending push/dispatch for the R3C-scoped commit.
-- Hosted CodeQL: pending push/dispatch for the R3C-scoped commit.
+- Hosted Offline CI: **passed** on the R3C evidence commit ([run 37167057739](https://github.com/bmreyes25/ClarityLink/actions/runs/37167057739)).
+- Hosted CodeQL: **passed** on the R3C evidence commit across C/C++, Actions, Java/Kotlin, Python, and JavaScript/TypeScript ([run 37167057731](https://github.com/bmreyes25/ClarityLink/actions/runs/37167057731)).
