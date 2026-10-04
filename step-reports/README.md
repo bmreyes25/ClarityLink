@@ -1,5 +1,6 @@
 ## Current / latest milestones
 
+- [43T1-R5Z — experimental offline custom receiver lab](43t1-r5z-custom-jmcs-type111-receiver.md) — isolated `experiment/r5z-custom-jmcs` branch; partial host receiver, no Honda or real-iPhone integration
 - [43T1-R5C — public artifact provenance expansion](43t1-r5c-public-artifact-provenance-expansion.md) — official Civic version lead; no lawful analyzable receiver package
 - [43T1-R5C — repository hygiene and state normalization](43t1-r5c-repository-hygiene-and-state-normalization.md) — R3 preserved, R5Y committed separately, state normalized
 - [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md) — preceding public research result; no lawful analyzable receiver payload
