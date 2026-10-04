@@ -4,7 +4,8 @@
 
 - Starting branch: `main`; starting HEAD: `66cceab1bc7f2ce255f462d691324d340dc9d239`.
 - Starting worktree: five modified current/safety/index files and six untracked R3 draft files. They were preserved and excluded from R5Y staging.
-- Implementation HEAD: pending milestone-owned commit; final report HEAD follows hosted verification.
+- Implementation HEAD: `a88d67960cb692c9058662b1757c73529133e80b` (pushed to `main`). Final HEAD is the later report-only commit containing this verification record; resolve it with `git log` because a commit cannot contain its own hash.
+- Worktree at R5Y implementation commit: unrelated R3/R5C drafts and edits remained unstaged. R5C subsequently committed those independently as `07621b1c8c08a7e15c12037bd17427b6767c035c`; the worktree was clean before this report-only update.
 - Honda contacted: **NO**. ADB used: **NO**. Runtime reads: **0**. Runtime writes: **0**. Vehicle connected: **NO**. APK installed: **NO**. `jmcs` modified: **NO**. `jmcs` used: **NO**. Type111 used on Honda: **NO**. HondaHack runtime used: **NO**.
 
 ## R5X baseline and R5Y objective
@@ -45,10 +46,12 @@ Manual @ECC security-review and Python-testing guidance covered provenance, expl
 - Sandbox boundary check: `.venv/bin/python tools/check_r5y_sandbox_boundary.py` — passed.
 - Fixture replay and resource-leak checks: all 16 fixture CLI replays passed; 100 sequential generations and every named setup/media fault path returned zero secondary counts after teardown.
 - `git diff --check`: passed.
-- Hosted Offline CI and CodeQL on exact pushed implementation HEAD: pending; old R5X/R5B runs are not R5Y verification.
+- Hosted [Offline CI](https://github.com/bmreyes25/ClarityLink/actions/runs/37220621374) on exact pushed implementation HEAD `a88d67960cb692c9058662b1757c73529133e80b`: **passed**.
+- Hosted [CodeQL](https://github.com/bmreyes25/ClarityLink/actions/runs/37220621371) on that same implementation HEAD: **passed** across all five configured language/workflow jobs. The C/C++ job reported its existing full-database fallback annotation; it completed successfully. Neither result reuses an R5X/R5B run.
+- Hosted verification of the final report-only HEAD: pending at the time this report was written; the exact result is recorded in the final task response.
 
 ## Decision and next milestone
 
-**R5Y decision:** `R5Y_REUSABLE_RECEIVER_CORE_COMPLETE` for the host-only objective; hosted verification remains pending.
+**R5Y decision:** `R5Y_REUSABLE_RECEIVER_CORE_COMPLETE` for the host-only objective, with implementation commit hosted verification passed.
 
 **Project recommendation:** `GO_FOR_R5B_HONDA_DESCENDANT_ARTIFACT_RESEARCH`, meaning continued lawful public artifact/provenance work under R5B's unresolved evidence gate, not a rerun of completed R5B triage or any vehicle action. If no lawful analyzable payload appears, keep Type111 runtime parked. No car experiment, ADB, APK, patch, real negotiation/listener, callback replacement, preload, HondaHack/Xposed, framebuffer, CAN or USB work is authorized.
