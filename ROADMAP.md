@@ -1,12 +1,12 @@
 # ClarityLink roadmap
 
-**Goal:** preserve stock Honda CarPlay on the center display while adding an independent navigation stream in the instrument cluster's existing Navigation region. Apple Maps is the first target; Waze is conditional on negotiated secondary-screen support. Preserve all other stock safety and cluster UI.
+**Goal:** preserve stock Honda CarPlay on the center display while providing useful, independently sourced navigation content in the instrument cluster's Navigation region. The source must be user controlled and legally available; the current host model uses synthetic steps. Preserve all other stock safety and cluster UI.
 
 ## Current engineering stage
 
-The latest completed milestone is **43T1-R4B host-only synthetic turn-card renderer model**. Its route-card schema, 800×480 layout, stale/lost fail-safe behavior, fixtures and JSON preview are model evidence only. The next step is an offline static review of independent Honda Display 1 app access; physical safe area and stock-warning coexistence remain unproven. Expanded R3C closed current `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4B report](step-reports/43t1-r4b-host-turn-card-renderer-model.md), [requirements](research/runtime/43t1-r4b-turn-card-renderer-requirements.md), and [R4A new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md).
+The latest completed milestone is **43T1-R4C offline Display 1 access static review**. AOSP API17 offers a public `Presentation` candidate, but ordinary-app access to Honda Display 1, priority against Honda windows, physical safe area and warning visibility remain unproven. R4D is limited to more offline static display-policy and package-grant research. Expanded R3C closed current `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4C report](step-reports/43t1-r4c-display1-access-static-review.md), [matrix](research/runtime/43t1-r4c-display-access-matrix.md), and [feasibility gate](research/runtime/43t1-r4c-independent-display-app-feasibility-gate.md).
 
-## Evidence-backed target
+## Historical receiver target (superseded by R3C/R4A)
 
 The target architecture keeps Honda Type110 stock and adds a separate Type111 path inside/alongside the CarPlay session owner, with a renderer adapter in the ExternalDisplay host. Those integration seams remain unproven for Honda.
 

@@ -1,6 +1,7 @@
 ## Current / latest milestones
 
-- [43T1-R4B host-only synthetic turn-card renderer model](43t1-r4b-host-turn-card-renderer-model.md) — current decision; R4C offline display-access static review next
+- [43T1-R4C offline Display 1 access static review](43t1-r4c-display1-access-static-review.md) — current decision; R4D more static display research next
+- [43T1-R4B host-only synthetic turn-card renderer model](43t1-r4b-host-turn-card-renderer-model.md) — host-model evidence only
 - [43T1-R4A offline architecture pivot](43t1-r4a-post-interposition-architecture-pivot.md) — selected host-only renderer direction
 - [43T1-R3C expanded static entry/ownership closure](43t1-r3c-static-entry-ownership-closure.md) — controlling runtime-interposition NO-GO
 
@@ -11,11 +12,12 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current model decision: [43T1-R4B](43t1-r4b-host-turn-card-renderer-model.md) returns `R4B_HOST_RENDERER_MODEL_COMPLETE`; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
+- Current static-entry decision: [43T1-R4C](43t1-r4c-display1-access-static-review.md) returns `R4C_DISPLAY_ENTRY_POSSIBLE_BUT_UNPROVEN`; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
 
+- [Step 43T1-R4C — Display 1 access static review](43t1-r4c-display1-access-static-review.md)
 - [Step 43T1-R4B — host-only synthetic turn-card renderer model](43t1-r4b-host-turn-card-renderer-model.md)
 - [Step 43T1-R4A — offline architecture pivot](43t1-r4a-post-interposition-architecture-pivot.md)
 - [Step 43T1-R3C expanded — static entry/ownership closure](43t1-r3c-static-entry-ownership-closure.md)

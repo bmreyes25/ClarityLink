@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_MILESTONE = "43T1-R4B"  # Advance with the current-state documents.
+CURRENT_MILESTONE = "43T1-R4C"  # Advance with the current-state documents.
 REQUIRED_PATHS = (
     "README.md",
     "CONTRIBUTING.md",
@@ -114,7 +114,7 @@ def main() -> int:
     current_sections = {
         "NEXT_ACTION.md": ("## Current action", "## Historical context"),
         "PROJECT_STATE.md": ("## Current snapshot", "## Step "),
-        "ROADMAP.md": ("## Current engineering stage", "## Evidence-backed target"),
+        "ROADMAP.md": ("## Current engineering stage", "## Historical receiver target"),
     }
     for source, (start, end) in current_sections.items():
         if source not in paths:

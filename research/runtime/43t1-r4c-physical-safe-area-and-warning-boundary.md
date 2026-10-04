@@ -1,0 +1,14 @@
+# 43T1-R4C — physical safe-area and warning boundary
+
+The saved [factory Navigation / Display 1 comparison](../navigation-safe-area.md) is the controlling evidence. In three previously collected states, Android HDMI Display 1 is an 800×480 layer-stack-1 canvas and SurfaceFlinger reports full-frame source/destination bounds. Factory Navigation's compass/grid and Menu appear in both its Display 1 frame and the paired physical cluster photo. The photo also shows stock gauges, status and indicators absent from the Display 1 capture. These are `HONDA_OBSERVED` facts; no new capture was made in R4C.
+
+**Display 1 is not a full physical cluster image.** Downstream composition, crop or masking is plausible (`INFERENCE`), but the preserved evidence does not determine which mechanism, the transform, or the actual visible rectangle. A screenshot of Display 1 alone cannot identify a safe physical Navigation region. HondaHack's `(0,24,584,191)` ImageView is inside a separate 584×215 local layout and is not an OEM cluster coordinate. [HondaHack path](../hondahack/hondahack-display-path.md) is an in-process/Xposed precedent, not a safe-area proof.
+
+| Boundary | Static/observed evidence | Protection rule |
+|---|---|---|
+| Factory Navigation content | Navigation, TBT and semantic guidance classes exist; Honda's externaldisplay process renders multiple content views. [Ownership audit](43t1-r4c-honda-display1-ownership-audit.md) — `HONDA_CONFIRMED` static. | Do not assume another full-screen app may replace or cover Navigation. |
+| Honda main/interrupt/bottom layers | `InterfaceWindow` attaches three full-frame roots and can show interrupt views. [Host source](../../decompiled/ExternalDisplayOutService/sources/com/mitsubishielectric/ada/app/externaldisplay/interfaces/InterfaceWindow.java) — `HONDA_CONFIRMED` static. | Their priority relative to any separate app window is `UNKNOWN`; a warning may be obscured. |
+| Physical gauges, warning and status indicators | Paired photo shows indicators missing from the Display 1 capture — `HONDA_OBSERVED`. | Treat every warning/status region and any unmeasured overlap as protected. Do not invent pixel coordinates or infer guaranteed non-overlap from absent pixels in a screenshot. |
+| R4B 800×480 card rectangles | [Host requirements](43t1-r4b-turn-card-renderer-requirements.md) — `MODEL_ONLY`. | Layout bounds and nonoverlap prove only internal model consistency, not physical visibility or safe placement. |
+
+**Minimum future proof:** an authoritative OEM viewport/transform specification or a separately authorized, calibrated paired display/physical observation spanning factory Navigation and warning/interrupt states; exact display-owner/z-order behavior and a disable/clear path must also be established. Repeating an uncalibrated Display 1 screenshot cannot resolve the physical boundary. R4C authorizes no observation, display write or car visit.

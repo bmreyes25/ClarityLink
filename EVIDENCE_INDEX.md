@@ -12,7 +12,9 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
-- [43T1-R4B host-only synthetic renderer model](step-reports/43t1-r4b-host-turn-card-renderer-model.md) — latest decision; `MODEL_ONLY`, Honda Display 1 compatibility `UNKNOWN`
+- [43T1-R4C Display 1 access static review](step-reports/43t1-r4c-display1-access-static-review.md) — latest decision; ordinary-app Honda entry `UNKNOWN`, physical safe area `UNKNOWN`
+- [R4C API17 review](research/runtime/43t1-r4c-api17-external-display-static-review.md), [Honda ownership](research/runtime/43t1-r4c-honda-display1-ownership-audit.md), [permissions/signing](research/runtime/43t1-r4c-display-permission-signing-audit.md), [physical boundary](research/runtime/43t1-r4c-physical-safe-area-and-warning-boundary.md), [access matrix](research/runtime/43t1-r4c-display-access-matrix.md), [feasibility gate](research/runtime/43t1-r4c-independent-display-app-feasibility-gate.md), [deployment constraints](research/runtime/43t1-r4c-renderer-deployment-constraints.md)
+- [43T1-R4B host-only synthetic renderer model](step-reports/43t1-r4b-host-turn-card-renderer-model.md) — prior host-model decision; `MODEL_ONLY`, Honda Display 1 compatibility `UNKNOWN`
 - [R4B requirements and proof boundary](research/runtime/43t1-r4b-turn-card-renderer-requirements.md) — schema, layout, freshness rules, preview and test scope
 - [43T1-R4A offline architecture pivot](step-reports/43t1-r4a-post-interposition-architecture-pivot.md) — prior architecture decision; Honda Display 1 independent entry `UNKNOWN`
 - [R4A architecture matrix](research/runtime/43t1-r4a-architecture-pivot-matrix.md), [cluster rendering](research/runtime/43t1-r4a-cluster-rendering-architecture.md), [navigation data sources](research/runtime/43t1-r4a-navigation-data-source-audit.md), [new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md), [ADR](research/adr/43t1-r4a-post-interposition-architecture-pivot.md)

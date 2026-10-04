@@ -2,7 +2,7 @@
 
 ## Current action
 
-**Latest completed milestone: 43T1-R4B host-only synthetic turn-card model.** Decision `R4B_HOST_RENDERER_MODEL_COMPLETE`; recommendation `GO_FOR_R4C_DISPLAY_ACCESS_STATIC_REVIEW`. **Current authorization: offline static Display 1 access research only**; R4B's JSON/model output is not Honda compatible or road safe evidence. R3C's runtime-interposition NO-GO still controls `jmcs`/Type111 work. No Honda contact, ADB, RAM attachment, listener, Type111 negotiation, APK installation, HondaHack runtime dependency, or vehicle work is authorized. See the [R4B report](step-reports/43t1-r4b-host-turn-card-renderer-model.md), [requirements](research/runtime/43t1-r4b-turn-card-renderer-requirements.md), and [R4A gate](research/runtime/43t1-r4a-new-evidence-gate.md).
+**Latest completed milestone: 43T1-R4C offline Display 1 access static review.** Decision `R4C_DISPLAY_ENTRY_POSSIBLE_BUT_UNPROVEN`; recommendation `GO_FOR_R4D_MORE_STATIC_DISPLAY_RESEARCH`. **Current authorization: offline static evidence work only.** Android API17 `Presentation` is a generic candidate, but a normal app's Honda Display 1 window admission, priority, physical safe area, and warning coexistence remain `UNKNOWN`. R3C's receiver-interposition NO-GO still controls `jmcs`/Type111. No Honda contact, ADB, RAM attachment, listener, Type111 negotiation, APK installation, HondaHack runtime dependency, framebuffer write, or vehicle work is authorized. See the [R4C report](step-reports/43t1-r4c-display1-access-static-review.md), [candidate matrix](research/runtime/43t1-r4c-display-access-matrix.md), and [feasibility gate](research/runtime/43t1-r4c-independent-display-app-feasibility-gate.md).
 
 ## Historical context
 

@@ -133,3 +133,21 @@ These are design/model checks, not measured vehicle recovery procedures. The sou
 | Honda compatibility overclaim | JSON/card preview described as working Display 1 UI | False deployment readiness | Keep `MODEL_ONLY` label and independent Display 1 gate; no APK/vehicle work | Yes offline | No | `HONDA_OBSERVED` canvas only |
 | Accidental `jmcs` dependency | Model imports/uses Honda receiver path | R3C NO-GO bypassed | Dependency test rejects such coupling; no receiver interface in R4B | Yes offline | No | `MODEL_ONLY` static test |
 | Accidental Type111 dependency | Model expects Type111 stream or session | Runtime-interposition path reintroduced | Dependency test rejects coupling; synthetic route input only | Yes offline | No | `MODEL_ONLY` static test |
+
+## 43T1-R4C static Display 1 access failures
+
+These are architecture stop conditions, not tested on-car recovery paths. R4C authorizes no install, window, framebuffer or vehicle experiment.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Ordinary app cannot access Display 1 | API17 mechanism exists but no Honda admission proof | Renderer cannot reach cluster | Keep host-only; require Honda-specific app-visible display/window evidence before proposal | Yes offline | No | `UNKNOWN` Honda admission |
+| Signature/system permission missing | Candidate requires `INTERNAL_SYSTEM_WINDOW` or Honda custom grant | Ordinary app cannot own path | Reject privilege dependency; do not assume manifest request equals grant | Yes offline | No | AOSP API17 signature rule `DOCUMENTED_ANDROID`; Honda grant `UNKNOWN` |
+| HondaHack/Xposed mistaken for supported API | In-process injected View treated as external app contract | Unsupported host modification | Reject; preserve HondaHack as private precedent only | Yes offline | No | `HONDA_OBSERVED` output; public entry absent |
+| Display 1 screenshot mistaken for physical safe area | 800×480 frame mapped directly to cluster pixels | Warning/gauge overlap or invisible text | Require calibrated physical mapping/OEM viewport; never guess rectangle | Yes offline | No | `HONDA_OBSERVED` mismatch; transform `UNKNOWN` |
+| Cluster warning obscured | App window overlays Honda warning/interrupt | Safety-critical information hidden | No app/display trial until z-order and protected regions proven | No runtime recovery shown | Unknown | `UNKNOWN` coexistence |
+| Factory Navigation displaced | New full-window content covers stock Navigation | Loss of stock navigation/status | Reject replacement; prove independent coexistence before any future proposal | No runtime recovery shown | Unknown | `UNKNOWN` |
+| Z-order conflict | Honda type-2006 roots and app window have unknown stacking | Warning hidden or renderer invisible | Require exact display-policy/priority evidence; do not infer from API17 | Yes offline | No | `HONDA_CONFIRMED` root type; relative order `UNKNOWN` |
+| Window remains after route stale/lost | Data cleared but app surface persists | Blank overlay may still cover stock content | Require app-owned dismiss/removal proof and manual disable in future design | Model only | Unknown on car | R4B data clear `MODEL_ONLY`; window lifecycle `UNKNOWN` |
+| Renderer deployed without safe-area proof | Host card used as on-car layout | Potential unsafe cluster obstruction | Deployment stays unauthorized; enforce feasibility gate | Yes offline | No | `MODEL_ONLY` layout |
+| Semantic guidance API mistaken for pixel API | Navigation Binder route/TBT methods proposed as View sink | Factory state mutated without rendering ownership | Reject as render path; no Binder transactions in R4C | Yes offline | No | `HONDA_CONFIRMED` semantic surface |
+| Privileged install requirement discovered | Only system/signature/host-process path appears | Project-owned ordinary-app goal fails | Reject current candidate or reopen architecture offline; no privileged install | Yes offline | No | Requirement `UNKNOWN` until evidenced |
