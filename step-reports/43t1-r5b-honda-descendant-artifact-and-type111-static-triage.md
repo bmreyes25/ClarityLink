@@ -13,7 +13,7 @@ This is not a negative Type111 finding. The candidate is `TYPE111_INSUFFICIENT_A
 ## Baseline and worktree
 
 - Starting HEAD: `06ff680e9f665da909fd7887cd98908c3b348465`
-- Final HEAD: pending milestone-owned commit / hosted verification
+- Final implementation HEAD: `66cceab1bc7f2ce255f462d691324d340dc9d239` (R5B implementation and state update commit).
 - Branch: `main`
 - Pre-existing user changes: modified `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, `step-reports/README.md`, plus untracked R3 drafts. These were preserved and must not be swept into a commit.
 - Worktree at report drafting: pre-existing changes plus R5B files and appended state updates; no Honda artifacts.
@@ -77,8 +77,9 @@ Decision matrix: continue lawful public artifact/provenance research. Deeper sta
 - Full suite: 716 passed, 3 skipped; standard-library smoke checks 3 passed; simulator checks passed.
 - Repo health: passed — 523 Markdown files, 0 broken links in curated docs, 0 forbidden tracked file extensions.
 - `git diff --check`: passed.
-- Offline CI: pending; verify only on the exact pushed milestone commit.
-- CodeQL: pending; verify only on the exact pushed milestone commit.
+- Offline CI: passed on `66cceab1bc7f2ce255f462d691324d340dc9d239` ([run 37219186508](https://github.com/bmreyes25/ClarityLink/actions/runs/37219186508)).
+- CodeQL: passed on `66cceab1bc7f2ce255f462d691324d340dc9d239` ([run 37219186558](https://github.com/bmreyes25/ClarityLink/actions/runs/37219186558)).
+- Verification record: this report update follows the implementation commit; pre-existing R3 worktree edits remain unstaged and unmodified.
 
 ## Next milestone
 
