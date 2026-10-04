@@ -4,9 +4,7 @@
 
 ## Current engineering stage
 
-The latest completed milestone is **43T1-PREP2**, an offline-only readiness/modeling milestone. Its CF bridge, attachment/restoration gates, listener policy, negotiation controller, and Type111 prefix oracle are synthetic or static-analysis artifacts. They do not establish Honda runtime behavior. Type111 acceptance/security, listener reachability, and real cluster rendering remain unknown; Honda runtime attachment and Type111 negotiation are not authorized.
-
-The next vehicle milestone remains a separately initiated **read-only 43T0-D/D4 network observation** using the reviewed D0-3 procedure and all of its prerequisites. The previous D observation stopped at zero ADB targets; no Honda network values were collected. See [NEXT_ACTION.md](NEXT_ACTION.md) and the [43T1-PREP2 report](step-reports/43t1-prep2-offline-runtime-integration-readiness.md).
+The latest completed milestone is **43T1-R3C expanded offline static entry/ownership closure**. The preserved dynamic, proxy, service, factory, dispatch, and loader evidence supplies no safe additive session-addressable runtime extension path. The architecture recommendation is to stop `jmcs` runtime interposition until new static evidence appears. Type111 acceptance/security, runtime attachment, and deployment remain unproven and unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R3C report](step-reports/43t1-r3c-static-entry-ownership-closure.md), and the [ADR](research/adr/43t1-r3c-entry-and-ownership-architecture.md).
 
 ## Evidence-backed target
 
@@ -30,7 +28,7 @@ flowchart LR
 | Honda `/info` / Type111 | Stock Type110 path has static evidence; Honda Type111 acceptance/schema unknown | Preserve as unknown until specifically evidenced |
 | Type111 security/session | Type110 evidence does not prove Type111 crypto or lifecycle | No crypto selection or negotiation authorization |
 | Honda network preflight | D0-3 read-only procedure reviewed; earlier attempt stopped before target reads | Separately initiated D4 observation under current gates |
-| `jmcs` integration | Offline seams/models exist; runtime install and cleanup unproven | No deployment or attachment authorization |
+| `jmcs` integration | Expanded R3C found no safe additive runtime extension path in preserved evidence | Pivot offline; reopen only on new static evidence |
 | Cluster rendering | Host-side mock exists; real Display Audio frame handoff unresolved | Requires independent evidence and review |
 | Vehicle deployment | Not implemented or authorized | Requires separately scoped, reviewed milestones |
 

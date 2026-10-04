@@ -1,3 +1,7 @@
+## Current / latest milestones
+
+- [43T1-R3C expanded static entry/ownership closure](43t1-r3c-static-entry-ownership-closure.md) — current decision
+
 # Step reports
 
 This index preserves the engineering chronology and negative results. For current status, use [PROJECT_STATE.md](../PROJECT_STATE.md), [NEXT_ACTION.md](../NEXT_ACTION.md), and [ROADMAP.md](../ROADMAP.md). Reports state what was known at the time and are not silently updated to match later conclusions.
@@ -5,11 +9,13 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current readiness decision: [43T1-R2](43t1-r2-api17-arm-bionic-cflite-readiness.md) returns `RETURN_TO_OFFLINE_WORK`; no modifying experiment is authorized.
+- Current architecture decision: [43T1-R3C expanded](43t1-r3c-static-entry-ownership-closure.md) returns `R3C_NO_SAFE_RUNTIME_EXTENSION_PATH_FOUND`; no modifying experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
 
+- [Step 43T1-R3C expanded — static entry/ownership closure](43t1-r3c-static-entry-ownership-closure.md)
+- [Step 43T1-R3C earlier — session-addressable seam closure](43t1-r3c-session-addressable-static-seam-closure.md)
 - [Step 43T1-R3B — lifecycle cleanup static closure](43t1-r3b-lifecycle-cleanup-static-closure.md)
 - [Step 43T1-R3A — non-inline seam evidence inventory](43t1-r3a-non-inline-seam-evidence-inventory.md)
 - [Step 43T1-R2 — API-17 ARM/Bionic and CFLite static readiness](43t1-r2-api17-arm-bionic-cflite-readiness.md)

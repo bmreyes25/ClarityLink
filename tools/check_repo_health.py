@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+CURRENT_MILESTONE = "43T1-R3C"  # Advance with the current-state documents.
 REQUIRED_PATHS = (
     "README.md",
     "CONTRIBUTING.md",
@@ -109,6 +110,21 @@ def main() -> int:
     missing_required = [path for path in REQUIRED_PATHS if path not in paths]
     for path in missing_required:
         failures.append(f"required navigation file is missing: {path}")
+
+    current_sections = {
+        "NEXT_ACTION.md": ("## Current action", "## Historical context"),
+        "PROJECT_STATE.md": ("## Current snapshot", "## Step "),
+        "ROADMAP.md": ("## Current engineering stage", "## Evidence-backed target"),
+    }
+    for source, (start, end) in current_sections.items():
+        if source not in paths:
+            continue
+        content = (ROOT / source).read_text(encoding="utf-8")
+        start_at = content.find(start)
+        end_at = content.find(end, start_at + len(start)) if start_at >= 0 else -1
+        section = content[start_at:end_at if end_at >= 0 else None] if start_at >= 0 else ""
+        if CURRENT_MILESTONE not in section:
+            failures.append(f"stale current milestone reference in {source}: expected {CURRENT_MILESTONE}")
 
     markdown = sorted(path for path in paths if path.lower().endswith(".md"))
     broken_links: list[tuple[str, str]] = []

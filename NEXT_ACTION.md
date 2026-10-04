@@ -2,9 +2,11 @@
 
 ## Current action
 
-**43T1-R1 returns `RETURN_TO_OFFLINE_WORK`.** Continue offline with 43T1-R2: build a compatible API-17 ARM/Bionic harness and complete the static Honda CFLite constructor/getter ownership audit. No Honda contact, ADB, RAM attachment, listener, Type111, or vehicle work is authorized by this action. See the [R1 review](step-reports/43t1-r1-runtime-feasibility-review.md), [future experiment checklist](research/runtime/43t1-r1-future-experiment-checklist.md), and [failure matrix](docs/safety/runtime-failure-matrix.md).
+**Current authorization: offline architecture pivot research only.** Expanded 43T1-R3C returns `R3C_NO_SAFE_RUNTIME_EXTENSION_PATH_FOUND` and recommends `ABANDON_RUNTIME_INTERPOSITION_UNTIL_NEW_EVIDENCE`. Reopen Honda `jmcs` entry work only with a new preserved artifact proving an additive, session-addressable pre-serializer entry and independently owned cleanup. No Honda contact, ADB, RAM attachment, listener, Type111 negotiation, or vehicle work is authorized. See the [expanded R3C report](step-reports/43t1-r3c-static-entry-ownership-closure.md) and [ADR](research/adr/43t1-r3c-entry-and-ownership-architecture.md).
 
 ## Historical context
+
+**43T1-R1 historical decision:** `RETURN_TO_OFFLINE_WORK` for R2 API-17 ARM/Bionic and CFLite work. See the [R1 review](step-reports/43t1-r1-runtime-feasibility-review.md), [future experiment checklist](research/runtime/43t1-r1-future-experiment-checklist.md), and [failure matrix](docs/safety/runtime-failure-matrix.md).
 
 **43T0-D3 offline ECC decision: `43T0_D3_NETCFG_ECC_GO`.** The preserved Honda `netcfg` binary supports a zero-argument observational enumeration path in static review. The versioned D0-3 collector replaces only the unusable zero-argument `ifconfig` phase read with zero-argument `netcfg`; the analyzer and [live runbook](research/runtime/43t0d-live-runbook.md) are updated. D3 contacted no Honda and ran no ADB. **Next remains a separately initiated 43T0-D parked-car read-only observation**, with exactly one intended target and the reviewed connection precondition; no retry of D0-2, no fallback, Type111, listener, or runtime change. See the [D3 review](step-reports/43t0d3-ipv4-observer-ecc-review.md).
 

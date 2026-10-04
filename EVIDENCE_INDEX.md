@@ -12,6 +12,10 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
+- [43T1-R3C expanded static entry/ownership closure](step-reports/43t1-r3c-static-entry-ownership-closure.md) — latest decision; `HONDA_CONFIRMED` static scope only
+- [R3C extension matrix and dynamic closure](research/runtime/43t1-r3c-extension-path-matrix.md)
+- [R3C proxy interface](research/runtime/43t1-r3c-libcarplay-proxy-interface-audit.md), [service boundary](research/runtime/43t1-r3c-honda-service-boundary-audit.md), [stream dispatch](research/runtime/43t1-r3c-stream-dispatch-extension-audit.md)
+- [R3C process map](research/runtime/43t1-r3c-process-and-entry-map.md), [external comparators](research/runtime/43t1-r3c-external-architecture-comparators.md), and [ADR](research/adr/43t1-r3c-entry-and-ownership-architecture.md)
 - [43T1-R3B lifecycle cleanup static closure](step-reports/43t1-r3b-lifecycle-cleanup-static-closure.md)
 - [43T1-R3B cleanup coverage matrix](research/runtime/43t1-r3b-cleanup-coverage-matrix.md)
 - [43T1-R3B finalizer ownership map](research/runtime/43t1-r3b-finalizer-ownership-map.md)

@@ -1,0 +1,17 @@
+# 43T1-R3C expanded — stream dispatch and factory audit
+
+`HONDA_CONFIRMED` below is bounded to the hash-matched preserved `jmcs` disassembly already traced in [stream correlation](../carplay/type111-display-stream-correlation.md), [gating](../carplay/honda-alt-screen-gating.md), [R3B cleanup](43t1-r3b-lifecycle-cleanup-static-closure.md), and [native screen registry audit](../native/receiver-multidisplay-audit.md). It does not assert every proprietary path is absent.
+
+| Phase / switch | Recognized and default behavior | Factory/callback and ownership | Extension verdict |
+|---|---|---|---|
+| `/info` display build | Stock callback builds one descriptor from `ScreenCopyMain`, index 0 | Generic `ScreenRegister` appends to `gScreenArray`, but stock advertisement retrieves only main; Honda owns `gMainScreen` | Array is additive storage, not a usable multi-display advertisement path. `REJECT_NO_SETUP_CONTEXT`. |
+| Setup `streams[]` parse | Types 100/101 and 110 handled; unknown 111 follows default logging/skip and gets no Honda response entry | Type110 branch reads nonzero `streamConnectionID`, creates screen listener, derives per-screen state, appends `{type:110,dataPort}` | No generic/default Type111 factory. No registration branch found. `REJECT_NO_EVIDENCE`. |
+| Screen creation | `ScreenCreate`, `screen_add_props`, `ScreenRegister` called once for `gMainScreen` in car-specific init | Honda screen factory/object; generic registry accepts objects, but selected main object remains index 0 | Extra object would require an entry/load path and advertisement/dispatch changes. `REJECT_TYPE110_RISK` as runtime integration. |
+| Media callback proxy | Six fixed screen callbacks for initialize/finalize/property/start/stop/data | [Proxy](43t1-r3c-libcarplay-proxy-interface-audit.md) copies a 24-byte global record; second screen registration returns `0x16` | Single slot, no per-stream or per-session factory. `REJECT_REPLACEMENT`. |
+| Start / PlatformControl | Honda delegate and stock stream control | Honda-owned delegate record; [R3A seam map](43t1-r3a-setup-path-seam-map.md) | No additive project callback or recovered generic stream-type handler. |
+| `tearDownStreams` | Recognizes 100/101/110; unknown 111 skipped | Honda releases recognized stock objects; no project-child enumeration | No Type111 cleanup owner. `REJECT_NO_SESSION_ID`. |
+| Session finalization | Honda per-session callback and PlatformFinalize; global interface event omits session | [R3B ownership map](43t1-r3b-finalizer-ownership-map.md) | Finalizer callback is replacement; global event is not session-addressable. |
+
+`devmgr_dev_attach`, `devmgr_dev_alloc`, and `dev_attach` relate to device attachment/registration in [native inventory](../native/receiver-multidisplay-audit.md) and [Step 15](../../step-reports/15-carplay-device-attach.md). They do not receive a mutable AirPlay Setup response or provide a per-session Type111 factory in the recovered flow. `AirPlayReceiverSessionPlatformControl` is a Honda delegate dispatch, not an append-only handler registry. `ScreenStreamCreate`/proxy lifecycle points occur after the missing Setup acceptance and cannot retrofit the phone-facing response.
+
+**Bidirectional result:** no recovered generic/default stream-type path creates and later cleans unknown Type111. The only genuinely additive container is the generic screen array, whose stock consumer reads the main entry; it does not meet the combined R3C entry/ownership conditions.

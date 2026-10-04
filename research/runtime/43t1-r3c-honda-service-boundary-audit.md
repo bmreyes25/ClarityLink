@@ -1,0 +1,16 @@
+# 43T1-R3C expanded — Honda service boundary audit
+
+This is a static architecture review of preserved `CarPlay.apk`, `CarPlayService.apk`, `CarPlayApServiceApiLib.odex` decompilation, ExternalDisplay/Navigation service resources, `jmcs`, and `libcarplay_proxy.so`. `HONDA_CONFIRMED` applies to recovered component/interface structure, not runtime Type111 behavior. No Binder transaction was sent.
+
+| Component / boundary | Evidence | Session-addressable Setup/stream seam? |
+|---|---|---|
+| Native `jmcs` | [receiver topology](../native/live-session-topology-20260925.md), [CarPlay service API audit](../carplay/carplayservice-api-surface.md) | Owns AirPlay request dispatch, Setup, response serialization, and stock media. No recovered Binder export of raw request, response, session key, or stream factory. |
+| `libcarplay_proxy.so` | [proxy interface audit](43t1-r3c-libcarplay-proxy-interface-audit.md) | Linked callback proxy within `jmcs`; screen/audio/auth records are stock-owned, screen singleton. No Binder surface. |
+| `CarPlayService.apk` / `CarPlayApService` | [manifest](../resources/CarPlayService/AndroidManifest.xml), [service API audit](../carplay/carplayservice-api-surface.md) | Exported Binder service for app/phone status, calls, display control, UI/navigation coordination. `onBind` checks its interface action. No Setup plist, `streamConnectionID`, file descriptor, socket, encoded frame, Surface, or response mutation API. Manifest export does not establish caller authorization or Type111 ownership. |
+| `CarPlayApServiceApiLib` | [decompiled interface](../decompiled/CarPlayApServiceApiLib/sources/com/mitsubishielectric/ada/appservice/carplayapservice/ICarPlayApService.java) | Has `registerCallback*` and `unregisterCallback*` names for app/phone/navigation/Siri categories; these names alone do not prove additive native session observers. The decompiler leaves several Proxy bodies undecoded. No native Setup identity argument in the interface. |
+| `CarPlay.apk` | [repository component inventory](../REPORT.md) | Foreground UI consumer. No evidence it owns the native AirPlay session or can mutate the Setup response. |
+| ExternalDisplay/Navigation services | [service API audit](../carplay/carplayservice-api-surface.md), [component inventory](../REPORT.md) | App state, screen ownership, navigation arbitration, meter/display controls. Bindings are `HONDA_CONFIRMED`; a link to native Setup or accepted Type111 media is `UNKNOWN`. |
+
+`registerCallback` may be additive **within app-service UI categories** (`UNKNOWN` pending exact service implementation), but it fails the R3C gate even under that favorable reading: no native AirPlay session ID, no mutable Setup request/response, no pre-serializer invocation, and no Type111 media ownership path. `setVideoPath` switches an AV path; `setDisplayConfig` changes display configuration fields. Neither is a secondary-screen factory or response API. A status notification after connection is too late for Setup response construction.
+
+**Result:** no existing service/Binder boundary satisfies native session identity + Setup context + response mutation + independent project cleanup. Do not confuse app/vehicle connection status with a particular AirPlay session or stream generation.
