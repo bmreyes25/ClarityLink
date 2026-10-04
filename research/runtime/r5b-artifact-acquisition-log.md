@@ -1,0 +1,21 @@
+# R5B — public artifact acquisition log
+
+Research date: 2026-10-04. Scope: public sources only. No firmware or binary was downloaded or acquired during R5B.
+
+| Candidate ID | Vehicle/model/year | Head-unit family | Version/build | Source / type | Public availability / access | License/terms | Download date / filename / size / SHA256 / format | Lineage confidence | jmcs / receiver libs | Analysis status |
+|---|---|---|---|---|---|---|---|---|---|---|
+| R5B-CIVIC-2021-EX | Civic EX Hatchback 4D, 2021 | vcm30t30 / Mitsubishi Andromeda family, as reported by public `ic1101` project | `1.F1A5.15`, release-keys, ROM type 1115 | Public GitHub reverse-engineering notes (`librick/ic1101`, `docs/updates.md`); derived notes, not the binary | Notes public without login; no payload was downloaded. Repo describes processing official update files. | Repo says its own work is MIT, but Honda/Mitsubishi code/data remain proprietary and are not relicensed. No analysis permission for payload inferred. | Not downloaded; N/A | HIGH_CONFIDENCE_RELATED to Clarity target by family/platform, exact target equivalence not established | Project documentation reports `jmcs` decompilation in this family; no R5B candidate binary obtained | Metadata/lineage only |
+| R5B-CIVIC-UPDATE-1F197 | Civic family, specific model/year not established in reviewed page | likely vcm30t30 family; not independently established for this update package | `1.F197.70`, release-keys, ROM type 2250 | Public `ic1101` update notes | Public version metadata; payload source/license unclear; not downloaded | Proprietary payload caveat applies | Not downloaded; N/A | POSSIBLY_RELATED | Unknown for this exact build | Metadata only |
+| R5B-HONDA-USB-PORTAL | Honda USB update program; vehicle-specific candidate | Model/build dependent | Not determined | Official Honda update portal | Public page requires a vehicle-generated update data file before it searches for packages; that file is unavailable within this offline/no-vehicle milestone | Official public portal; exact package terms/build scope not reviewed | No upload or download; N/A | UNKNOWN | Unknown | Source access gate prevents candidate resolution |
+| R5B-MRC12-4-FORUM | Civic 2017–2019 bulletin/update references | MRC12.4 / Mitsubishi Electric stated by forum-hosted bulletin; receiver lineage unresolved | Forum references update versions; no package obtained | Public forum bulletin/post, derived/user-shared | Public web page, but referenced payload mirrors have unclear provenance | Unclear; payload explicitly not downloaded | Not downloaded; N/A | POSSIBLY_RELATED | Unknown | Candidate marked `PROVENANCE_UNCLEAR`; no artifact review |
+| R5B-ACCORD-2018-22 | Accord 2018–2022 update branch | Not established | Not established | Official support/manual/update references and secondary discussions | No receiver payload with clear public lawful access identified | Not determined | Not downloaded; N/A | UNKNOWN | Unknown | Research lead only; Clarity lineage not inferred |
+
+## Acquisition decision
+
+No candidate met all of: exact artifact availability, clear lawful provenance/analysis terms, and versioned receiver payload. Therefore no artifact was downloaded, hashed, unpacked, or analyzed. A version identifier or public reverse-engineering repository is not the firmware artifact itself. Forum/MediaFire links and any credential-, vehicle-, dealer-, or bypass-dependent route are excluded. `PROVENANCE_UNCLEAR` candidates remain unopened.
+
+## Permitted next acquisition path
+
+Recheck public official release pages or public research archives only if they expose a payload directly and state provenance/terms sufficiently to review. The official Honda portal currently requires a vehicle-created data file; do not obtain/upload that file under this milestone. Record filename, byte size and SHA256 only after lawful possession and terms review. Keep any permitted proprietary payload outside tracked repository content.
+
+Sources: [ic1101 README](https://github.com/librick/ic1101), [ic1101 update notes](https://github.com/librick/ic1101/blob/main/docs/updates.md), [official Honda USB update portal](https://usb.honda.com/index.html?lang=en). @ECC evidence review: metadata is not artifact possession; no Type111 claim follows.

@@ -212,3 +212,5 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 - The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.
 
 - [43T1-R3C — session-addressable static seam closure](43t1-r3c-session-addressable-static-seam-closure.md)
+
+- [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md)

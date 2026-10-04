@@ -44,3 +44,8 @@ Apple, xcertplay, MHI2, and CPC200 establish external architecture or receiver-s
 - Type111-only failure must clean up Type111-owned resources only.
 - Synthetic and external-prior-art fields retain their evidence labels.
 - Live Type111 and jmcs no-op loading remain NOT READY until their explicit gates pass.
+
+
+## R5B — Honda descendant artifact search (2026-10-04)
+
+R5B found versioned public research metadata for a close 2016–2021 Civic Andromeda/vcm30t30 family, including a 2021 Civic EX `1.F1A5.15` lead. No lawful, versioned descendant receiver payload was available for review, so Type111 remains `TYPE111_INSUFFICIENT_ARTIFACT`; this does not establish absence. The next milestone is continued public artifact/provenance research. R3C runtime NO-GO remains, R5X remains MODEL_ONLY, R4D Display 1 remains possible but unproven, and no vehicle action is authorized. See [R5B report](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md).

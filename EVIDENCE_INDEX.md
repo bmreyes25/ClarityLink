@@ -926,3 +926,14 @@ Honda-specific source notes remain separately indexed below; no external project
 |---|---|---|
 | Approved collector attempt | [43T0-D report](step-reports/43t0d-read-only-honda-network-delta.md); private host bundle outside Git | `HOST_ONLY_OBSERVED`: one `adb devices` command returned zero targets; collector `AMBIGUOUS_ADB_TARGET`. No identity/network phase or Honda target command. |
 | G11 and safety boundary | Same report; [40E reanalysis](step-reports/43t0a-40e-network-evidence-reanalysis.md) | `UNRESOLVED`: G11 unchanged. CAR-OFF message issued immediately; no further Honda/ADB commands. `NO_INTENTIONAL_MUTATION_OCCURRED`, target writes 0. |
+
+
+## Step 43T1-R5B — public Honda descendant artifact search (2026-10-04)
+
+| Evidence item | Source | Finding / classification |
+|---|---|---|
+| Civic family lineage and version metadata | Public [ic1101 README](https://github.com/librick/ic1101) and [update notes](https://github.com/librick/ic1101/blob/main/docs/updates.md) | `PUBLIC_RESEARCH_METADATA`: vcm30t30/Andromeda family and 2021 Civic EX version lead `1.F1A5.15`; no receiver payload acquired or inspected. Honda/Mitsubishi data remain proprietary per source terms. |
+| Official update route | [Honda USB portal](https://usb.honda.com/index.html?lang=en) | Public portal requires vehicle-generated data; not used because this milestone is offline/no-vehicle. |
+| Forums / mirror payload references | Public forum discussions | `PROVENANCE_UNCLEAR`; no download or binary review. |
+| Receiver/Type111 conclusion | [R5B triage](research/runtime/r5b-type111-static-triage.md) | `TYPE111_INSUFFICIENT_ARTIFACT`; R5B decision `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`. This is not a negative receiver finding. |
+| Gate / recommendation | [R5B gate](research/runtime/r5b-honda-descendant-evidence-gate.md), [decision matrix](research/runtime/r5b-next-path-decision-matrix.md) | R3C runtime NO-GO unchanged; R5X `MODEL_ONLY`; R4D possible but unproven; next public artifact research only. No vehicle authorization. |

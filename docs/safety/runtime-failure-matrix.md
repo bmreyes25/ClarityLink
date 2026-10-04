@@ -197,3 +197,22 @@ These are host-model evidence and scope failures. The controls do not establish 
 | Teardown model overclaimed | Idempotent boolean closure cited as Honda finalizer behavior | Child resources could leak | Keep cleanup ownership and Honda finalizer linkage `UNKNOWN` | Yes offline | No | `MODEL_ONLY` |
 | Mock Display 1 sink mistaken for cluster proof | String sink cited as visible safe cluster frame | Warning/z-order risk hidden | Require separate admission, physical viewport, warning and lifecycle evidence | Yes offline | No | `MODEL_ONLY`; Honda display `UNKNOWN` |
 | Sandbox code scope creep into deployment | Socket, artifact writer, target import or device API appears | Host boundary lost | Static dependency tests and review; reject change before commit | Yes offline | No | `MODEL_ONLY` |
+
+## 43T1-R5B lawful descendant artifact and Type111 triage failures
+
+These rows govern public-artifact sourcing and static review. Existing Rules v2 and R4D/R5A warning/authorization controls remain in force; duplicates are not restated.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Wrong Honda lineage mistaken for descendant | Model name, vendor, or CarPlay support used as lineage proof | Architecture incorrectly transferred to Clarity | Require platform/build/receiver evidence; distinguish same maker from same binary family | Yes offline | No | `UNKNOWN` until exact artifacts |
+| Marketing evidence mistaken for Type111 | Cluster guidance/CarPlay language treated as second H.264 stream | False protocol-positive conclusion | Require linked receiver-side dispatch, response, lifecycle, security, and teardown evidence | Yes offline | No | Marketing only; transport `UNKNOWN` |
+| Route guidance metadata mistaken for video stream | iAP2/TBT fields treated as secondary display media | Wrong receiver design | Keep semantic metadata separate from ScreenStream/video transport | Yes offline | No | Metadata does not prove media path |
+| Literal 111 mistaken for dispatch proof | Number/string `111` found without request-flow context | False positive | Trace stream-type comparison into response and screen lifecycle | Yes offline | No | Literal alone is weak evidence |
+| Stripped symbols mistaken for feature absence | No function names in stripped binary | False negative | Inspect strings, references, call graph and structural behavior; report limits | Yes offline | No | Symbol absence is non-decisive |
+| External prior art promoted to Honda evidence | AES-era or current lab receiver behavior treated as Honda implementation | Unsupported Honda claim | Preserve `EXTERNAL_PRIOR_ART`; require direct Honda artifact evidence | Yes offline | No | External behavior only |
+| Artifact provenance unclear | Forum/mirror payload has no trustworthy origin/terms | Potentially unauthorized artifact handling | Do not download; record `PROVENANCE_UNCLEAR` | Yes offline | No | Provenance unknown |
+| Proprietary artifact accidentally committed | Firmware/image/binary appears in Git staging or commit | Unauthorized redistribution | Keep binaries outside tracked tree; inspect staged names and diff before commit | Yes offline | No | Preventive control |
+| Candidate binary executed on host | Target ARM binary launched or emulated | Unintended target code execution; analysis scope breach | Static inspection only; do not execute target binaries | Yes offline | No | Prohibited by milestone |
+| Candidate artifact modified during analysis | Repacked/altered source artifact or checksum changes | Provenance/integrity lost | Read-only copy; record initial hash; work only on derived metadata | Yes offline | No | Integrity should be verified |
+| Partial Type111 implementation overclaimed as complete | Dispatch or second screen alone treated as full positive | Lifecycle/security/Type110 assumptions unsupported | Gate A requires linked response, screen, security, listener/media, teardown and Type110 path | Yes offline | No | Checklist-defined |
+| Receiver version mismatch | Notes from another version attributed to candidate build | Incorrect lineage or protocol conclusion | Pin exact version/hash and scope findings to inspected build | Yes offline | No | Current candidate binary absent |

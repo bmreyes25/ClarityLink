@@ -2,6 +2,8 @@
 
 ## Current snapshot — 2026-10-04
 
+- **R5B:** public research found a closely related Civic/Andromeda family and public version metadata (`1.F1A5.15`), but no lawful, versioned descendant receiver payload was obtained. No Type111 binary triage was possible. Decision: `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`; recommendation: `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. R3C runtime NO-GO remains in force, R5X remains MODEL_ONLY, and R4D ordinary-app Display 1 remains possible but unproven. No vehicle action is authorized. See [R5B report](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md).
+
 - **R5X:** a host-only theoretical Type111 receiver patch sandbox is complete at `MODEL_ONLY`. It did not patch `jmcs`, prove Honda Type111, create a real listener/receiver, or authorize a car experiment. See the [R5X report](step-reports/43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md). R3C still controls `jmcs`/Type111 runtime NO-GO; R4D Display 1 app admission remains unproven and offline static research remains the technical next step.
 - **Latest completed observation:** 43T0-D4 completed with a valid, identity-matched three-phase read-only capture; the vehicle was released immediately afterward.
 - **Current readiness:** G11-A-D have observed network evidence and the PREP2 specific-address IPv6 binding policy is ready. G11-E/F, Honda listener reachability, Type111 acceptance/security, runtime attachment, and deployment remain unresolved or unauthorized.
