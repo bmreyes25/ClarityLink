@@ -5,7 +5,7 @@
 - Starting branch: `main`.
 - Starting HEAD and `origin/main`: `6a6ffa4c284a1854d69ed0634e0a341d179cf223`.
 - Worktree: existing uncommitted edits in `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`, plus six untracked R3 draft files. Those user edits/drafts were preserved and excluded from the R4A commit.
-- Final research HEAD: to be filled after commit.
+- Final research HEAD: `b98b073e083ee3e0b659af403d644165367eeb44` (the subsequent report-only verification commit records these hosted results).
 - Honda contacted: **NO**. ADB used: **NO**. Runtime reads: **0**. Runtime writes: **0**. Vehicle connected: **NO**. RAM attachment: **NO**. Live listener: **NO**. Type111 negotiation: **NO**.
 
 ## Evidence and decision
@@ -24,8 +24,8 @@ Manual @ECC-guided research and safety review checked provenance labels, Android
 - Full suite: `PYTHON=.venv/bin/python ./tools/run_tests.sh` passed — 674 Python tests passed, 3 skipped; 3 self-locator checks and configured simulator JavaScript checks passed.
 - Repository health: `.venv/bin/python tools/check_repo_health.py` passed — 0 curated broken links, 0 forbidden tracked extensions.
 - `git diff --check`: passed before commit.
-- Hosted Offline CI: pending pushed-commit verification.
-- Hosted CodeQL: pending pushed-commit verification.
+- Hosted Offline CI: [passed on research HEAD `b98b073`](https://github.com/bmreyes25/ClarityLink/actions/runs/37179969099).
+- Hosted CodeQL: [passed on research HEAD `b98b073`](https://github.com/bmreyes25/ClarityLink/actions/runs/37179969047); no findings were suppressed for this milestone.
 
 ## Next milestone
 
