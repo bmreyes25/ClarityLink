@@ -4,7 +4,7 @@
 
 - Starting branch: `main`; starting HEAD and `origin/main`: `80a64a96f823e43fed3cc1043d3d5b0fd9eab6bf`.
 - Starting worktree: five modified current/history files (`EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, `step-reports/README.md`) and six untracked R3 draft files. These were preserved and excluded from R4C commits.
-- Final research HEAD: pending commit; a report-only commit will record hosted results.
+- Final research HEAD: `ce36bb39d0f0633bd826ad46e426d47a7f8b0ab6`; the report-only verification commit follows this record.
 - Honda contacted: **NO**; ADB used: **NO**; runtime reads: **0**; runtime writes: **0**; vehicle connected: **NO**; APK installed: **NO**; `jmcs` used: **NO**; Type111 used: **NO**; HondaHack runtime used: **NO**. No framebuffer, USB, CAN, root, ptrace or live-listener work occurred.
 
 ## Evidence reviewed and findings
@@ -28,8 +28,8 @@ Manual @ECC-guided research/security/safety review checked source provenance, AP
 - Full suite: `PYTHON=.venv/bin/python ./tools/run_tests.sh` passed — 700 Python tests passed, 3 skipped; 3 self-locator smoke checks and configured simulator JavaScript checks passed.
 - Repository health: `.venv/bin/python tools/check_repo_health.py` passed — 0 curated broken links and 0 forbidden tracked extensions.
 - `git diff --check`: passed before commit.
-- Hosted Offline CI: pending pushed-commit verification.
-- Hosted CodeQL: pending pushed-commit verification.
+- Hosted Offline CI: [passed](https://github.com/bmreyes25/ClarityLink/actions/runs/37213885915) on pushed research HEAD `ce36bb39d0f0633bd826ad46e426d47a7f8b0ab6`.
+- Hosted CodeQL: [passed](https://github.com/bmreyes25/ClarityLink/actions/runs/37213885964) on the same pushed research HEAD. No findings were suppressed for this milestone.
 - Decision: **`R4C_DISPLAY_ENTRY_POSSIBLE_BUT_UNPROVEN`**.
 - Project recommendation: **`GO_FOR_R4D_MORE_STATIC_DISPLAY_RESEARCH`**.
 - Next milestone: offline static search for Honda's display policy/flag behavior, package grants and a documented ordinary-app admission route, plus warning/z-order evidence. No APK, ADB, Honda, runtime or vehicle action is authorized.
