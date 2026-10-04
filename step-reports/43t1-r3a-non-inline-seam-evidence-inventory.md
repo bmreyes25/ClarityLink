@@ -51,6 +51,10 @@ Detailed table and path map: [R3A seam evidence inventory](../research/runtime/4
 
 Manual @ecc-guided evidence/safety review: keep static Honda control-flow claims separate from `MODEL_ONLY`; do not call the local BL or model wrapper an existing wrapper; treat callback replacement as replacement rather than subscription; do not infer cleanup coverage from a finalizer edge; do not upgrade Apple CF, AOSP, ARM, synthetic, or host-loopback evidence into Honda proof; retain R2’s inline-patch rejection. This is not independent ECC sign-off.
 
+## R3C follow-up (2026-10-03)
+
+R3C closes the bounded lifecycle/extension question without rewriting the historical R3A result. Honda has a raw session pointer internally at Setup and finalization, but no supported additive observation of both endpoints and no stable generation/non-reuse contract. Session/server delegates are whole-record copies, the global interface event is a single slot without session identity, and serializer/response state is transaction-scoped. No append-only session registration or same-identity Setup/cleanup pair was found in reviewed evidence. See [R3C pairing](../../research/runtime/43t1-r3c-entry-cleanup-pairing.md), [registration audit](../../research/runtime/43t1-r3c-registration-and-observer-audit.md), and [R3C report](43t1-r3c-session-addressable-static-seam-closure.md). R3C decision: `RUNTIME_INTERPOSITION_ARCHITECTURE_EXHAUSTED`; project recommendation: `PIVOT_AWAY_FROM_HONDA_RUNTIME_INTERPOSITION`.
+
 ## Tests, repo health, and hosted status
 
 - Focused tests: none applicable; no parser, validator, test, or model was added.

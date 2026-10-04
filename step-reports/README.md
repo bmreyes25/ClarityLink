@@ -194,3 +194,5 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 
 - [`RUN_STATUS.md`](RUN_STATUS.md) is a historical support record.
 - The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.
+
+- [43T1-R3C — session-addressable static seam closure](43t1-r3c-session-addressable-static-seam-closure.md)

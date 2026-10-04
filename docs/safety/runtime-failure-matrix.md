@@ -59,3 +59,21 @@ Static Honda cleanup described below is limited to Honda-owned session/context a
 | Cleanup after phone disconnect | Stock teardown handles recognized 100/101/110; Type111 is skipped and disconnect-to-finalizer coverage is incomplete | Project Type111 child may remain active | Do not rely on Honda disconnect cleanup for project child | No | Unknown | `HONDA_CONFIRMED` bounded path; coverage `UNKNOWN` |
 | Cleanup after process crash | In-process finalizer/reaper cannot be assumed to execute | External listener/worker or project state may survive or become orphaned | No recovery proof; keep runtime interposition NO-GO until an independent bounded owner exists | No | Unknown | `UNKNOWN` |
 | Cleanup after power loss | No process callback executes during power loss; post-power state is not inferred | Resource/restart behavior unknown | No claim of cleanup; would require separately authorized post-event verification | No | Unknown | `UNKNOWN` |
+
+## 43T1-R3C session identity and registration failures
+
+The following are static failure modes for any future sidecar proposal; R3C does not build or authorize one.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Stale sidecar identity | Project map entry outlives its Honda session or a raw pointer is mistaken for a generation | Cleanup may miss a child or act on a later session | No Honda sidecar; require an evidenced immutable generation and paired events before any future design | No | Unknown | Honda pointer generation `UNKNOWN` |
+| Pointer reuse | A freed session address is later reused while stale project state remains | Wrong-session resource association or cleanup | Never key an integrated sidecar by raw pointer alone; current integration gate fails | No | Unknown | Reuse behavior `UNKNOWN`; risk is a static failure mode |
+| Missed session-destroy event | Global event not delivered/observed or event has no session key | Project child leaks | No runtime child; do not treat interface event as cleanup owner | No | Unknown | Event lacks session identity; delivery coverage incomplete |
+| Duplicate create event | Session create observation is repeated or retried | Duplicate child/resource allocation | No additive create observer or duplicate semantics proven | No | Unknown | `UNKNOWN` |
+| Setup observed but cleanup missed | A hypothetical entry runs but no matching destroy callback arrives | Sidecar/listener outlives Honda session | Do not proceed absent a paired, guaranteed cleanup endpoint | No | Unknown | No paired event evidenced |
+| Cleanup observed but Setup missed | Global/finalizer cleanup is seen without corresponding project state | Incorrect lookup or stale state retained | Cleanup event cannot establish/project-select Setup generation; do not infer a child | No | Unknown | Global event has no session identity |
+| Registry leak | Project sidecar retains state after session/connection loss | Resource or identity leak | No integrated registry is built; offline model is not Honda cleanup evidence | No | Unknown | Honda registry lookup absent in reviewed evidence |
+| Wrong-session cleanup | Ambiguous identity selects another session's project resources | Cross-session teardown or stock disruption | Reject raw/global identity lookup; require same immutable identity across paired callbacks | No | Unknown | No qualifying identity found |
+| `streamConnectionID` reuse | Stream identifier repeats or is scoped differently than assumed | Wrong stream/session mapping | Do not use it as a session key absent uniqueness and lifecycle evidence | No | Unknown | Type110 use known; reuse and cleanup mapping `UNKNOWN` |
+| Observer registration displacement | New listener replaces the current callback record | Honda event, control, UI/audio, or Type110 behavior lost | Do not replace callbacks; require append-only coexistence evidence | Yes before replacement | Unknown | Whole-record copies/single slot confirmed in reviewed paths |
+| Sidecar lifetime exceeds Honda session | Project resources survive after Honda context/session finalizes | Orphaned listener/resources and stale key | No sidecar attachment until project has independent, paired lifetime ownership | No | Unknown | Honda finalizer has no project child lookup |
