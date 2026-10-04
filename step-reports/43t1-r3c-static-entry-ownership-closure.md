@@ -3,7 +3,7 @@
 ## Start state and boundaries
 
 - Starting branch: `main`; starting HEAD and `origin/main`: `f28bc66fe623273ba2c1ebfa60b677d74e34ca52`.
-- Final research HEAD: recorded after commit below. Worktree contained pre-existing modified `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`, plus six untracked R3 draft files. Those draft files remain uncommitted; task-owned hunks in shared state files are narrow. No reset, restore, clean, or stash was used.
+- Final research/evidence HEAD: `1f939ce87e030ca9d217528ca8b5b93c68ae0658`. Worktree contained pre-existing modified `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`, plus six untracked R3 draft files. Those draft files remain uncommitted; task-owned hunks in shared state files were staged separately. No reset, restore, clean, or stash was used.
 - Honda contacted: **NO**. ADB used: **NO**. Runtime reads: **0**. Runtime writes: **0**. Vehicle connected: **NO**. RAM attachment: **NO**. Live listener: **NO**. Type111 negotiation: **NO**.
 - This expanded R3C addresses the additional targets in the work order. The narrower already-committed R3C session-addressability report at `375e3ce` remains historical rather than being silently overwritten.
 
@@ -34,4 +34,5 @@ Manual @ECC-guided review covered provenance, session identity/reuse, proxy and 
 - Focused tests: `.venv/bin/python -m py_compile tools/check_repo_health.py` passed; the milestone-aware repository-health check passed.
 - Full `PYTHON=.venv/bin/python ./tools/run_tests.sh`: **674 passed, 3 skipped**; self-locator **3 passed**; configured simulator checks passed. Capture-backed scripts were skipped because private fixtures are not CI inputs.
 - `.venv/bin/python tools/check_repo_health.py`: **passed**, 478 Markdown files, 118 indexed milestone/support reports, 0 curated broken links, 0 forbidden tracked extensions. `git diff --check`: **passed**.
-- Hosted Offline CI and CodeQL: verify on the actual pushed research commit; no old run is R3C-expanded verification.
+- Hosted Offline CI: **passed** on exact pushed evidence HEAD `1f939ce` ([run 37174275022](https://github.com/bmreyes25/ClarityLink/actions/runs/37174275022)); its repository-health and offline-suite jobs passed.
+- Hosted CodeQL: **passed** on exact pushed evidence HEAD `1f939ce` across C/C++, Python, Actions, JavaScript/TypeScript, and Java/Kotlin ([run 37174274999](https://github.com/bmreyes25/ClarityLink/actions/runs/37174274999)). No finding was suppressed for R3C.
