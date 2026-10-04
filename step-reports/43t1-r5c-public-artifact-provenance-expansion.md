@@ -17,8 +17,8 @@ R5C began only after the R3 inventory, local recovery record, state normalizatio
 | Starting HEAD | `2e32be77d18064080980ce96a6e77e3bbb88ba70` |
 | Concurrent independent R5Y HEAD before Phase A commit | `a88d67960cb692c9058662b1757c73529133e80b` |
 | Repo hygiene commit | `07621b1c8c08a7e15c12037bd17427b6767c035c` |
-| Final implementation / verification HEAD | To be filled after commits and hosted checks |
-| Branch / repo hygiene | `main`; `R5C_REPO_CLEAN` at Phase A boundary |
+| Final implementation and hosted-verification HEAD | `145e846db510d18a561401fc687c7044f436da2a` |
+| Branch / repo hygiene / worktree | `main`; `R5C_REPO_CLEAN` at Phase A boundary; clean after implementation commit |
 | R3 disposition | Six historical R3 draft files preserved and committed; later R3C controls |
 | State normalization | One current action; R5B latest completed public research baseline, R5Y separate host model |
 | Honda contacted / ADB used / vehicle connected | NO / NO / NO |
@@ -53,6 +53,6 @@ Compared with R5B, R5C adds official Civic year/trim/version and failed-part met
 
 ECC evidence review separated `OFFICIAL_SOURCE`, `PUBLIC_RESEARCH`, `FORUM_LEAD`, and unauthenticated package claims. Official version confidence is high; binary custody and analysis permission remain unresolved. No literal `111`, marketing feature, or forum filename was promoted to Honda receiver evidence.
 
-Focused checks: R5Y preserved-work tests 95 passed; R5C provenance table/source and current-state cross-links reviewed. Full suite: 811 passed, 3 skipped; 3 standard-library smoke checks and simulator checks passed. Repository health: passed with 546 Markdown files, 128 indexed reports, 0 curated broken links, and 0 forbidden tracked extensions. `git diff --check`: passed. Offline CI, CodeQL, final HEAD, and final worktree status are recorded after hosted verification. Phase A repository repair report: [hygiene decision](43t1-r5c-repository-hygiene-and-state-normalization.md). Rules v2 remains governing; R3C runtime `jmcs`/Type111 NO-GO and R4D Display 1 possible-but-unproven status remain unchanged. Next milestone is R5D provenance closure, public/offline only.
+Focused checks: R5Y preserved-work tests 95 passed; R5C provenance table/source and current-state cross-links reviewed. Full suite: 811 passed, 3 skipped; 3 standard-library smoke checks and simulator checks passed. Repository health: passed with 546 Markdown files, 128 indexed reports, 0 curated broken links, and 0 forbidden tracked extensions. `git diff --check`: passed. Offline CI: [run 37221193465](https://github.com/bmreyes25/ClarityLink/actions/runs/37221193465) succeeded on the exact implementation HEAD. CodeQL: [run 37221193468](https://github.com/bmreyes25/ClarityLink/actions/runs/37221193468) succeeded on the same SHA. The report-only follow-up commit records these results; its final SHA is reported in the R5C completion message. Phase A repository repair report: [hygiene decision](43t1-r5c-repository-hygiene-and-state-normalization.md). Rules v2 remains governing; R3C runtime `jmcs`/Type111 NO-GO and R4D Display 1 possible-but-unproven status remain unchanged. Next milestone is R5D provenance closure, public/offline only.
 
 No Honda/ADB/runtime work was performed. R5C repaired and normalized repository state and continued lawful public Honda/Acura artifact research only. It does not authorize a vehicle experiment, Type111 negotiation, or jmcs modification.
