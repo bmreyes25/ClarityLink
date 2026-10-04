@@ -2,6 +2,7 @@
 
 ## Current snapshot — 2026-10-04
 
+- **R5X:** a host-only theoretical Type111 receiver patch sandbox is complete at `MODEL_ONLY`. It did not patch `jmcs`, prove Honda Type111, create a real listener/receiver, or authorize a car experiment. See the [R5X report](step-reports/43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md). R3C still controls `jmcs`/Type111 runtime NO-GO; R4D Display 1 app admission remains unproven and offline static research remains the technical next step.
 - **Latest completed observation:** 43T0-D4 completed with a valid, identity-matched three-phase read-only capture; the vehicle was released immediately afterward.
 - **Current readiness:** G11-A-D have observed network evidence and the PREP2 specific-address IPv6 binding policy is ready. G11-E/F, Honda listener reachability, Type111 acceptance/security, runtime attachment, and deployment remain unresolved or unauthorized.
 - **Current decision and authorization:** R4D returns `R4D_ORDINARY_APP_DISPLAY1_POSSIBLE_BUT_UNPROVEN`; R5A returns `R5A_HONDA_TYPE111_DESCENDANT_PROMISING_BUT_NO_BINARY`. Only offline public-artifact research follows; no Honda/ADB/runtime/vehicle action. AOSP API17 `Presentation` remains a candidate, while Honda admission/grants, warning/z-order, and physical safe area remain `UNKNOWN`.

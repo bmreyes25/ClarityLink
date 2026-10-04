@@ -181,3 +181,19 @@ Rows below add the new R4D/R5A failure cases; overlapping warning, privilege, an
 | iAP2/TBT route guidance mistaken for Type111 video | Semantic route fields/interfaces found | Wrong protocol conclusion and unsafe renderer assumption | Keep metadata, Setup stream, and H.264 transport as separate evidence categories | Yes offline | No | Honda semantic API static; Type111 link absent |
 | External Type111 prior art mistaken for Honda proof | xcertplay/MHI2/legacy receiver behavior cited | Honda support or crypto incorrectly asserted | Label `EXTERNAL_PRIOR_ART`; require Honda binary linkage for every strong signature | Yes offline | No | External evidence only |
 | Proprietary artifact accidentally committed | Firmware/APK/raw dump or restricted code enters Git | License breach, sensitive disclosure, or takedown | Remove from proposed commit before publication; preserve local ignored evidence only when lawful; record hash/derived notes | Yes before publication | No | Handling policy |
+
+## 43T1-R5X theoretical patch sandbox failures
+
+These are host-model evidence and scope failures. The controls do not establish Honda runtime recovery.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Theoretical patch mistaken for deployable patch | Model file or diagram described as installable | Unsupported target action | Require `NOT_DEPLOYABLE` labels, reject artifact names and deployment APIs | Yes offline | No | `MODEL_ONLY` |
+| Mock Type111 response mistaken for Honda schema | Synthetic tuple/descriptor cited as wire fields | False Honda acceptance claim | Keep `MODEL_ONLY`; stop at unknown Honda schema gate | Yes offline | No | `MODEL_ONLY`; Honda schema `UNKNOWN` |
+| Mock listener mistaken for real listener | Integer port label treated as bound socket | False reachability/cleanup claim | No socket import or bind; state explicitly says `MOCK_ONLY` | Yes offline | No | `MODEL_ONLY`; Honda listener `UNKNOWN` |
+| Mock security mistaken for CarPlay security | Marker cited as crypto or authentication | Unsafe protocol assumption | No keys, KDF, cipher or authentication; retain Type111 security `UNKNOWN` | Yes offline | No | `MODEL_ONLY` |
+| Model success mistaken for Honda success | Tests pass and are promoted to target evidence | Premature compatibility claim | Rules v2 evidence labels and R3C gate remain controlling | Yes offline | No | `MODEL_ONLY` |
+| Type110 preservation overclaimed | Frozen object identity cited as center/audio coexistence | Stock behavior risk hidden | State exact host invariant and require future Honda-specific coexistence evidence | Yes offline | No | `MODEL_ONLY`; runtime `UNKNOWN` |
+| Teardown model overclaimed | Idempotent boolean closure cited as Honda finalizer behavior | Child resources could leak | Keep cleanup ownership and Honda finalizer linkage `UNKNOWN` | Yes offline | No | `MODEL_ONLY` |
+| Mock Display 1 sink mistaken for cluster proof | String sink cited as visible safe cluster frame | Warning/z-order risk hidden | Require separate admission, physical viewport, warning and lifecycle evidence | Yes offline | No | `MODEL_ONLY`; Honda display `UNKNOWN` |
+| Sandbox code scope creep into deployment | Socket, artifact writer, target import or device API appears | Host boundary lost | Static dependency tests and review; reject change before commit | Yes offline | No | `MODEL_ONLY` |
