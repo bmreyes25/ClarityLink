@@ -92,16 +92,21 @@ def read_git_commit(repo_root: Path) -> str:
         if not marker.startswith("gitdir: "):
             raise ValueError("invalid Git directory marker")
         git_dir = (repo_root / marker[8:]).resolve()
+    common_dir = git_dir
+    commondir = git_dir / "commondir"
+    if commondir.exists():
+        common_dir = (git_dir / commondir.read_text().strip()).resolve()
     head = (git_dir / "HEAD").read_text().strip()
     if head.startswith("ref: "):
         ref = head[5:]
         if not re.fullmatch(r"refs/[A-Za-z0-9_./-]+", ref) or ".." in ref:
             raise ValueError("invalid Git ref")
-        loose = git_dir / ref
-        if loose.exists():
+        loose = next((path for path in (git_dir / ref, common_dir / ref) if path.exists()), None)
+        if loose is not None:
             head = loose.read_text().strip()
         else:
-            packed = (git_dir / "packed-refs").read_text().splitlines()
+            packed_refs = common_dir / "packed-refs"
+            packed = packed_refs.read_text().splitlines() if packed_refs.exists() else []
             matches = [line.split()[0] for line in packed if line.endswith(" " + ref)]
             if len(matches) != 1:
                 raise ValueError("Git ref unavailable")

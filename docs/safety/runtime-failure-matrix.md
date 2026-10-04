@@ -250,3 +250,18 @@ These rows extend the R5X mock-security and mock-display overclaim controls abov
 | Stale-generation resource destruction | Old frame, listener or teardown acts on newer child | New display/resource lost | Exact-generation lookup/rejection and reconnect tests | Yes in model | No | `MODEL_ONLY` |
 | Partial initialization leak | Fault between child allocations leaves earlier mock active | Orphaned listener/security/display | Register each mock immediately; cleanup on every failure point; assert zero counts | Yes in model | No | `MODEL_ONLY` |
 | Secondary failure corrupts primary model | Rollback changes primary object or serialized primary snapshot | Type110 preservation contract broken | Identity and canonical snapshot oracle across all failure classes | Yes in model | No | `MODEL_ONLY`; Honda coexistence `UNKNOWN` |
+# R5D public artifact provenance failure controls
+
+These are offline research failure modes. R5D authorizes no vehicle action.
+
+| Failure | Detection / control | Required response |
+|---|---|---|
+| Version-string lineage overclaim | Similar `1.F*` syntax without build/part/binary match | Mark relationship `UNKNOWN`; retain source class |
+| Mirror provenance failure | Filename matches bulletin but no original publisher hash/custody | `QUARANTINE_METADATA_ONLY`; no download or analysis |
+| Wrong trim, model year, or region binary | Bulletin says year/trim-specific or EU vs US package | Require exact compatibility before comparison; never cross-apply |
+| Partial/delta mistaken for full image | No installed component inventory or update-script review | Do not infer absent receiver component |
+| Part-number or supplier mismatch | Failed-part field differs from trim catalog/label | Record each number's role; stop lineage promotion |
+| Hash missing or artifact mutated before hashing | No immediate raw-file SHA256/size record | Reject artifact as provenance evidence |
+| Target binary accidentally executed | Any run/install/flash command proposed | Stop; static tools only; never execute target code |
+| Type111 literal or cluster metadata overclaim | No linked dispatch/response/listener/media/security/teardown path | Report metadata only, not Type111 support |
+| Inference promoted to confirmation | Source lacks exact link in provenance chain | Reclassify as inference or unknown and cite missing link |
