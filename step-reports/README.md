@@ -1,12 +1,15 @@
 ## Current / latest milestones
 
-- [43T1-R5Y — reusable Type111 receiver-core sandbox](43t1-r5y-reusable-type111-receiver-core-sandbox.md) — host-only model finalized; Honda adapters absent and R3C NO-GO unchanged
+- [43T1-R5C — repository hygiene and state normalization](43t1-r5c-repository-hygiene-and-state-normalization.md) — protected R3 and concurrent R5Y work; repository disposition pending
+- [43T1-R5B — Honda descendant artifact and Type111 static triage](43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md) — latest completed public research result; no lawful analyzable receiver payload
+- [43T1-R5Y — reusable Type111 receiver-core sandbox](43t1-r5y-reusable-type111-receiver-core-sandbox.md) — completed separately at `a88d679`; host-only model, Honda adapters absent
 - [43T1-R5X — theoretical jmcs Type111 patch sandbox](43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md) — host-only `MODEL_ONLY`; R3C runtime NO-GO and R4D Display 1 unknowns remain
 - [43T1-R4D/R5A — Display policy and Type111 recovery research](43t1-r4d-r5a-display-policy-and-type111-recovery.md) — offline only; ordinary Display 1 admission possible but unproven; no Honda descendant Type111-positive binary found; next public artifact research.
-- [43T1-R4C offline Display 1 access static review](43t1-r4c-display1-access-static-review.md) — current decision; R4D more static display research next
+- [43T1-R4C offline Display 1 access static review](43t1-r4c-display1-access-static-review.md) — historical decision; R4D followed
 - [43T1-R4B host-only synthetic turn-card renderer model](43t1-r4b-host-turn-card-renderer-model.md) — host-model evidence only
 - [43T1-R4A offline architecture pivot](43t1-r4a-post-interposition-architecture-pivot.md) — selected host-only renderer direction
 - [43T1-R3C expanded static entry/ownership closure](43t1-r3c-static-entry-ownership-closure.md) — controlling runtime-interposition NO-GO
+- [43T1-R3 non-inline mediation seam study](43t1-r3-non-inline-mediation-seam-study.md) — preserved historical draft; R3C controls
 
 # Step reports
 
@@ -17,7 +20,7 @@ This index preserves the engineering chronology and negative results. For curren
 ## Current project status
 
 - Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current static-entry decision: [43T1-R4C](43t1-r4c-display1-access-static-review.md) returns `R4C_DISPLAY_ENTRY_POSSIBLE_BUT_UNPROVEN`; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
+- Current static-entry decision: [43T1-R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones

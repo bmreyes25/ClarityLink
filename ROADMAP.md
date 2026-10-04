@@ -4,11 +4,9 @@
 
 ## Current engineering stage
 
-R5Y finalizes a reusable host-only Type111 receiver-core model with stable symbolic adapters, generation-owned cleanup, fault injection and replay. It does not implement Honda integration or change R3C's runtime NO-GO. R5B found no lawful analyzable descendant receiver payload, so continued lawful public artifact research remains evidence-driven; R4D Display 1 admission remains unproven. See the [R5Y report](step-reports/43t1-r5y-reusable-type111-receiver-core-sandbox.md) and [evidence gap registry](research/runtime/r5y-honda-evidence-gap-registry.md).
+The latest completed public research milestone is [R5B public artifact research](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md): `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND` / `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. The 2021 Civic EX `1.F1A5.15` metadata is the strongest related lead; no lawful analyzable receiver payload has been found. R3C's `jmcs`/Type111 runtime NO-GO remains controlling, R4D ordinary-app Display 1 remains possible but unproven, and [R5X](step-reports/43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md) remains a host-only model. Rules v2 governs. Only offline/public research is authorized.
 
-R5X completed a host-only theoretical Type111 patch sandbox. It does not patch `jmcs`, prove Honda Type111, or authorize vehicle work. R3C remains the receiver runtime NO-GO; R4D Display 1 admission remains unproven. See the [R5X report](step-reports/43t1-r5x-theoretical-jmcs-type111-patch-sandbox.md).
-
-The latest completed milestone is **43T1-R4D/R5A Display 1 policy and Type111 recovery research**. API17 `Presentation` remains possible but unproven for ordinary apps on Honda; the preserved permission snapshot and incomplete Honda policy evidence do not establish admission or safe warning z-order. R5A found promising descendant families but no Honda Type111-positive binary. Expanded R3C still controls `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. The next step is lawful public artifact/version research. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4D/R5A report](step-reports/43t1-r4d-r5a-display-policy-and-type111-recovery.md), [decision matrix](research/runtime/r4d-r5a-next-path-decision-matrix.md), and [R4D admission gate](research/runtime/43t1-r4d-ordinary-app-display1-admission-gate.md).
+A separate [R5Y host-only receiver-core sandbox](step-reports/43t1-r5y-reusable-type111-receiver-core-sandbox.md) completed at `a88d679` during R5C inventory. It is a model, not Honda integration, and does not change the current evidence gate.
 
 ## Historical receiver target (superseded by R3C/R4A)
 

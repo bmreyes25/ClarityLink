@@ -45,6 +45,9 @@
 /src/**/*.pyc
 
 # Raw and derived vehicle data stays outside Git.
+/.local-backups/
+/.local-artifacts/
+/private-captures/
 /research/captures/
 !/research/captures/
 /research/captures/*
