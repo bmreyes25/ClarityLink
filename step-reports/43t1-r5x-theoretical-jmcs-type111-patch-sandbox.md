@@ -4,7 +4,7 @@
 
 - Starting branch: `main`; starting HEAD: `67a50f7444c066a44fc2074341694882873d7964`.
 - Starting worktree: modified `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `docs/safety/runtime-failure-matrix.md`, `step-reports/README.md`, and `tools/check_repo_health.py`; pre-existing untracked R3 and R4D/R5A drafts. All were preserved; R5X changes were added without reset, clean, stash or restore.
-- Final implementation HEAD: pending commit. Hosted verification is pending; no old run is used as R5X evidence.
+- Final implementation HEAD: `3246aa2754021de3f12136bb38d425d6c21d5bdc`. A following report-only commit records its hosted verification. Pre-existing R3 drafts remain uncommitted and preserved.
 - Honda contacted: **NO**. ADB used: **NO**. Runtime reads: **0**. Runtime writes: **0**. Vehicle connected: **NO**. APK installed: **NO**. `jmcs` modified: **NO**. `jmcs` used: **NO**. Type111 used on Honda: **NO**. HondaHack runtime used: **NO**.
 
 ## Purpose and model
@@ -31,11 +31,11 @@ Manual @ECC security-review and Python-testing guidance was applied to source va
 - Full suite: `PYTHON=.venv/bin/python ./tools/run_tests.sh` — 716 passed, 3 skipped; 3 self-locator checks and configured simulator checks passed.
 - Repository health: `.venv/bin/python tools/check_repo_health.py` — passed, 512 Markdown files, 124 indexed reports, 0 curated broken links, 0 forbidden tracked extensions.
 - `git diff --check`: passed.
-- Hosted Offline CI on actual pushed R5X commit: pending.
-- Hosted CodeQL on actual pushed R5X commit: pending; no findings will be suppressed to obtain green status.
+- Hosted Offline CI on exact pushed implementation HEAD `3246aa2`: [passed, run 37216865251](https://github.com/bmreyes25/ClarityLink/actions/runs/37216865251).
+- Hosted CodeQL on the same exact HEAD: [passed, run 37216865231](https://github.com/bmreyes25/ClarityLink/actions/runs/37216865231) across Actions, Java/Kotlin, C/C++, Python and JavaScript/TypeScript; no findings were suppressed.
 
 ## Decision and next milestone
 
-**R5X decision:** `R5X_THEORETICAL_PATCH_SANDBOX_COMPLETE` for the scoped host model; hosted verification remains pending.
+**R5X decision:** `R5X_THEORETICAL_PATCH_SANDBOX_COMPLETE` for the scoped host model.
 
-**Project recommendation:** `CONTINUE_TO_R4D_STATIC_DISPLAY_RESEARCH` for the unresolved Display 1 admission/policy gate; where existing R4D drafts already cover a question, continue only the remaining static gap or lawful public artifact research. R5X itself grants no Honda, ADB, APK, runtime, receiver, listener, RAM, framebuffer, CAN, USB, or vehicle action. The next milestone is offline evidence work only.
+**Project recommendation:** `GO_FOR_R5A_HONDA_DESCENDANT_ARTIFACT_RESEARCH`, meaning continued lawful public artifact/version research for the remaining R5A gap, since the R4D/R5A milestone already completed its bounded static review without finding a Type111-positive Honda binary. R4D Display 1 admission remains unresolved. R5X itself grants no Honda, ADB, APK, runtime, receiver, listener, RAM, framebuffer, CAN, USB, or vehicle action. The next milestone is offline evidence work only.
