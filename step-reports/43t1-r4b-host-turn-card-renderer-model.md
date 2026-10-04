@@ -5,7 +5,7 @@
 - Starting branch: `main`.
 - Starting HEAD and `origin/main`: `90d6ec53df5f07f43dc7d7cadd3eb7f5016ec26b`.
 - Worktree: pre-existing uncommitted edits in `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`, plus six untracked R3 draft files. These were preserved and excluded from R4B commits.
-- Final research HEAD: pending commit; a subsequent report-only commit records hosted results.
+- Final research HEAD: `9813a70adff5bc69d64d0f5e394e508e7177c584`; a subsequent report-only commit records hosted results.
 - Honda contacted: **NO**. ADB used: **NO**. Runtime reads: **0**. Runtime writes: **0**. Vehicle connected: **NO**. `jmcs` used: **NO**. Type111 used: **NO**. RAM attachment: **NO**. Listener created: **NO**. APK installed: **NO**.
 
 ## Model and evidence
@@ -30,8 +30,8 @@ Manual @ECC-guided research/code/safety review checked evidence labels, schema f
 - Full suite: `PYTHON=.venv/bin/python ./tools/run_tests.sh` — 700 Python tests passed, 3 skipped; 3 self-locator smoke tests and configured simulator JavaScript checks passed.
 - Repository health: `.venv/bin/python tools/check_repo_health.py` passed with 0 curated broken links and 0 forbidden tracked extensions.
 - `git diff --check`: passed before commit.
-- Hosted Offline CI: pending pushed-commit verification.
-- Hosted CodeQL: pending pushed-commit verification.
+- Hosted Offline CI: [passed on research HEAD `9813a70`](https://github.com/bmreyes25/ClarityLink/actions/runs/37212421204).
+- Hosted CodeQL: [passed on research HEAD `9813a70`](https://github.com/bmreyes25/ClarityLink/actions/runs/37212421265); no findings were suppressed for this milestone.
 - Decision: **`R4B_HOST_RENDERER_MODEL_COMPLETE`**.
 - Project recommendation: **`GO_FOR_R4C_DISPLAY_ACCESS_STATIC_REVIEW`**.
 - Next milestone: offline-only static review of a supported, independently owned Display 1 app path and physical warning/safe-area boundaries. No Honda/ADB/runtime/vehicle work is authorized.
