@@ -2,7 +2,7 @@
 
 ## Current action
 
-**Current authorization: offline architecture pivot research only.** Expanded 43T1-R3C returns `R3C_NO_SAFE_RUNTIME_EXTENSION_PATH_FOUND` and recommends `ABANDON_RUNTIME_INTERPOSITION_UNTIL_NEW_EVIDENCE`. Reopen Honda `jmcs` entry work only with a new preserved artifact proving an additive, session-addressable pre-serializer entry and independently owned cleanup. No Honda contact, ADB, RAM attachment, listener, Type111 negotiation, or vehicle work is authorized. See the [expanded R3C report](step-reports/43t1-r3c-static-entry-ownership-closure.md) and [ADR](research/adr/43t1-r3c-entry-and-ownership-architecture.md).
+**Latest completed milestone: 43T1-R4A offline architecture pivot.** Decision `R4A_PIVOT_TO_CLUSTER_NAV_RENDERER`; recommendation `GO_FOR_R4B_OFFLINE_RENDERER_MODEL`. **Current authorization: host-only, synthetic turn-card renderer study** with no deployable Honda code or live navigation claim. An independent Display 1 app entry and physical safe area remain unproven. R3C's `R3C_NO_SAFE_RUNTIME_EXTENSION_PATH_FOUND` and `ABANDON_RUNTIME_INTERPOSITION_UNTIL_NEW_EVIDENCE` continue to control `jmcs`/Type111 work. No Honda contact, ADB, RAM attachment, listener, Type111 negotiation, installation, or vehicle work is authorized. See the [R4A report](step-reports/43t1-r4a-post-interposition-architecture-pivot.md), [pivot ADR](research/adr/43t1-r4a-post-interposition-architecture-pivot.md), and [new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md).
 
 ## Historical context
 

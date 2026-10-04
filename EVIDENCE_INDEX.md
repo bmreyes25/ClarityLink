@@ -12,7 +12,9 @@ This is the claim-level provenance ledger. Read each classification with its sou
 
 ## Current evidence entries
 
-- [43T1-R3C expanded static entry/ownership closure](step-reports/43t1-r3c-static-entry-ownership-closure.md) — latest decision; `HONDA_CONFIRMED` static scope only
+- [43T1-R4A offline architecture pivot](step-reports/43t1-r4a-post-interposition-architecture-pivot.md) — latest decision; host-only next path, Honda Display 1 independent entry `UNKNOWN`
+- [R4A architecture matrix](research/runtime/43t1-r4a-architecture-pivot-matrix.md), [cluster rendering](research/runtime/43t1-r4a-cluster-rendering-architecture.md), [navigation data sources](research/runtime/43t1-r4a-navigation-data-source-audit.md), [new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md), [ADR](research/adr/43t1-r4a-post-interposition-architecture-pivot.md)
+- [43T1-R3C expanded static entry/ownership closure](step-reports/43t1-r3c-static-entry-ownership-closure.md) — historical runtime-interposition NO-GO; `HONDA_CONFIRMED` static scope only
 - [R3C extension matrix and dynamic closure](research/runtime/43t1-r3c-extension-path-matrix.md)
 - [R3C proxy interface](research/runtime/43t1-r3c-libcarplay-proxy-interface-audit.md), [service boundary](research/runtime/43t1-r3c-honda-service-boundary-audit.md), [stream dispatch](research/runtime/43t1-r3c-stream-dispatch-extension-audit.md)
 - [R3C process map](research/runtime/43t1-r3c-process-and-entry-map.md), [external comparators](research/runtime/43t1-r3c-external-architecture-comparators.md), and [ADR](research/adr/43t1-r3c-entry-and-ownership-architecture.md)

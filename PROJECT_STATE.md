@@ -4,9 +4,9 @@
 
 - **Latest completed observation:** 43T0-D4 completed with a valid, identity-matched three-phase read-only capture; the vehicle was released immediately afterward.
 - **Current readiness:** G11-A-D have observed network evidence and the PREP2 specific-address IPv6 binding policy is ready. G11-E/F, Honda listener reachability, Type111 acceptance/security, runtime attachment, and deployment remain unresolved or unauthorized.
-- **Current decision and authorization:** expanded 43T1-R3C returns `R3C_NO_SAFE_RUNTIME_EXTENSION_PATH_FOUND` and recommends `ABANDON_RUNTIME_INTERPOSITION_UNTIL_NEW_EVIDENCE`. Inline patching remains rejected. Only offline architecture pivot/new-artifact research is authorized; no Honda/ADB/runtime action is authorized.
-- **Latest completed milestone:** [43T1-R3C expanded static entry/ownership closure](step-reports/43t1-r3c-static-entry-ownership-closure.md). The earlier narrower R3C session-addressability report remains historical.
-- **Next action:** pivot offline away from `jmcs` runtime interposition; reopen only on new static Honda evidence satisfying the [ADR gate](research/adr/43t1-r3c-entry-and-ownership-architecture.md).
+- **Current decision and authorization:** R4A returns `R4A_PIVOT_TO_CLUSTER_NAV_RENDERER` / `GO_FOR_R4B_OFFLINE_RENDERER_MODEL`. Host-only synthetic turn-card study is authorized; no Honda/ADB/runtime/vehicle action. Independent Honda Display 1 app access and physical safe area remain `UNKNOWN`.
+- **Latest completed milestone:** [43T1-R4A offline architecture pivot](step-reports/43t1-r4a-post-interposition-architecture-pivot.md). Expanded [R3C](step-reports/43t1-r3c-static-entry-ownership-closure.md) remains the controlling `jmcs`/Type111 NO-GO; inline patching remains rejected.
+- **Next action:** R4B offline synthetic renderer model and display-entry evidence review under the [R4A gate](research/runtime/43t1-r4a-new-evidence-gate.md); no deployment claim.
 - **Historical decisions:** R3B returned `LIFECYCLE_CLEANUP_NOT_SAFE_FOR_PROJECT_CHILDREN` / `GO_FOR_R3C_STATIC_SEAM_CLOSURE`. R1/R2 and the earlier narrower R3C remain in the chronology and are not current authorization.
 - **Historical context:** the rolling ledger below is retained as written; consult its dates and milestone reports rather than treating old entries as current status.
 

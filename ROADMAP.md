@@ -4,7 +4,7 @@
 
 ## Current engineering stage
 
-The latest completed milestone is **43T1-R3C expanded offline static entry/ownership closure**. The preserved dynamic, proxy, service, factory, dispatch, and loader evidence supplies no safe additive session-addressable runtime extension path. The architecture recommendation is to stop `jmcs` runtime interposition until new static evidence appears. Type111 acceptance/security, runtime attachment, and deployment remain unproven and unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R3C report](step-reports/43t1-r3c-static-entry-ownership-closure.md), and the [ADR](research/adr/43t1-r3c-entry-and-ownership-architecture.md).
+The latest completed milestone is **43T1-R4A offline architecture pivot**. Its next path is a host-only synthetic cluster turn-card renderer model, with independent Honda Display 1 app access and physical safe area still unproven. Expanded R3C closed current `jmcs` runtime interposition; Type111, runtime attachment, installation, and vehicle work remain unauthorized. See [NEXT_ACTION.md](NEXT_ACTION.md), the [R4A report](step-reports/43t1-r4a-post-interposition-architecture-pivot.md), [pivot ADR](research/adr/43t1-r4a-post-interposition-architecture-pivot.md), and [new-evidence gate](research/runtime/43t1-r4a-new-evidence-gate.md).
 
 ## Evidence-backed target
 

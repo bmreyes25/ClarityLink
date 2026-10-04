@@ -96,3 +96,21 @@ The following are offline design gates. No runtime mitigation or car experiment 
 | Type110 callback displacement | Proxy or delegate record replaced | Stock media/control/audio/finalizer loss | Reject replacement and table writes | Yes before use | Unknown | `HONDA_CONFIRMED` single records; runtime outcome `UNKNOWN` |
 | Partial registration | Project resources acquired before callback/response entry is actually established | Orphaned listener or half-owned transaction | No model/runtime entry until full registration and rollback contract exists | No path established | Unknown | `INFERENCE` |
 | Project worker/session mismatch | Worker keyed to reused or absent session identity | Wrong child closed or data delivered to stale worker | Require stable same-session key and bounded project-only cleanup | No path established | Unknown | `INFERENCE`; identity `UNKNOWN` |
+
+## 43T1-R4A offline architecture pivot failures
+
+These controls apply to host-only architecture work. They do not establish a Honda renderer entry or authorize a car experiment.
+
+| Phase / failure | Observable symptom | Possible consequence | Recovery method | Independent? | Reboot required? | Confidence |
+|---|---|---|---|---|---|---|
+| Post-R3C architecture drift | New plan quietly resumes `jmcs` Type111 work | Rejected interposition assumptions return | Enforce R3C and R4A new-evidence gate in current docs; stop proposal | Yes offline | No | `HONDA_CONFIRMED` static NO-GO scope |
+| Runtime interposition accidentally reintroduced | Patch, callback replacement, preload, or new Honda listener appears in renderer plan | Stock CarPlay disruption or unsupported vehicle change | Reject design; require independent entry proof and separate future authorization | Yes before use | Unknown after use | `REJECTED` by current architecture |
+| Navigation data privacy leakage | Route, location, destination or API key enters logs/fixtures | Personal trip disclosure | Use synthetic fixtures, minimize retention, strip secrets, review channel and provider before integration | Yes offline | No | `INFERENCE` risk |
+| Apple/Waze scraping | Plan depends on another app's screen, notifications, or private trip state | Fragile and potentially impermissible data source | Reject dependency; use own route or synthetic data | Yes offline | No | Public live-trip API `UNKNOWN` after review |
+| Cluster distraction | Dense map, animation or small text in proposed card | Driver attention diverted | Model simple static glanceable cards; actual driving safety requires later independent review | Yes for model | No | `MODEL_ONLY` |
+| Bad turn instruction | Wrong maneuver/distance/road label rendered | Misleading navigation | Generation checks, validation and clear unavailable state; model never claimed road safe | Yes for model | No | `MODEL_ONLY` |
+| Stale route state | Update lost after reroute, cancel, disconnect or expiry | Old instruction stays visible | Expire and clear by route generation/lease; fail to unavailable | Yes for model | No | `MODEL_ONLY` |
+| Center CarPlay interference | Renderer design takes ownership of stock display/audio/session | Type110 or center UI displaced | Keep route path separate from `jmcs`; demand coexistence evidence before any deployment review | Yes offline | Unknown after use | Honda coexistence `UNKNOWN` |
+| HondaHack dependency | Xposed insertion treated as supported app API | Unsupported in-process modification | Keep as `HONDA_OBSERVED` precedent only; no Xposed use in R4A | Yes offline | No | `HONDA_OBSERVED` output; independent entry `UNKNOWN` |
+| API key leakage | Provider credential embedded in client or committed | Abuse and billing loss | No keys in R4B; later use scoped credentials, quota and secret review | Yes offline | No | `INFERENCE` risk |
+| Offline renderer overclaim | 800×480 host frame presented as physical cluster safe area or working on-car UI | False readiness and unsafe layout choice | Label synthetic; keep crop, z-order, app access and warnings as `UNKNOWN` | Yes offline | No | `HONDA_OBSERVED` canvas; physical safe area `UNKNOWN` |
