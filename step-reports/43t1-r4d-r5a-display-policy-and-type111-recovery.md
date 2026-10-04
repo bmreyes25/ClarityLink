@@ -4,7 +4,7 @@
 
 - Starting branch: `main`.
 - Starting HEAD: `67a50f7444c066a44fc2074341694882873d7964`.
-- Final HEAD: pending milestone commit / hosted verification.
+- Final research HEAD: `a674b1d3cb27a3589b6ac8d30e6715f80d7109c4` (a report-only follow-up records hosted results).
 - Starting worktree: pre-existing modifications to `EVIDENCE_INDEX.md`, `NEXT_ACTION.md`, `PROJECT_STATE.md`, `docs/safety/runtime-failure-matrix.md`, and `step-reports/README.md`, plus untracked R3 drafts. During this milestone additional untracked `src/claritylink-sandbox/` and `tests/sandbox/` files appeared; they were preserved and excluded as unrelated work. Only milestone-owned additions/hunks are included.
 - Honda contacted: **NO**.
 - ADB used: **NO**.
@@ -64,8 +64,8 @@ The [decision matrix](../research/runtime/r4d-r5a-next-path-decision-matrix.md) 
 - Full suite: `PYTHON=.venv/bin/python ./tools/run_tests.sh` — **700 passed, 3 skipped**; 3 self-locator smoke tests passed; configured simulator JavaScript checks passed; private capture-backed replay skipped because fixtures are not CI inputs.
 - Repository health: `.venv/bin/python tools/check_repo_health.py` — **passed**, 508 Markdown files, 123 indexed milestone/support reports, 0 curated broken links, 0 forbidden tracked extensions.
 - Diff check: `git diff --check` — passed.
-- Hosted Offline CI: pending exact pushed milestone commit.
-- Hosted CodeQL: pending exact pushed milestone commit; findings will not be suppressed.
+- Hosted Offline CI: **passed** on the exact pushed research HEAD [`a674b1d`](https://github.com/bmreyes25/ClarityLink/actions/runs/37216659895).
+- Hosted CodeQL: **passed** on the same exact pushed research HEAD [`a674b1d`](https://github.com/bmreyes25/ClarityLink/actions/runs/37216659840), across C/C++, Java/Kotlin, JavaScript/TypeScript, Actions, and Python. No findings were suppressed for this milestone.
 
 ## Decisions
 
