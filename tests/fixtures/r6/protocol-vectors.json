@@ -1,0 +1,17 @@
+{
+  "provenance": "SYNTHETIC_SANITIZED_R6_HOST_ORACLE",
+  "info": {
+    "display_types": [110, 111],
+    "secondary_width": 800,
+    "secondary_height": 480,
+    "secondary_initial_url": "maps:/car/instrumentcluster/map"
+  },
+  "setup": [
+    {"streams": [{"type": 111, "streamConnectionID": 1111}]},
+    {"streams": [{"type": 110, "streamConnectionID": 1100}]},
+    {"streams": [{"type": 110, "streamConnectionID": 1100}, {"type": 111, "streamConnectionID": 1111}]}
+  ],
+  "response_required": ["type", "dataPort"],
+  "stream_header": {"size_bytes": 128, "length_offset": 0, "opcode_offset": 4, "timestamp_offset": 8},
+  "teardown": {"secondary_only_preserves_primary": true, "full_closes_both": true}
+}

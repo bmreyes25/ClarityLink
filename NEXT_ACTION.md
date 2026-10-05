@@ -1,10 +1,19 @@
 # Next action
 
-## Current action
+## R6A architecture pivot — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** clean-room Honda-compatible custom CarPlay receiver owning Type110 and Type111 in one session. **STOCK jmcs INTERPOSITION:** parked under R3C. **DESCENDANT FIRMWARE RESEARCH:** opportunistic supporting research. **IMMEDIATE TARGET:** real iPhone Type111 negotiation, security, media, decode and host display (R6-L7). **HONDA DEPLOYMENT:** not authorized. The [R6A ADR](research/adr/r6-custom-receiver-primary-architecture.md), [readiness matrix](research/runtime/r6a-custom-receiver-readiness.md), and [milestone report](step-reports/43t1-r6a-custom-receiver-canonical-pivot.md) supersede the R5D next-action recommendation. Current Python receiver reaches host synthetic T1 only; MFi/auth, full /info, real Type111 framing/security and Honda adapters remain open.
+
+
+## Next milestone — R6B authentication substrate
+
+Resolve a legitimate host authentication/session adapter for the maintained receiver, then complete identity, HID and audio `/info` fields and run the first real-iPhone Type111 Setup/listener attempt. The target remains R6-L7; no Honda action is authorized. See [R6A readiness](research/runtime/r6a-custom-receiver-readiness.md).
+
+## Historical R5D action (superseded by R6A)
 
 **Latest completed public research milestone: [43T1-R5D receiver artifact provenance closure](step-reports/43t1-r5d-artifact-provenance-closure.md).** Decision: `R5D_HIGH_CONFIDENCE_PACKAGE_LEAD_FOUND`; Type111: `R5D_TYPE111_NOT_TRIAGED_NO_RECEIVER_ARTIFACT`; recommendation: `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. A reproduced EU Civic bulletin names Mitsubishi Electric MRC12.4, `1.F197.70`, and `MRC_EU_SW_v12_4.zip` in a gated PANEX channel. Its forum mirror lacks publisher hash/custody and remains metadata only. The exact Clarity↔Civic receiver code lineage is unproven. Next: seek public original-publisher package/hash evidence; no VIN, dealer access, mirror payload, vehicle or runtime action. See the [R5D closure table](research/runtime/r5d-artifact-provenance-closure-table.md) and [research queue](research/runtime/r5d-next-artifact-research-queue.md).
 
-R5C's official 2016/2017 Civic versions remain valid. R5X and R5Y are host-only models and do not prove Honda Type111; R5Z is a separate theoretical track. R4D ordinary-app Display 1 remains possible but unproven. R3C's runtime `jmcs`/Type111 NO-GO remains controlling. Rules v2 governs. Current authorization is offline/public artifact provenance research only; no Honda, ADB, runtime, installation, or vehicle work is authorized.
+R5C's official 2016/2017 Civic versions remain valid. R5X and R5Y are host-only models and do not prove Honda Type111; R5Z was then a separate theoretical track; R6A has since integrated it. R4D ordinary-app Display 1 remains possible but unproven. R3C's runtime `jmcs`/Type111 NO-GO remains controlling. Rules v2 governs. Current authorization is offline/public artifact provenance research only; no Honda, ADB, runtime, installation, or vehicle work is authorized.
 
 ## Historical context
 

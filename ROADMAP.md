@@ -1,10 +1,33 @@
 # ClarityLink roadmap
 
-**Goal:** preserve stock Honda CarPlay on the center display while providing useful, independently sourced navigation content in the instrument cluster's Navigation region. The source must be user controlled and legally available; the current host model uses synthetic steps. Preserve all other stock safety and cluster UI.
+## R6A architecture pivot — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** clean-room Honda-compatible custom CarPlay receiver owning Type110 and Type111 in one session. **STOCK jmcs INTERPOSITION:** parked under R3C. **DESCENDANT FIRMWARE RESEARCH:** opportunistic supporting research. **IMMEDIATE TARGET:** real iPhone Type111 negotiation, security, media, decode and host display (R6-L7). **HONDA DEPLOYMENT:** not authorized. The [R6A ADR](research/adr/r6-custom-receiver-primary-architecture.md), [readiness matrix](research/runtime/r6a-custom-receiver-readiness.md), and [milestone report](step-reports/43t1-r6a-custom-receiver-canonical-pivot.md) supersede the R5D next-action recommendation. Current Python receiver reaches host synthetic T1 only; MFi/auth, full /info, real Type111 framing/security and Honda adapters remain open.
+
+
+**Goal:** one simultaneous iPhone CarPlay session, normal Type110 center display, and independent Type111 navigation video on the cluster, with stock-quality audio, controls, warning coexistence and teardown.
 
 ## Current engineering stage
 
-[R5D artifact provenance closure](step-reports/43t1-r5d-artifact-provenance-closure.md) is the latest canonical research milestone: `R5D_HIGH_CONFIDENCE_PACKAGE_LEAD_FOUND` / `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. A reproduced EU Civic bulletin names MELCO MRC12.4, `1.F197.70` and `MRC_EU_SW_v12_4.zip`, but original PANEX access is gated and an available mirror lacks authenticated custody. The official US Civic `1.F197.60`/`1.F196.39` pair remains VIN/dealer selected. No lawful analyzable descendant receiver payload or Type111 triage resulted. Next research should seek original publisher hash/custody or a different publicly hosted package. R3C runtime `jmcs`/Type111 NO-GO controls; R4D Display 1 remains possible but unproven; R5X/R5Y and separate R5Z remain host-only models. Rules v2 governs and only offline/public research is authorized.
+R6A merged R5Z onto R5D main and selected the custom receiver as primary. The Python host reference passes synthetic T1; no real iPhone Setup/media has reached it. R6B starts with legitimate host authentication/session ownership and full `/info`. Honda USB/iAP2/MFi/audio/control/display/lifecycle adapters remain evidence gated. Descendant firmware is opportunistic.
+
+| Level | Gate | Status |
+|---|---|---|
+| R6-L0 | architecture pivot | complete |
+| R6-L1 | integrated receiver core | complete on host |
+| R6-L2 | full host /info + authenticated Setup | open |
+| R6-L3 | real Type111 listener connection | open |
+| R6-L4 | real Type111 framing | open |
+| R6-L5 | real Type111 security | open |
+| R6-L6 | decoded real Type111 frame | open |
+| R6-L7 | displayed real Type111 host window | immediate target |
+| R6-L8 | complete host Type110+Type111 receiver | future |
+| R6-L9 | API17/ARMv7 build | future |
+| R6-L10 | Honda substrate adapters | future |
+| R6-L11 | separately authorized parked-car execution | not authorized |
+| R6-L12 | simultaneous in-car displays | final target |
+
+## Historical roadmap and stock receiver research
 
 ## Historical receiver target (superseded by R3C/R4A)
 
@@ -20,7 +43,7 @@ flowchart LR
   Render -.-> Cluster[Cluster Navigation region]
 ```
 
-## Workstream and gates
+## Historical workstream and gates
 
 | Workstream | Current state | Next gate |
 |---|---|---|
@@ -36,7 +59,7 @@ flowchart LR
 
 Apple, xcertplay, MHI2, and CPC200 establish external architecture or receiver-specific prior art. They do not prove Honda behavior. See the [source-pinned research](docs/research/carplay-altscreen-prior-art.md), [Honda research plan](docs/research/honda-type111-research-plan.md), [project state](PROJECT_STATE.md), and [next action](NEXT_ACTION.md).
 
-## Invariants
+## Historical stock-interposition invariants
 
 - Stock Type110 response, data path, crypto state, center display, and audio remain unchanged.
 - Type111-only failure must clean up Type111-owned resources only.

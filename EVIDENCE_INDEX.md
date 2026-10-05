@@ -1,5 +1,10 @@
 # Evidence index
 
+## R6A architecture pivot — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** clean-room Honda-compatible custom CarPlay receiver owning Type110 and Type111 in one session. **STOCK jmcs INTERPOSITION:** parked under R3C. **DESCENDANT FIRMWARE RESEARCH:** opportunistic supporting research. **IMMEDIATE TARGET:** real iPhone Type111 negotiation, security, media, decode and host display (R6-L7). **HONDA DEPLOYMENT:** not authorized. The [R6A ADR](research/adr/r6-custom-receiver-primary-architecture.md), [readiness matrix](research/runtime/r6a-custom-receiver-readiness.md), and [milestone report](step-reports/43t1-r6a-custom-receiver-canonical-pivot.md) supersede the R5D next-action recommendation. Current Python receiver reaches host synthetic T1 only; MFi/auth, full /info, real Type111 framing/security and Honda adapters remain open.
+
+
 This is the claim-level provenance ledger. Read each classification with its source, date, and scope; synthetic, external, and static evidence must not be presented as live Honda behavior.
 
 ## How to use this index
@@ -11,6 +16,8 @@ This is the claim-level provenance ledger. Read each classification with its sou
 - Historical entries are retained below; for the current action use [NEXT_ACTION.md](NEXT_ACTION.md), and for the rolling state use [PROJECT_STATE.md](PROJECT_STATE.md).
 
 ## Current evidence entries
+
+- [R6A custom receiver pivot](step-reports/43t1-r6a-custom-receiver-canonical-pivot.md), [substrate audit](research/runtime/r6a-honda-receiver-substrate-audit.md), [readiness](research/runtime/r6a-custom-receiver-readiness.md), and [ADR](research/adr/r6-custom-receiver-primary-architecture.md) — R5D+R5Z integrated; host synthetic T1; no real iPhone Type111 on this receiver and no Honda execution. R3C interposition parked.
 
 - [43T1-R5D provenance closure](step-reports/43t1-r5d-artifact-provenance-closure.md), [closure table](research/runtime/r5d-artifact-provenance-closure-table.md), [Civic versions](research/runtime/r5d-civic-version-lineage.md), [Clarity lineage](research/runtime/r5d-clarity-receiver-lineage-closure.md), [source ledger](research/runtime/r5d-source-provenance-ledger.md), [acquisition gate](research/runtime/r5d-public-artifact-acquisition-gate.md), [ranking](research/runtime/r5d-artifact-candidate-ranking.md), [queue](research/runtime/r5d-next-artifact-research-queue.md), and [negative evidence rules](research/runtime/r5d-negative-evidence-rules.md) — named EU MELCO Civic MRC12.4 package lead, no authenticated bytes or Type111 static triage. R3C NO-GO remains.
 - [43T1-R5C provenance expansion](step-reports/43t1-r5c-public-artifact-provenance-expansion.md), [candidate table](research/runtime/r5c-public-artifact-candidates.md), [provenance graph](research/runtime/r5c-public-artifact-provenance-graph.md), [public update workflow](research/runtime/r5c-honda-public-update-workflow.md), and [acquisition gate](research/runtime/r5c-public-artifact-acquisition-gate.md) — official 2016/2017 Civic versions found; no receiver payload obtained; R5D provenance closure recommended.

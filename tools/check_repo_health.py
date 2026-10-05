@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 from check_r5y_sandbox_boundary import check_tree as check_r5y_sandbox_tree
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_MILESTONE = "R5D"  # Advance with the current-state documents.
+CURRENT_MILESTONE = "R6A"  # Advance with the current-state documents.
 REQUIRED_PATHS = (
     "README.md",
     "CONTRIBUTING.md",
@@ -115,9 +115,9 @@ def main() -> int:
         failures.append(f"required navigation file is missing: {path}")
 
     current_sections = {
-        "NEXT_ACTION.md": ("## Current action", "## Historical context"),
-        "PROJECT_STATE.md": ("## Current snapshot", "## Step "),
-        "ROADMAP.md": ("## Current engineering stage", "## Historical receiver target"),
+        "NEXT_ACTION.md": ("## R6A architecture pivot", "## Historical R5D action"),
+        "PROJECT_STATE.md": ("## R6A architecture pivot", "## Historical snapshot through R5D"),
+        "ROADMAP.md": ("## Current engineering stage", "## Historical roadmap and stock receiver research"),
     }
     for source, (start, end) in current_sections.items():
         if source not in paths:
