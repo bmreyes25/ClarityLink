@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from pathlib import Path
 import pickle
 import sys
@@ -38,6 +39,8 @@ def test_opaque_context_is_generation_scoped_and_not_printable():
     assert repr(secret_sentinel) not in repr(context)
     with pytest.raises(HondaSubstrateError, match="not_serializable"):
         pickle.dumps(context)
+    with pytest.raises(TypeError):
+        asdict(context)
     with pytest.raises(HondaSubstrateError, match="stale_or_closed"):
         context.require(4)
     context.close()

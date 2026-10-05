@@ -5,8 +5,6 @@ They cannot open a Honda device or start a receiver session.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 from .authentication import AuthenticationError, SessionHandoff
 from .session_transport import ControlRequest, ControlResponse, TransportError
 
@@ -17,7 +15,6 @@ class HondaSubstrateError(RuntimeError):
         super().__init__(code)
 
 
-@dataclass(eq=False, repr=False)
 class HondaOpaqueContext:
     """Generation-scoped ownership token for a future factory API binding.
 
@@ -25,22 +22,30 @@ class HondaOpaqueContext:
     No Honda handle constructor is available until its ABI is established.
     """
 
-    generation: int
-    handle: object = field(repr=False)
-    closed: bool = field(default=False, init=False, repr=False)
+    __slots__ = ("generation", "_handle", "closed")
 
-    def __post_init__(self) -> None:
-        if self.generation < 1 or self.handle is None:
+    def __init__(self, generation: int, handle: object) -> None:
+        if generation < 1 or handle is None:
             raise HondaSubstrateError("invalid_opaque_context")
+        self.generation = generation
+        self._handle = handle
+        self.closed = False
+
+    @property
+    def handle(self) -> object | None:
+        return self._handle
+
+    def __repr__(self) -> str:
+        return f"HondaOpaqueContext(generation={self.generation}, closed={self.closed})"
 
     def require(self, generation: int) -> object:
         if self.closed or generation != self.generation:
             raise HondaSubstrateError("stale_or_closed_context")
-        return self.handle
+        return self._handle
 
     def close(self) -> None:
         self.closed = True
-        self.handle = None
+        self._handle = None
 
     def __getstate__(self) -> None:
         raise HondaSubstrateError("opaque_context_not_serializable")
