@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6C Honda authentication substrate reuse](43t1-r6c-honda-auth-substrate-reuse.md): offline factory USB/iAP2/I²C auth and AirPlay ownership audit; target reuse unresolved.
+
 - [43T1-R6B — authentication substrate and real-iOS boundary](43t1-r6b-authentication-and-real-ios-negotiation.md) — adapter/replay complete; real iPhone not reached; auth hardware/service needed
 
 - [43T1-R6A — custom receiver canonical pivot](43t1-r6a-custom-receiver-canonical-pivot.md) — R5D+R5Z integrated; custom receiver primary; host T1, no Honda execution
