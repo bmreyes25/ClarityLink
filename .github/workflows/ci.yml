@@ -2,7 +2,7 @@ name: Offline CI
 
 on:
   push:
-    branches: [main, architecture/r6-custom-receiver]
+    branches: [main, architecture/r6b-auth-substrate]
   pull_request:
     branches: [main]
 

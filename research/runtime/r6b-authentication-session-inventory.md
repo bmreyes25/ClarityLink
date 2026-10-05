@@ -1,0 +1,15 @@
+# R6B authentication and session inventory
+
+R6B starts from main merge `07f73167cde489448c4706faf1fb93092a88225b`. No MFi secret, certificate, challenge, private capture or Honda binary was opened or copied. A 43P-specific allowance for PlayPort's shared recovered identity appears in [the older research plan](../../docs/research/honda-type111-research-plan.md); R6B's explicit prohibition supersedes it. [Apple's accessory-security description](https://support.apple.com/guide/security/verifying-accessories-sec70a4f377d/web) identifies the authentication coprocessor as the approved accessory path.
+
+| Candidate | Transport / iAP2 owner | Authentication / CarPlay session owner | Hardware / OS / license | Mac and ClarityLink handoff | Credential/restricted dependency | Verdict |
+|---|---|---|---|---|---|---|
+| R5Z/R6A Python receiver | localhost socket; no iAP2 | no auth; synthetic session model | Mac Python; project source | maintained core, no authenticated inlet | no credentials | ADAPTER_FEASIBLE after external session owner |
+| 43P PlayPort checkout | Bluetooth iAP2 + Wi-Fi RTSP in PlayPort | `MfiAuthenticator` and `AirPlaySession` in PlayPort | Mac/JVM; GPL-3.0 | no exposed decrypted control-session handoff API; adapter design possible | default documented shared recovered private identity forbidden in R6B; own licensed remote service is an option if supplied | RESTRICTED in present configuration |
+| xcertplay | wired/wireless iAP2 in Android stack | MFi chip/CH341 or remote auth; receiver session | Android; GPL-3.0 | Mac port and handoff would be new work | genuine chip/service required | RESEARCH_REQUIRED |
+| OCBM / CPC200-CCPA | adapter owns transport/iAP2; host owns configurable SETUP | genuine onboard MFi coprocessor and adapter session | user-owned CPC200 hardware; Unlicense; Mac host available per project | explicit adapter-to-host protocol is a promising interface; hardware not shown present here | hardware and project-specific licensed dependencies | ADAPTER_FEASIBLE if hardware available |
+| LIVI | Linux/macOS receiver transport | genuine MFi coprocessor | macOS-capable; GPL-3.0 | no ClarityLink handoff adapter | chip required | RESEARCH_REQUIRED |
+| User-owned MFi coprocessor or licensed service | must be paired with iAP2 and AirPlay host stack | user-authorized hardware/service | hardware/service-dependent | can be wrapped without exposing private key; availability awaiting user confirmation | no restricted material if genuinely owned/authorized | ADAPTER_FEASIBLE, not USABLE_NOW |
+| Stock Honda | Honda USB/iAP2 unknown | installed auth owner unknown | Honda API17 ARMv7 | future target only; no known public handoff | no key extraction permitted | NOT_APPLICABLE to Mac R6B |
+
+No candidate is `USABLE_NOW` for this Python receiver: the missing piece is an authenticated **control-session** handoff, not merely an MFi challenge signer. `LabAuthenticationProvider` requires that handoff and fails closed without one. Replay is explicitly synthetic. This inventory does not claim that software can replace authentication hardware.
