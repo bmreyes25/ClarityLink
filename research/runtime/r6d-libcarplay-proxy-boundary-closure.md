@@ -1,0 +1,9 @@
+# R6D libcarplay_proxy boundary closure
+
+`jmcs` has `DT_NEEDED` and PLT calls for `mc_carplay_proxy_{auth,audio,screen}_{register,unregister}`. It registers auth during `mc_carplay_app_init` (`0xb03d2`), screen during `mc_carplay_screen_init` (`0xc068a`), and unregisters during shutdown. The proxy's dynamic imports are ordinary C/ABI functions; its relevant exports are callback registration and forwarding functions. [R3C's full interface audit](43t1-r3c-libcarplay-proxy-interface-audit.md) identified no request/response or session API.
+
+The auth registration (`0x1d94`) checks one global registration flag and returns an already-registered error on a second owner. Unregistration (`0x1ea8`) clears the global callback record. `proxy_uwh_ipod_cp_obtain` (`0x1394`) loads a stored function pointer and invokes it with `blx`; certificate/challenge/signature wrappers follow the same pattern. Screen registration is likewise singleton. No Binder, socket, fd handoff, shared memory, AirPlayReceiverSession creation, `/info`, SETUP, screen-security export or external transport appears in this facade.
+
+Callback lifetime is process-global registration → forwarding while stock `jmcs` is active → unregister on teardown. A second registration would contend with or replace stock ownership; the observed API rejects it rather than maintaining multiple consumers. Invoking exported authentication helpers from a different process has no demonstrated registered callback record or hardware/session owner there. The proxy can assist the receiver inside the existing process but cannot deliver an authenticated control session to another process.
+
+**Proxy decision: `R6D_PROXY_IN_PROCESS_ONLY`.** The facade is also an authentication helper, but the more important boundary fact is its process-local singleton callback ownership. It is not a reusable external authenticated-session API. No callback replacement was implemented.

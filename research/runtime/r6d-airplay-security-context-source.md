@@ -1,0 +1,7 @@
+# R6D AirPlay screen-security context source
+
+The control connection maintains an `APSMFiSAP` object at its local connection state; `_connectionHandleMessage` calls `APSMFiSAP_Create` and `APSMFiSAP_Exchange` around `0x28b2f8–0x28b31a`, and `APSMFiSAP_Delete` on reset/close. In a later control-message path, it calls `APSMFiSAP_Decrypt` (`0x28aeca`) using that connection context, then `AirPlayReceiverSessionSetSecurityInfo` (`0x28af3c`) with temporary decrypted security fields. The setter initializes session crypto and copies 16-byte master material into the `AirPlayReceiverSession` object. Temporary stack material is cleared after installation. No secret bytes were extracted or recorded.
+
+That session-held master material is consumed by the proven Type110 derivation with `streamConnectionID` and installed into the Type110 screen object. [Existing hash-matched trace](../carplay/honda-screen-crypto.md) covers that forward edge and teardown. The connection SAP and AirPlay receiver session are distinct local objects whose lifetimes are tied to the control connection/session; no external handle or reference API for either was found.
+
+The precise causal relationship between the earlier iAP2 accessory authentication result and this AirPlay SAP exchange is `UNKNOWN`. Both run in `jmcs`; their co-location and ordering do not prove a direct key derivation from the factory chip. Type111 screen security remains `UNKNOWN`. A security context existing in memory is not evidence that ClarityLink can export, duplicate or consume it.

@@ -1,5 +1,11 @@
 # Evidence index
 
+## R6D factory authenticated-session boundary (2026-10-04)
+
+- `HONDA_STATIC_CONFIRMED`: `auth_result` → `ios_iap2_set_authenticated` → owner-context flag/`do_attach`; generic device probe and direct `mc_ios_dev_attach` → `mc_carplay_attached` calls. [Transition call graph](research/runtime/r6d-authenticated-session-transition-callgraph.md) and [object ownership](research/runtime/r6d-auth-session-object-ownership.md). The indirect generic callback link is `UNKNOWN`.
+- `HONDA_STATIC_CONFIRMED`: `_AirPlayThread` creates the receiver server independently; a connection creates the receiver session; connection SAP exchange installs session screen security. [Transition](research/runtime/r6d-iap2-to-airplay-transition.md), [control owner](research/runtime/r6d-airplay-control-transport-ownership.md), [security source](research/runtime/r6d-airplay-security-context-source.md). Direct iAP auth-to-SAP derivation remains `UNKNOWN`.
+- `HONDA_STATIC` scoped negative: no supported external authenticated-session or request/security transfer found in audited proxy, ELF, Binder, socket, plugin and service surfaces. [Boundary audit](research/runtime/r6d-authenticated-session-boundary-audit.md), [proxy closure](research/runtime/r6d-libcarplay-proxy-boundary-closure.md), [decision matrix](research/runtime/r6d-factory-auth-handoff-decision-matrix.md). No Honda runtime was used. [R6D report](step-reports/43t1-r6d-static-auth-closure.md).
+
 ## R6C factory authentication substrate (2026-10-04)
 
 - `HONDA_STATIC`: the preserved `jmcs` hash, internal USB/iAP2/auth/AirPlay call edges, and configured I²C auth channel are documented in [auth owner](research/runtime/r6c-honda-mfi-auth-owner.md), [startup chain](research/runtime/r6c-carplay-startup-chain.md), and [dependency graph](research/runtime/r6c-jmcs-auth-dependency-graph.md).
