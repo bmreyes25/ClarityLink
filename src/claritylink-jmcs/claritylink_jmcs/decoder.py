@@ -45,3 +45,57 @@ class FFmpegDecoder:
 
     def close(self) -> None:
         self.closed = True
+
+
+def avcc_to_annexb(access_unit: bytes, *, nal_length_size: int = 4) -> bytes:
+    """Convert one bounded AVCC access unit without guessing its codec config."""
+    if nal_length_size not in (1, 2, 4) or not access_unit or len(access_unit) > 2 * 1024 * 1024:
+        raise DecodeError("invalid_avcc_unit")
+    offset = 0
+    output = bytearray()
+    while offset < len(access_unit):
+        if len(access_unit) - offset < nal_length_size:
+            raise DecodeError("truncated_avcc_length")
+        size = int.from_bytes(access_unit[offset:offset + nal_length_size], "big")
+        offset += nal_length_size
+        if size < 1 or size > len(access_unit) - offset:
+            raise DecodeError("invalid_avcc_nal_length")
+        output += b"\x00\x00\x00\x01" + access_unit[offset:offset + size]
+        offset += size
+    return bytes(output)
+
+
+def parse_avcc_config(payload: bytes) -> bytes:
+    """Extract bounded H.264 SPS/PPS from a VideoConfig avcC record."""
+    if not payload or len(payload) > 65536:
+        raise DecodeError("invalid_avcc_config")
+    marker = payload.find(b"avcC")
+    data = payload[marker + 4:] if marker >= 0 else payload
+    if len(data) < 7 or data[0] != 1:
+        raise DecodeError("invalid_avcc_config")
+    offset = 6
+    sps_count = data[5] & 31
+    if sps_count < 1 or sps_count > 8:
+        raise DecodeError("invalid_sps_count")
+    output = bytearray()
+    for group in range(2):
+        if group == 1 and offset >= len(data):
+            raise DecodeError("truncated_avcc_config")
+        count = sps_count if group == 0 else data[offset]
+        if group == 1:
+            offset += 1
+            if count < 1 or count > 8:
+                raise DecodeError("invalid_pps_count")
+        for _ in range(count):
+            if len(data) - offset < 2:
+                raise DecodeError("truncated_avcc_config")
+            size = int.from_bytes(data[offset:offset + 2], "big")
+            offset += 2
+            if size < 1 or size > len(data) - offset:
+                raise DecodeError("invalid_avcc_parameter_length")
+            nal = data[offset:offset + size]
+            if (nal[0] & 31) != (7 if group == 0 else 8):
+                raise DecodeError("unexpected_avcc_parameter_type")
+            output += b"\x00\x00\x00\x01" + nal
+            offset += size
+    return bytes(output)

@@ -8,12 +8,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import socket
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
-from .decoder import DecodeError, FFmpegDecoder
+from .decoder import DecodeError, FFmpegDecoder, avcc_to_annexb
 from .display import Display1Output, NullDisplay
 from .listener import HostListener, ListenerError
-from .media import MediaError, read_message
+from .media import FramingProfile, MediaError, read_profile_message
 from .security import ClearLabSecurity, EvidenceRequiredSecurity, ScreenSecurityProvider, SecurityError
 from .setup import SetupError, SetupRequest, SetupResponse, append_secondary, primary_unchanged, serialize_lab_plist
 
@@ -60,8 +60,13 @@ class ResourceSnapshot:
 
 class Receiver:
     def __init__(self, *, clear_lab: bool = False, display: Display1Output | None = None,
-                 faults: FaultInjector | None = None) -> None:
+                 faults: FaultInjector | None = None,
+                 framing_profile: str = FramingProfile.LEGACY_HONDA_TYPE110,
+                 security_factory: Callable[[], ScreenSecurityProvider] | None = None) -> None:
         self.clear_lab = clear_lab
+        self.framing_profile = framing_profile
+        self.security_factory = security_factory
+        self.codec_prefix = b""
         self.display = display if display is not None else NullDisplay()
         self.generation = 0
         self.state = ReceiverState.IDLE
@@ -84,7 +89,10 @@ class Receiver:
         self.generation += 1
         self.last_response = None
         self.frames = 0
+        self.codec_prefix = b""
         self.display_uncleared = False
+        if hasattr(self.display, "begin_generation"):
+            self.display.begin_generation(self.generation)
         self.state = ReceiverState.AUTHENTICATED_SESSION
         self.events.append("SESSION_CREATED")
         return self.generation
@@ -133,11 +141,12 @@ class Receiver:
         new_secondary: HostListener | None = None
         security: ScreenSecurityProvider | None = None
         decoder: FFmpegDecoder | None = None
+        # Rebuild from live resources: a prior response may name a torn-down stream.
         original: dict[str, Any] = {"streams": []}
-        if self.last_response is not None:
-            original["streams"] = [dict(entry) for entry in self.last_response.fields["streams"]]
-        elif prior_primary:
+        if prior_primary:
             original["streams"].append({"type": 110, "dataPort": prior_primary.port})
+        if self.secondary:
+            original["streams"].append({"type": 111, "dataPort": self.secondary.port})
         primary_requested = next((x for x in request.streams if x.type == 110), None)
         secondary_requested = next((x for x in request.streams if x.type == 111), None)
         try:
@@ -154,7 +163,8 @@ class Receiver:
                     raise ReceiverError("secondary_already_active")
                 self.faults.check("listener_bind")
                 new_secondary = HostListener.create(generation)
-                security = ClearLabSecurity() if self.clear_lab else EvidenceRequiredSecurity()
+                security = (self.security_factory() if self.security_factory else
+                            ClearLabSecurity() if self.clear_lab else EvidenceRequiredSecurity())
                 assert secondary_requested.stream_connection_id is not None
                 self.faults.check("security")
                 security.open(generation, secondary_requested.stream_connection_id)
@@ -226,10 +236,18 @@ class Receiver:
             raise ReceiverError("secondary_not_connected")
         try:
             self.faults.check("media")
-            message = read_message(self.secondary.accepted, generation)
-            clear = self.security.unprotect(generation, message.body)
-            if message.opcode != 0:
-                raise ReceiverError("video_config_not_implemented")
+            message = read_profile_message(self.secondary.accepted, generation, self.framing_profile)
+            if message.opcode == 1:
+                if self.framing_profile != FramingProfile.CURRENT_IOS_TYPE111:
+                    raise ReceiverError("video_config_not_implemented")
+                from .decoder import parse_avcc_config
+                self.codec_prefix = parse_avcc_config(message.body)
+                self.events.append("VIDEO_CONFIG_RECEIVED")
+                return b""
+            clear = self.security.unprotect(generation, message.body, message.header)
+            if self.framing_profile == FramingProfile.CURRENT_IOS_TYPE111:
+                clear = self.codec_prefix + (clear if clear.startswith(b"\x00\x00\x00\x01") else
+                                             avcc_to_annexb(clear))
             self.faults.check("decode")
             decoded = self.decoder.decode(clear, message.timestamp, generation)
             self.faults.check("display")
@@ -280,6 +298,7 @@ class Receiver:
                 self.secondary = None
         if self.secondary is None and self.security is None and self.decoder is None:
             self.secondary_id = None
+            self.codec_prefix = b""
         if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
             self._sync_state()
         self.events.append("SECONDARY_CLOSED")

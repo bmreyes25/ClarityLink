@@ -1,5 +1,10 @@
 # ClarityLink project state
 
+## R6A architecture pivot — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** clean-room Honda-compatible custom CarPlay receiver owning Type110 and Type111 in one session. **STOCK jmcs INTERPOSITION:** parked under R3C. **DESCENDANT FIRMWARE RESEARCH:** opportunistic supporting research. **IMMEDIATE TARGET:** real iPhone Type111 negotiation, security, media, decode and host display (R6-L7). **HONDA DEPLOYMENT:** not authorized. The [R6A ADR](research/adr/r6-custom-receiver-primary-architecture.md), [readiness matrix](research/runtime/r6a-custom-receiver-readiness.md), and [milestone report](step-reports/43t1-r6a-custom-receiver-canonical-pivot.md) supersede the R5D next-action recommendation. Current Python receiver reaches host synthetic T1 only; MFi/auth, full /info, real Type111 framing/security and Honda adapters remain open.
+
+
 ## Current snapshot — 2026-10-04
 
 - **R5D latest canonical public research:** [R5D report](step-reports/43t1-r5d-artifact-provenance-closure.md) records `R5D_HIGH_CONFIDENCE_PACKAGE_LEAD_FOUND` / `R5D_TYPE111_NOT_TRIAGED_NO_RECEIVER_ARTIFACT` / `R5D_CLARITY_DESCENDANT_LINEAGE_PROMISING`, with `GO_FOR_MORE_PUBLIC_ARTIFACT_RESEARCH`. A reproduced EU Civic bulletin names `MRC_EU_SW_v12_4.zip` / `1.F197.70` for MELCO units, but original PANEX distribution is gated and the forum mirror lacks authenticated custody. No lawful analyzable receiver payload was acquired. Clarity↔Civic exact code lineage remains unproven. Current authorization remains public/offline research only; R3C runtime NO-GO controls. R5Z remains a separate theoretical host-only track.

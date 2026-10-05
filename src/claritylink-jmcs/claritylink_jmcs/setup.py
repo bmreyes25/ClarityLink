@@ -44,6 +44,7 @@ class SetupRequest:
         streams: list[StreamDescriptor] = []
         ids: set[int] = set()
         secondary_count = 0
+        primary_count = 0
         for item in raw:
             if not isinstance(item, Mapping):
                 raise SetupError("invalid_stream_descriptor")
@@ -57,6 +58,10 @@ class SetupRequest:
                 if cid in ids:
                     raise SetupError("duplicate_stream_connection_id")
                 ids.add(cid)
+            if kind == 110:
+                primary_count += 1
+                if primary_count > 1:
+                    raise SetupError("duplicate_primary")
             if kind == 111:
                 secondary_count += 1
                 if secondary_count > 1:

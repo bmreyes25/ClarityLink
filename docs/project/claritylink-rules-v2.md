@@ -5,18 +5,18 @@
 The final goal remains:
 
 ```text
-stock Honda Type110 CarPlay on the center Display Audio screen
+normal Type110 CarPlay on the center Display Audio screen
 +
 independent navigation content on the instrument cluster
 ```
 
-The ideal final form remains real Type111 / AltScreen if Honda-specific evidence eventually supports it. Do not redefine the final goal because the current safe path is a fallback renderer.
+The ideal final form is one simultaneous CarPlay session with independent Type111 / AltScreen navigation on the cluster. R6 offline work may develop a target-compatible custom receiver; this does not authorize running or installing it on the Honda.
 
 ## Current status
 
 - R3C still controls `jmcs`/Type111 runtime work.
 - R4C found API17 `Presentation` is a possible generic Android lead, but Honda Display 1 admission remains unproven.
-- The active path is offline R4 display-policy / app-window admission research (R4D).
+- R6 primary engineering path is an offline clean-room Honda-compatible custom receiver; R3C still parks stock `jmcs` interposition.
 - No car test is authorized by these rules or the current milestone.
 
 ## Core principle
@@ -119,7 +119,7 @@ Any separately authorized parked-car prototype must be parked only and not used 
 
 ClarityLink is complete only when a reviewed implementation demonstrates all of the following:
 
-- stock center CarPlay active;
+- normal center Type110 CarPlay active;
 - independent cluster navigation active;
 - both simultaneous;
 - stock audio preserved;

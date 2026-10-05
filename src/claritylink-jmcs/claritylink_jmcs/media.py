@@ -24,6 +24,7 @@ class ScreenMessage:
     timestamp: int
     body: bytes
     generation: int
+    header: bytes = b""
 
 
 def _read_exact(conn: socket.socket, size: int) -> bytes:
@@ -48,7 +49,7 @@ def read_message(conn: socket.socket, generation: int) -> ScreenMessage:
         raise MediaError("invalid_body_length")
     if opcode not in (0, 1):
         raise MediaError("unsupported_screen_opcode")
-    return ScreenMessage(opcode, timestamp, _read_exact(conn, size), generation)
+    return ScreenMessage(opcode, timestamp, _read_exact(conn, size), generation, header)
 
 
 def encode_lab_message(opcode: int, body: bytes, timestamp: int = 1) -> bytes:
@@ -60,3 +61,28 @@ def encode_lab_message(opcode: int, body: bytes, timestamp: int = 1) -> bytes:
     header[4] = opcode
     header[8:16] = timestamp.to_bytes(8, "little")
     return bytes(header) + body
+
+
+class FramingProfile(str):
+    LEGACY_HONDA_TYPE110 = "LegacyHondaType110Profile"
+    LEGACY_TYPE111_PRIOR_ART = "LegacyType111PriorArtProfile"
+    CURRENT_IOS_TYPE111 = "CurrentIOSType111Profile"
+
+
+def read_profile_message(conn: socket.socket, generation: int, profile: str) -> ScreenMessage:
+    """Never infer Type111 framing from Type110's matching header size."""
+    if profile == FramingProfile.LEGACY_HONDA_TYPE110:
+        return read_message(conn, generation)
+    if profile == FramingProfile.CURRENT_IOS_TYPE111:
+        header = _read_exact(conn, HEADER_SIZE)
+        size = int.from_bytes(header[:4], "little")
+        opcode = header[4]
+        if size < 1 or size > 8 * 1024 * 1024:
+            raise MediaError("invalid_body_length")
+        if opcode not in (0, 1):
+            raise MediaError("unsupported_screen_opcode")
+        return ScreenMessage(opcode, int.from_bytes(header[8:16], "little"),
+                             _read_exact(conn, size), generation, header)
+    if profile == FramingProfile.LEGACY_TYPE111_PRIOR_ART:
+        raise MediaError("type111_framing_evidence_required")
+    raise MediaError("unknown_framing_profile")

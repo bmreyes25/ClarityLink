@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6A — custom receiver canonical pivot](43t1-r6a-custom-receiver-canonical-pivot.md) — R5D+R5Z integrated; custom receiver primary; host T1, no Honda execution
+
 - [43T1-R5D — artifact provenance closure](43t1-r5d-artifact-provenance-closure.md) — named EU Civic MELCO package lead; no authenticated receiver payload
 - [43T1-R5Z — experimental offline custom receiver lab](43t1-r5z-custom-jmcs-type111-receiver.md) — isolated branch; partial host receiver, no Honda or real-iPhone integration
 - [43T1-R5C — public artifact provenance expansion](43t1-r5c-public-artifact-provenance-expansion.md) — official Civic version lead; no lawful analyzable receiver package
