@@ -1,5 +1,13 @@
 # Evidence index
 
+## R6G LIVI control-session seam
+
+- [R6G milestone report](step-reports/43t1-r6g-livi-authority-bringup.md) — R6F merge `7fadb23`; CPC200 absent; no real authority/iPhone gate; ClarityLink provider partial pending upstream bridge.
+- [LIVI pinned source baseline](research/runtime/r6g-livi-source-baseline.md) and [architecture map](research/runtime/r6g-livi-carplay-architecture-map.md) — public source SHA `dcb7885`, GPL-3.0-or-later, request/response ownership.
+- [Control-session seam](research/runtime/r6g-livi-control-session-seam.md) and [adapter design](research/runtime/r6g-livi-upstream-adapter-design.md) — small pre-dispatch patch required; no stock/delegate double response.
+- [Local authority inventory](research/runtime/r6g-local-authority-inventory.md), [failure attribution](research/runtime/r6g-failure-attribution-matrix.md), and [Mac readiness](research/runtime/r6g-mac-receiver-readiness.md).
+- `SYNTHETIC_ONLY`: `tests/jmcs/test_r6g_livi_provider.py`, including 100 lifecycle cycles; no authentication or real-iPhone gate evidence.
+
 ## R6F authority selection and Mac Gate 1
 
 - [R6F milestone report](step-reports/43t1-r6f-authority-integration.md) — exact R6E merge/R6F head, selected CPC200-CCPA + LIVI target, acquisition required, no real-iPhone progress.

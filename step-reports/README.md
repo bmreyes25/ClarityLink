@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6G — LIVI authority source seam and ClarityLink adapter](43t1-r6g-livi-authority-bringup.md) — small upstream pre-dispatch patch identified; ClarityLink provider partial pending bridge; CPC200 absent, no real iPhone tier; next adapter completion.
+
 - [43T1-R6F — authentication authority selection and complete Mac receiver Gate 1](43t1-r6f-authority-integration.md) — CPC200-CCPA + LIVI/LIVI Link selected for acquisition; not present, no real iPhone session; next authority bring-up.
 
 - [43T1-R6E authorized authentication transport](43t1-r6e-custom-receiver-auth-transport.md): host boundary implemented; no genuine authority present, no real-iPhone tier; next authority integration.
