@@ -1,0 +1,3 @@
+# R6C1 factory MFi oracle refinement
+
+The user-provided R6C1 patch was not present in the local workspace. R6D recreated the specified inert `MfiAuthOracle`, `HondaFactoryMfiOracle`, synthetic provider and fail-closed tests from the architectural description. The public research is recorded in [the R6C1 memo](../research/runtime/r6c-public-mfi-oracle-research.md). This addendum changes the preferred *candidate* from a factory authenticated-session handoff to factory IC oracle reuse; R6C's `ARCH_UNKNOWN` decision remains historical and was not rewritten. No Honda runtime, I²C, ADB or vehicle action occurred.

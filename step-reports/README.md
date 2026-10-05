@@ -1,5 +1,8 @@
 ## Current / latest milestones
 
+- [43T1-R6D factory MFi oracle static closure](43t1-r6d-factory-mfi-oracle-static-closure.md): shared Honda iAP2/AirPlay auth primitive established statically; ARCH_D selected as target, no live adapter.
+- [43T1-R6C1 public oracle pivot](43t1-r6c1-factory-mfi-oracle-pivot.md): public research addendum and inert oracle scaffold.
+
 - [43T1-R6C Honda authentication substrate reuse](43t1-r6c-honda-auth-substrate-reuse.md): offline factory USB/iAP2/I²C auth and AirPlay ownership audit; target reuse unresolved.
 
 - [43T1-R6B — authentication substrate and real-iOS boundary](43t1-r6b-authentication-and-real-ios-negotiation.md) — adapter/replay complete; real iPhone not reached; auth hardware/service needed

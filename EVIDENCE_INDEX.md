@@ -1,5 +1,12 @@
 # Evidence index
 
+## R6D factory oracle (2026-10-04)
+
+- `HONDA_STATIC_CONFIRMED`: [call graph](research/runtime/r6d-honda-mfi-oracle-callgraph.md) joins AirPlay MFi-SAP and iAP2 authentication through `uwh_ipod_cp_*` to the factory I²C primitive; [semantics](research/runtime/r6d-honda-mfi-oracle-semantics.md) and [locking](research/runtime/r6d-honda-auth-lifecycle-locking.md) scope the operation family.
+- `HONDA_STATIC_CONFIRMED`: [address trace](research/runtime/r6d-honda-i2c-address-semantics.md) passes configured `0x10` unchanged to Linux `I2C_SLAVE`; target execution is unobserved.
+- `PUBLIC_PRIOR_ART`: [Apple/xcertplay/OCBM comparison](research/runtime/r6d-public-vs-honda-auth-comparison.md) motivates an oracle design but does not establish Honda runtime viability.
+- `MODEL_ONLY`: [host oracle and orchestration](src/claritylink-jmcs/claritylink_jmcs/mfi_oracle.py) are inert/synthetic; [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md) records open gates.
+
 ## R6C factory authentication substrate (2026-10-04)
 
 - `HONDA_STATIC`: the preserved `jmcs` hash, internal USB/iAP2/auth/AirPlay call edges, and configured I²C auth channel are documented in [auth owner](research/runtime/r6c-honda-mfi-auth-owner.md), [startup chain](research/runtime/r6c-carplay-startup-chain.md), and [dependency graph](research/runtime/r6c-jmcs-auth-dependency-graph.md).
