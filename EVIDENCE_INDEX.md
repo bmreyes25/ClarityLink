@@ -999,3 +999,10 @@ Honda-specific source notes remain separately indexed below; no external project
 | Forums / mirror payload references | Public forum discussions | `PROVENANCE_UNCLEAR`; no download or binary review. |
 | Receiver/Type111 conclusion | [R5B triage](research/runtime/r5b-type111-static-triage.md) | `TYPE111_INSUFFICIENT_ARTIFACT`; R5B decision `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`. This is not a negative receiver finding. |
 | Gate / recommendation | [R5B gate](research/runtime/r5b-honda-descendant-evidence-gate.md), [decision matrix](research/runtime/r5b-next-path-decision-matrix.md) | R3C runtime NO-GO unchanged; R5X `MODEL_ONLY`; R4D possible but unproven; next public artifact research only. No vehicle authorization. |
+
+## R6H Gate 1 LIVI delegation
+
+- [R6H report](step-reports/43t1-r6h-gate1-livi-adapter-completion.md): implementation and limits.
+- [LIVI patch contract](research/runtime/r6h-livi-patch-contract.md): pre-dispatch exclusive ownership seam and implementation gaps.
+- [Bridge protocol](research/runtime/r6h-livi-bridge-protocol.md): bounded local IPC contract.
+- [Gate 1 readiness](research/runtime/r6h-gate1-readiness.md): stages and current blockers.

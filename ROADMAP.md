@@ -1,8 +1,20 @@
 # ClarityLink roadmap
 
+## Canonical seven-gate program — 2026-10-05
+
+1. **Gate 1 — Mac auth/control authority:** R6H is blocked on completing the LIVI Node IPC/authentication proof and app-root wiring; CPC200 is absent.
+2. **Gate 2 — Complete Mac receiver:** not started; real `/info`, SETUP and Type110/111 follow Gate 1.
+3. **Gate 3 — API17/ARMv7 build:** not started.
+4. **Gate 4 — Honda process/lifecycle:** not started; no Honda work authorized in this milestone.
+5. **Gate 5 — Honda Display1:** not started.
+6. **Gate 6 — Honda Display0:** not started.
+7. **Gate 7 — Honda USB/iAP2/auth architecture:** not started.
+
+R6H result: `GATE1_SOFTWARE_READY_HARDWARE_REQUIRED`; next `GO_FOR_GATE1_HARDWARE_AUTHORITY_BRINGUP`. No Gate 2 work begins until the real Gate 1 criterion is met.
+
 ## Canonical Mac receiver trajectory
 
-**R6F authority** (selected CPC200-CCPA + LIVI/LIVI Link, acquisition and handoff required) → **R6G real `/info` accepted** → **R6H real SETUP + Type110/Type111** → **R6I Type111 security/media/H.264 decode** → **R6J complete simultaneous Mac Type110 + Type111 receiver** → **R6K+ Honda port, only after R6J**. R6F did not contact Honda, use ADB, or connect to a vehicle. Synthetic/replay evidence cannot satisfy these real-iPhone gates. See [R6F authority acquisition](research/runtime/r6f-authority-acquisition-specification.md) and [complete Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md).
+**R6F authority selection** → **R6G LIVI seam** → **R6H Gate 1 software bridge + genuine Mac authority bring-up** → **Gate 1 real authenticated control session and /info+SETUP ownership** → **Gate 2 complete Mac receiver** → **Gate 3 API17/ARMv7 build** → **Gate 4 Honda process/lifecycle** → **Gate 5 Honda Display1** → **Gate 6 Honda Display0** → **Gate 7 Honda USB/iAP2/auth architecture**. Honda stages remain later; no Honda work is authorized by R6H. R6F did not contact Honda, use ADB, or connect to a vehicle. Synthetic/replay evidence cannot satisfy these real-iPhone gates. See [R6F authority acquisition](research/runtime/r6f-authority-acquisition-specification.md) and [complete Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md).
 
 ## R6G authority/control handoff result — 2026-10-05
 
@@ -97,3 +109,7 @@ Apple, xcertplay, MHI2, and CPC200 establish external architecture or receiver-s
 ## R5B — Honda descendant artifact search (2026-10-04)
 
 R5B found versioned public research metadata for a close 2016–2021 Civic Andromeda/vcm30t30 family, including a 2021 Civic EX `1.F1A5.15` lead. No lawful, versioned descendant receiver payload was available for review, so Type111 remains `TYPE111_INSUFFICIENT_ARTIFACT`; this does not establish absence. The next milestone is continued public artifact/provenance research. R3C runtime NO-GO remains, R5X remains MODEL_ONLY, R4D Display 1 remains possible but unproven, and no vehicle action is authorized. See [R5B report](step-reports/43t1-r5b-honda-descendant-artifact-and-type111-static-triage.md).
+
+## R6 Gate trajectory (canonical)
+
+R6F authority selection → R6G LIVI seam → **R6H complete LIVI bridge + real Mac authority bring-up (Gate 1; currently incomplete)** → R6I real `/info` and SETUP → R6J real Type111/security/media/decode → R6K complete simultaneous Mac Type110 + Type111 receiver → Honda port only after Mac proof. No R6H real-iPhone tier was reached.

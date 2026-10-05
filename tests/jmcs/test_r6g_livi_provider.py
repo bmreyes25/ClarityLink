@@ -13,6 +13,7 @@ class SyntheticBridge:
     """Synthetic contract fixture; never evidence of LIVI or iPhone auth."""
 
     def __init__(self, generation: int):
+        self.bridge_kind = "SYNTHETIC_BRIDGE"
         self.authenticated = True
         self.session_identifier = f"test-session-{generation}"
         self.generation = generation
@@ -35,6 +36,7 @@ class SyntheticBridge:
 
 
 class SyntheticFactory:
+    bridge_kind = "SYNTHETIC_BRIDGE"
     def __init__(self, generation: int):
         self.bridge = SyntheticBridge(generation)
         self.closed = False
@@ -50,7 +52,7 @@ class SyntheticFactory:
 
 def test_livi_provider_fails_closed_without_explicit_authorization():
     provider = LabAuthenticationProvider(
-        authority=LiviAuthority(bridge_factory=SyntheticFactory(1))
+        authority=LiviAuthority(bridge_factory=SyntheticFactory(1), allow_synthetic_test_bridge=True)
     )
     provider.initialize()
     with pytest.raises(AuthenticationError, match="authority_not_authorized"):
@@ -59,7 +61,7 @@ def test_livi_provider_fails_closed_without_explicit_authorization():
 
 def test_livi_provider_handoff_routes_once_and_redacts_private_state():
     factory = SyntheticFactory(1)
-    authority = LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+    authority = LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
     provider = LabAuthenticationProvider(authority=authority)
     provider.initialize()
     handoff = provider.authenticate(1)
@@ -82,7 +84,7 @@ def test_livi_provider_handoff_routes_once_and_redacts_private_state():
 def test_livi_provider_rejects_stale_generation_timeout_and_disconnect():
     factory = SyntheticFactory(2)
     provider = LabAuthenticationProvider(
-        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
     )
     provider.initialize()
     with pytest.raises(AuthenticationError, match="livi_bridge_open_failed"):
@@ -91,7 +93,7 @@ def test_livi_provider_rejects_stale_generation_timeout_and_disconnect():
 
     factory = SyntheticFactory(4)
     provider = LabAuthenticationProvider(
-        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
     )
     provider.initialize()
     handoff = provider.authenticate(4)
@@ -107,7 +109,7 @@ def test_livi_provider_rejects_stale_generation_timeout_and_disconnect():
 def test_livi_provider_contains_bridge_errors_and_stale_responses():
     factory = SyntheticFactory(5)
     provider = LabAuthenticationProvider(
-        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
     )
     provider.initialize()
     handoff = provider.authenticate(5)
@@ -121,14 +123,14 @@ def test_livi_provider_contains_bridge_errors_and_stale_responses():
 def test_livi_provider_rejects_unauthenticated_and_malformed_or_oversized_requests():
     factory = SyntheticFactory(6)
     factory.bridge.authenticated = False
-    authority = LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+    authority = LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
     with pytest.raises(AuthenticationError, match="livi_authenticated_bridge_required"):
         authority.open(6)
     assert factory.bridge.closed
 
     factory = SyntheticFactory(7)
     provider = LabAuthenticationProvider(
-        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+        authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
     )
     provider.initialize()
     handoff = provider.authenticate(7)
@@ -142,7 +144,7 @@ def test_livi_provider_100_synthetic_lifecycle_cycles():
     for generation in range(1, 101):
         factory = SyntheticFactory(generation)
         provider = LabAuthenticationProvider(
-            authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True)
+            authority=LiviAuthority(bridge_factory=factory, explicitly_authorized=True, allow_synthetic_test_bridge=True)
         )
         provider.initialize()
         handoff = provider.authenticate(generation)
