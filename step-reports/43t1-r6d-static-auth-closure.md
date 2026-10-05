@@ -1,6 +1,6 @@
 # 43T1-R6D — final bounded static factory authentication closure
 
-Date: 2026-10-04. Starting main HEAD: `6d0c798f8b1f9821d0b7532a203266ab585db727` (R6C PR #6 merge). Branch: `architecture/r6d-static-auth-closure`; worktree: `../clarity-r6d-static-auth`, created clean from that commit. Implementation HEAD and final verification HEAD are the PR head reported at completion; this report is part of that commit. No pre-merge R6C lineage was reused. The preserved `jmcs` and `libcarplay_proxy.so` hashes matched R6C before static inspection.
+Date: 2026-10-04. Starting main HEAD: `6d0c798f8b1f9821d0b7532a203266ab585db727` (R6C PR #6 merge). Branch: `architecture/r6d-static-auth-closure`; worktree: `../clarity-r6d-static-auth`, created clean from that commit. Implementation HEAD: `df249c9` (full SHA in Git history). Final verification HEAD is the subsequent report-addendum commit, verified and reported with the PR. No pre-merge R6C lineage was reused. The preserved `jmcs` and `libcarplay_proxy.so` hashes matched R6C before static inspection.
 
 ## Result and exact boundary
 
