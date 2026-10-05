@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, architecture/r6-custom-receiver]
   pull_request:
     branches: [main]
   schedule:

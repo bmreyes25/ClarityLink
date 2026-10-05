@@ -1,0 +1,21 @@
+# R5Z jmcs compatibility map
+
+Scope: **offline static compatibility target**. Preserved `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232` remains ignored outside this worktree. R5Z contains no Honda binary, dynamic-link bridge, or vehicle install path. The R5Z host receiver is not yet a Honda-compatible replacement.
+
+| Component | Binary / symbol | Caller → callee / state | Type110 role; Type111 potential | Input → output / ownership / cleanup | Evidence; confidence | R5Z interface |
+|---|---|---|---|---|---|---|
+| Receiver creation | `jmcs` `AirPlayReceiverSession` | connection handler → session lifecycle | Parent for stock 110; hypothetical parent for 111 | CF object → session; class finalizer closes stock children | `HONDA_STATIC`; high for stock | `Receiver.start_session`; no ABI bridge |
+| `/info` | `jmcs` `AirPlayCopyServerInfo` | info handler → plist response | advertises stock main display; secondary requirements unknown | CF dictionary → binary plist; Honda owns response | `HONDA_STATIC`; high for route, low for alt screen | `lab_info`, synthetic geometry |
+| Setup parser | `jmcs` `_connectionHandleMessage` | plist body → `AirPlayReceiverSessionSetup` | stock recognizes 110; 111 skipped | request CF dictionary, output response slot | `HONDA_STATIC`; high | `SetupRequest.parse`, mapping only |
+| Stream dispatch | `jmcs` `AirPlayReceiverSessionSetup` | `streams[]` → typed branch | 100/101/110 known; no 111 branch | typed dictionary → screen/audio state; session-owned | `HONDA_STATIC`; high | host `Receiver.setup` |
+| Response append | `jmcs` `_AddResponseStream` | 110 setup → mutable response array | 110 `{type,dataPort}`; 111 would require new branch | CF entry → response array; stock ownership | `HONDA_STATIC`; high for 110, unknown for 111 | `append_secondary`, prior-art lab profile |
+| Serialization | `jmcs` `_requestSendPlistResponse` | Setup success → CFPropertyListCreateData | response must be complete first | CF graph → binary plist HTTP body | `HONDA_STATIC`; high for stock | Python `plistlib`, not Honda ABI |
+| Screen creation | `jmcs` `AirPlayReceiverSessionScreen_Setup` | 110 dispatch → screen object | 110 screen; second screen ownership unknown | config dictionary → screen state | `HONDA_STATIC`; high for 110 | generation-owned host state |
+| Listener | `jmcs` screen setup / `_ScreenThread` | screen → socket accept | 110 dataPort; 111 listener ABI unknown | socket/worker → accepted stream; screen teardown | `HONDA_STATIC`; partial endpoint | `HostListener` loopback only |
+| Security | `jmcs` `AirPlay_DeriveAESKeySHA512ForScreen` / `SetSecurityInfo` | 110 ID + session master → AES-CTR context | 110 confirmed; 111 unknown | key/IV lifecycle in screen object; cleanup | `HONDA_STATIC`; high for 110 | `ScreenSecurityProvider`; 111 fails closed |
+| Framing | `jmcs` screen read path | 128-byte header → body/opcode | 110 confirmed; 111 unknown | body → ScreenStream callback | `HONDA_STATIC`; high for 110 | bounded host parser under lab hypothesis |
+| Decoder | `libcarplay_proxy.so` `mc_ScreenStreamProcessData` | ScreenStream → media sink | 110 path; distinct 111 sink unknown | H.264/AVCC → sink; callback ownership | `HONDA_STATIC`; partial | public FFmpeg host adapter |
+| Display | `ExternalDisplayOutService` / Navigation | Android display services | cluster route exists; ordinary app admission unknown | Surface/window → Display 1; warning order unknown | `HONDA_STATIC`; partial | host PNG sink; no Honda adapter |
+| Teardown | `jmcs` screen teardown / session finalizer | request or finalizer → child cleanup | 110 known; unknown 111 skipped | session-owned release | `HONDA_STATIC`; partial for cross-screen | exact-generation R5Z cleanup |
+
+Primary sources in this repository: [Setup request](../carplay/honda-setup-request.md), [mixed streams](../carplay/honda-mixed-stream-setup.md), [response](../carplay/honda-stream-entry-schema.md), [security](../carplay/honda-screen-crypto.md), [framing](../carplay/honda-screen-framing.md), [video binding](../carplay/video-stream-binding.md), [R3C](../../step-reports/43t1-r3c-static-entry-ownership-closure.md), and [R4D/R5A](../../step-reports/43t1-r4d-r5a-display-policy-and-type111-recovery.md).
