@@ -90,6 +90,9 @@ class AuthenticatedSessionHandoff:
             close = getattr(self.transport, "close", None)
             if callable(close):
                 close()
+        except Exception:
+            # Vendor exceptions may contain opaque session/secret details.
+            raise AuthenticationError("handoff_transport_close_failed") from None
         finally:
             context = self.security_context
             self.security_context = None
@@ -143,7 +146,13 @@ class LabAuthenticationProvider:
             raise AuthenticationError("lawful_auth_substrate_required")
         if not authority.explicitly_authorized or not authority.identity or not isinstance(authority.authority_type, AuthorityType):
             raise AuthenticationError("authority_not_authorized")
-        handoff = authority.open(generation)
+        try:
+            handoff = authority.open(generation)
+        except AuthenticationError:
+            raise
+        except Exception:
+            # Do not expose provider exception text, which may include secrets.
+            raise AuthenticationError("authority_open_failed") from None
         if (not isinstance(handoff, AuthenticatedSessionHandoff) or
                 handoff.origin is not SessionOrigin.AUTHENTICATED_LAB or
                 not handoff.authenticated or handoff.closed or handoff.claimed or
@@ -174,12 +183,25 @@ class LabAuthenticationProvider:
         return self._require().security_context
 
     def close(self) -> None:
+        if self._closed:
+            return
         self._closed = True
+        failure = False
         if self._handoff is not None:
-            self._handoff.close()
-            self._handoff = None
+            try:
+                self._handoff.close()
+            except Exception:
+                failure = True
+            finally:
+                self._handoff = None
         if self._authority is not None:
-            self._authority.close()
+            try:
+                self._authority.close()
+            except Exception:
+                # Provider close is best-effort and must not leak vendor details.
+                failure = True
+        if failure:
+            raise AuthenticationError("provider_close_failed") from None
 
 
 class ReplayAuthenticationProvider(LabAuthenticationProvider):

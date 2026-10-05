@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6F — authentication authority selection and complete Mac receiver Gate 1](43t1-r6f-authority-integration.md) — CPC200-CCPA + LIVI/LIVI Link selected for acquisition; not present, no real iPhone session; next authority bring-up.
+
 - [43T1-R6E authorized authentication transport](43t1-r6e-custom-receiver-auth-transport.md): host boundary implemented; no genuine authority present, no real-iPhone tier; next authority integration.
 
 - [43T1-R6D static authentication closure](43t1-r6d-static-auth-closure.md): no supported external factory session handoff found; next is lawful independent host auth transport.
@@ -167,6 +169,7 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 </details>
 
 ### Type111, current-iOS, and runtime readiness (Step 43 onward)
+
 
 <details>
 <summary>40 preserved reports</summary>

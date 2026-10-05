@@ -1,5 +1,10 @@
 # ClarityLink project state
 
+## R6F authority selection — 2026-10-05
+
+R6E merged at `9ab9d77a00d85b361342804cad6de41df732653e`; R6F starts from this exact head. R6F selected a concrete acquisition path: compatible, user-owned Carlinkit CPC200-CCPA provisioned as LIVI Link, with the public LIVI macOS receiver stack adapted for a ClarityLink authenticated control handoff. No candidate unit or authority was physically present; the selected components are not yet validated or integrated. R6F authority `R6F_AUTHORITY_SELECTED_ACQUISITION_REQUIRED`; integration `R6F_ACQUISITION_REQUIRED`; real-iOS `R6F_REAL_IOS_NOT_REACHED`; highest tier `BELOW_R6F_T0`; next `GO_FOR_R6G_AUTHORITY_BRINGUP`. No Honda work. See [R6F report](step-reports/43t1-r6f-authority-integration.md), [acquisition specification](research/runtime/r6f-authority-acquisition-specification.md), and [readiness matrix](research/runtime/r6f-mac-receiver-readiness.md).
+
+
 ## R6E host authentication transport — 2026-10-04
 
 Custom receiver remains primary. R6D was integrated into main at `88fa109`; R6E began clean from that merge. A generation-owned, single-use, non-serializable authenticated handoff and bounded control transport now exist, with synthetic lifecycle tests and a fail-closed Mac preflight. No authorized genuine authority or control-channel provider was present; no real iPhone exchange occurred and the highest R6E tier is `BELOW_R6E_T0`. Next is `GO_FOR_R6F_AUTHORITY_INTEGRATION`, then real /info and SETUP evidence. [R6E report](step-reports/43t1-r6e-custom-receiver-auth-transport.md), [readiness](research/runtime/r6e-custom-receiver-readiness.md). No Honda work.

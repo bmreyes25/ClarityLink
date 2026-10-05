@@ -1,5 +1,18 @@
 # Evidence index
 
+## R6F authority selection and Mac Gate 1
+
+- [R6F milestone report](step-reports/43t1-r6f-authority-integration.md) — exact R6E merge/R6F head, selected CPC200-CCPA + LIVI target, acquisition required, no real-iPhone progress.
+- [Local authority inventory](research/runtime/r6f-local-authority-inventory.md)
+- [Candidate matrix](research/runtime/r6f-authority-candidate-matrix.md)
+- [Selection decision](research/runtime/r6f-authority-selection-decision.md)
+- [Exact acquisition specification](research/runtime/r6f-authority-acquisition-specification.md)
+- [/info readiness audit](research/runtime/r6f-info-readiness.md)
+- [Complete Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md)
+- [Cumulative Mac readiness](research/runtime/r6f-mac-receiver-readiness.md)
+- [Third-party dependency review](research/runtime/r6f-third-party-dependency-review.md)
+
+
 ## R6E authorized host boundary (2026-10-04)
 
 - `HOST_CONFIRMED`: generation-owned handoff claim/close, matching control-channel identity, bounded structured input, fail-closed provider selection, and 100 synthetic contract cycles. [Contract](research/runtime/r6e-authenticated-session-handoff-contract.md), [transport](research/runtime/r6e-real-control-transport.md), [report](step-reports/43t1-r6e-custom-receiver-auth-transport.md).
