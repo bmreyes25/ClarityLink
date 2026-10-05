@@ -1,8 +1,13 @@
 # ClarityLink roadmap
 
-## R6E host boundary result and R6F action
+## Canonical Mac receiver trajectory
 
-R6E implemented the lawful authority/control-session contract and Mac preflight from R6D merge `88fa109`. No genuine authorized authority was available; real-iOS ladder remains below T0. [Readiness](research/runtime/r6e-custom-receiver-readiness.md), [R6F evidence map](research/runtime/r6e-next-type111-evidence-map.md). **R6F:** connect a documented, authorized hardware/service adapter, then capture continuous real /info acceptance and SETUP/Type111 evidence. Honda deployment remains separate and unauthorized.
+**R6F authority** (selected CPC200-CCPA + LIVI/LIVI Link, acquisition and handoff required) → **R6G real `/info` accepted** → **R6H real SETUP + Type110/Type111** → **R6I Type111 security/media/H.264 decode** → **R6J complete simultaneous Mac Type110 + Type111 receiver** → **R6K+ Honda port, only after R6J**. R6F did not contact Honda, use ADB, or connect to a vehicle. Synthetic/replay evidence cannot satisfy these real-iPhone gates. See [R6F authority acquisition](research/runtime/r6f-authority-acquisition-specification.md) and [complete Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md).
+
+
+## R6F authority selection and R6G action
+
+R6E merged at `9ab9d77`. R6F selected user-owned Carlinkit CPC200-CCPA + LIVI Link/LIVI macOS receiver as the concrete acquisition path; no unit is present, no ClarityLink control handoff exists, and no real iPhone gate was reached. **R6G:** acquire and verify the exact hardware revision, establish genuine authority, adapt the LIVI authenticated control session, then drive real `/info`, SETUP and Type111. See [R6F acquisition](research/runtime/r6f-authority-acquisition-specification.md) and [R6F report](step-reports/43t1-r6f-authority-integration.md). Honda deployment remains later and separate.
 
 ## R6D factory handoff decision
 

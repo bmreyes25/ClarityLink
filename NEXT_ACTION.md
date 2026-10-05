@@ -1,5 +1,10 @@
 # Next action
 
+## R6F authority selection and complete Mac receiver Gate 1 — 2026-10-05
+
+**R6E merge:** `9ab9d77a00d85b361342804cad6de41df732653e`. **R6F starts at:** same exact merge commit. **Primary target:** user-owned Carlinkit CPC200-CCPA with compatible genuine MFi coprocessor, provisioned as LIVI Link, paired with LIVI's macOS receiver stack; exact unit not present or verified. **Decision:** `R6F_AUTHORITY_SELECTED_ACQUISITION_REQUIRED`; integration `R6F_ACQUISITION_REQUIRED`; real iOS `R6F_REAL_IOS_NOT_REACHED`; highest tier `BELOW_R6F_T0`; next `GO_FOR_R6G_AUTHORITY_BRINGUP`. Acquisition and control-handoff gaps are specified at [authority acquisition](research/runtime/r6f-authority-acquisition-specification.md). LIVI Link is only the hardware/auth endpoint; a ClarityLink control-session adapter still must surface real `/info` and SETUP. No generic authentication-model milestone remains: after acquisition, prove the real session/control boundary and drive real `/info`, SETUP, Type111. See [R6F report](step-reports/43t1-r6f-authority-integration.md), [candidate matrix](research/runtime/r6f-authority-candidate-matrix.md), [readiness](research/runtime/r6f-mac-receiver-readiness.md), and [Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md). No Honda/ADB/vehicle action.
+
+
 ## R6E authorized host authentication boundary — 2026-10-04
 
 **PRIMARY ARCHITECTURE:** custom receiver owning Type110 and Type111. R6D PR #8 merged at `88fa109`. R6E added a fail-closed authorized authority/handoff/control interface and Mac preflight, but no genuine authority is present; no ClarityLink real-iPhone session occurred. Decisions: `R6E_AUTHORITY_NOT_AVAILABLE`, `R6E_AUTH_TRANSPORT_IMPLEMENTED_NOT_REAL_VALIDATED`, `R6E_REAL_IOS_NOT_REACHED`; highest tier `BELOW_R6E_T0`. **NEXT:** `GO_FOR_R6F_AUTHORITY_INTEGRATION` — connect documented, user-authorized genuine hardware/service with authenticated control handoff, establish actual /info field evidence, then attempt T0–T5. [R6E report](step-reports/43t1-r6e-custom-receiver-auth-transport.md). No Honda/vehicle action is authorized.
