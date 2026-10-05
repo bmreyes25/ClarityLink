@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, architecture/r6d-static-auth-closure, architecture/r6f-authority-integration]
+    branches: [main, architecture/r6d-static-auth-closure, architecture/r6f-authority-integration, architecture/r6g-livi-authority-bringup]
   pull_request:
     branches: [main]
   schedule:

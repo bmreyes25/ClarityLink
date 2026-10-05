@@ -1,5 +1,9 @@
 # ClarityLink project state
 
+## R6G LIVI control-session seam — 2026-10-05
+
+R6F PR #11 merged at `7fadb23b2fa599a82207ae22a2f1fc2e1a6757ee`; R6G branch starts from that exact merge. Public LIVI source at `dcb78854c59ba621f4d327910dc275da386496b4` locates control ownership in `CpStack.attachSocket` and private `_handle`/`_handleSetup`; no public request/response delegate exists. The pre-dispatch loop is classified `R6G_LIVI_CONTROL_DELEGATION_SMALL_PATCH`. ClarityLink now has a provider adapter over the existing R6E handoff contract, but the LIVI bridge is absent, so `R6G_LIVI_ADAPTER_PARTIAL`. Selected CPC200 hardware was not detected; genuine authority not tested; no real iPhone session and `BELOW_R6G_T0`. Next: `GO_FOR_R6H_LIVI_ADAPTER_COMPLETION`; implement and test the exclusive control delegate/bridge before hardware bring-up. See [R6G report](step-reports/43t1-r6g-livi-authority-bringup.md) and [readiness](research/runtime/r6g-mac-receiver-readiness.md). No Honda/ADB/vehicle activity.
+
 ## R6F authority selection — 2026-10-05
 
 R6E merged at `9ab9d77a00d85b361342804cad6de41df732653e`; R6F starts from this exact head. R6F selected a concrete acquisition path: compatible, user-owned Carlinkit CPC200-CCPA provisioned as LIVI Link, with the public LIVI macOS receiver stack adapted for a ClarityLink authenticated control handoff. No candidate unit or authority was physically present; the selected components are not yet validated or integrated. R6F authority `R6F_AUTHORITY_SELECTED_ACQUISITION_REQUIRED`; integration `R6F_ACQUISITION_REQUIRED`; real-iOS `R6F_REAL_IOS_NOT_REACHED`; highest tier `BELOW_R6F_T0`; next `GO_FOR_R6G_AUTHORITY_BRINGUP`. No Honda work. See [R6F report](step-reports/43t1-r6f-authority-integration.md), [acquisition specification](research/runtime/r6f-authority-acquisition-specification.md), and [readiness matrix](research/runtime/r6f-mac-receiver-readiness.md).

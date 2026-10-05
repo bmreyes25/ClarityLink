@@ -4,6 +4,10 @@
 
 **R6F authority** (selected CPC200-CCPA + LIVI/LIVI Link, acquisition and handoff required) → **R6G real `/info` accepted** → **R6H real SETUP + Type110/Type111** → **R6I Type111 security/media/H.264 decode** → **R6J complete simultaneous Mac Type110 + Type111 receiver** → **R6K+ Honda port, only after R6J**. R6F did not contact Honda, use ADB, or connect to a vehicle. Synthetic/replay evidence cannot satisfy these real-iPhone gates. See [R6F authority acquisition](research/runtime/r6f-authority-acquisition-specification.md) and [complete Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md).
 
+## R6G authority/control handoff result — 2026-10-05
+
+R6F PR #11 merged at `7fadb23b2fa599a82207ae22a2f1fc2e1a6757ee`. R6G public source review found LIVI's `CpStack.attachSocket` owns parsing, dispatch, and the sole response writer; the narrow seam is before `_handle`, requiring a small upstream delegate patch. The Python ClarityLink provider is implemented to the existing boundary, but the LIVI delegate/bridge is not; adapter result `R6G_LIVI_ADAPTER_PARTIAL`. CPC200 not detected, no provisioning or real iPhone attempt; highest tier `BELOW_R6G_T0`. Next is `GO_FOR_R6H_LIVI_ADAPTER_COMPLETION`, then hardware bring-up and real `/info`. See [R6G report](step-reports/43t1-r6g-livi-authority-bringup.md) and [seam](research/runtime/r6g-livi-control-session-seam.md). No Honda work.
+
 
 ## R6F authority selection and R6G action
 
