@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import pickle
+import subprocess
 import sys
 import pytest
 
@@ -170,6 +171,10 @@ def test_preflight_fails_closed_without_authority(tmp_path):
                                  identity_path=tmp_path / "identity.json"))
     assert result["checks"]["private_bind"] is False
     assert "identity.json" not in json.dumps(result)
+    process = subprocess.run([sys.executable, str(ROOT / "tools" / "r6e_real_ios_lab.py"),
+                              "preflight"], text=True, capture_output=True, check=False)
+    assert process.returncode == 1
+    assert json.loads(process.stdout)["ready"] is False
 
 
 def test_trace_reports_types_without_private_values():

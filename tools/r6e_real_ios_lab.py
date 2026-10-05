@@ -106,7 +106,7 @@ def main() -> int:
                            "authority_reachable", "control_transport_available")}, sort_keys=True))
         return 1
     print(json.dumps({"mode": args.mode, **result}, sort_keys=True))
-    return 0 if args.mode == "preflight" else 1
+    return 0 if result["ready"] else 1
 
 
 if __name__ == "__main__":
