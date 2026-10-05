@@ -1,0 +1,7 @@
+# R6H exclusive control ownership proof
+
+At pinned LIVI commit `dcb78854c59ba621f4d327910dc275da386496b4`, `CpStack.attachSocket` owns one parse/dispatch/serialize loop. The patch calls `ControlSessionDelegate` before `_handle` only after the session auth-state predicate; all `/info` and all SETUP requests are claimed. For claimed requests the stock handler is never called, including refusal and exception paths. Nonclaimed methods remain stock. `dispatchAndSerializeControlRequest` makes one serializer call, and `writeControlResponseOnce` is the only socket writer in that loop.
+
+`controlDelegate.test.ts` proves: delegated `/info` = ClarityLink handler 1 / stock 0 / serializer 1 / writer 1; nondelegated request = ClarityLink 0 / stock 1 / serializer 1 / writer 1; failing delegated SETUP = handler 1 / stock 0 / serializer 1 / writer 1 with deterministic 500. All SETUP methods are intercepted, so LIVI `_handleSetup` cannot allocate a duplicate screen/listener or emit a second response. The ClarityLink Python integration test sends synthetic LIVI-shaped `/info` and Type110 SETUP frames through the real Unix socket factory and `ReceiverSession`; it checks identity survives response serialization and teardown closes resources.
+
+These are **HOST_CONFIRMED** source/adapter tests. They do not prove the patched LIVI app plus ClarityLink has connected to actual CPC200 hardware or iPhone. The real control ownership proof remains below G1-T0 until hardware-backed observation.

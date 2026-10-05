@@ -232,3 +232,5 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 
 - [`RUN_STATUS.md`](RUN_STATUS.md) is a historical support record.
 - The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.
+
+- [43T1-R6H — LIVI control delegation and real Mac auth Gate 1](43t1-r6h-gate1-livi-adapter-completion.md) — partial software bridge; Gate 1 remains open.

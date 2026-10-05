@@ -1,5 +1,9 @@
 # ClarityLink project state
 
+## R6H Gate 1 LIVI bridge — 2026-10-05
+
+R6G merged at `25f4a34743997ee0bc19e8d9b3a8d6af87282dc2`. R6H adds the pinned LIVI dispatch/auth-state patch, Node Unix-socket delegate, ClarityLink same-UID receiver provider, and /info+SETUP ownership oracle. CPC200-CCPA is absent; no authority validation or iPhone session occurred. Decision `GATE1_SOFTWARE_READY_HARDWARE_REQUIRED`; next `GO_FOR_GATE1_HARDWARE_AUTHORITY_BRINGUP`. Details: `research/runtime/r6h-gate1-readiness.md`. No Honda/ADB/vehicle activity.
+
 ## R6G LIVI control-session seam — 2026-10-05
 
 R6F PR #11 merged at `7fadb23b2fa599a82207ae22a2f1fc2e1a6757ee`; R6G branch starts from that exact merge. Public LIVI source at `dcb78854c59ba621f4d327910dc275da386496b4` locates control ownership in `CpStack.attachSocket` and private `_handle`/`_handleSetup`; no public request/response delegate exists. The pre-dispatch loop is classified `R6G_LIVI_CONTROL_DELEGATION_SMALL_PATCH`. ClarityLink now has a provider adapter over the existing R6E handoff contract, but the LIVI bridge is absent, so `R6G_LIVI_ADAPTER_PARTIAL`. Selected CPC200 hardware was not detected; genuine authority not tested; no real iPhone session and `BELOW_R6G_T0`. Next: `GO_FOR_R6H_LIVI_ADAPTER_COMPLETION`; implement and test the exclusive control delegate/bridge before hardware bring-up. See [R6G report](step-reports/43t1-r6g-livi-authority-bringup.md) and [readiness](research/runtime/r6g-mac-receiver-readiness.md). No Honda/ADB/vehicle activity.
@@ -464,3 +468,7 @@ Hash-matched Honda `jmcs` proves a CF runtime class for `AirPlayReceiverSession`
 # Step 43T0 ECC preflight review (2026-10-02)
 
 The [offline ECC preflight](step-reports/43t0-ecc-preflight-review.md) returned **`43T0_ECC_NO_GO`** for the current collection proposal. Step 40E already captured a three-phase unprivileged stock CarPlay session; the proposed 43T0 did not isolate an unanswered G11 observation or provide an exact reviewed command/capture plan. Analyze the host-only 40E evidence offline first, then seek a new ECC decision on a minimal delta if needed. No Honda connection or ADB occurred in this review. Honda runtime/deployment remains disabled; Type111 negotiation remains unauthorized.
+
+## R6H Gate 1 status (2026-10-05)
+
+R6H software sub-gate is complete: LIVI dispatch/auth proof and Node bridge, ClarityLink AF_UNIX provider and receiver session, /info+SETUP ownership tests, and Mac lab tool are implemented. CPC200-CCPA is absent; genuine authority and real iPhone tests are NOT_STARTED. Gate 1 result `GATE1_SOFTWARE_READY_HARDWARE_REQUIRED`; see `research/runtime/r6h-gate1-readiness.md`.

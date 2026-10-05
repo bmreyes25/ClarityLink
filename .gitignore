@@ -1,6 +1,7 @@
 # ClarityLink tracks sanitized source and research notes, not vehicle data.
 /*
 !/.gitignore
+!/.gitattributes
 !/README.md
 !/ROADMAP.md
 !/PROJECT_STATE.md
@@ -19,6 +20,8 @@
 !/tools/run_tests.sh
 !/research/
 !/step-reports/
+!/third_party/
+!/third_party/**
 !/simulator/
 !/tests/
 !/src/
@@ -29,6 +32,7 @@
 !/tools/r6b_info_diff.py
 !/tools/r6e_info_diff.py
 !/tools/r6e_real_ios_lab.py
+!/tools/r6h_livi_receiver.py
 !/tools/r4b_preview.py
 !/tools/elf_va_map.py
 !/tools/jmcs_integration/

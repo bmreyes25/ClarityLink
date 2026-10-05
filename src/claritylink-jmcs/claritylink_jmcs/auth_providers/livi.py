@@ -21,6 +21,8 @@ class LiviBridge(Protocol):
     """One LIVI-owned authenticated control channel; never exposes auth secrets."""
 
     @property
+    def bridge_kind(self) -> str: ...
+    @property
     def authenticated(self) -> bool: ...
     @property
     def session_identifier(self) -> str: ...
@@ -34,6 +36,7 @@ class LiviBridge(Protocol):
 class LiviBridgeFactory(Protocol):
     """Implemented by the local LIVI delegate process after its auth gate."""
 
+    bridge_kind: str
     def open_authenticated(self, generation: int) -> LiviBridge: ...
     def close(self) -> None: ...
 
@@ -45,7 +48,9 @@ class LiviControlTransport:
 
     def __init__(self, bridge: LiviBridge, generation: int) -> None:
         session_identifier = getattr(bridge, "session_identifier", None)
-        if (type(generation) is not int or generation < 1 or
+        if (getattr(bridge, "bridge_kind", None) not in
+                ("REAL_LIVI_BRIDGE", "SYNTHETIC_BRIDGE") or
+                type(generation) is not int or generation < 1 or
                 getattr(bridge, "authenticated", False) is not True or
                 getattr(bridge, "generation", None) != generation or
                 not isinstance(session_identifier, str) or not session_identifier or
@@ -127,9 +132,15 @@ class LiviAuthority:
     authority_type = AuthorityType.GENUINE_MFI_COPROCESSOR
 
     def __init__(self, *, bridge_factory: LiviBridgeFactory,
-                 explicitly_authorized: bool = False) -> None:
+                 explicitly_authorized: bool = False,
+                 allow_synthetic_test_bridge: bool = False) -> None:
+        bridge_kind = getattr(bridge_factory, "bridge_kind", None)
+        if (bridge_kind != "REAL_LIVI_BRIDGE" and
+                not (bridge_kind == "SYNTHETIC_BRIDGE" and allow_synthetic_test_bridge)):
+            raise AuthenticationError("synthetic_bridge_disabled")
         self._factory = bridge_factory
         self.explicitly_authorized = explicitly_authorized
+        self.bridge_kind = bridge_kind
         self._handoff: AuthenticatedSessionHandoff | None = None
         self._closed = False
 
@@ -143,6 +154,8 @@ class LiviAuthority:
         bridge: LiviBridge | None = None
         try:
             bridge = self._factory.open_authenticated(generation)
+            if getattr(bridge, "bridge_kind", None) != self.bridge_kind:
+                raise AuthenticationError("livi_bridge_kind_mismatch")
             transport = LiviControlTransport(bridge, generation)
             handoff = AuthenticatedSessionHandoff(
                 session_identifier=transport.session_identifier,
@@ -152,7 +165,10 @@ class LiviAuthority:
                 transport=transport,
                 authority_type=self.authority_type,
                 authenticated=True,
-                capabilities={"control_delegation": True},
+                capabilities={
+                    "control_delegation": True,
+                    "real_livi_bridge": self.bridge_kind == "REAL_LIVI_BRIDGE",
+                },
             )
         except (AuthenticationError, TransportError):
             if bridge is not None:
