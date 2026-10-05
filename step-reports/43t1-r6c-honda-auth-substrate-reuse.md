@@ -39,6 +39,8 @@
 
 Focused adapter tests: 2 passed. Full offline suite: 857 passed, 14 skipped; the self-locator smoke and simulator checks passed. Repository health: 604 Markdown files, 133 indexed reports, 0 broken curated links, 0 forbidden tracked extensions. `git diff --check` passed. The adapter serialization assertion was added after the first full run and is included in the final rerun. Staged-content audit covered all 26 staged paths: Markdown, Python adapter and tests only; no keys, certificates, auth blobs, VIN/MAC, Honda binaries, firmware, or restricted Apple material. No target or real-iPhone test is claimed.
 
+Implementation HEAD: `fecd839205644b2e71951dcaf0dddfd526192d4a`. On that exact PR head, hosted Offline CI run `37252817239` passed and CodeQL run `37252817337` passed for actions, C/C++, Java/Kotlin, JavaScript/TypeScript and Python. This report addendum is a documentation-only commit; final verification HEAD and its hosted checks are reported in the PR/final milestone response.
+
 ## Top remaining unknowns
 
 1. Exact authenticated iAP2 object to AirPlay control-session transition.
