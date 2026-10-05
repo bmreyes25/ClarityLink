@@ -1,5 +1,11 @@
 # Evidence index
 
+## R6E authorized host boundary (2026-10-04)
+
+- `HOST_CONFIRMED`: generation-owned handoff claim/close, matching control-channel identity, bounded structured input, fail-closed provider selection, and 100 synthetic contract cycles. [Contract](research/runtime/r6e-authenticated-session-handoff-contract.md), [transport](research/runtime/r6e-real-control-transport.md), [report](step-reports/43t1-r6e-custom-receiver-auth-transport.md).
+- `MODEL_ONLY`: test authorities and replay channels are synthetic; they establish no iPhone authentication or negotiation tier. [Ladder](research/runtime/r6e-real-ios-negotiation-ladder.md).
+- `UNKNOWN`: authorized hardware/service and real current-iOS /info acceptance. No candidate is usable now. [Authority selection](research/runtime/r6e-authorized-auth-authority-selection.md), [field readiness](research/runtime/r6e-real-ios-info-field-readiness.md).
+
 ## R6D factory authenticated-session boundary (2026-10-04)
 
 - `HONDA_STATIC_CONFIRMED`: `auth_result` → `ios_iap2_set_authenticated` → owner-context flag/`do_attach`; generic device probe and direct `mc_ios_dev_attach` → `mc_carplay_attached` calls. [Transition call graph](research/runtime/r6d-authenticated-session-transition-callgraph.md) and [object ownership](research/runtime/r6d-auth-session-object-ownership.md). The indirect generic callback link is `UNKNOWN`.

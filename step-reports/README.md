@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6E authorized authentication transport](43t1-r6e-custom-receiver-auth-transport.md): host boundary implemented; no genuine authority present, no real-iPhone tier; next authority integration.
+
 - [43T1-R6D static authentication closure](43t1-r6d-static-auth-closure.md): no supported external factory session handoff found; next is lawful independent host auth transport.
 
 - [43T1-R6C Honda authentication substrate reuse](43t1-r6c-honda-auth-substrate-reuse.md): offline factory USB/iAP2/I²C auth and AirPlay ownership audit; target reuse unresolved.

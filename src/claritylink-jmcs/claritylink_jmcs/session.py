@@ -33,9 +33,16 @@ class ReceiverSession:
             raise SessionError("session_already_open")
         self.trace.emit(TraceEvent.AUTH_START, status="begin")
         transport: CarPlaySessionTransport | None = None
+        handoff = None
+        owns_handoff = False
         try:
             self.provider.initialize()
-            handoff = self.provider.authenticate()
+            expected_generation = self.receiver.generation + 1
+            handoff = self.provider.authenticate(expected_generation)
+            if handoff.generation != expected_generation or handoff.closed:
+                raise SessionError("session_generation_mismatch")
+            handoff.claim(expected_generation)
+            owns_handoff = True
             if handoff.origin is SessionOrigin.SANITIZED_REPLAY:
                 if not self.allow_replay or replay_transport is None:
                     raise SessionError("replay_not_enabled")
@@ -65,16 +72,26 @@ class ReceiverSession:
                 self.generation = None
             if transport is not None:
                 transport.close()
+            if handoff is not None and owns_handoff:
+                handoff.close()
             self.trace.emit(TraceEvent.AUTH_FAILURE, status="failed")
             self.provider.close()
             raise
 
     def handle_one(self, timeout: float = 5.0) -> ControlResponse:
+        try:
+            return self._handle_one(timeout)
+        except Exception:
+            self.close()
+            raise
+
+    def _handle_one(self, timeout: float) -> ControlResponse:
         if self.transport is None or self.generation is None:
             raise SessionError("session_not_open")
         request: ControlRequest = self.transport.read_request(timeout)
         if request.generation != self.generation:
             raise SessionError("stale_control_request")
+        self.trace.emit_request(request)
         if request.method == "GET" and request.path == "/info":
             self.trace.emit(TraceEvent.INFO_REQUEST, generation=self.generation)
             if self._info_sent:
@@ -86,7 +103,7 @@ class ReceiverSession:
             self.transport.write_response(response)
             self.trace.emit(TraceEvent.INFO_RESPONSE, generation=self.generation, status="ok")
             return response
-        if request.method == "SETUP":
+        if request.method == "SETUP" and request.path == "/session":
             if not self._info_sent:
                 raise SessionError("info_required")
             self.trace.emit(TraceEvent.SETUP_REQUEST, generation=self.generation)
@@ -105,12 +122,18 @@ class ReceiverSession:
 
     def close(self) -> None:
         generation = self.generation
-        if generation is not None:
-            self.receiver.teardown(generation)
-            self.trace.emit(TraceEvent.SESSION_TEARDOWN, generation=generation)
-        if self.transport is not None:
-            self.transport.close()
-            self.trace.emit(TraceEvent.SESSION_CLOSE, generation=generation)
-        self.provider.close()
+        transport = self.transport
         self.transport = None
         self.generation = None
+        self._info_sent = False
+        try:
+            if generation is not None:
+                self.receiver.teardown(generation)
+                self.trace.emit(TraceEvent.SESSION_TEARDOWN, generation=generation)
+        finally:
+            try:
+                if transport is not None:
+                    transport.close()
+                    self.trace.emit(TraceEvent.SESSION_CLOSE, generation=generation)
+            finally:
+                self.provider.close()

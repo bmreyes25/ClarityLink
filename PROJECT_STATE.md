@@ -1,5 +1,9 @@
 # ClarityLink project state
 
+## R6E host authentication transport — 2026-10-04
+
+Custom receiver remains primary. R6D was integrated into main at `88fa109`; R6E began clean from that merge. A generation-owned, single-use, non-serializable authenticated handoff and bounded control transport now exist, with synthetic lifecycle tests and a fail-closed Mac preflight. No authorized genuine authority or control-channel provider was present; no real iPhone exchange occurred and the highest R6E tier is `BELOW_R6E_T0`. Next is `GO_FOR_R6F_AUTHORITY_INTEGRATION`, then real /info and SETUP evidence. [R6E report](step-reports/43t1-r6e-custom-receiver-auth-transport.md), [readiness](research/runtime/r6e-custom-receiver-readiness.md). No Honda work.
+
 ## R6D static factory handoff closure — 2026-10-04
 
 The custom receiver remains primary. The preserved `jmcs` has an in-process iAP2 authenticated-device attach, then a separately started AirPlay server and connection-owned security exchange. No supported external factory session, request/response or security-context transfer was found in the audited ELF/proxy/Binder surfaces. `R6D_NO_SUPPORTED_FACTORY_SESSION_HANDOFF` / `R6D_PROXY_IN_PROCESS_ONLY` / `R6D_CUSTOM_RECEIVER_REQUIRES_INDEPENDENT_AUTH_TRANSPORT`. Next engineering gate: lawful independently owned host authentication plus an authenticated control-session handoff (`GO_FOR_R6E_CUSTOM_RECEIVER_AUTH_TRANSPORT`). Honda adapters fail closed; stock interposition remains parked; Honda deployment is not authorized. [R6D evidence](step-reports/43t1-r6d-static-auth-closure.md).

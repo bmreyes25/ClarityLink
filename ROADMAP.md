@@ -1,5 +1,9 @@
 # ClarityLink roadmap
 
+## R6E host boundary result and R6F action
+
+R6E implemented the lawful authority/control-session contract and Mac preflight from R6D merge `88fa109`. No genuine authorized authority was available; real-iOS ladder remains below T0. [Readiness](research/runtime/r6e-custom-receiver-readiness.md), [R6F evidence map](research/runtime/r6e-next-type111-evidence-map.md). **R6F:** connect a documented, authorized hardware/service adapter, then capture continuous real /info acceptance and SETUP/Type111 evidence. Honda deployment remains separate and unauthorized.
+
 ## R6D factory handoff decision
 
 R6D closes the reviewed factory external-handoff path: iAP2 auth and AirPlay receiver are process-local within `jmcs`, with no supported transfer API found. [Decision matrix](research/runtime/r6d-factory-auth-handoff-decision-matrix.md). **R6E:** integrate an authorized host MFi hardware/service and authenticated CarPlay control transport into the custom receiver, then attempt real iPhone `/info` and Setup on Mac. Honda deployment remains a later, separately reviewed milestone. The R6C `ARCH_UNKNOWN` label is historical; R6D makes a bounded interface decision without assigning a new meaning to informal ARCH labels.

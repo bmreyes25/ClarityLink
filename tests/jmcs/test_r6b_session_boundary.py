@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src" / "claritylink-jmcs"))
 sys.path.insert(0, str(ROOT / "tools"))
 from claritylink_jmcs.authentication import (AuthenticationError, HondaAuthenticationProviderStub,
-    LabAuthenticationProvider, ReplayAuthenticationProvider, SessionHandoff, SessionOrigin)
+    LabAuthenticationProvider, ReplayAuthenticationProvider, SessionHandoff, SessionOrigin, AuthorityType)
 from claritylink_jmcs.identity import IdentityError, load_or_create_identity
 from claritylink_jmcs.info import InfoError, InfoProfile, build_info, validate_info_shape
 from claritylink_jmcs.receiver import Receiver
@@ -129,14 +129,25 @@ def test_live_handoff_contract_with_external_channel(tmp_path: Path):
     class Channel:
         def __init__(self):
             self.closed = False
+            self.authenticated = True
+            self.session_identifier = "opaque"
+            self.generation = 1
             self.requests = [ControlRequest("GET", "/info", {}, 1)]
             self.responses = []
         def read_request(self, timeout): return self.requests.pop(0)
         def write_response(self, response): self.responses.append(response)
         def close(self): self.closed = True
     channel = Channel()
-    handoff = SessionHandoff("opaque", 1, SessionOrigin.AUTHENTICATED_LAB, "external lawful authority", channel)
-    session = ReceiverSession(LabAuthenticationProvider(lambda: handoff), Receiver(), profile(tmp_path))
+    class ContractAuthority:
+        identity = "test-contract-only"
+        authority_type = AuthorityType.GENUINE_HARDWARE
+        explicitly_authorized = True
+        def open(self, generation):
+            return SessionHandoff("opaque", generation, SessionOrigin.AUTHENTICATED_LAB,
+                                  self.identity, channel, authority_type=self.authority_type,
+                                  authenticated=True)
+        def close(self): pass
+    session = ReceiverSession(LabAuthenticationProvider(authority=ContractAuthority()), Receiver(), profile(tmp_path))
     session.open()
     assert session.transport.authenticated
     assert session.handle_one().status == 200

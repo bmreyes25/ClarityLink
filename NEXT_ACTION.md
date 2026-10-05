@@ -1,5 +1,9 @@
 # Next action
 
+## R6E authorized host authentication boundary — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** custom receiver owning Type110 and Type111. R6D PR #8 merged at `88fa109`. R6E added a fail-closed authorized authority/handoff/control interface and Mac preflight, but no genuine authority is present; no ClarityLink real-iPhone session occurred. Decisions: `R6E_AUTHORITY_NOT_AVAILABLE`, `R6E_AUTH_TRANSPORT_IMPLEMENTED_NOT_REAL_VALIDATED`, `R6E_REAL_IOS_NOT_REACHED`; highest tier `BELOW_R6E_T0`. **NEXT:** `GO_FOR_R6F_AUTHORITY_INTEGRATION` — connect documented, user-authorized genuine hardware/service with authenticated control handoff, establish actual /info field evidence, then attempt T0–T5. [R6E report](step-reports/43t1-r6e-custom-receiver-auth-transport.md). No Honda/vehicle action is authorized.
+
 ## R6D static factory handoff closure — 2026-10-04
 
 **PRIMARY ARCHITECTURE:** custom receiver. The bounded preserved-image audit found an internal iAP2 authenticated-device attach and separately owned AirPlay server/connection/session; no supported external authenticated-session handoff, control transport or security-context API was found. The proxy remains a process-local callback facade. Decisions: `R6D_NO_SUPPORTED_FACTORY_SESSION_HANDOFF`, `R6D_PROXY_IN_PROCESS_ONLY`, `R6D_CUSTOM_RECEIVER_REQUIRES_INDEPENDENT_AUTH_TRANSPORT`. **NEXT:** `GO_FOR_R6E_CUSTOM_RECEIVER_AUTH_TRANSPORT` — select an authorized host MFi hardware/service provider that can expose a real authenticated control-session handoff to R6B, then implement that adapter and attempt first real-iPhone `/info` on Mac. Honda adapters remain `EVIDENCE_REQUIRED`; no Honda runtime is authorized. See [R6D report](step-reports/43t1-r6d-static-auth-closure.md).
