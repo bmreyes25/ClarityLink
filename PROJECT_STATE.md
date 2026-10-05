@@ -1,5 +1,9 @@
 # ClarityLink project state
 
+## R6D factory MFi oracle static closure — 2026-10-04
+
+Custom receiver remains primary. The hash-matched Honda image statically links iAP2 authentication and AirPlay MFi-SAP to one factory certificate/signature primitive. `R6D_FACTORY_MFI_ORACLE_CONFIRMED_STATIC` / `R6D_AUTH_PRIMITIVE_SHARED` / `R6D_HONDA_I2C_ADDRESS_7BIT_CONFIRMED`; selected target `ARCH_D_FULL_CLARITYLINK_RECEIVER_WITH_FACTORY_AUTH_ORACLE`. The factory oracle is still inert in ClarityLink. Cross-process ownership, live permissions, wire-compatible iAP2/AirPlay and real-iPhone authentication are unproved. [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md).
+
 ## R6C factory authentication substrate — 2026-10-04
 
 Custom receiver remains primary. Static analysis of the hash-matched preserved Honda `jmcs` found in-process USB/iAP2, accessory authentication through its configured I²C path, and AirPlay control/session ownership. This does **not** prove a reusable external auth API or authenticated control handoff. Classification: `R6C_AUTH_INTERNAL_TO_JMCS` / `R6C_FACTORY_AUTH_REUSE_UNKNOWN` / `R6C_FACTORY_TRANSPORT_PARTIAL` / `ARCH_UNKNOWN`. The R6C Honda adapter contracts fail closed. Mac lab authentication remains a separate genuine-hardware/service gate. No Honda runtime or vehicle action occurred. See [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md).

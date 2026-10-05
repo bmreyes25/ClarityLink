@@ -1,5 +1,9 @@
 # Next action
 
+## R6D factory MFi oracle target — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** custom receiver. Static Honda traces connect both iAP2 authentication and AirPlay MFi-SAP to the same internal factory certificate/signature primitive. The selected implementation target is `ARCH_D_FULL_CLARITYLINK_RECEIVER_WITH_FACTORY_AUTH_ORACLE`: ClarityLink owns iAP2/AirPlay and Type110/Type111 while the genuine factory IC remains an opaque trust anchor. This is a static architecture decision, not an operating adapter. **NEXT:** `GO_FOR_R6E_CUSTOM_IAP2_AUTH_STACK`, with offline Honda ABI/lifecycle refinement. Mac lab authentication remains separate. Honda/ADB/vehicle/I²C operation is unauthorized. See the [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md) and [readiness](research/runtime/r6d-factory-oracle-readiness.md).
+
 ## R6C Honda substrate reuse — 2026-10-04
 
 **PRIMARY ARCHITECTURE:** custom receiver; target factory Honda USB/iAP2/MFi reuse. PR #5 merged at `b46af76`. Preserved `jmcs` compiles USB, iAP2, factory I²C accessory authentication, and AirPlay control into one executable. The configured factory auth channel is `/dev/i2c-2`; no external authenticated-session handoff or cleanly callable factory auth service has been established. Decisions: `R6C_AUTH_INTERNAL_TO_JMCS`, `R6C_FACTORY_AUTH_REUSE_UNKNOWN`, `R6C_FACTORY_TRANSPORT_PARTIAL`, `ARCH_UNKNOWN`. **NEXT:** `GO_FOR_R6D_STATIC_AUTH_CLOSURE` focused on the auth/iAP2→AirPlay object edge and any supported process boundary. Honda deployment and live observation remain unauthorized. See [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md).

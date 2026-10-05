@@ -6,6 +6,7 @@ They cannot open a Honda device or start a receiver session.
 from __future__ import annotations
 
 from .authentication import AuthenticationError, SessionHandoff
+from .mfi_oracle import HondaFactoryMfiOracle
 from .session_transport import ControlRequest, ControlResponse, TransportError
 
 
@@ -55,7 +56,10 @@ class HondaOpaqueContext:
 
 
 class HondaAuthenticationProvider:
-    """Future factory-auth consumer; no independently callable API is proven."""
+    """Legacy full-session handoff plus a separate, inert factory oracle seam."""
+
+    def __init__(self) -> None:
+        self.oracle = HondaFactoryMfiOracle()
 
     def initialize(self) -> None:
         raise AuthenticationError("EVIDENCE_REQUIRED_HONDA_AUTH_API")
@@ -76,7 +80,7 @@ class HondaAuthenticationProvider:
         raise AuthenticationError("EVIDENCE_REQUIRED_HONDA_SESSION_HANDOFF")
 
     def close(self) -> None:
-        pass
+        self.oracle.release()
 
 
 class HondaIap2Transport:

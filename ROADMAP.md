@@ -1,5 +1,9 @@
 # ClarityLink roadmap
 
+## R6D factory oracle path
+
+Target candidate: `ARCH_D_FULL_CLARITYLINK_RECEIVER_WITH_FACTORY_AUTH_ORACLE`. Honda's factory IC supplies certificate/signature operations through a still-unimplemented, opaque adapter. ClarityLink must build its own iAP2 authentication and AirPlay session logic above it, then one Type110/Type111 receiver session. The [static call graph](research/runtime/r6d-honda-mfi-oracle-callgraph.md) supports the primitive, while [readiness](research/runtime/r6d-factory-oracle-readiness.md) keeps live sharing and receiver wire compatibility open. Next: host iAP2 auth stack plus offline target ABI/lifecycle refinement. No target I/O or deployment authorized.
+
 ## R6C substrate result
 
 R6C traced factory USB/iAP2/MFi and AirPlay ownership inside preserved `jmcs`, including a configured I²C authentication channel. The desired factory authenticated-session handoff remains unresolved. R6D should close the internal auth/iAP2→AirPlay edge and search for a supported boundary before any live observation or target adapter binding. [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md). The custom receiver remains primary; stock `jmcs` interposition remains parked under R3C.

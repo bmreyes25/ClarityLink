@@ -1,0 +1,5 @@
+# R6D clean-room oracle contract for future API17/ARMv7 design
+
+The host implementation in `mfi_oracle.py` defines `acquire(generation)`, `protocol_major()`, `read_certificate(maximum_output_length)`, `sign_challenge(challenge)` and `release()`. A future C ABI would use an opaque handle, caller-provided bounded buffers, explicit lengths and status codes, with no credential serialization or implicit global session. Acquisition is exclusive; release is required on every error. Certificate and signature outputs contain public authentication artifacts, but production logs must still omit their bytes.
+
+Honda static evidence confirms acquire/release, certificate, challenge/signature and status operations. It does not yet establish a supported external ABI, exact error mapping, public protocol major mapping, cross-process lock, or live permission. This document is a declaration-level target only. No target device-opening, `ioctl`, reset, Honda deployment or authentication implementation exists in the repository.
