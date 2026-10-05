@@ -1,5 +1,12 @@
 # Evidence index
 
+## R6C factory authentication substrate (2026-10-04)
+
+- `HONDA_STATIC`: the preserved `jmcs` hash, internal USB/iAP2/auth/AirPlay call edges, and configured I²C auth channel are documented in [auth owner](research/runtime/r6c-honda-mfi-auth-owner.md), [startup chain](research/runtime/r6c-carplay-startup-chain.md), and [dependency graph](research/runtime/r6c-jmcs-auth-dependency-graph.md).
+- `HONDA_STATIC` scoped negative: no external authenticated control handoff found in the reviewed [control-session owner](research/runtime/r6c-honda-control-session-owner.md), [proxy](research/runtime/r6c-libcarplay-proxy-audit.md), or [service](research/runtime/r6c-carplay-service-boundary.md) boundaries. This does not prove no other interface exists.
+- `MODEL_ONLY`: fail-closed [Honda adapter contracts](src/claritylink-jmcs/claritylink_jmcs/honda_substrate.py) and [reuse matrix](research/runtime/r6c-factory-substrate-reuse-matrix.md). No live Honda or real-iPhone result. See [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md).
+
+
 ## R6B authentication boundary — 2026-10-04
 
 **PRIMARY ARCHITECTURE:** custom Honda-compatible receiver. PR #4 merged at `07f7316`; R6B starts from that main commit. **AUTH RESULT:** adapter/replay interfaces complete, no authorized hardware/service or authenticated control handoff connected. **REAL IPHONE:** not reached by ClarityLink. **HIGHEST LEVEL:** R6-L1; R6B below T0. **NEXT:** integrate a user-owned genuine MFi coprocessor or licensed service and its control-session handoff, then attempt real `/info` and SETUP on Mac. **HONDA DEPLOYMENT:** not authorized. See the [R6B report](step-reports/43t1-r6b-authentication-and-real-ios-negotiation.md), [readiness](research/runtime/r6b-custom-receiver-readiness.md), and [auth inventory](research/runtime/r6b-authentication-session-inventory.md).

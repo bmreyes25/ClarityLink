@@ -1,5 +1,10 @@
 # ClarityLink project state
 
+## R6C factory authentication substrate — 2026-10-04
+
+Custom receiver remains primary. Static analysis of the hash-matched preserved Honda `jmcs` found in-process USB/iAP2, accessory authentication through its configured I²C path, and AirPlay control/session ownership. This does **not** prove a reusable external auth API or authenticated control handoff. Classification: `R6C_AUTH_INTERNAL_TO_JMCS` / `R6C_FACTORY_AUTH_REUSE_UNKNOWN` / `R6C_FACTORY_TRANSPORT_PARTIAL` / `ARCH_UNKNOWN`. The R6C Honda adapter contracts fail closed. Mac lab authentication remains a separate genuine-hardware/service gate. No Honda runtime or vehicle action occurred. See [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md).
+
+
 ## R6B authentication boundary — 2026-10-04
 
 **PRIMARY ARCHITECTURE:** custom Honda-compatible receiver. PR #4 merged at `07f7316`; R6B starts from that main commit. **AUTH RESULT:** adapter/replay interfaces complete, no authorized hardware/service or authenticated control handoff connected. **REAL IPHONE:** not reached by ClarityLink. **HIGHEST LEVEL:** R6-L1; R6B below T0. **NEXT:** integrate a user-owned genuine MFi coprocessor or licensed service and its control-session handoff, then attempt real `/info` and SETUP on Mac. **HONDA DEPLOYMENT:** not authorized. See the [R6B report](step-reports/43t1-r6b-authentication-and-real-ios-negotiation.md), [readiness](research/runtime/r6b-custom-receiver-readiness.md), and [auth inventory](research/runtime/r6b-authentication-session-inventory.md).
