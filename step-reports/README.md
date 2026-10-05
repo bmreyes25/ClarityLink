@@ -1,5 +1,9 @@
 ## Current / latest milestones
 
+- [43T1-R6H1 — Gate 1 CPC200/LIVI Link hardware authority bring-up](43t1-r6h1-gate1-hardware-authority-bringup.md) — CPC200 absent; provisioning/authentication stopped before hardware actions; Gate 1 open below T0; Gate 2 not started.
+
+- [43T1-R6H — LIVI control delegation and Gate 1 software](43t1-r6h-gate1-livi-adapter-completion.md) — exclusive delegate and private bridge host-validated; hardware required for real session.
+
 - [43T1-R6G — LIVI authority source seam and ClarityLink adapter](43t1-r6g-livi-authority-bringup.md) — small upstream pre-dispatch patch identified; ClarityLink provider partial pending bridge; CPC200 absent, no real iPhone tier; next adapter completion.
 
 - [43T1-R6F — authentication authority selection and complete Mac receiver Gate 1](43t1-r6f-authority-integration.md) — CPC200-CCPA + LIVI/LIVI Link selected for acquisition; not present, no real iPhone session; next authority bring-up.

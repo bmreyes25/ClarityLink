@@ -1,5 +1,9 @@
 # ClarityLink project state
 
+## R6H1 Gate 1 hardware bring-up — 2026-10-05
+
+R6H PR #13 merged at `6f9234dc08800fc6a3cd05e2971913ebb1cc488c`; R6H1 starts cleanly at the same commit. Safe read-only Mac inventory found no CPC200-CCPA/LIVI device. Hardware compatibility and ownership are untested; no provisioner, firmware, authentication request, or real iPhone session was used. Decisions: `R6H1_HARDWARE_ABSENT`, `R6H1_COMPATIBILITY_NOT_TESTED`, `R6H1_PROVISIONING_NOT_ATTEMPTED`, `R6H1_AUTHORITY_NOT_TESTED`, `R6H1_LIVI_BASELINE_NOT_REACHED`, `BELOW_G1_T0`, `GATE1_BLOCKED_WAITING_FOR_CPC200`. Gate 1 remains `SOFTWARE_READY_HARDWARE_REQUIRED`; Gate 2 remains `NOT_STARTED`. Next: `GO_FOR_GATE1_HARDWARE_AUTHORITY_BRINGUP`. See [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md) and [readiness](research/runtime/r6h1-gate1-real-readiness.md). No Honda/ADB/vehicle action.
+
 ## R6H Gate 1 LIVI bridge — 2026-10-05
 
 R6G merged at `25f4a34743997ee0bc19e8d9b3a8d6af87282dc2`. R6H adds the pinned LIVI dispatch/auth-state patch, Node Unix-socket delegate, ClarityLink same-UID receiver provider, and /info+SETUP ownership oracle. CPC200-CCPA is absent; no authority validation or iPhone session occurred. Decision `GATE1_SOFTWARE_READY_HARDWARE_REQUIRED`; next `GO_FOR_GATE1_HARDWARE_AUTHORITY_BRINGUP`. Details: `research/runtime/r6h-gate1-readiness.md`. No Honda/ADB/vehicle activity.

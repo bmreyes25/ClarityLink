@@ -112,4 +112,4 @@ R5B found versioned public research metadata for a close 2016–2021 Civic Andro
 
 ## R6 Gate trajectory (canonical)
 
-R6F authority selection → R6G LIVI seam → **R6H complete LIVI bridge + real Mac authority bring-up (Gate 1; currently incomplete)** → R6I real `/info` and SETUP → R6J real Type111/security/media/decode → R6K complete simultaneous Mac Type110 + Type111 receiver → Honda port only after Mac proof. No R6H real-iPhone tier was reached.
+R6F authority selection → R6G LIVI seam → R6H software delegate/bridge → **R6H1 CPC200/LIVI Link authority bring-up (Gate 1; blocked waiting for CPC200; Gate 1 remains open)** → real authenticated ClarityLink `/info` → Gate 2 complete real Mac receiver → Gate 3 API17/ARMv7 target build → Gate 4 Honda process/lifecycle adapter → Gate 5 Honda Display1 adapter → Gate 6 Honda Display0 adapter → Gate 7 Honda USB/iAP2/auth target architecture. Gate 2 remains `NOT_STARTED`; no Honda activity is authorized by this sequence. R6H1 reached no real-iPhone tier.
