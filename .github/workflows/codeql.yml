@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, architecture/r6b-auth-substrate]
+    branches: [main, architecture/r6d-static-auth-closure]
   pull_request:
     branches: [main]
   schedule:

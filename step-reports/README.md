@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6D static authentication closure](43t1-r6d-static-auth-closure.md): no supported external factory session handoff found; next is lawful independent host auth transport.
+
 - [43T1-R6C Honda authentication substrate reuse](43t1-r6c-honda-auth-substrate-reuse.md): offline factory USB/iAP2/I²C auth and AirPlay ownership audit; target reuse unresolved.
 
 - [43T1-R6B — authentication substrate and real-iOS boundary](43t1-r6b-authentication-and-real-ios-negotiation.md) — adapter/replay complete; real iPhone not reached; auth hardware/service needed

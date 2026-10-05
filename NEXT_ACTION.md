@@ -1,5 +1,9 @@
 # Next action
 
+## R6D static factory handoff closure — 2026-10-04
+
+**PRIMARY ARCHITECTURE:** custom receiver. The bounded preserved-image audit found an internal iAP2 authenticated-device attach and separately owned AirPlay server/connection/session; no supported external authenticated-session handoff, control transport or security-context API was found. The proxy remains a process-local callback facade. Decisions: `R6D_NO_SUPPORTED_FACTORY_SESSION_HANDOFF`, `R6D_PROXY_IN_PROCESS_ONLY`, `R6D_CUSTOM_RECEIVER_REQUIRES_INDEPENDENT_AUTH_TRANSPORT`. **NEXT:** `GO_FOR_R6E_CUSTOM_RECEIVER_AUTH_TRANSPORT` — select an authorized host MFi hardware/service provider that can expose a real authenticated control-session handoff to R6B, then implement that adapter and attempt first real-iPhone `/info` on Mac. Honda adapters remain `EVIDENCE_REQUIRED`; no Honda runtime is authorized. See [R6D report](step-reports/43t1-r6d-static-auth-closure.md).
+
 ## R6C Honda substrate reuse — 2026-10-04
 
 **PRIMARY ARCHITECTURE:** custom receiver; target factory Honda USB/iAP2/MFi reuse. PR #5 merged at `b46af76`. Preserved `jmcs` compiles USB, iAP2, factory I²C accessory authentication, and AirPlay control into one executable. The configured factory auth channel is `/dev/i2c-2`; no external authenticated-session handoff or cleanly callable factory auth service has been established. Decisions: `R6C_AUTH_INTERNAL_TO_JMCS`, `R6C_FACTORY_AUTH_REUSE_UNKNOWN`, `R6C_FACTORY_TRANSPORT_PARTIAL`, `ARCH_UNKNOWN`. **NEXT:** `GO_FOR_R6D_STATIC_AUTH_CLOSURE` focused on the auth/iAP2→AirPlay object edge and any supported process boundary. Honda deployment and live observation remain unauthorized. See [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md).

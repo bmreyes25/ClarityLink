@@ -1,5 +1,9 @@
 # ClarityLink project state
 
+## R6D static factory handoff closure — 2026-10-04
+
+The custom receiver remains primary. The preserved `jmcs` has an in-process iAP2 authenticated-device attach, then a separately started AirPlay server and connection-owned security exchange. No supported external factory session, request/response or security-context transfer was found in the audited ELF/proxy/Binder surfaces. `R6D_NO_SUPPORTED_FACTORY_SESSION_HANDOFF` / `R6D_PROXY_IN_PROCESS_ONLY` / `R6D_CUSTOM_RECEIVER_REQUIRES_INDEPENDENT_AUTH_TRANSPORT`. Next engineering gate: lawful independently owned host authentication plus an authenticated control-session handoff (`GO_FOR_R6E_CUSTOM_RECEIVER_AUTH_TRANSPORT`). Honda adapters fail closed; stock interposition remains parked; Honda deployment is not authorized. [R6D evidence](step-reports/43t1-r6d-static-auth-closure.md).
+
 ## R6C factory authentication substrate — 2026-10-04
 
 Custom receiver remains primary. Static analysis of the hash-matched preserved Honda `jmcs` found in-process USB/iAP2, accessory authentication through its configured I²C path, and AirPlay control/session ownership. This does **not** prove a reusable external auth API or authenticated control handoff. Classification: `R6C_AUTH_INTERNAL_TO_JMCS` / `R6C_FACTORY_AUTH_REUSE_UNKNOWN` / `R6C_FACTORY_TRANSPORT_PARTIAL` / `ARCH_UNKNOWN`. The R6C Honda adapter contracts fail closed. Mac lab authentication remains a separate genuine-hardware/service gate. No Honda runtime or vehicle action occurred. See [R6C report](step-reports/43t1-r6c-honda-auth-substrate-reuse.md).
