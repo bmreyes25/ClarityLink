@@ -27,6 +27,8 @@
 !/tools/README.md
 !/tools/check_repo_health.py
 !/tools/r6b_info_diff.py
+!/tools/r6e_info_diff.py
+!/tools/r6e_real_ios_lab.py
 !/tools/r4b_preview.py
 !/tools/elf_va_map.py
 !/tools/jmcs_integration/
