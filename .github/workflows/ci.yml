@@ -2,7 +2,7 @@ name: Offline CI
 
 on:
   push:
-    branches: [main, architecture/r6d-static-auth-closure]
+    branches: [main, architecture/r6d-static-auth-closure, architecture/r6f-authority-integration]
   pull_request:
     branches: [main]
 
