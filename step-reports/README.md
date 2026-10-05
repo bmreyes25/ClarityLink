@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R6B — authentication substrate and real-iOS boundary](43t1-r6b-authentication-and-real-ios-negotiation.md) — adapter/replay complete; real iPhone not reached; auth hardware/service needed
+
 - [43T1-R6A — custom receiver canonical pivot](43t1-r6a-custom-receiver-canonical-pivot.md) — R5D+R5Z integrated; custom receiver primary; host T1, no Honda execution
 
 - [43T1-R5D — artifact provenance closure](43t1-r5d-artifact-provenance-closure.md) — named EU Civic MELCO package lead; no authenticated receiver payload
