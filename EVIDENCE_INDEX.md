@@ -1,5 +1,13 @@
 # Evidence index
 
+## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
+
+- [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md): exact R6H merge and R6H1 starting HEAD; CPC200 absent; stopped before provisioning/authentication; below G1-T0.
+- [Hardware/toolchain baseline](research/runtime/r6h1-hardware-toolchain-baseline.md): public LIVI v9.2.0 and provisioner pin/checksum, supported families, Mac tool availability and device gate.
+- [Provisioning preflight](research/runtime/r6h1-provisioning-preflight.md): `R6H1_PROVISIONING_BLOCKED` because no device is present; no write attempted.
+- [Network containment](research/runtime/r6h1-network-containment.md): no LIVI/ClarityLink listener or LIVI network interface; host firewall/listener limits recorded without unrelated identifiers.
+- [Gate 1 readiness](research/runtime/r6h1-gate1-real-readiness.md): Gate 1 remains `SOFTWARE_READY_HARDWARE_REQUIRED`; Gate 2 is `NOT_STARTED`.
+
 ## R6G LIVI control-session seam
 
 - [R6G milestone report](step-reports/43t1-r6g-livi-authority-bringup.md) — R6F merge `7fadb23`; CPC200 absent; no real authority/iPhone gate; ClarityLink provider partial pending upstream bridge.
