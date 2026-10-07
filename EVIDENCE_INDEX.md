@@ -1014,3 +1014,12 @@ Honda-specific source notes remain separately indexed below; no external project
 - [LIVI patch contract](research/runtime/r6h-livi-patch-contract.md): pre-dispatch exclusive ownership seam and implementation gaps.
 - [Bridge protocol](research/runtime/r6h-livi-bridge-protocol.md): bounded local IPC contract.
 - [Gate 1 readiness](research/runtime/r6h-gate1-readiness.md): stages and current blockers.
+# R7A — Integrated offline dual-stream receiver (2026-10-06)
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Integrated synthetic receiver | [R7A report](step-reports/43t1-r7a-integrated-offline-dual-carplay.md); [demo](demo/r7a_offline_dual_receiver.py); [acceptance test](tests/jmcs/test_r7a_integrated_dual_receiver.py) | `MODEL_ONLY`: one synthetic session exchanges `/info` and SETUP, receives and actually decodes Type110 + Type111 frames, and delivers to separate host outputs. One frame per output at 800×480, distinct content. |
+| Failure/lifecycle | R7A acceptance tests | Both stream orders and single-stream cases; failure isolation, cleanup and 100 reconnect/disconnect cycles passed. No tracked resources remain after each cycle. |
+| Receiver boundaries | [Host-to-Honda inventory](research/runtime/r7a-host-honda-boundary-inventory.md); `src/claritylink-jmcs/claritylink_jmcs/{auth,adapters,receiver}.py` | Host implementations and future adapter protocols are classified separately. No unavailable Honda adapter is called implemented. |
+| Verification | R7A report and hosted PR checks | Local suite 901 passed, 14 skipped; repository health and whitespace checks passed. Hosted Offline CI and CodeQL require exact pushed-head results and are pending. |
+| Sequencing | [Rules v2](docs/project/claritylink-rules-v2.md); [roadmap](ROADMAP.md) | `R7_OFFLINE_IMPLEMENTATION_FIRST` removes CPC200 as prerequisite for offline work. R6 reports and conclusions remain unchanged. |

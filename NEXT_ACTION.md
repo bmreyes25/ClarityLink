@@ -1,5 +1,11 @@
 # Next action
 
+## R7A complete — proceed with offline Android target build — 2026-10-06
+
+`R7_OFFLINE_IMPLEMENTATION_FIRST` supersedes the R6 requirement to obtain CPC200 before offline receiver work. R7A passed its executable synthetic dual-stream acceptance: one generation-scoped session ran `/info` and SETUP, decoded distinct Type110 and Type111 H.264 frames to separate 800×480 outputs, and released all resources. Suite: **901 passed, 14 skipped**; repository health and `git diff --check` passed. Hosted Offline CI and CodeQL on the pushed implementation head are still pending.
+
+**NEXT: `GO_FOR_R7B_ANDROID_API17_ARMV7_NATIVE_BUILD`.** Pin/reproduce the API17 ARMv7 toolchain, port the receiver contracts, and verify target media/buffer ownership. Do not promote host proof to real iPhone or Honda readiness. Exact remaining blockers are listed in the [R7A report](step-reports/43t1-r7a-integrated-offline-dual-carplay.md) and [adapter inventory](research/runtime/r7a-host-honda-boundary-inventory.md). CPC200, vehicle, ADB and Honda actions remain outside this milestone.
+
 ## R6H1 Gate 1 CPC200 hardware bring-up — 2026-10-05
 
 R6H merged as `6f9234dc08800fc6a3cd05e2971913ebb1cc488c`; R6H1 starts from that exact commit on `architecture/r6h1-hardware-authority-bringup`. The read-only Mac inventory found no CPC200-CCPA/LIVI hardware, so hardware execution stopped before provisioning or authentication traffic. Gate 1 remains `SOFTWARE_READY_HARDWARE_REQUIRED`, this run is `GATE1_BLOCKED_WAITING_FOR_CPC200`, and Gate 2 remains `NOT_STARTED`. **NEXT:** `GO_FOR_GATE1_HARDWARE_AUTHORITY_BRINGUP` when the exact user-owned CPC200-CCPA is physically present; verify revision/provenance and let the pinned LIVI Link provisioner probe it before any write. No real iPhone or `/info` was reached. See [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md), [toolchain](research/runtime/r6h1-hardware-toolchain-baseline.md), [provisioning gate](research/runtime/r6h1-provisioning-preflight.md), and [Gate 1 readiness](research/runtime/r6h1-gate1-real-readiness.md). No Honda, ADB, vehicle, restricted identity, or secret use.

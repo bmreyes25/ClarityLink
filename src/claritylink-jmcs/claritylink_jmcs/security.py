@@ -49,6 +49,19 @@ class EvidenceRequiredSecurity:
         return None
 
 
+class EvidenceRequiredPrimarySecurity:
+    """Fail closed on Type110 media when only a synthetic listener is known."""
+
+    def open(self, generation: int, stream_connection_id: int) -> None:
+        return None
+
+    def unprotect(self, generation: int, body: bytes, header: bytes = b"") -> bytes:
+        raise SecurityError("type110_security_evidence_required")
+
+    def close(self) -> None:
+        return None
+
+
 class SecurityProfile(str):
     CLEAR_GENERATED_LAB = "CLEAR_GENERATED_LAB"
     LEGACY_AES_SCREEN = "LEGACY_AES_SCREEN"
