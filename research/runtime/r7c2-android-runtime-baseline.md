@@ -26,6 +26,6 @@ API17 AOSP `OverlayDisplayAdapter` is enabled only inside the ephemeral AVD with
 
 ## Build and runtime evidence
 
-`tools/build_r7c_android_api17_x86.sh`, `tools/build_r7c2_test_apk.sh`, and `tools/run_r7c2_emulator.sh` produce and run an isolated test application. The harness reports `RESULT=PASS`, 100 cycles, Dalvik, API 17. With corrected stream diagnostics, test APK SHA-256: `c8d307923db734eb66e0f8eeea532c70444736ae43497e3a505e14c45bec3f16`. Runtime library SHA-256: `f220612fb1f83c52f7afd1dececce3834400c22515b3d3a5a3b7a76a23180f88`. Production ARMv7 library SHA-256: `00ebf5a3385817949e2d7cfac7eef89e9759a40ee9f0310dbaeb06fa4764fa89`.
+`tools/build_r7c_android_api17_x86.sh`, `tools/build_r7c2_test_apk.sh`, and `tools/run_r7c2_emulator.sh` produce and run an isolated test application. The harness reports `RESULT=PASS`, 100 cycles, Dalvik, API 17. With corrected stream diagnostics, test APK SHA-256: `db772a3f0efa9f5be62f7a6ace1dc0f49546ac175095ec777bfb42c68ac83f60`. Runtime library SHA-256: `f220612fb1f83c52f7afd1dececce3834400c22515b3d3a5a3b7a76a23180f88`. Production ARMv7 library SHA-256: `00ebf5a3385817949e2d7cfac7eef89e9759a40ee9f0310dbaeb06fa4764fa89`.
 
 Evidence level: `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86` for the exercised Java/JNI path; `ANDROID_ARMV7_BUILD_CONFIRMED` for the separately built production ABI. This report does not claim `ANDROID_ARMV7_RUNTIME_CONFIRMED` or Honda compatibility.

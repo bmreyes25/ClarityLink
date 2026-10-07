@@ -75,6 +75,7 @@ done
 [ "$ready" -eq 1 ] || { echo 'API17 emulator boot timeout' >&2; exit 5; }
 assert_owned_target
 "$adb" -s "$serial" shell settings put global overlay_display_devices '800x480/160'
+"$adb" -s "$serial" logcat -c
 "$adb" -s "$serial" install "$apk"
 assert_owned_target
 "$adb" -s "$serial" shell am start -n "$package/org.claritylink.android.R7C2RuntimeActivity" >/dev/null
@@ -82,7 +83,7 @@ assert_owned_target
 result=''
 for attempt in $(seq 1 300); do
   assert_owned_target
-  result=$("$adb" -s "$serial" shell run-as "$package" cat files/r7c2-result.txt 2>/dev/null | tr -d '\r' || true)
+  result=$("$adb" -s "$serial" logcat -d -s ClarityLinkR7C2:I '*:S' 2>/dev/null | tr -d '\r' | awk '/RESULT=PASS|RESULT=FAIL/ {line=$0} END {print line}')
   case "$result" in *'RESULT=PASS'*|*'RESULT=FAIL'*) break;; esac
   sleep 1
 done
