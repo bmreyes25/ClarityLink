@@ -19,6 +19,12 @@ The ideal final form is one simultaneous CarPlay session with independent Type11
 - R6 primary engineering path is an offline clean-room Honda-compatible custom receiver; R3C still parks stock `jmcs` interposition.
 - No car test is authorized by these rules or the current milestone.
 
+## R7 offline implementation first — 2026-10-06
+
+`R7_OFFLINE_IMPLEMENTATION_FIRST` supersedes R6's sequencing requirement to obtain CPC200 hardware before continuing receiver development. CPC200 acquisition is not required for synthetic authentication, Type110/Type111 negotiation modeling, media and decoder work, host display tests, offline integration, or later Android cross-compilation. R6 findings remain historical and unchanged; this sequencing decision does not promote synthetic results to current-iOS or Honda evidence.
+
+Still unresolved: genuine MFi authentication; real iPhone `/info` and SETUP acceptance; real Type111 security/media; Honda USB/iAP2/authentication ownership; Display1 admission; Honda executable compatibility; and vehicle safety/stock restoration. Honda deployment and all prohibited activities remain out of scope without their separate gates.
+
 ## Core principle
 
 Offline first. Backups required. Tests required. Static review required. Car tests only after exact written plans and explicit authorization. Backups are mandatory, but backups are not enough. Host tests are mandatory, but host tests are not Honda proof. A parked-car test is possible only after an exact written plan is reviewed and explicitly authorized.

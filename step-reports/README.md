@@ -1,5 +1,9 @@
 ## Current / latest milestones
 
+- [43T1-R7A — integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md) — synthetic session completes `/info`, SETUP, Type110 + Type111 media/decode/display, isolation and 100-cycle cleanup; `MODEL_ONLY`; next R7B API17/ARMv7 build.
+
+- [R7 host-to-Honda adapter boundary inventory](../research/runtime/r7a-host-honda-boundary-inventory.md) — interface and readiness classifications; target adapters remain evidence gated.
+
 - [43T1-R6H1 — Gate 1 CPC200/LIVI Link hardware authority bring-up](43t1-r6h1-gate1-hardware-authority-bringup.md) — CPC200 absent; provisioning/authentication stopped before hardware actions; Gate 1 open below T0; Gate 2 not started.
 
 - [43T1-R6H — LIVI control delegation and Gate 1 software](43t1-r6h-gate1-livi-adapter-completion.md) — exclusive delegate and private bridge host-validated; hardware required for real session.
@@ -40,8 +44,10 @@ This index preserves the engineering chronology and negative results. For curren
 
 ## Current project status
 
-- Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current research decision: [43T1-R5D](43t1-r5d-artifact-provenance-closure.md) recommends further public package custody research. [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
+- Latest completed milestone: [R7A integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md), `R7A_INTEGRATED_SYNTHETIC_DUAL_STREAM_PASS` (`MODEL_ONLY`). R7 offline implementation first supersedes the CPC200 prerequisite for offline implementation; R6 reports remain historical. Next is R7B API17/ARMv7 native build. No Honda or vehicle action is authorized.
+
+- Latest completed Honda observation remains [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready. R7A is a separate host-only implementation result, not a new Honda observation.
+- [43T1-R5D](43t1-r5d-artifact-provenance-closure.md) and [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) retain their historical findings. R7A supersedes their next-action recommendation for offline implementation only; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones

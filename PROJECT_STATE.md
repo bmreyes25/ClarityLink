@@ -1,5 +1,13 @@
 # ClarityLink project state
 
+## R7A integrated offline dual-stream receiver — 2026-10-06
+
+Starting HEAD and `origin/main`: `c254d7f6172dbd45bb1cd6a87b10bcb4cd96d811`. Implemented on `architecture/r7a-integrated-offline-dual-carplay` in a clean linked worktree. Result: `R7A_INTEGRATED_SYNTHETIC_DUAL_STREAM_PASS` (`MODEL_ONLY`). One synthetic authenticated session runs `/info`, SETUP, both independent media paths, actual FFmpeg H.264 decode, separate 800×480 host outputs and disconnect cleanup. Both stream orders and single-stream configurations pass; Type111 failures leave Type110 active. Lifecycle test: 100/100 cycles with no tracked resources after close. Full suite: 901 passed, 14 skipped. Repository health and `git diff --check` passed. Offline CI and CodeQL passed on implementation head `bb80c159421d92452ecc6405ac264cb8fc615734`; any later PR-head revision needs its own result.
+
+R7 Type110/Type111 synthetic host pipeline is ready for R7B porting. Type110/Type111 production security, genuine authentication, iPhone acceptance and all Honda adapters remain unverified or blocked. Next: `GO_FOR_R7B_ANDROID_API17_ARMV7_NATIVE_BUILD`. R6 findings and hardware chronology remain below as historical records; sequencing now follows `R7_OFFLINE_IMPLEMENTATION_FIRST`.
+
+See [R7A milestone report](step-reports/43t1-r7a-integrated-offline-dual-carplay.md) and [host-to-Honda boundary inventory](research/runtime/r7a-host-honda-boundary-inventory.md).
+
 ## R6H1 Gate 1 hardware bring-up — 2026-10-05
 
 R6H PR #13 merged at `6f9234dc08800fc6a3cd05e2971913ebb1cc488c`; R6H1 starts cleanly at the same commit. Safe read-only Mac inventory found no CPC200-CCPA/LIVI device. Hardware compatibility and ownership are untested; no provisioner, firmware, authentication request, or real iPhone session was used. Decisions: `R6H1_HARDWARE_ABSENT`, `R6H1_COMPATIBILITY_NOT_TESTED`, `R6H1_PROVISIONING_NOT_ATTEMPTED`, `R6H1_AUTHORITY_NOT_TESTED`, `R6H1_LIVI_BASELINE_NOT_REACHED`, `BELOW_G1_T0`, `GATE1_BLOCKED_WAITING_FOR_CPC200`. Gate 1 remains `SOFTWARE_READY_HARDWARE_REQUIRED`; Gate 2 remains `NOT_STARTED`. Next: `GO_FOR_GATE1_HARDWARE_AUTHORITY_BRINGUP`. See [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md) and [readiness](research/runtime/r6h1-gate1-real-readiness.md). No Honda/ADB/vehicle action.
