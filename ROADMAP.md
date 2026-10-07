@@ -8,6 +8,14 @@ Next: **`GO_FOR_R7B_ANDROID_API17_ARMV7_NATIVE_BUILD`**. CPC200 remains optional
 
 The R6 chronology below remains historical evidence, not deleted or retrospectively rewritten. Its CPC200-gated real-session path remains relevant to later real-iPhone validation.
 
+## R7B native target build — 2026-10-06
+
+R7A merged at `f0d800678684979277f9ad0b8f43c30153960eda`. The R7 implementation-first sequence supersedes R6's CPC200-first ordering for offline receiver work while preserving all R6 evidence and decisions unchanged. R7A established `R7A_INTEGRATED_SYNTHETIC_DUAL_STREAM_PASS` using host/model evidence. R7B adds a native host implementation and reproducible Android 4.2.2/API17/ARMv7 build; that build does not establish Honda execution or real CarPlay compatibility. R7C is the later Honda adapter milestone and requires its own evidence and authorization.
+
+**R7B result:** native dual-stream slice, software decode, host/native fixture conformance, 100-cycle lifecycle, API17 symbol audit and ARMv7 artifact inspection are implemented and locally verified. Hosted Offline CI and CodeQL remain pending exact pushed-head verification until the PR is open. The current branch is `architecture/r7b-api17-armv7-native-build`, based on R7A merge `f0d800678684979277f9ad0b8f43c30153960eda`.
+
+**Next:** complete the R7B PR and exact-head hosted checks. If all acceptance gates pass, proceed to `GO_FOR_R7C_HONDA_ADAPTER_IMPLEMENTATION`; do not infer Honda compatibility from cross-compilation. Genuine MFi, real iPhone negotiation, Type111 security/framing, Honda USB/iAP2 ownership, both display admissions, audio/controls and stock restoration remain unresolved.
+
 ## Canonical seven-gate program — 2026-10-05
 
 1. **Gate 1 — Mac auth/control authority:** R6H is blocked on completing the LIVI Node IPC/authentication proof and app-root wiring; CPC200 is absent.

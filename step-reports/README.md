@@ -244,3 +244,4 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 - The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.
 
 - [43T1-R6H — LIVI control delegation and real Mac auth Gate 1](43t1-r6h-gate1-livi-adapter-completion.md) — partial software bridge; Gate 1 remains open.
+- [43T1-R7B — Android API17 / ARMv7 native receiver build](43t1-r7b-android-api17-armv7-native-build.md)

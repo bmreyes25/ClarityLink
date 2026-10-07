@@ -1023,3 +1023,15 @@ Honda-specific source notes remain separately indexed below; no external project
 | Receiver boundaries | [Host-to-Honda inventory](research/runtime/r7a-host-honda-boundary-inventory.md); `src/claritylink-jmcs/claritylink_jmcs/{auth,adapters,receiver}.py` | Host implementations and future adapter protocols are classified separately. No unavailable Honda adapter is called implemented. |
 | Verification | R7A report and hosted PR checks | Local suite 901 passed, 14 skipped; repository health and whitespace checks passed. Offline CI and CodeQL passed on implementation head `bb80c159421d92452ecc6405ac264cb8fc615734`; R7A report links to both runs. |
 | Sequencing | [Rules v2](docs/project/claritylink-rules-v2.md); [roadmap](ROADMAP.md) | `R7_OFFLINE_IMPLEMENTATION_FIRST` removes CPC200 as prerequisite for offline work. R6 reports and conclusions remain unchanged. |
+
+# R7B — API17 / ARMv7 native receiver build (2026-10-06)
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Native dual-stream core | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md); `native/` | `HOST_NATIVE_CONFIRMED`: synthetic generation owner; Type110/Type111 decoded to independent sinks; production auth/security fail closed |
+| Shared behavior vectors | [Conformance](research/runtime/r7b-host-native-conformance.md); `tests/fixtures/r7b/` | Python reference and native harness consume same vector metadata/base64 H.264 bytes; decoded association and cleanup agree |
+| Target toolchain | [Toolchain](research/runtime/r7b-toolchain-selection.md); [manifest](research/runtime/r7b-build-manifest.md) | NDK r23c, API17 ARMv7 cross-build; FFmpeg release signature verified and source checksum pinned |
+| ABI/API audit | [ABI report](research/runtime/r7b-armv7-abi-report.md); [API audit](research/runtime/r7b-api17-compatibility-audit.md); [symbol list](research/runtime/r7b-api17-symbol-audit.json) | `ANDROID_ARMV7_BUILD_CONFIRMED`: ELF32 ARM EABI5; 114 imports match API17 stubs; only libc/libm/libdl NEEDED |
+| Decoder/dependency | [Decoder selection](research/runtime/r7b-decoder-selection.md) | FFmpeg 6.1.6 static H.264 decoder; no target runtime execution or Honda codec proof |
+| Adapter readiness | [Readiness inventory](research/runtime/r7b-target-readiness.md) | Honda adapters and real auth/security remain `EVIDENCE_REQUIRED`; interfaces are not vehicle implementations |
+| Local verification | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md) | Native 100 cycles, ASan/UBSan, TSan, full suite, health and diff checks; hosted exact-head checks pending |
