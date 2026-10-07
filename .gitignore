@@ -26,6 +26,10 @@
 !/tests/
 !/src/
 !/tools/
+/native/
+/native/**
+!/native/
+!/native/**
 /tools/*
 !/tools/README.md
 !/tools/check_repo_health.py
@@ -38,6 +42,11 @@
 !/tools/jmcs_integration/
 !/tools/jmcs_integration/*.py
 !/tools/run_tests.sh
+!/tools/build_r7b_host.sh
+!/tools/build_android_api17_armv7.sh
+!/tools/audit_android_api17_symbols.py
+!/tools/write_r7b_manifest.py
+!/tools/materialize_r7b_fixtures.py
 !/tools/analyze_43t0d_capture.py
 !/tools/step43t0d_offline.py
 !/tools/step43t0d3_netcfg_plan.py

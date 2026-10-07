@@ -1,0 +1,71 @@
+{
+  "abi": "armeabi-v7a",
+  "api_level": 17,
+  "artifact": {
+    "name": "libclaritylink_receiver.so",
+    "sha256": "eb6e8354f871cb69207954b3bf61f839ddbbcea04ec5eb1515388e23baf982ad"
+  },
+  "build_type": "release_shared_library",
+  "compile_flags": [
+    "-std=c++17",
+    "-O2",
+    "-fPIC",
+    "-march=armv7-a",
+    "-mfloat-abi=softfp",
+    "-mfpu=vfpv3-d16",
+    "-fno-rtti",
+    "-fexceptions",
+    "FFmpeg: --disable-asm --disable-neon --disable-vfp"
+  ],
+  "compiler": "Android (8481493, based on r416183c2) clang version 12.0.9 (https://android.googlesource.com/toolchain/llvm-project c935d99d7cf2016289302412d708641d52d2f7ee)",
+  "decoder_backend": "FFmpeg libavcodec/libswscale static; H.264 decoder only",
+  "dependencies": {
+    "cxx_runtime": "NDK r23c libc++ static",
+    "ffmpeg": "6.1.6"
+  },
+  "dependency_source_sha256": {
+    "ffmpeg-6.1.6.tar.xz": "d4fcb164028dd3beee5d92c0ac72e46aac6973c75ea12dc14de07bf8f407370a",
+    "ffmpeg_signature": "verified with FFmpeg release signing key B4322F04D67658D8"
+  },
+  "ffmpeg_configure_flags": [
+    "--target-os=android",
+    "--arch=arm",
+    "--cpu=armv7-a",
+    "--enable-cross-compile",
+    "--disable-shared",
+    "--enable-static",
+    "--enable-pic",
+    "--disable-programs",
+    "--disable-doc",
+    "--disable-debug",
+    "--disable-network",
+    "--disable-autodetect",
+    "--disable-everything",
+    "--disable-avformat",
+    "--disable-avdevice",
+    "--disable-avfilter",
+    "--disable-swresample",
+    "--disable-postproc",
+    "--enable-avcodec",
+    "--enable-avutil",
+    "--enable-swscale",
+    "--enable-decoder=h264",
+    "--disable-asm",
+    "--disable-neon",
+    "--disable-vfp",
+    "--disable-gpl",
+    "--disable-nonfree",
+    "--disable-version3"
+  ],
+  "link_flags": [
+    "-shared",
+    "-Wl,--no-undefined",
+    "-Wl,--exclude-libs,ALL",
+    "-Wl,-soname,libclaritylink_receiver.so",
+    "-static-libstdc++"
+  ],
+  "linker": "LLD 12.0.9 (/Volumes/Android/buildbot/src/android/llvm-r416183/out/llvm-project/lld c935d99d7cf2016289302412d708641d52d2f7ee) (compatible with GNU linkers)",
+  "ndk_version": "23.2.8568313",
+  "source_commit": "68752a80bce8db8feff40d20bf1cd2b3c70bf96b",
+  "target_triple": "armv7a-linux-androideabi17"
+}

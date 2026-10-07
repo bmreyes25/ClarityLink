@@ -39,9 +39,15 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+      - name: Install FFmpeg development libraries for native analysis
+        if: matrix.language == 'c-cpp'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes clang pkg-config libavcodec-dev libavutil-dev libswscale-dev
       - name: Build native transaction core for analysis
         if: matrix.language == 'c-cpp'
         run: |
+          tools/build_r7b_host.sh
           clang -std=c11 -Wall -Wextra -Werror -O1 -g -pthread \
             -I src/claritylink-negotiation \
             src/claritylink-negotiation/native_setup_txn.c \
