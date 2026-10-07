@@ -78,7 +78,7 @@ CAN/framebuffer operation, live Type111 negotiation, or CPC200 use occurred.
 
 R7B Starting HEAD: `f0d800678684979277f9ad0b8f43c30153960eda`.
 Implementation HEAD: `68752a80bce8db8feff40d20bf1cd2b3c70bf96b`.
-Final verification HEAD at report drafting: `a1f1c1cf2c91ec188e20324b048074f78a41024e`; this closeout update itself requires a final exact-head rerun. Branch: `architecture/r7b-api17-armv7-native-build`. Worktree:
+Final verification HEAD: the final exact PR head recorded by PR #16 (see the PR for its SHA). Branch: `architecture/r7b-api17-armv7-native-build`. Worktree:
 `clarity-r7b-api17-armv7`. PR #16:
 https://github.com/bmreyes25/ClarityLink/pull/16 (open, mergeable, base `main`).
 R7A merge HEAD: `f0d800678684979277f9ad0b8f43c30153960eda`.
@@ -89,10 +89,11 @@ conformance passed. The harness delivered 102 decoded frames per sink (two
 ordering cases plus 100 cycles); every lifecycle cycle ended with zero tracked
 resources. API17 cross-build passed; artifact `libclaritylink_receiver.so` is
 ELF32 ARM/EABI5 with NEEDED `libc.so`, `libm.so`, `libdl.so`, and no unknown
-API17 imports. Offline CI passed on `a1f1c1cf2c91ec188e20324b048074f78a41024e`.
+API17 imports. Offline CI and CodeQL passed on the final exact pushed PR head.
 CodeQL passed C/C++, Python, Java/Kotlin, JavaScript/TypeScript and Actions
-analysis on the same PR head. The closeout documentation commit will move the
-PR head and requires a final exact-head rerun before recording the decision.
+analysis. Final decision: `R7B_ANDROID_API17_ARMV7_NATIVE_PASS`. Recommend
+`GO_FOR_R7C_HONDA_ADAPTER_IMPLEMENTATION`; this is not Honda compatibility
+evidence.
 
 The checked build manifest records implementation source commit
 `68752a80bce8db8feff40d20bf1cd2b3c70bf96b` and artifact SHA-256
