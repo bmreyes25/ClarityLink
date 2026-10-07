@@ -76,6 +76,28 @@ CAN/framebuffer operation, live Type111 negotiation, or CPC200 use occurred.
 
 ## Verification outcome
 
-Exact implementation/final verification SHAs, hosted PR checks, final
-decision, and recommended next milestone will be added after the checks run on
-the final pushed HEAD. Older checks do not count.
+R7B Starting HEAD: `f0d800678684979277f9ad0b8f43c30153960eda`.
+Implementation HEAD: `68752a80bce8db8feff40d20bf1cd2b3c70bf96b`.
+Final verification HEAD: pending the manifest/evidence commit and its exact-head
+hosted checks. Branch: `architecture/r7b-api17-armv7-native-build`. Worktree:
+`clarity-r7b-api17-armv7`. PR #16:
+https://github.com/bmreyes25/ClarityLink/pull/16 (open, mergeable, base `main`).
+R7A merge HEAD: `f0d800678684979277f9ad0b8f43c30153960eda`.
+
+Acceptance summary: native core, Type110/Type111 ownership, simultaneous
+dual-stream decode, dual output association, and host/native fixture
+conformance passed. The harness delivered 102 decoded frames per sink (two
+ordering cases plus 100 cycles); every lifecycle cycle ended with zero tracked
+resources. API17 cross-build passed; artifact `libclaritylink_receiver.so` is
+ELF32 ARM/EABI5 with NEEDED `libc.so`, `libm.so`, `libdl.so`, and no unknown
+API17 imports. Exact-hosted check results and the final decision are deferred
+until the final pushed PR head completes Offline CI and CodeQL.
+
+The checked build manifest records implementation source commit
+`68752a80bce8db8feff40d20bf1cd2b3c70bf96b` and artifact SHA-256
+`eb6e8354f871cb69207954b3bf61f839ddbbcea04ec5eb1515388e23baf982ad`.
+Toolchain: NDK r23c 23.2.8568313, clang/LLD 12.0.9, target
+`armv7a-linux-androideabi17`, ABI `armeabi-v7a`, static libc++ and FFmpeg
+6.1.6 H.264 decoder-only. Honda execution, real iPhone authentication,
+production Type111 security and Honda display/transport/audio/control support
+remain unverified. No vehicle execution occurred.
