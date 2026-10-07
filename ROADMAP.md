@@ -1,3 +1,9 @@
+## R7C Android/Honda-facing adapter implementation — 2026-10-07
+
+R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`. R7C implements API17 Java adapters and an API17 ARMv7 JNI/ANativeWindow/socket library with a fail-closed Display1 Presentation candidate. API17 Java/ARM compilation, API17 symbol audit, socket sanitizer test, Java evidence-policy test, and R7A/R7B regressions passed. Full Android/JNI/display/receiver integration and all lifecycle/fault tests did not run; decision is `R7C_INTEGRATION_PARTIAL`.
+
+Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Complete Android/JNI runtime coverage, integrated failure matrix and 100 receiver+adapter lifecycle cycles before R7D. Honda target execution remains outside R7C and every Honda-only unknown stays evidence-gated. See [R7C report](step-reports/43t1-r7c-honda-target-adapter-implementation.md).
+
 # ClarityLink roadmap
 
 ## R7 offline implementation first — 2026-10-06

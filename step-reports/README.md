@@ -1,6 +1,8 @@
 ## Current / latest milestones
 
 - [43T1-R7A — integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md) — synthetic session completes `/info`, SETUP, Type110 + Type111 media/decode/display, isolation and 100-cycle cleanup; `MODEL_ONLY`; next R7B API17/ARMv7 build.
+- [43T1-R7B — Android API17 / ARMv7 native receiver build](43t1-r7b-android-api17-armv7-native-build.md)
+- [43T1-R7C — Honda-target adapter implementation (offline, partial)](43t1-r7c-honda-target-adapter-implementation.md)
 
 - [R7 host-to-Honda adapter boundary inventory](../research/runtime/r7a-host-honda-boundary-inventory.md) — interface and readiness classifications; target adapters remain evidence gated.
 

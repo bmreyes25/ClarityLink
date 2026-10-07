@@ -17,15 +17,4 @@ class PlatformUsb { public: virtual ~PlatformUsb() = default; virtual bool open_
 class PlatformAuthentication { public: virtual ~PlatformAuthentication() = default; virtual bool authenticated() const = 0; };
 class PlatformProcessLifecycle { public: virtual ~PlatformProcessLifecycle() = default; virtual void request_shutdown() = 0; };
 
-// Compile-valid boundary only. R7C supplies the Java Surface/JNI bridge after
-// device contract evidence. A null native handle always fails closed.
-class AndroidSurfaceBoundary final : public PlatformDisplay {
- public:
-  explicit AndroidSurfaceBoundary(void* surface = nullptr) : surface_(surface) {}
-  bool present(const uint8_t*, uint32_t, uint32_t, uint32_t) override { return false; }
-  void clear() override {}
-  bool has_surface_handle() const { return surface_ != nullptr; }
- private:
-  void* surface_;
-};
 }  // namespace claritylink::platform

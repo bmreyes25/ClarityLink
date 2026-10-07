@@ -1,3 +1,12 @@
+## R7C Android target adapters — offline partial
+
+- [R7C milestone report](step-reports/43t1-r7c-honda-target-adapter-implementation.md): exact R7B merge/start HEAD, compiled API17 Java and ARMv7 JNI library, offline tests, explicit partial decision.
+- [R7C build provenance](research/runtime/r7c-build-provenance.md): verified API17 platform archive, NDK/compiler target, artifact hash, and API17 stub audit.
+- [Architecture](research/runtime/r7c-android-adapter-architecture.md) and [JNI contract](research/runtime/r7c-jni-contract.md): ownership, generation, handle, exception, and thread boundaries.
+- [Display0](research/runtime/r7c-display0-adapter.md), [Display1 Presentation](research/runtime/r7c-display1-presentation-adapter.md), and [warning/safe-area gate](research/runtime/r7c-warning-safety-boundary.md): candidate path and Honda evidence limits.
+- [Transport](research/runtime/r7c-transport-adapters.md), [USB/iAP2](research/runtime/r7c-usb-iap2-boundary.md), and [authentication](research/runtime/r7c-authentication-boundary.md): bounded generic APIs and fail-closed defaults.
+- [Audio/input](research/runtime/r7c-audio-input-boundary.md), [process/restoration](research/runtime/r7c-process-restoration-model.md), [readiness](research/runtime/r7c-honda-adapter-readiness.md), and [next evidence](research/runtime/r7c-next-evidence-matrix.md).
+
 # Evidence index
 
 ## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
