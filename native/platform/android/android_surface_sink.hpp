@@ -1,15 +1,13 @@
 #pragma once
 
-#include "claritylink/receiver.hpp"
+#include "surface_sink_core.hpp"
 
 #include <android/native_window.h>
-#include <atomic>
-#include <mutex>
+#include <memory>
 
 namespace claritylink::android {
 
-// Owns exactly one ANativeWindow reference and one (generation, stream,
-// surface-token) tuple. Callbacks never call back into Java.
+// API17 production bridge to the host-testable surface ownership core.
 class AndroidSurfaceSink final : public FrameSink {
  public:
   AndroidSurfaceSink(ANativeWindow* window, uint64_t generation,
@@ -23,11 +21,6 @@ class AndroidSurfaceSink final : public FrameSink {
   bool valid() const noexcept;
   bool matches(uint64_t generation, StreamType stream) const noexcept;
  private:
-  mutable std::mutex mutex_;
-  ANativeWindow* window_;
-  const uint64_t generation_;
-  const StreamType stream_;
-  const uint64_t surface_token_;
-  bool valid_;
+  std::shared_ptr<SurfaceSinkCore> core_;
 };
 }  // namespace claritylink::android

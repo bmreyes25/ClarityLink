@@ -15,3 +15,7 @@
 | Controls | Observed and approved touch/steering/voice event mapping |
 | Stock restoration | Target evidence for reconnect, warnings, stock CarPlay, and factory state after temporary shutdown |
 | Performance | Target-like API17/ARM simulation budgets first; target measurements before performance claims |
+
+## R7C1 software closure still required
+
+The host handle table and surface core are tested, and actual receiver/H.264 output runs through the surface core. Direct JNI/ART entrypoint tests, Android framework Surface execution, and end-to-end execution of the Java audio/input/USB/iAP2/process adapters remain open. Close those software gates under [`R7D entry gate`](r7c-r7d-entry-gate.md) before starting R7D. None of these offline gates promotes the Honda-only rows above.

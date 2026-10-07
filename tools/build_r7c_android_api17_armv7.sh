@@ -49,6 +49,7 @@ target=armv7a-linux-androideabi17
 "$toolchain/bin/$target-clang++" -std=c++17 -O2 -fPIC -fvisibility=hidden -fno-rtti \
   -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16 -I"$repo/native/include" -I"$out/ffmpeg/include" \
   -fexceptions -shared "$repo/native/core/receiver.cpp" \
+  "$repo/native/platform/android/surface_sink_core.cpp" \
   "$repo/native/platform/android/android_surface_sink.cpp" \
   "$repo/native/platform/android/android_socket_adapter.cpp" \
   "$repo/native/platform/android/jni_bridge.cpp" \

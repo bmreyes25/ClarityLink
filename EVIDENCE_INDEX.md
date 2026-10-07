@@ -1,3 +1,11 @@
+## R7C1 JNI/surface/integration closure — offline partial
+
+- [R7C1 milestone report](step-reports/43t1-r7c1-honda-adapter-integration-closure.md): host lifecycle closure work, exact starting head, tests, remaining Android/JNI limits, and decision.
+- [JNI lifecycle closure](research/runtime/r7c1-jni-lifecycle-closure.md) and [Surface lifecycle closure](research/runtime/r7c1-surface-lifecycle-closure.md): shared monotonic handle table, testable sink core, Android runtime boundary, and ECC findings.
+- [R7C/R7C1 build provenance](research/runtime/r7c-build-provenance.md): original R7C and R7C1 API17/ARMv7 artifact hashes and import audits.
+- [Integrated harness](research/runtime/r7c1-integrated-adapter-harness.md), [fault matrix](research/runtime/r7c1-failure-injection-matrix.md), [resource accounting](research/runtime/r7c1-resource-accounting.md), and [restoration](research/runtime/r7c1-restoration-verification.md): actual H.264 receiver/surface-core host integration and limitations.
+- [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md): software-only gates that must close before target simulation.
+
 ## R7C Android target adapters — offline partial
 
 - [R7C milestone report](step-reports/43t1-r7c-honda-target-adapter-implementation.md): exact R7B merge/start HEAD, compiled API17 Java and ARMv7 JNI library, offline tests, explicit partial decision.

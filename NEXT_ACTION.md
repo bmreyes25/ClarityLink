@@ -1,6 +1,12 @@
 # Next action
 
-## R7C Android adapter integration — partial — 2026-10-07
+## R7C1 JNI/Surface integration closure — partial — 2026-10-07
+
+R7C1 starting HEAD: `25bf1436f71587e9984940b88d7766a9fa2f44fb` on `architecture/r7c-honda-target-adapters`. This continues PR #17; it does not merge the partial R7C branch. A production-shared SurfaceSinkCore and monotonic opaque handle table are now host-tested. Actual R7B H.264 decode runs into separate Type110/Type111 surface cores; the host-simulated integration harness passed 100 cycles with zero modeled owners after each cycle, Type111 display/media fault isolation, Type110 session-global failure handling, and ASan/UBSan/TSan. API17 Java and ARMv7 rebuilds/import audit passed. The full Android JNI/ART runtime and Java all-adapter fault matrix are still not executed, so R7C remains partial.
+
+**NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE` — complete direct JNI/ART ownership/race testing and end-to-end Java adapter integration/fault coverage. The R7D entry gate is [here](research/runtime/r7c-r7d-entry-gate.md) and remains closed. R7C hosted CI previously passed on `fc9a70df15f98ac41198e35261c67ec8fffa9b9b`; that result predates R7C1 and does not verify current changes. Honda-only authentication, protocol, display, warning, audio/control, USB, executable, and restoration states remain `EVIDENCE_REQUIRED`. No Honda or vehicle execution occurred. See [R7C1 report](step-reports/43t1-r7c1-honda-adapter-integration-closure.md).
+
+## R7C Android adapter implementation — partial — 2026-10-07
 
 R7B PR #16 merged to `main` at `087f17fb9268f623eabd520c3542b00db0d512b9`; this is the exact R7C starting HEAD. R7C adds API17 Java adapter classes, API17 ARMv7 JNI/ANativeWindow/POSIX socket shared library, warning/safe-area evidence gates, USB/iAP2/auth/audio/input/process contracts, and offline policy/socket tests. API17 Java compilation, API17 ARM import audit, R7B native regressions, 902 repository tests, and 100 process-policy cycles passed locally. The full JNI/Android display+media adapter lifecycle and failure matrix remains incomplete. Decision: `R7C_INTEGRATION_PARTIAL`.
 

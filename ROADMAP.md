@@ -1,3 +1,9 @@
+## R7C1 JNI/Surface integration closure — 2026-10-07
+
+R7C1 continues PR #17 from starting HEAD `25bf1436f71587e9984940b88d7766a9fa2f44fb`. JNI opaque handle and Surface lifecycle cores now have host tests; real R7B decoder output runs through separate Type110/Type111 host surface cores. A 100-cycle host-simulated receiver/surface integration and ASan/UBSan/TSan passed. API17/ARMv7 rebuild/import audit passed. This does not exercise ART JNI entrypoints, actual ANativeWindow/Presentation, or Java all-adapter behavior; the full fault matrix remains incomplete. Decision `R7C_INTEGRATION_PARTIAL`.
+
+Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. The [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md) is closed until JNI/Android/Java integration and full fault coverage are complete. No Honda execution or evidence escalation.
+
 ## R7C Android/Honda-facing adapter implementation — 2026-10-07
 
 R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`. R7C implements API17 Java adapters and an API17 ARMv7 JNI/ANativeWindow/socket library with a fail-closed Display1 Presentation candidate. API17 Java/ARM compilation, API17 symbol audit, socket sanitizer test, Java evidence-policy test, and R7A/R7B regressions passed. Full Android/JNI/display/receiver integration and all lifecycle/fault tests did not run; decision is `R7C_INTEGRATION_PARTIAL`.

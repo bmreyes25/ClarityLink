@@ -14,3 +14,17 @@
 | Java library | `claritylink-android-api17.jar`, SHA-256 `3f3cb23f9ad7fbf2d3e7954d08e665d41b80f9d3eaf6fcf4387559cf3ff2cada` | local ignored output of `tools/compile_android_api17_java.sh` |
 
 Local SDK archive, NDK, Java installation, generated classes, static FFmpeg build, and shared libraries are not tracked. This confirms compilation and import availability only; it does not confirm Android runtime execution or Honda behavior.
+
+## R7C1 rebuild
+
+R7C1 source rebuild, API17 / armeabi-v7a, same NDK and API17 stub set:
+
+| Input/output | Version / digest | Evidence |
+|---|---|---|
+| R7C1 starting source | `25bf1436f71587e9984940b88d7766a9fa2f44fb` | verified local branch head before edits |
+| Native library | `libclaritylink_android.so`, SHA-256 `6581e900dc392185707d16b00b525be451d9873321201da8e363ad7035169bc7` | local ignored R7C1 build output |
+| Java library | `claritylink-android-api17.jar`, SHA-256 `c50a009e36ee53196887963832420f55e8b5277c54c48f00383bc4cace6f6dd9` | local ignored API17 compile output |
+| API17 imports | 131 imports, 0 unknown | API17 `libandroid`, libc, libm, libdl stubs; `tools/audit_r7c_api17_symbols.py` |
+| ELF | ELF32 ARM, EABI5, `armeabi-v7a` target | NDK r23c API17 cross-build and `llvm-readelf` |
+
+The R7C1 hash records this local pre-push build; it does not assert runtime behavior. Build outputs remain ignored and untracked.

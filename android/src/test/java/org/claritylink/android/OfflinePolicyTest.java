@@ -20,6 +20,19 @@ public final class OfflinePolicyTest {
         require(!evidence.permits("warning_policy","safe",CapabilityEvidence.Level.HONDA_PROTOTYPE_OBSERVED),
             "UNKNOWN capability cannot be promoted");
         require(DisplayPolicy.FULL_FRAME_TEST_LAYOUT.testOnly,"full-frame layout is test-only");
+        require(!DisplayPolicy.WarningVisibilityPolicy.unknown().safeForHonda(),"unknown warnings never imply safe rendering");
+        boolean zeroAreaRejected=false;
+        try { new DisplayPolicy.Layout(800,480,0,0,0,100,0,false); }
+        catch(IllegalArgumentException expected) { zeroAreaRejected=true; }
+        require(zeroAreaRejected,"zero-sized area rejected");
+        boolean outOfBoundsRejected=false;
+        try { new DisplayPolicy.Layout(800,480,799,0,2,10,0,false); }
+        catch(IllegalArgumentException expected) { outOfBoundsRejected=true; }
+        require(outOfBoundsRejected,"out-of-bounds area rejected");
+        boolean invalidRotationRejected=false;
+        try { new DisplayPolicy.Layout(800,480,0,0,100,100,45,false); }
+        catch(IllegalArgumentException expected) { invalidRotationRejected=true; }
+        require(invalidRotationRejected,"unsupported rotation rejected");
         MockPrimaryDisplayHost mock=new MockPrimaryDisplayHost();
         require(mock.attach(7,800,480),"mock primary attach");
         require(!mock.frame(8,800,480),"mock rejects stale generation");
@@ -42,6 +55,7 @@ public final class OfflinePolicyTest {
         require(!input.accept(new InputBridge.Event(1,InputBridge.Kind.STEERING,99,1,10,5),5),"unknown control mapping rejected");
         require(!input.accept(new InputBridge.Event(1,InputBridge.Kind.TOUCH,2,1,10,4),5),"stale input generation rejected");
         require(!SessionBoundaries.AndroidAuthenticationAdapter.unavailableHondaDefault().authenticate(1),"default Honda auth unavailable");
+        require(!SessionBoundaries.AndroidAuthenticationAdapter.unavailableHondaDefault().genuineAuthority(),"unavailable auth is not genuine");
         require(!new SessionBoundaries.UnavailableIap2().ready(),"default iAP2 unavailable");
         require(!new MediaTransports.CarPlayMediaTransport().ready(),"real CarPlay framing disabled by default");
         boolean testModeRequired=false;

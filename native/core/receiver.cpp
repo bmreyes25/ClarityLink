@@ -53,6 +53,7 @@ class VectorMediaTransport final : public MediaTransport {
 }
 
 struct ReceiverGeneration::Stream {
+  uint64_t generation;
   StreamType type;
   uint16_t id;
   StreamState state = StreamState::Configuring;
@@ -66,7 +67,8 @@ struct ReceiverGeneration::Stream {
   std::shared_ptr<FrameSink> sink;
   size_t retained_frames = 0;
   Stream(StreamType t, uint16_t connection_id, std::shared_ptr<FrameSink> output,
-         bool test_mode) : type(t), id(connection_id), sink(std::move(output)) {
+         bool test_mode, uint64_t owner_generation)
+      : generation(owner_generation), type(t), id(connection_id), sink(std::move(output)) {
     transport = std::make_unique<VectorMediaTransport>();
     if (type == StreamType::Type110) {
       security = test_mode ? std::unique_ptr<SecurityProvider>(std::make_unique<TestPrimarySecurityProvider>())
@@ -89,7 +91,7 @@ struct ReceiverGeneration::Stream {
   }
   ~Stream() {
     state = StreamState::Closing;
-    if (sink) sink->clear(0);
+    if (sink) sink->clear(generation);
     scaler.reset();
     packet.reset();
     decoded.reset();
@@ -164,7 +166,7 @@ bool ReceiverGeneration::setup(uint64_t generation, const std::vector<StreamConf
     }
     try {
       auto stream = std::make_unique<Stream>(config.type, config.connection_id,
-          config.type == StreamType::Type110 ? display0_ : display1_, test_mode_);
+          config.type == StreamType::Type110 ? display0_ : display1_, test_mode_, generation_);
       if (config.type == StreamType::Type110) primary_ = std::move(stream);
       else secondary_ = std::move(stream);
     } catch (...) {
@@ -233,8 +235,26 @@ bool ReceiverGeneration::ingest(uint64_t generation, uint16_t id,
   if ((type != StreamType::Type110 && type != StreamType::Type111) ||
       (type == StreamType::Type110 && stream != primary_.get()) ||
       (type == StreamType::Type111 && stream != secondary_.get())) return false;
-  return stream->state == StreamState::Active && stream->id == id &&
-      decode_and_present(*stream, payload, timestamp);
+  if (stream->state != StreamState::Active || stream->id != id) return false;
+  const StreamType failed_type = stream->type;
+  if (decode_and_present(*stream, payload, timestamp)) return true;
+
+  if (failed_type == StreamType::Type111) {
+    secondary_.reset();
+    sync_state();
+    events_.push_back("TYPE111_MEDIA_FAILED_ISOLATED");
+  } else {
+    // Type110 is the required primary CarPlay path. A decoder, security or
+    // primary output failure ends the model session instead of leaving a
+    // misleading dual-session state with no functional center-screen path.
+    secondary_.reset();
+    primary_.reset();
+    display0_->clear(generation_);
+    display1_->clear(generation_);
+    state_ = SessionState::Closed;
+    events_.push_back("TYPE110_MEDIA_FAILED_SESSION_CLOSED");
+  }
+  return false;
 }
 
 void ReceiverGeneration::close_stream(StreamType type) {
