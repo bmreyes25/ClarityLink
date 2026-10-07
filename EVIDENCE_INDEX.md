@@ -1,3 +1,14 @@
+# R7C2 Android API17 runtime integration — 2026-10-07
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| API17 runtime baseline | [Runtime baseline](research/runtime/r7c2-android-runtime-baseline.md) | `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; Android 4.2.2 API17 on isolated x86 emulator under Rosetta; not ARM runtime or Honda proof |
+| Emulator boundary | [Safety gate](research/runtime/r7c2-emulator-safety-gate.md); `tools/run_r7c2_emulator.sh` | Rejects pre-existing/foreign ADB targets, exact serial, explicit `-s`; ephemeral AVD cleaned after run |
+| JNI and Surface | [Dalvik/JNI](research/runtime/r7c2-dalvik-jni-runtime.md); [Surface](research/runtime/r7c2-android-surface-runtime.md) | Actual JNI entrypoints, ANativeWindow path, H.264 output to two Surfaces, Type111 isolation and stale handle checks |
+| Display and Java adapters | [Secondary display](research/runtime/r7c2-secondary-display-runtime.md); [Java integration](research/runtime/r7c2-java-adapter-integration.md) | Synthetic API17 overlay display, actual Presentation lifecycle and selected audio/input/USB/process/security paths; Java loopback only for sockets |
+| Faults/resources/memory | [Fault matrix](research/runtime/r7c2-android-fault-matrix.md); [resource accounting](research/runtime/r7c2-runtime-resource-accounting.md); [memory](research/runtime/r7c2-runtime-memory-observation.md) | 100/100 Dalvik cycles; native diagnostic counters zero per cycle; software fault rows remain partial |
+| Decision | [R7D gate](research/runtime/r7c-r7d-entry-gate.md); [report](step-reports/43t1-r7c2-android-runtime-integration-closure.md) | `R7C_INTEGRATION_PARTIAL`; R7D CLOSED pending native Android socket runtime, VM exception/reference injections and deterministic framework callback/stop fault closure |
+
 ## R7C1 JNI/surface/integration closure — offline partial
 
 - [R7C1 milestone report](step-reports/43t1-r7c1-honda-adapter-integration-closure.md): host lifecycle closure work, exact starting head, tests, remaining Android/JNI limits, and decision.

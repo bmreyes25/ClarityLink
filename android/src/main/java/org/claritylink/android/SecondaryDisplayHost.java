@@ -24,9 +24,22 @@ public final class SecondaryDisplayHost {
     public boolean show(Context context, Display display, long generation,
                         DisplayPolicy.WarningVisibilityPolicy warningPolicy,
                         DisplayPolicy.Layout layout) {
+        return showInternal(context, display, generation, warningPolicy, layout, false);
+    }
+    /** Test-only API17 candidate path. Never represents Honda safety/admission evidence. */
+    boolean showOfflineLabForRuntimeTest(Context context, Display display, long generation,
+                                         DisplayPolicy.Layout layout) {
+        if (layout == null || !layout.testOnly) return false;
+        return showInternal(context, display, generation,
+                DisplayPolicy.WarningVisibilityPolicy.unknown(), layout, true);
+    }
+    private boolean showInternal(Context context, Display display, long generation,
+                        DisplayPolicy.WarningVisibilityPolicy warningPolicy,
+                        DisplayPolicy.Layout layout, boolean offlineLab) {
         requireMainThread(); close();
         if (display == null || !display.isValid() || generation <= 0 || warningPolicy == null ||
-            !warningPolicy.safeForHonda() || layout == null || layout.testOnly) {
+            layout == null || (offlineLab ? !layout.testOnly :
+                (!warningPolicy.safeForHonda() || layout.testOnly))) {
             state(DisplayPolicy.Admission.FAILED); return false;
         }
         this.generation = generation;

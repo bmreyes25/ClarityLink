@@ -17,4 +17,6 @@ public final class NativeBridge {
     public static native boolean nativeTestIngestSyntheticPacket(long receiverHandle, long generation, byte[] packet);
     public static native void nativeDisconnect(long receiverHandle);
     public static native void nativeReleaseReceiver(long receiverHandle);
+    /** Present only in explicitly built R7C2 test artifacts. */
+    public static native long[] nativeDebugResourceCounts();
 }

@@ -16,6 +16,6 @@
 | Stock restoration | Target evidence for reconnect, warnings, stock CarPlay, and factory state after temporary shutdown |
 | Performance | Target-like API17/ARM simulation budgets first; target measurements before performance claims |
 
-## R7C1 software closure still required
+## R7C2 software closure still required
 
-The host handle table and surface core are tested, and actual receiver/H.264 output runs through the surface core. Direct JNI/ART entrypoint tests, Android framework Surface execution, and end-to-end execution of the Java audio/input/USB/iAP2/process adapters remain open. Close those software gates under [`R7D entry gate`](r7c-r7d-entry-gate.md) before starting R7D. None of these offline gates promotes the Honda-only rows above.
+API17 Dalvik has now executed the real JNI entrypoints, Java DisplayManager/Presentation/Surface path, ANativeWindow sink, actual H.264 Type110/Type111 output, selected Java adapters, and 100 resource-checked cycles on x86. Remaining R7C software evidence: native POSIX `AndroidSocketAdapter` execution through Android JNI (the runtime test is Java loopback), injected pending-exception/reference-failure cases, and deterministic Android Surface/stop/audio callback races plus the remaining fault matrix. Close these rows under [`R7D entry gate`](r7c-r7d-entry-gate.md) before starting R7D. None of these offline gates promotes the Honda-only rows above.

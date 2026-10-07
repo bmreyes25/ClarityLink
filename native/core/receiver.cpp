@@ -290,7 +290,9 @@ ResourceCounts ReceiverGeneration::resources() const {
                                count(secondary_.get(), secondary_ && secondary_->codec && secondary_->decoded && secondary_->packet);
   return {(state_ == SessionState::Authenticated || state_ == SessionState::InfoExchanged ||
            state_ == SessionState::Active || state_ == SessionState::Closing) ? 1U : 0U,
-    listeners, security, decoders, 0, listeners};
+    listeners, security, decoders, 0, listeners,
+    static_cast<std::size_t>(static_cast<bool>(primary_)) +
+      static_cast<std::size_t>(static_cast<bool>(secondary_))};
 }
 std::vector<std::string> ReceiverGeneration::events() const { std::lock_guard<std::mutex> l(mutex_); return events_; }
 

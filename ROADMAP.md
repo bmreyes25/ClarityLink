@@ -1,3 +1,9 @@
+## R7C2 Android runtime integration closure — partial — 2026-10-07
+
+R7C2 continued PR #17 and closed the actual API17 Dalvik/JNI/Surface runtime gap using an isolated x86 AVD. Production Java display adapters, Presentation/Surface callbacks, ANativeWindow RGBA post, actual Type110/Type111 H.264 outputs, selected Java adapters, and 100 resource-checked lifecycle cycles passed. Classification: `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; ARMv7 remains build-only. R7C decision: `R7C_INTEGRATION_PARTIAL` because native Android POSIX socket runtime integration, exhaustive JNI VM exception/reference tests, and deterministic framework stop/callback fault coverage are not closed. The R7D entry gate remains closed.
+
+Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Do not advance to R7D or infer Honda behavior until software closure is complete. Honda display admission, warning safety, safe area, real authentication/protocol security, USB ownership, audio/control equivalence and restoration remain evidence gated. No Honda or vehicle execution occurred. See [R7C2 report](step-reports/43t1-r7c2-android-runtime-integration-closure.md).
+
 ## R7C1 JNI/Surface integration closure — 2026-10-07
 
 R7C1 continues PR #17 from starting HEAD `25bf1436f71587e9984940b88d7766a9fa2f44fb`. JNI opaque handle and Surface lifecycle cores now have host tests; real R7B decoder output runs through separate Type110/Type111 host surface cores. A 100-cycle host-simulated receiver/surface integration and ASan/UBSan/TSan passed. API17/ARMv7 rebuild/import audit passed. This does not exercise ART JNI entrypoints, actual ANativeWindow/Presentation, or Java all-adapter behavior; the full fault matrix remains incomplete. Decision `R7C_INTEGRATION_PARTIAL`.

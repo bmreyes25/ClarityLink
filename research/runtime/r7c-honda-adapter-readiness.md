@@ -2,11 +2,11 @@
 
 | Adapter | Classification | Honda status |
 |---|---|---|
-| JNI | IMPLEMENTED_OFFLINE, ANDROID_ARMV7_BUILD_CONFIRMED | EVIDENCE_REQUIRED |
-| Display0 | IMPLEMENTED_OFFLINE, ANDROID_API_DOCUMENTED | EVIDENCE_REQUIRED |
-| Display1 enumeration | IMPLEMENTED_OFFLINE, ANDROID_API_DOCUMENTED | HONDA_READ_ONLY_OBSERVED (logical display evidence only) |
-| Display1 Presentation | IMPLEMENTED_OFFLINE, ANDROID_API_DOCUMENTED | EVIDENCE_REQUIRED |
-| Display1 Surface | IMPLEMENTED_OFFLINE, ANDROID_ARMV7_BUILD_CONFIRMED | EVIDENCE_REQUIRED |
+| JNI | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86, ANDROID_ARMV7_BUILD_CONFIRMED | EVIDENCE_REQUIRED |
+| Display0 | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86, ANDROID_API_DOCUMENTED | EVIDENCE_REQUIRED |
+| Display1 enumeration | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86, ANDROID_API_DOCUMENTED | HONDA_READ_ONLY_OBSERVED (logical display evidence only) |
+| Display1 Presentation | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86, ANDROID_API_DOCUMENTED | EVIDENCE_REQUIRED |
+| Display1 Surface | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86, ANDROID_ARMV7_BUILD_CONFIRMED | EVIDENCE_REQUIRED |
 | Display1 actual Honda admission | EVIDENCE_REQUIRED | EVIDENCE_REQUIRED |
 | Safe area | UNKNOWN | EVIDENCE_REQUIRED |
 | Warning coexistence | UNKNOWN | EVIDENCE_REQUIRED |
@@ -24,17 +24,17 @@
 | Type111 integration | IMPLEMENTED_OFFLINE | EVIDENCE_REQUIRED |
 | ARMv7/API17 | ANDROID_ARMV7_BUILD_CONFIRMED | EVIDENCE_REQUIRED |
 | Honda executable | EVIDENCE_REQUIRED | EVIDENCE_REQUIRED |
-| JNI lifecycle | IMPLEMENTED_OFFLINE (host table tests); Android JNI entrypoints unexecuted | EVIDENCE_REQUIRED |
-| JNI race coverage | IMPLEMENTED_OFFLINE (table allocator concurrency); JNI/ART callback races untested | EVIDENCE_REQUIRED |
-| Surface lifecycle | IMPLEMENTED_OFFLINE (shared core + host fake); Android runtime unexecuted | EVIDENCE_REQUIRED |
-| Surface race coverage | IMPLEMENTED_OFFLINE (deterministic fake lock/invalidation); ANativeWindow race untested | EVIDENCE_REQUIRED |
-| Full adapter integration | IMPLEMENTED_OFFLINE (receiver + H.264 + surface core); Java adapter end-to-end not integrated | EVIDENCE_REQUIRED |
-| Fault matrix | IMPLEMENTED_OFFLINE partial; see R7C1 matrix gaps | EVIDENCE_REQUIRED |
-| 100-cycle full integration | IMPLEMENTED_OFFLINE host-model cycles; not full Android adapters | EVIDENCE_REQUIRED |
+| JNI lifecycle | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86 (entrypoints/stale handles); pending-exception injections incomplete | EVIDENCE_REQUIRED |
+| JNI race coverage | IMPLEMENTED_OFFLINE (table allocator concurrency); Dalvik callback race coverage partial | EVIDENCE_REQUIRED |
+| Surface lifecycle | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86 (actual ANativeWindow posts) | EVIDENCE_REQUIRED |
+| Surface race coverage | IMPLEMENTED_OFFLINE plus runtime invalidation; framework callback/post race injection incomplete | EVIDENCE_REQUIRED |
+| Full adapter integration | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86 (selected Java adapters + receiver/H.264/Surface) | EVIDENCE_REQUIRED |
+| Fault matrix | IMPLEMENTED_OFFLINE partial; actual Dalvik cases in R7C2 matrix | EVIDENCE_REQUIRED |
+| 100-cycle full integration | ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86; per-cycle native counters zero | EVIDENCE_REQUIRED |
 | Sanitizer coverage | IMPLEMENTED_OFFLINE host core/table/receiver ASan/UBSan/TSan | EVIDENCE_REQUIRED |
 | Resource accounting | IMPLEMENTED_OFFLINE explicit host oracle; Android runtime counts absent | EVIDENCE_REQUIRED |
 | Restoration accounting | IMPLEMENTED_OFFLINE host owners only | EVIDENCE_REQUIRED |
 
-Generic Java API17 compilation and ARMv7/API17 JNI shared-library build are confirmed; this does not establish Honda execution. No status uses HONDA_COMPATIBLE.
+Generic Java API17 compilation, API17 Dalvik x86 execution, and ARMv7/API17 JNI shared-library build are separate evidence levels; none establishes Honda execution. R7C2 software integration remains partial because actual native Android socket JNI runtime, pending-exception injection, and deterministic framework callback/stop races are incomplete. No status uses HONDA_COMPATIBLE.
 
-R7C1 focused evidence: [`JNI closure`](r7c1-jni-lifecycle-closure.md), [`Surface lifecycle`](r7c1-surface-lifecycle-closure.md), [`integrated harness`](r7c1-integrated-adapter-harness.md), [`fault matrix`](r7c1-failure-injection-matrix.md), [`resource accounting`](r7c1-resource-accounting.md), and [`restoration`](r7c1-restoration-verification.md). Software closure remains partial until the [`R7D entry gate`](r7c-r7d-entry-gate.md) blockers are closed.
+R7C1/R7C2 evidence: [`runtime baseline`](r7c2-android-runtime-baseline.md), [`Dalvik/JNI`](r7c2-dalvik-jni-runtime.md), [`Surface`](r7c2-android-surface-runtime.md), [`secondary display`](r7c2-secondary-display-runtime.md), [`Java adapter integration`](r7c2-java-adapter-integration.md), [`fault matrix`](r7c2-android-fault-matrix.md), and [`resource accounting`](r7c2-runtime-resource-accounting.md). R7C remains partial until software gaps in the [`R7D entry gate`](r7c-r7d-entry-gate.md) are closed.

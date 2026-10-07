@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <vector>
 
 namespace claritylink::android {
 
@@ -69,6 +70,14 @@ class OpaqueHandleTable final {
   size_t size() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return entries_.size();
+  }
+
+  std::vector<std::shared_ptr<T>> values_snapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<T>> values;
+    values.reserve(entries_.size());
+    for (const auto& entry : entries_) values.push_back(entry.second);
+    return values;
   }
 
  private:

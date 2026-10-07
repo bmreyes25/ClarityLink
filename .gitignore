@@ -50,6 +50,9 @@
 !/tools/build_r7b_host.sh
 !/tools/build_android_api17_armv7.sh
 !/tools/build_r7c_android_api17_armv7.sh
+!/tools/build_r7c_android_api17_x86.sh
+!/tools/build_r7c2_test_apk.sh
+!/tools/run_r7c2_emulator.sh
 !/tools/compile_android_api17_java.sh
 !/tools/test_r7c_socket_host.sh
 !/tools/test_r7c_java_api17.sh

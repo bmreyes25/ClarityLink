@@ -110,6 +110,7 @@ struct ResourceCounts {
   std::size_t decoders = 0;
   std::size_t retained_frames = 0;
   std::size_t display_ownership = 0;
+  std::size_t streams = 0;
 };
 
 class ReceiverGeneration final {

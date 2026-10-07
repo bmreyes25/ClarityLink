@@ -142,3 +142,29 @@ Java_org_claritylink_android_NativeBridge_nativeReleaseReceiver(JNIEnv* env, jcl
   { std::lock_guard<std::mutex> lock(registry_mutex); lab_receivers.erase(id); }
   receiver->close();
 }
+
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_org_claritylink_android_NativeBridge_nativeDebugResourceCounts(JNIEnv* env, jclass) {
+  jlong streams = 0, decoders = 0, listeners = 0, display_owners = 0;
+  const auto active_receivers = receivers.values_snapshot();
+  for (const auto& receiver : active_receivers) {
+    const auto r = receiver->resources();
+    streams += static_cast<jlong>(r.streams);
+    decoders += static_cast<jlong>(r.decoders);
+    listeners += static_cast<jlong>(r.listeners);
+    display_owners += static_cast<jlong>(r.display_ownership);
+  }
+  const jlong counts[8] = {
+    static_cast<jlong>(receivers.size()),
+    static_cast<jlong>(surfaces.size()),
+    static_cast<jlong>(0), // JNI global references: this bridge owns none.
+    static_cast<jlong>(0), // Native-to-Java workers: this bridge creates none.
+    streams, decoders, listeners, display_owners
+  };
+  jlongArray result = env->NewLongArray(8);
+  if (env->ExceptionCheck() || !result) return nullptr;
+  env->SetLongArrayRegion(result, 0, 8, counts);
+  return env->ExceptionCheck() ? nullptr : result;
+}
+#endif

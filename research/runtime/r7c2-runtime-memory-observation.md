@@ -1,0 +1,5 @@
+# R7C2 runtime memory observation
+
+The Android test process samples `Debug.getPss()` and `Debug.getNativeHeapAllocatedSize()` at baseline, every ten cycles, and after `System.gc()`. The final rerun's retained logcat window contains samples from cycle 50 onward: PSS was 6983, 6845, 6881, 7026, 6965, and 7015 KiB at cycles 50, 60, 70, 80, 90, and 100; after GC it was 7151 KiB. Native heap allocated bytes remained near 10,580,408 (10.1 MiB) across these samples. The Android log ring buffer did not preserve baseline through cycle 40 in the saved log, so no exact values are asserted for those earlier samples. Per-cycle native ownership counters returned to zero.
+
+These bounded samples fluctuate and do not show a clear monotonic retained-growth trend across 100 cycles. They are not an allocator leak proof, performance budget, or Honda measurement. The stronger invariant for this harness is zero project-owned native owners after each cycle. ECC review notes emulator translation, framework caches, garbage collection, and PSS accounting make exact equality inappropriate; only sustained attributable growth plus retained-owner evidence would indicate a project leak.

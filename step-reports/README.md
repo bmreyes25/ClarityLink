@@ -1,5 +1,7 @@
 ## Current / latest milestones
 
+- [43T1-R7C2 — Android API17 runtime integration closure](43t1-r7c2-android-runtime-integration-closure.md) — actual API17 Dalvik x86 JNI/Surface/Presentation and selected Java adapter execution; 100 receiver cycles with zero native resource counters; R7C remains partial and R7D gate closed.
+
 - [43T1-R7C1 — Honda adapter integration closure](43t1-r7c1-honda-adapter-integration-closure.md) — host receiver/H.264/SurfaceSinkCore integration, opaque-handle and surface lifecycle stress; 100 host cycles and sanitizers pass. Direct Android JNI/Surface runtime and complete all-adapter failure matrix remain open; R7D entry gate stays closed.
 
 - [43T1-R7A — integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md) — historical R7A result: synthetic `/info`, SETUP, Type110 + Type111 media/decode/display, isolation and 100-cycle cleanup; `MODEL_ONLY`; followed by R7B and R7C.

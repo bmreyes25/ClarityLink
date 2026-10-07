@@ -1,5 +1,12 @@
 # Next action
 
+## R7C2 Android runtime integration closure — partial — 2026-10-07
+
+R7C2 continued PR #17 from exact starting candidate `9ee07dac2b6eda842567b8dbdb3a36cdd7336e54`. An isolated API17/Android 4.2.2 x86 emulator ran Dalvik, actual ClarityLink JNI entrypoints, API17 DisplayManager/Presentation/Surface callbacks, production `ANativeWindow` posts, and actual R7B H.264 Type110/Type111 decode to two Android Surfaces. Selected Java audio/input/USB/process/security adapters ran; the runtime lifecycle passed 100/100 cycles with native resource counters zero after every cycle. Result: `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; ARMv7 is separately build-confirmed only.
+
+R7C remains `R7C_INTEGRATION_PARTIAL`: native Android POSIX socket runtime invocation, exhaustive JNI pending-exception/reference injection, and deterministic framework callback/stop fault cases remain open. **NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE`. R7D entry gate remains CLOSED. See [R7C2 report](step-reports/43t1-r7c2-android-runtime-integration-closure.md) and [entry gate](research/runtime/r7c-r7d-entry-gate.md). Honda Display1 admission/warning safety, safe area, genuine authority and real protocol/security, USB ownership, audio/control equivalence, executable acceptance and stock restoration remain `EVIDENCE_REQUIRED`. No Honda or vehicle execution occurred.
+
+
 ## R7C1 JNI/Surface integration closure — partial — 2026-10-07
 
 R7C1 starting HEAD: `25bf1436f71587e9984940b88d7766a9fa2f44fb` on `architecture/r7c-honda-target-adapters`. This continues PR #17; it does not merge the partial R7C branch. A production-shared SurfaceSinkCore and monotonic opaque handle table are now host-tested. Actual R7B H.264 decode runs into separate Type110/Type111 surface cores; the host-simulated integration harness passed 100 cycles with zero modeled owners after each cycle, Type111 display/media fault isolation, Type110 session-global failure handling, and ASan/UBSan/TSan. API17 Java and ARMv7 rebuilds/import audit passed. The full Android JNI/ART runtime and Java all-adapter fault matrix are still not executed, so R7C remains partial.
