@@ -31,7 +31,7 @@ The path is `MODEL_ONLY`. The Type111 request order in existing lab evidence is 
 - Existing and complete repository suite: **901 passed, 14 skipped**. The project runner also passed its self-locator smoke (3 passed) and all configured JavaScript simulator checks. Capture-backed replay scripts were skipped because their private fixtures are not CI inputs.
 - Repository health: **PASS**, 654 Markdown files, 139 indexed reports, zero curated broken links and zero forbidden tracked extensions.
 - `git diff --check`: **PASS**.
-- Hosted Offline CI and CodeQL: **PENDING** until the implementation commit is pushed and the PR runs on that exact head. No prior-run result is carried forward.
+- Hosted checks on implementation commit `bb80c159421d92452ecc6405ac264cb8fc615734`: [Offline CI run 37568474794](https://github.com/bmreyes25/ClarityLink/actions/runs/37568474794) **PASSED**; [CodeQL run 37568474839](https://github.com/bmreyes25/ClarityLink/actions/runs/37568474839) **PASSED** across Actions, C/C++, Java/Kotlin, JavaScript/TypeScript and Python. The documentation update is a new PR head and requires fresh exact-head checks.
 
 ## Readiness and remaining blockers
 

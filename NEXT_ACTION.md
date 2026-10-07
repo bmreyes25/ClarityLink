@@ -2,7 +2,7 @@
 
 ## R7A complete — proceed with offline Android target build — 2026-10-06
 
-`R7_OFFLINE_IMPLEMENTATION_FIRST` supersedes the R6 requirement to obtain CPC200 before offline receiver work. R7A passed its executable synthetic dual-stream acceptance: one generation-scoped session ran `/info` and SETUP, decoded distinct Type110 and Type111 H.264 frames to separate 800×480 outputs, and released all resources. Suite: **901 passed, 14 skipped**; repository health and `git diff --check` passed. Hosted Offline CI and CodeQL on the pushed implementation head are still pending.
+`R7_OFFLINE_IMPLEMENTATION_FIRST` supersedes the R6 requirement to obtain CPC200 before offline receiver work. R7A passed its executable synthetic dual-stream acceptance: one generation-scoped session ran `/info` and SETUP, decoded distinct Type110 and Type111 H.264 frames to separate 800×480 outputs, and released all resources. Suite: **901 passed, 14 skipped**; repository health and `git diff --check` passed. Hosted Offline CI and CodeQL passed on implementation head `bb80c159421d92452ecc6405ac264cb8fc615734`; verify any later PR head separately.
 
 **NEXT: `GO_FOR_R7B_ANDROID_API17_ARMV7_NATIVE_BUILD`.** Pin/reproduce the API17 ARMv7 toolchain, port the receiver contracts, and verify target media/buffer ownership. Do not promote host proof to real iPhone or Honda readiness. Exact remaining blockers are listed in the [R7A report](step-reports/43t1-r7a-integrated-offline-dual-carplay.md) and [adapter inventory](research/runtime/r7a-host-honda-boundary-inventory.md). CPC200, vehicle, ADB and Honda actions remain outside this milestone.
 
