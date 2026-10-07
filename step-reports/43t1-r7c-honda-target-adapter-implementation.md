@@ -2,6 +2,7 @@
 
 **R7B merge / R7C starting HEAD:** `087f17fb9268f623eabd520c3542b00db0d512b9` (PR #16 merged to `main`).
 **Branch/worktree:** `architecture/r7c-honda-target-adapters` / `clarity-r7c-honda-adapters`.
+**Implementation commit:** `a414786eff9d99f36034b47fe280fac2835ca8bc`.
 **Scope:** generic Android API17 adapters and offline host checks only. No Honda, ADB, APK install, `/dev/i2c-2`, live negotiation, CAN, or framebuffer execution.
 
 ## Implementation
