@@ -33,6 +33,7 @@
 - Host POSIX socket tests: **PASS** for loopback, wildcard rejection, port conflict, generation mismatch, transfer bound, peer close; ASan/UBSan run passed.
 - R7A Python regressions: **PASS** as part of repository suite; R7B native decoder regressions: **PASS**, 100 native cycles, dual streams, Type111 isolation; ASan/UBSan R7B host build passed.
 - Full repository suite: **902 passed, 14 skipped**. Repository health and whitespace validation are recorded at final revision.
+- PR #17 hosted checks on exact head `fc9a70df15f98ac41198e35261c67ec8fffa9b9b`: **Offline CI PASS; CodeQL PASS** (all five language analyses and umbrella check).
 - Missing: R7C JNI automated tests; Android Surface runtime/instrumentation; full 100-cycle receiver+all-adapter integration; Android emulator target simulation; TSan; complete audio/input/USB/iAP2 failure matrix.
 
 ## Evidence state and decision
@@ -41,4 +42,4 @@
 
 Explicit unresolved gates: `REAL_MFI_AUTH = EVIDENCE_REQUIRED`; `REAL_IPHONE_INFO = EVIDENCE_REQUIRED`; `REAL_IPHONE_SETUP = EVIDENCE_REQUIRED`; `REAL_TYPE110_SECURITY = EVIDENCE_REQUIRED`; `REAL_TYPE111_SECURITY = EVIDENCE_REQUIRED`; `REAL_TYPE111_FRAMING = EVIDENCE_REQUIRED`; `HONDA_EXECUTABLE = EVIDENCE_REQUIRED`; `HONDA_DISPLAY0 = EVIDENCE_REQUIRED`; `HONDA_DISPLAY1 = EVIDENCE_REQUIRED`; `HONDA_WARNING_SAFETY = EVIDENCE_REQUIRED`; `HONDA_AUDIO = EVIDENCE_REQUIRED`; `HONDA_CONTROLS = EVIDENCE_REQUIRED`; `HONDA_USB_OWNERSHIP = EVIDENCE_REQUIRED`; `HONDA_STOCK_RESTORATION = EVIDENCE_REQUIRED`.
 
-**Decision: `R7C_INTEGRATION_PARTIAL`**. The native and Java pieces compile, but the JNI/display/audio/USB/input stack is not yet covered by the full integration and lifecycle test matrix. Next: close the R7C integration test gaps in a separate offline iteration before R7D. No Honda/vehicle execution occurred.
+**Decision: `R7C_INTEGRATION_PARTIAL`**. The native and Java pieces compile, but the JNI/display/audio/USB/input stack is not yet covered by the full integration and lifecycle test matrix. PR #17 is open and mergeable; Offline CI and CodeQL passed on exact head `fc9a70df15f98ac41198e35261c67ec8fffa9b9b`. Next: close the R7C integration test gaps in a separate offline iteration before R7D. No Honda/vehicle execution occurred.
