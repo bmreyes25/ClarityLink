@@ -146,8 +146,9 @@ def test_livi_ipc_timeout_oversize_stale_generation_and_disconnect():
         if os.path.exists(path):
             break
         threading.Event().wait(0.005)
-    peer = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    peer.connect(path)
+    # The socket path can become visible just before the acceptor is listening.
+    # Retry ECONNREFUSED as the other bridge tests already do.
+    peer = _connect_local(path)
     peer.sendall((json.dumps([1, "authenticated", str(uuid.uuid4()), AUTH_STATE_PROOF]) + "\n").encode())
     _frame(peer)
     worker.join(3)
