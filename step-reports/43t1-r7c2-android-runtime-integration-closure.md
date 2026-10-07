@@ -50,7 +50,7 @@ No blocking memory-safety finding was observed in exercised paths. Software clos
 - Host ASan/UBSan and TSan: R7B native, R7C1 integrated adapter, and R7C socket loopback tests passed. Android runtime was not sanitizer-instrumented.
 - API17 ARMv7 production library rebuilt; ELF32 ARM EABI5/import audit passed with zero unknown API imports (artifact SHA-256 `00ebf5a3385817949e2d7cfac7eef89e9759a40ee9f0310dbaeb06fa4764fa89`).
 - Full repository suite: 902 passed, 14 skipped; repo health: 698 Markdown files, 144 indexed, no curated broken links or forbidden tracked extensions; Java API17 policy/process tests pass; R7B and R7C1 host regression plus ASan/UBSan/TSan pass; socket ASan/UBSan/TSan pass; `git diff --check` pass.
-- Exact final HEAD Offline CI and CodeQL are pending push and must be reported only after completion.
+- Hosted verification: Offline CI and the aggregate CodeQL check (including C/C++, Java/Kotlin, Python, JavaScript/TypeScript, and Actions analysis) passed on the exact final PR #17 head after removing the debuggable test-app flag. The final commit is reported in the task completion summary.
 
 ## Remaining software work
 
