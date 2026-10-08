@@ -12,6 +12,21 @@ smoke_only=0
 [ "${1:-}" != "--smoke-only" ] || smoke_only=1
 focused_case=
 focused_repeats=1
+r7d_long_run=0
+r7d_mode=
+r7d_minutes=30
+r7d_fps=30
+[ "${1:-}" != "--r7d-long-run" ] || { r7d_long_run=1; r7d_mode=long-run; shift; }
+if [ "${1:-}" = "--r7d-mode" ]; then
+  r7d_mode=${2:?R7D mode required}; shift 2
+  case "$r7d_mode" in type111-restart|display|churn|decoder|network) :;; *) echo 'Unsupported R7D mode.' >&2; exit 2;; esac
+fi
+if [ "$r7d_long_run" -eq 1 ]; then
+  [ "${1:-}" != "--minutes" ] || { r7d_minutes=${2:?minutes required}; shift 2; }
+  [ "${1:-}" != "--fps" ] || { r7d_fps=${2:?fps required}; shift 2; }
+  case "$r7d_minutes:$r7d_fps" in *[!0-9:]*|:*) echo 'R7D minutes and FPS must be integers.' >&2; exit 2;; esac
+  [ "$r7d_minutes" -ge 30 ] && [ "$r7d_minutes" -le 180 ] && [ "$r7d_fps" -ge 1 ] && [ "$r7d_fps" -le 30 ] || { echo 'R7D requires 30-180 minutes and 1-30 FPS.' >&2; exit 2; }
+fi
 if [ "${1:-}" = "--case" ]; then
   focused_case=${2:?case name required}
   case "$focused_case" in socket-read|socket-read-after-dismiss|primary-surface|activity-destroy) : ;; *) echo 'Unsupported focused case.' >&2; exit 2 ;; esac
@@ -232,14 +247,20 @@ if [ -n "$focused_case" ] && [ "$focused_repeats" -gt 1 ]; then
   done
   [ "$repeat" -gt "$focused_repeats" ] && result="RESULT=PASS ACTIVITY_DESTROY_REPEATS=$focused_repeats"
 else
-  if [ -n "$focused_case" ]; then
+  if [ -n "$r7d_mode" ]; then
+    "$adb" -s "$serial" shell am start -n "$package/org.claritylink.android.R7C7LifecycleGuardActivity" \
+      --es r7dMode "$r7d_mode" --ei r7dMinutes "$r7d_minutes" --ei r7dFps "$r7d_fps" >/dev/null
+  elif [ -n "$focused_case" ]; then
     "$adb" -s "$serial" shell am start -n "$package/org.claritylink.android.R7C7LifecycleGuardActivity" \
       --es r7c6Case "$focused_case" --ei r7c7Repeat 1 >/dev/null
   else
     "$adb" -s "$serial" shell am start -n "$package/org.claritylink.android.R7C7LifecycleGuardActivity" >/dev/null
   fi
   result=''
-  for attempt in $(seq 1 1800); do
+  wait_limit=1800
+  [ "$r7d_long_run" -eq 0 ] || wait_limit=$((r7d_minutes*60+600))
+  [ -z "$r7d_mode" ] || [ "$r7d_long_run" -eq 1 ] || wait_limit=3600
+  for attempt in $(seq 1 "$wait_limit"); do
     assert_owned_target
     result=$(tr -d '\r' < "$runtime_log" | awk '/RESULT=PASS|RESULT=FAIL/ {line=$0} END {print line}')
     case "$result" in *'RESULT=PASS'*|*'RESULT=FAIL'*) break;; esac

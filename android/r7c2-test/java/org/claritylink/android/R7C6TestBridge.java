@@ -21,6 +21,7 @@ final class R7C6TestBridge {
     static boolean raceControllerIdle() { return waitForCheckpoint(0, 0, 0, 1); }
     static native void requestReceiverClose(long receiverHandle, int stream);
     static native boolean setupStream(long receiverHandle, long generation, int stream, int connection);
+    static native void closeStream(long receiverHandle, int stream);
     static native void shutdownActiveSocket();
     static native int connectAndWrite(String ipv4, int port, long generation, int stream,
                                       byte[] bytes, int timeoutMs);

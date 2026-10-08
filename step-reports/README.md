@@ -268,3 +268,7 @@ R7D remains closed.
 ## 43t1 R7C7 — Final framework race closure
 
 Status: `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES`. The cumulative API17 Activity lifecycle now reaches onDestroy in the full suite and 25/25 repeat stress. Production Dalvik socket fault matrix and socket-inclusive 100-cycle combined run pass. See [`43t1-r7c7-final-framework-race-closure.md`](43t1-r7c7-final-framework-race-closure.md) and the linked `research/runtime/r7c7-*` evidence. Exact-head CI/CodeQL and PR #17 merge remain prerequisites to R7D.
+
+## 43t1 R7D — Integrated target simulation (active)
+
+Local R7D acceptance passed on `architecture/r7d-integrated-target-simulation`; starting head is R7C merge `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`. The 30-minute run measured 14.405 FPS against the 30-FPS target; the gap is documented. Exact-head Offline CI and CodeQL remain before R7E entry. See [`43t1-r7d-integrated-target-simulation.md`](43t1-r7d-integrated-target-simulation.md) and `research/runtime/r7d-*`.

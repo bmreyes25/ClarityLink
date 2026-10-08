@@ -1,0 +1,5 @@
+# R7D target observability
+
+R7D diagnostics use bounded lifecycle and resource events: `PROCESS_READY`, primary/secondary Surface readiness, synthetic display enumeration, Type110/Type111 active, AudioTrack readiness, progress/resource samples, and `RESTORED`. `USB_MANAGER=AVAILABLE deviceReady=false` denotes Android service availability with zero emulator USB devices; it never claims a target USB device is ready. Honda authentication, iAP2, real media transport, and target display components remain unavailable and must not emit READY.
+
+**Status:** pass on the owned API17 Dalvik emulator. The runtime recorded `PROCESS_READY`, `PRIMARY_SURFACE_READY`, `SECONDARY_DISPLAY_ENUMERATED`, Presentation construction/show, `SECONDARY_SURFACE_READY`, `TYPE110_ACTIVE`, `TYPE111_ACTIVE`, `AUDIO_READY`, and `RESTORED=true`. Final cleanup reported zero native owners, socket FD delta zero, and idle race controller. `USB_MANAGER=AVAILABLE deviceReady=false` remained explicitly non-ready for a device. No Honda authentication, iAP2, real media, or vehicle component was marked ready.

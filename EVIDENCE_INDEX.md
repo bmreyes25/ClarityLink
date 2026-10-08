@@ -1112,3 +1112,14 @@ Honda-specific source notes remain separately indexed below; no external project
 | Final cycle and memory/resource observations | [100-cycle runtime](research/runtime/r7c7-final-100-cycle-runtime.md), [memory](research/runtime/r7c7-memory-observation.md), [resource accounting](research/runtime/r7c7-resource-accounting.md) | `PASS_EMULATOR` |
 | Final software matrix and R7D decision | [fault matrix](research/runtime/r7c7-final-software-fault-matrix.md), [entry decision](research/runtime/r7c7-r7d-entry-decision.md) | local software gates PASS; exact-head CI/CodeQL and merge pending |
 | Milestone report | [43T1 R7C7](step-reports/43t1-r7c7-final-framework-race-closure.md) | `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES` |
+
+## 43T1 R7D — integrated target simulation (local acceptance pass; hosted gates pending)
+
+| Evidence | Source | Classification |
+|---|---|---|
+| R7C exact-head implementation and merge | `f24255c58ea000255c37d1dea28e5b26a569745b` → `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`; PR #17 Offline CI and CodeQL passed | `PASS` |
+| R7D long-run and performance | [long-run](research/runtime/r7d-long-run-stability.md), [performance](research/runtime/r7d-performance-observations.md) | `PASS`, 30:00.180, 25,932 frames/stream, 14.405 FPS; below 30-FPS goal |
+| Restart/display/network/decoder/churn | [restart](research/runtime/r7d-type111-restart-stress.md), [display](research/runtime/r7d-display-recreation.md), [network](research/runtime/r7d-network-fault-recovery.md), [decoder](research/runtime/r7d-decoder-stress.md), [churn](research/runtime/r7d-session-churn.md) | all pass: 100 restarts; 25+25 display cycles; fault matrix +25 reconnects; decoder recovery; 500 sessions |
+| Restoration, observability, Honda questions | [restoration](research/runtime/r7d-restoration-sequencing.md), [observability](research/runtime/r7d-target-observability.md), [question matrix](research/runtime/r7d-honda-unresolved-question-matrix.md) | project-owned restoration and event audit pass; target questions remain explicit |
+| Local regression and repository gates | [43T1 R7D report](step-reports/43t1-r7d-integrated-target-simulation.md) | 901 passed/15 skipped; ASan/UBSan, TSan, API17 ARMv7 import, health, and diff pass |
+| R7E gate | [R7D→R7E gate](research/runtime/r7d-r7e-entry-gate.md) | closed until exact-head Offline CI and CodeQL pass |

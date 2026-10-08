@@ -258,6 +258,15 @@ Java_org_claritylink_android_R7C6TestBridge_setupStream(JNIEnv* env, jclass,
   return receiver->setup(static_cast<uint64_t>(generation), config) ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_org_claritylink_android_R7C6TestBridge_closeStream(JNIEnv* env, jclass,
+    jlong receiver_handle, jint stream) {
+  if (stream != 111) { fail(env, "R7D stream restart hook is restricted to Type111"); return; }
+  auto receiver = receivers.get(receiver_handle);
+  if (!receiver) { fail(env, "invalid receiver for Type111 restart"); return; }
+  receiver->close_stream(StreamType::Type111);
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_claritylink_android_R7C3TestBridge_receiveSocketFrame(JNIEnv* env, jclass,
     jlong id, jlong generation, jstring address, jint port, jint timeout_ms, jint stream) {
@@ -404,6 +413,18 @@ Java_org_claritylink_android_R7C3TestBridge_openSocketDescriptorCount(JNIEnv*, j
   }
   closedir(directory);
   return count;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_org_claritylink_android_R7C3TestBridge_lastFrameLatencies(JNIEnv* env, jclass, jlong id) {
+  auto receiver=receivers.get(id);
+  if(!receiver) { fail(env, "invalid receiver for frame timing probe"); return nullptr; }
+  const auto times=receiver->last_frame_timing_ns();
+  const jlong values[2]={static_cast<jlong>(times.first),static_cast<jlong>(times.second)};
+  jlongArray result=env->NewLongArray(2);
+  if(env->ExceptionCheck()||!result)return nullptr;
+  env->SetLongArrayRegion(result,0,2,values);
+  return env->ExceptionCheck()?nullptr:result;
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL

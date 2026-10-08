@@ -8,4 +8,5 @@ final class R7C3TestBridge {
     static native boolean pendingExceptionProbe();
     static native boolean lookupFailureProbe();
     static native int openSocketDescriptorCount();
+    static native long[] lastFrameLatencies(long receiverHandle);
 }
