@@ -51,6 +51,10 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 # Step reports
 
+## 43t1 R7E — Parked-car compatibility preparation (blocked)
+
+Decision: `R7E_TARGET_ARTIFACT_BLOCKED`. R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`; R7E preparation started at that SHA. Individually gated A–H plans are documented, but Test A remains blocked because no R7E diagnostic artifact was built/audited (NDK r23c unavailable in the environment). No Honda or vehicle action occurred. See [milestone report](43t1-r7e-parked-car-compatibility-preparation.md) and `research/runtime/r7e-*`.
+
 - [43T1 staged prototype discipline rules v2](43t1-rules-v2-staged-prototype-discipline.md) — governance update; no car experiment authorized
 
 This index preserves the engineering chronology and negative results. For current status, use [PROJECT_STATE.md](../PROJECT_STATE.md), [NEXT_ACTION.md](../NEXT_ACTION.md), and [ROADMAP.md](../ROADMAP.md). Reports state what was known at the time and are not silently updated to match later conclusions.

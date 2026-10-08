@@ -14,6 +14,10 @@ R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`; R7C started at 
 
 # ClarityLink project state
 
+## R7E parked-car compatibility preparation — artifact blocked — 2026-10-08
+
+R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`; R7E starts cleanly from that exact commit. Preparation documents define separate Tests A–H, write/command gates, safety/rollback/stop conditions, evidence capture and authorization states. Test A is `BLOCKED_BY_EVIDENCE`: the R7E-specific fail-closed API17/ARMv7 diagnostic was not built or audited because NDK r23c is not configured. Decision `R7E_TARGET_ARTIFACT_BLOCKED`; this is not a Honda compatibility result and does not authorize Test A. No Honda/vehicle/physical device/iPhone/MFi/CarPlay action or Honda write occurred. R7D's 14.405 FPS remains emulator-only. See [R7E report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md) and [readiness](research/runtime/r7e-first-test-readiness.md).
+
 ## R7C4 final Android integration closure — blocked — 2026-10-07
 
 R7C4 started at `0804bc0b3c6f6b7a63483562ce539eaa8550d778`. Local JDK 17 and existing pytest were restored. The updated API17 Dalvik APK passed a test-only Type110 native loopback socket→ReceiverGeneration→H.264→Surface path, JNI exception probes, and 100 lifecycle cycles using synthetic ingest; the full repository suite passed (902 passed, 14 skipped). Deterministic framework races, the full socket/fault matrix, socket inclusion in every cycle, final ARMv7 rebuild/import audit, and hosted exact-head checks remain incomplete. Decision `R7C_FRAMEWORK_RACE_BLOCKED`; R7D CLOSED. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md). No Honda or vehicle action occurred.

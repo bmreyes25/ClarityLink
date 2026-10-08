@@ -44,6 +44,14 @@
 
 # Evidence index
 
+## R7E parked-car compatibility preparation (2026-10-08)
+
+- [R7E milestone report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md): R7D merge/start SHA, exact-head gate, preparation-only scope, and `R7E_TARGET_ARTIFACT_BLOCKED` decision.
+- [Safety and authorization model](research/runtime/r7e-safety-and-authorization-model.md), [test authorization matrix](research/runtime/r7e-test-authorization-matrix.md), and [first-test readiness](research/runtime/r7e-first-test-readiness.md): tiering, authorization boundaries, ECC review, and Test A blocker.
+- [Test plans A–D](research/runtime/r7e-test-a-executable-acceptance-plan.md), [B](research/runtime/r7e-test-b-display-enumeration-plan.md), [C](research/runtime/r7e-test-c-presentation-admission-plan.md), [D](research/runtime/r7e-test-d-single-frame-render-plan.md), [E](research/runtime/r7e-test-e-warning-coexistence-plan.md), [F](research/runtime/r7e-test-f-restoration-plan.md), [G](research/runtime/r7e-test-g-performance-plan.md), [H](research/runtime/r7e-test-h-real-carplay-preflight.md): individually gated, not authorized.
+- [Target diagnostic artifact](research/runtime/r7e-target-diagnostic-artifact.md) and [dependency audit](research/runtime/r7e-target-dependency-audit.md): no artifact built; NDK r23c not configured.
+- [Sanitized evidence capture format](research/runtime/r7e-evidence-capture-package.md). No vehicle evidence was collected.
+
 ## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
 
 - [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md): exact R6H merge and R6H1 starting HEAD; CPC200 absent; stopped before provisioning/authentication; below G1-T0.
