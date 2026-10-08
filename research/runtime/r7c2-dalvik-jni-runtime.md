@@ -1,0 +1,11 @@
+# R7C2 Dalvik and JNI runtime
+
+The isolated API17 application loaded the actual `libclaritylink_android.so` JNI library and called exported `NativeBridge` methods through Dalvik. This proves Java → JNI → native receiver → Java result on API17 x86. The bridge uses integer opaque handles, not exposed native pointers. Receiver and surface handles share monotonic allocation; stale, invalid, duplicate release, wrong generation, and wrong stream operations fail closed.
+
+The bridge retains no Java global references, has no native-to-Java callback, and creates no native worker that calls Java. JNI local references (including the incoming `Surface`) are used only within the entrypoint. `ANativeWindow_fromSurface` returns a temporary native reference, which is released after the sink takes its own reference. Native exceptions are contained and translated to sanitized Java `IllegalStateException`; a pending Java exception is checked and preserved rather than cleared. Runtime evidence includes null Surface rejection, stale handle rejection, repeated create/release, and test-build native ownership counters reaching zero in every cycle.
+
+`NO_NATIVE_TO_JAVA_WORKER_CALLBACK_PATH` applies; therefore AttachCurrentThread/DetachCurrentThread is not a production path and was not fabricated for testing. The test activity uses a Java-created worker but does not call Java from native code.
+
+Limit: the emulator harness does not inject a pending Java exception across every JNI call, force `FindClass`/method lookup failure, or exhaustively test destruction of the Java owner before native owner and vice versa. No global reference exists to release. Those exception/reference corner cases remain software-level fault-matrix gaps.
+
+ECC findings: (1) raw pointers or recycled IDs could cause stale-handle memory access; fixed with shared monotonic opaque IDs and validation, checked at runtime and in host concurrency tests. (2) table locks around receiver work could deadlock teardown; lookup returns shared ownership before work, and removal closes outside the table lock. (3) exception state must not cross the C++ ABI; catch/translate/preserve behavior is implemented, but all VM exception injections remain incomplete. No blocking runtime defect was observed.

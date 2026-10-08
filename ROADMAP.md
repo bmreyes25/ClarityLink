@@ -1,4 +1,28 @@
+- [43T1-R7C3 — final Android integration closure attempt](step-reports/43t1-r7c3-final-android-integration-closure.md) — test-only JNI socket/exception seams and native builds added, but APK/Dalvik and complete race/fault closure remain blocked; R7C stays partial and R7D closed.
+
+## R7C2 Android runtime integration closure — partial — 2026-10-07
+
+R7C2 continued PR #17 and closed the actual API17 Dalvik/JNI/Surface runtime gap using an isolated x86 AVD. Production Java display adapters, Presentation/Surface callbacks, ANativeWindow RGBA post, actual Type110/Type111 H.264 outputs, selected Java adapters, and 100 resource-checked lifecycle cycles passed. Classification: `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; ARMv7 remains build-only. R7C decision: `R7C_INTEGRATION_PARTIAL` because native Android POSIX socket runtime integration, exhaustive JNI VM exception/reference tests, and deterministic framework stop/callback fault coverage are not closed. The R7D entry gate remains closed.
+
+Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Do not advance to R7D or infer Honda behavior until software closure is complete. Honda display admission, warning safety, safe area, real authentication/protocol security, USB ownership, audio/control equivalence and restoration remain evidence gated. No Honda or vehicle execution occurred. See [R7C2 report](step-reports/43t1-r7c2-android-runtime-integration-closure.md).
+
+## R7C1 JNI/Surface integration closure — 2026-10-07
+
+R7C1 continues PR #17 from starting HEAD `25bf1436f71587e9984940b88d7766a9fa2f44fb`. JNI opaque handle and Surface lifecycle cores now have host tests; real R7B decoder output runs through separate Type110/Type111 host surface cores. A 100-cycle host-simulated receiver/surface integration and ASan/UBSan/TSan passed. API17/ARMv7 rebuild/import audit passed. This does not exercise ART JNI entrypoints, actual ANativeWindow/Presentation, or Java all-adapter behavior; the full fault matrix remains incomplete. Decision `R7C_INTEGRATION_PARTIAL`.
+
+Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. The [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md) is closed until JNI/Android/Java integration and full fault coverage are complete. No Honda execution or evidence escalation.
+
+## R7C Android/Honda-facing adapter implementation — 2026-10-07
+
+R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`. R7C implements API17 Java adapters and an API17 ARMv7 JNI/ANativeWindow/socket library with a fail-closed Display1 Presentation candidate. API17 Java/ARM compilation, API17 symbol audit, socket sanitizer test, Java evidence-policy test, and R7A/R7B regressions passed. Full Android/JNI/display/receiver integration and all lifecycle/fault tests did not run; decision is `R7C_INTEGRATION_PARTIAL`.
+
+Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Complete Android/JNI runtime coverage, integrated failure matrix and 100 receiver+adapter lifecycle cycles before R7D. Honda target execution remains outside R7C and every Honda-only unknown stays evidence-gated. See [R7C report](step-reports/43t1-r7c-honda-target-adapter-implementation.md).
+
 # ClarityLink roadmap
+
+## R7C4 closure status — blocked — 2026-10-07
+
+R7C4 restored the local JDK/pytest environment and ran the updated APK on the isolated API17 Dalvik emulator. One fragmented Type110 native socket route, JNI exception probes, and a 100-cycle synthetic-ingest lifecycle run passed. Deterministic framework races and full socket/fault/resource coverage remain incomplete; the final ARMv7 audit and exact-head hosted checks are also outstanding. R7C remains blocked as `R7C_FRAMEWORK_RACE_BLOCKED`; R7D is CLOSED. Next action: complete those gates on one final revision. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md).
 
 ## R7 offline implementation first — 2026-10-06
 
@@ -129,3 +153,16 @@ R5B found versioned public research metadata for a close 2016–2021 Civic Andro
 ## R6 Gate trajectory (canonical)
 
 R6F authority selection → R6G LIVI seam → R6H software delegate/bridge → **R6H1 CPC200/LIVI Link authority bring-up (Gate 1; blocked waiting for CPC200; Gate 1 remains open)** → real authenticated ClarityLink `/info` → Gate 2 complete real Mac receiver → Gate 3 API17/ARMv7 target build → Gate 4 Honda process/lifecycle adapter → Gate 5 Honda Display1 adapter → Gate 6 Honda Display0 adapter → Gate 7 Honda USB/iAP2/auth target architecture. Gate 2 remains `NOT_STARTED`; no Honda activity is authorized by this sequence. R6H1 reached no real-iPhone tier.
+## R7C5 milestone correction (2026-10-08)
+
+R7C5 did not pass its software acceptance gate. Local NDK r23c ARMv7/API17 build/import audit and repository/host checks passed, but deterministic framework races, expanded Android native socket faults, per-cycle native socket integration/resource assertions, and exact-head hosted checks remain open. R7D stays CLOSED; no merge or R7D work is authorized by this evidence. See [R7C5 decision](research/runtime/r7c5-r7d-entry-decision.md).
+## R7C6 update (2026-10-08)
+
+R7C closure is still blocked by the remaining framework lifecycle races,
+Dalvik socket matrix, exact-current final runtime evidence, and verification
+gates. R7D has not started and remains CLOSED. See
+`research/runtime/r7c6-r7d-entry-decision.md`.
+
+## R7C7 — final software blocker closure (2026-10-08)
+
+The owned-emulator R7C software evidence is complete: production Dalvik socket faults, cumulative Activity teardown, socket-inclusive 100 cycles, repository suite/sanitizers, and API17 ARMv7 import audit pass. Next: commit/push, exact-head Offline CI and CodeQL, and merge PR #17; then begin R7D from the merge commit. No Honda or vehicle execution is part of R7C7/R7D.

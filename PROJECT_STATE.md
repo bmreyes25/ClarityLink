@@ -1,4 +1,26 @@
+## R7C2 Android API17 runtime integration — partial — 2026-10-07
+
+Continued PR #17 from exact candidate `9ee07dac2b6eda842567b8dbdb3a36cdd7336e54`. Actual Android 4.2.2/API17 Dalvik ran on an isolated x86 emulator. The real JNI bridge, DisplayManager/Presentation/Surface path, ANativeWindow sink, H.264 Type110/Type111 outputs, and selected Java adapters were exercised; 100/100 runtime cycles returned test-build native resource counters to zero. This is `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`, not ARM runtime or Honda proof. Production ARMv7/API17 remains separately build-confirmed.
+
+Decision remains `R7C_INTEGRATION_PARTIAL`; native Android POSIX socket execution, complete JNI exception/reference injection and deterministic callback/stop fault coverage remain open. R7D gate CLOSED. Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. No Honda, physical-device ADB, or vehicle execution occurred. See [R7C2 report](step-reports/43t1-r7c2-android-runtime-integration-closure.md).
+
+# R7C1 JNI/Surface integration closure — 2026-10-07
+
+R7C1 started from exact `25bf1436f71587e9984940b88d7766a9fa2f44fb`, continuing PR #17. The native receiver now clears stream surfaces with the owning generation; JNI uses a process-lifetime monotonic opaque handle table; API17 ANativeWindow code delegates to a host-testable SurfaceSinkCore. Actual R7B H.264 fixtures pass through the receiver to separate Type110/Type111 surface cores. Type111 output/media failures release only Type111; primary Type110 output failure closes the whole model session. Integrated host-simulated lifecycle: 100/100 cycles, zero modeled project-owned resources after each cycle. Surface/handle/receiver harnesses pass ASan/UBSan and TSan; API17 Java/ARMv7 and API17 imports pass. Full Android JVM/JNI entrypoint, actual ANativeWindow/Presentation, Java all-adapter integration and requested exhaustive fault/race matrix remain untested. R7C1 decision `R7C_INTEGRATION_PARTIAL`; next `GO_FOR_R7C_INTEGRATION_CLOSURE`; R7D gate remains closed. Exact-head CI/CodeQL must be rerun after push; prior `fc9a70d…` checks are historical. No Honda/ADB/vehicle action occurred. See [R7C1 report](step-reports/43t1-r7c1-honda-adapter-integration-closure.md), [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md), and [readiness matrix](research/runtime/r7c-honda-adapter-readiness.md).
+
+## R7C original adapter implementation snapshot — 2026-10-07
+
+R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`; R7C started at that exact merge. The original R7C implementation added generic API17 Java DisplayManager/Presentation, AudioTrack, USB host, input/auth/iAP2/process boundaries, opaque JNI handles, bounded native `ANativeWindow` RGBA sink, and IPv4 socket adapter. API17 Java and ARMv7 build/import audit passed. Original R7C's exact hosted check at `fc9a70df15f98ac41198e35261c67ec8fffa9b9b` passed Offline CI and CodeQL; that historical pass does not certify R7C1 revisions. R7C decision was `R7C_INTEGRATION_PARTIAL`; R7D was gated on integration closure. Honda admission, warning safety, genuine MFi, real iPhone/setup, Type110/111 security/framing, audio/control equivalence, USB ownership, executable and restoration remain `EVIDENCE_REQUIRED`. No Honda/ADB/vehicle action occurred. See [R7C report](step-reports/43t1-r7c-honda-target-adapter-implementation.md).
+
 # ClarityLink project state
+
+## R7C4 final Android integration closure — blocked — 2026-10-07
+
+R7C4 started at `0804bc0b3c6f6b7a63483562ce539eaa8550d778`. Local JDK 17 and existing pytest were restored. The updated API17 Dalvik APK passed a test-only Type110 native loopback socket→ReceiverGeneration→H.264→Surface path, JNI exception probes, and 100 lifecycle cycles using synthetic ingest; the full repository suite passed (902 passed, 14 skipped). Deterministic framework races, the full socket/fault matrix, socket inclusion in every cycle, final ARMv7 rebuild/import audit, and hosted exact-head checks remain incomplete. Decision `R7C_FRAMEWORK_RACE_BLOCKED`; R7D CLOSED. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md). No Honda or vehicle action occurred.
+
+## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
+
+R7C3 started from `7bf072bbd80ad8d8bcc742cd4f56a514bb03874b` on `architecture/r7c-honda-target-adapters` (PR #17). A test-only native socket/JNI path and pending-exception/lookup probes were added; x86 test-library build, ARMv7 production build/import audit, host socket test, and host R7C1 integration passed. Updated API17 test APK and Dalvik run are blocked because this host has no JDK; the full repository suite is blocked because pytest is unavailable. Framework/process races and the fault/resource matrix remain incomplete. Decision stays `R7C_INTEGRATION_PARTIAL`; R7D stays closed. **NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE` after restoring a JDK-capable build environment, then finish runtime coverage and exact-head CI/CodeQL. See [R7C3 report](step-reports/43t1-r7c3-final-android-integration-closure.md) and [R7D decision](research/runtime/r7c3-r7d-entry-decision.md). No Honda or vehicle execution occurred.
 
 ## R7A integrated offline dual-stream receiver — 2026-10-06
 
@@ -492,3 +514,22 @@ The [offline ECC preflight](step-reports/43t0-ecc-preflight-review.md) returned 
 ## R6H Gate 1 status (2026-10-05)
 
 R6H software sub-gate is complete: LIVI dispatch/auth proof and Node bridge, ClarityLink AF_UNIX provider and receiver session, /info+SETUP ownership tests, and Mac lab tool are implemented. CPC200-CCPA is absent; genuine authority and real iPhone tests are NOT_STARTED. Gate 1 result `GATE1_SOFTWARE_READY_HARDWARE_REQUIRED`; see `research/runtime/r6h-gate1-readiness.md`.
+# R7C5 update (2026-10-08)
+
+R7C5 remains `R7C_FRAMEWORK_RACE_BLOCKED`; R7D is CLOSED. Local repository tests, API17 Java/APK build, host sanitizer runs, and NDK r23c ARMv7/API17 build/import audit passed. Emulator startup failed before boot due to missing API17 image `devices.xml`. Deterministic framework races, the full Android native socket matrix, native socket in every 100-cycle acceptance run, full resource accounting, and exact-head hosted checks remain unverified. PR #17 was not merged. See [R7C5 decision](research/runtime/r7c5-r7d-entry-decision.md).
+# R7C6 state update (2026-10-08)
+
+R7C decision: `R7C_FRAMEWORK_RACE_BLOCKED`. The owned API17 AVD harness,
+100/100 production-native-socket media cycles with per-cycle zero-owner
+checks, Type110/Type111 Surface and Presentation races, 25 Type111 Surface/
+Presentation/peer-close repetitions, host suite/sanitizers, and fresh r23c
+ARMv7/import audit have passing evidence. A focused Activity destruction case
+passes, but the combined run stalled before `onDestroy()` after cumulative
+stress. Dalvik production socket fault cells remain untested. PR #17 is not
+merged; historical Offline CI and CodeQL apply only to `0804bc0...`; exact-head
+checks were not run. R7D remains CLOSED. Local R7C4/R7C5/R7C6 changes remain
+uncommitted and preserved.
+
+## R7C7 update — 2026-10-08
+
+The R7C software blockers are locally closed on the owned API17/Dalvik emulator: combined production socket fault matrix, cumulative framework races, 100 socket-inclusive cycles, and a fresh 25/25 Activity destroy stress run. Host suite/sanitizers and API17 ARMv7 build/import audit pass. Exact-head hosted checks and PR #17 merge remain prerequisites to R7D. Honda and real-CarPlay evidence remains unresolved. See [R7C7 closure](step-reports/43t1-r7c7-final-framework-race-closure.md).

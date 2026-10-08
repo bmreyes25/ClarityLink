@@ -1,5 +1,8 @@
 #include "claritylink/receiver.hpp"
 #include "claritylink/platform.hpp"
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+#include "r7c6_race_controller.hpp"
+#endif
 
 #include <algorithm>
 #include <limits>
@@ -53,6 +56,7 @@ class VectorMediaTransport final : public MediaTransport {
 }
 
 struct ReceiverGeneration::Stream {
+  uint64_t generation;
   StreamType type;
   uint16_t id;
   StreamState state = StreamState::Configuring;
@@ -66,7 +70,8 @@ struct ReceiverGeneration::Stream {
   std::shared_ptr<FrameSink> sink;
   size_t retained_frames = 0;
   Stream(StreamType t, uint16_t connection_id, std::shared_ptr<FrameSink> output,
-         bool test_mode) : type(t), id(connection_id), sink(std::move(output)) {
+         bool test_mode, uint64_t owner_generation)
+      : generation(owner_generation), type(t), id(connection_id), sink(std::move(output)) {
     transport = std::make_unique<VectorMediaTransport>();
     if (type == StreamType::Type110) {
       security = test_mode ? std::unique_ptr<SecurityProvider>(std::make_unique<TestPrimarySecurityProvider>())
@@ -89,7 +94,7 @@ struct ReceiverGeneration::Stream {
   }
   ~Stream() {
     state = StreamState::Closing;
-    if (sink) sink->clear(0);
+    if (sink) sink->clear(generation);
     scaler.reset();
     packet.reset();
     decoded.reset();
@@ -164,7 +169,25 @@ bool ReceiverGeneration::setup(uint64_t generation, const std::vector<StreamConf
     }
     try {
       auto stream = std::make_unique<Stream>(config.type, config.connection_id,
-          config.type == StreamType::Type110 ? display0_ : display1_, test_mode_);
+          config.type == StreamType::Type110 ? display0_ : display1_, test_mode_, generation_);
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+      const auto checkpoint = config.type == StreamType::Type110
+          ? android::r7c6test::Checkpoint::SetupPrimaryAllocated
+          : android::r7c6test::Checkpoint::SetupSecondaryAllocated;
+      if (!android::r7c6test::pause_if_armed(checkpoint, generation_,
+              config.type == StreamType::Type110 ? 110 : 111)) {
+        events_.push_back("TEST_SETUP_CHECKPOINT_TIMEOUT");
+        sync_state();
+        return false;
+      }
+#endif
+      if (cancellation_requested_.load() ||
+          (config.type == StreamType::Type111 && cancel_secondary_setup_.load())) {
+        events_.push_back(config.type == StreamType::Type111
+            ? "TYPE111_SETUP_CANCELLED_BEFORE_COMMIT" : "TYPE110_SETUP_CANCELLED_BEFORE_COMMIT");
+        sync_state();
+        return false;
+      }
       if (config.type == StreamType::Type110) primary_ = std::move(stream);
       else secondary_ = std::move(stream);
     } catch (...) {
@@ -207,7 +230,17 @@ bool ReceiverGeneration::decode_and_present(Stream& stream,
         const int converted_lines = sws_scale(stream.scaler.get(), stream.decoded->data,
             stream.decoded->linesize, 0, height, planes, strides);
         if (converted_lines != height) return false;
-        if (stream.state != StreamState::Active || !stream.sink || !stream.sink->present(frame)) return false;
+        if (cancellation_requested_.load() || stream.state != StreamState::Active || !stream.sink) return false;
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+        const auto checkpoint = stream.type == StreamType::Type110
+            ? android::r7c6test::Checkpoint::DecodePrimaryBeforePost
+            : android::r7c6test::Checkpoint::DecodeSecondaryBeforePost;
+        if (!android::r7c6test::pause_if_armed(checkpoint, generation_,
+                stream.type == StreamType::Type110 ? 110 : 111)) return false;
+#endif
+        if (cancellation_requested_.load() ||
+            (stream.type == StreamType::Type111 && cancel_secondary_setup_.load()) ||
+            !stream.sink->present(frame)) return false;
         presented = true;
     av_frame_unref(stream.decoded.get());
   }
@@ -233,16 +266,41 @@ bool ReceiverGeneration::ingest(uint64_t generation, uint16_t id,
   if ((type != StreamType::Type110 && type != StreamType::Type111) ||
       (type == StreamType::Type110 && stream != primary_.get()) ||
       (type == StreamType::Type111 && stream != secondary_.get())) return false;
-  return stream->state == StreamState::Active && stream->id == id &&
-      decode_and_present(*stream, payload, timestamp);
+  if (stream->state != StreamState::Active || stream->id != id) return false;
+  const StreamType failed_type = stream->type;
+  if (decode_and_present(*stream, payload, timestamp)) return true;
+
+  if (failed_type == StreamType::Type111) {
+    secondary_.reset();
+    sync_state();
+    events_.push_back("TYPE111_MEDIA_FAILED_ISOLATED");
+  } else {
+    // Type110 is the required primary CarPlay path. A decoder, security or
+    // primary output failure ends the model session instead of leaving a
+    // misleading dual-session state with no functional center-screen path.
+    secondary_.reset();
+    primary_.reset();
+    display0_->clear(generation_);
+    display1_->clear(generation_);
+    state_ = SessionState::Closed;
+    events_.push_back("TYPE110_MEDIA_FAILED_SESSION_CLOSED");
+  }
+  return false;
 }
 
 void ReceiverGeneration::close_stream(StreamType type) {
+  request_close_stream(type);
   std::lock_guard<std::mutex> lock(mutex_);
   if (type == StreamType::Type110) primary_.reset(); else if (type == StreamType::Type111) secondary_.reset();
   sync_state();
 }
+void ReceiverGeneration::request_close() noexcept { cancellation_requested_.store(true); }
+void ReceiverGeneration::request_close_stream(StreamType type) noexcept {
+  if (type == StreamType::Type110) cancellation_requested_.store(true);
+  else if (type == StreamType::Type111) cancel_secondary_setup_.store(true);
+}
 void ReceiverGeneration::close() {
+  request_close();
   std::lock_guard<std::mutex> lock(mutex_);
   if (state_ == SessionState::Closed) return;
   state_ = SessionState::Closing;
@@ -270,7 +328,9 @@ ResourceCounts ReceiverGeneration::resources() const {
                                count(secondary_.get(), secondary_ && secondary_->codec && secondary_->decoded && secondary_->packet);
   return {(state_ == SessionState::Authenticated || state_ == SessionState::InfoExchanged ||
            state_ == SessionState::Active || state_ == SessionState::Closing) ? 1U : 0U,
-    listeners, security, decoders, 0, listeners};
+    listeners, security, decoders, 0, listeners,
+    static_cast<std::size_t>(static_cast<bool>(primary_)) +
+      static_cast<std::size_t>(static_cast<bool>(secondary_))};
 }
 std::vector<std::string> ReceiverGeneration::events() const { std::lock_guard<std::mutex> l(mutex_); return events_; }
 
