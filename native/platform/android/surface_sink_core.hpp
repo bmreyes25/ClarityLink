@@ -48,6 +48,8 @@ class SurfaceSinkCore final : public FrameSink {
   const uint64_t surface_token_;
   bool valid_;
   bool frame_in_progress_ = false;
+  uint32_t last_frame_width_ = 0;
+  uint32_t last_frame_height_ = 0;
 };
 
 }  // namespace claritylink::android

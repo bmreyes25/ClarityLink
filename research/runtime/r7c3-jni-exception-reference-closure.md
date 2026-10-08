@@ -20,3 +20,7 @@ This attempt added test-build-only probes for an exception raised at a JNI bound
 | Native global/weak refs and callback workers may be assumed incorrectly | Invented lifecycle obligations obscure actual ownership | `NO_PRODUCTION_GLOBAL_JNI_REFS`, `NO_PRODUCTION_WEAK_JNI_REFS`, `NO_NATIVE_TO_JAVA_WORKER_CALLBACK_PATH` | Confirmed by current source inspection |
 
 **Decision: `R7C_JNI_EXCEPTION_REFERENCE_BLOCKED`.** Required Dalvik assertions for helper-thrown exceptions, pending exception preservation across dependent work, repeated local-ref operations, and shutdown-after-exception remain unexecuted. No global or weak reference test objects were invented.
+
+## R7C4 correction
+
+The diagnostic APK subsequently ran its JNI-created exception and failed-class-lookup probes on API17 Dalvik; both expected exception paths were caught and reported. This verifies those two probe cases, not every production helper/method lookup or preexisting-exception sequence, nor repeated local-reference stress or shutdown-after-exception. Production still owns no global/weak JNI references and has no native-to-Java worker callback path. See [R7C4 report](../../step-reports/43t1-r7c4-final-android-integration-closure.md).

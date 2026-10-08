@@ -17,3 +17,7 @@ The API17 x86 native test library compiled after these changes. The rebuilt Andr
 ## Not yet covered
 
 Native runtime cases still need bounded execution for timeout, peer close, local shutdown, double close, port collision, refused connection, oversized input, stale generation, wrong owner, active-I/O shutdown, and per-case FD/resource zero. Server/listen/accept are not supported by the production adapter. A fragmented valid frame is the only proposed integration case and has not yet executed.
+
+## R7C4 correction
+
+R7C4 rebuilt and executed the diagnostic APK on API17 Dalvik. Separate fragmented Type110 and Type111 LAB loopback frames passed through the JNI test seam, production `AndroidSocketAdapter`, `ReceiverGeneration`, H.264 decode, and their respective Surfaces. The socket descriptor count was 4 before and 4 after teardown. This closes the successful-path runtime proof for both streams only; the fault cases above and socket-per-cycle accounting remain open. See [R7C4 report](../../step-reports/43t1-r7c4-final-android-integration-closure.md).

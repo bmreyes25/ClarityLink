@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <application android:label="ClarityLink R7C2 Offline Test">
+        <activity android:name="org.claritylink.android.R7C6SmokeActivity"
+            android:exported="true" />
+        <activity android:name="org.claritylink.android.R7C7LifecycleGuardActivity"
+            android:exported="true" />
         <activity android:name="org.claritylink.android.R7C2RuntimeActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:exported="true">

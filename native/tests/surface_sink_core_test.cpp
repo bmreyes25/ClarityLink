@@ -69,7 +69,11 @@ int main() {
     require(window->posts == 1 && window->pixels()[0] == 0x3C, "copy and post");
     require(window->pixels()[8] == 0xA5, "row copy respects destination pixel stride");
     sink.clear(6); require(window->pixels()[0] == 0x3C, "wrong generation cannot clear");
-    sink.clear(7); require(window->pixels()[0] == 0, "matching generation clears");
+    sink.clear(7);
+    require(window->pixels()[0] == 0 && window->pixels()[40] == 0,
+            "matching generation clears the posted frame rectangle");
+    require(window->pixels()[8] == 0xA5 && window->pixels()[48] == 0xA5,
+            "clear preserves row padding outside the posted frame");
 
     auto bad_stride = frame(); bad_stride.stride = 4; bad_stride.rgba.resize(8);
     require(!sink.present(bad_stride), "undersized source stride rejected");

@@ -1,8 +1,12 @@
 # Next action
 
-## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
+## R7C5 final software closure — blocked — 2026-10-08
 
-R7C3 started from `7bf072bbd80ad8d8bcc742cd4f56a514bb03874b` on `architecture/r7c-honda-target-adapters` (PR #17). A test-only native socket/JNI path and pending-exception/lookup probes were added; x86 test-library build, ARMv7 production build/import audit, host socket test, and host R7C1 integration passed. Updated API17 test APK and Dalvik run are blocked because this host has no JDK; the full repository suite is blocked because pytest is unavailable. Framework/process races and the fault/resource matrix remain incomplete. Decision stays `R7C_INTEGRATION_PARTIAL`; R7D stays closed. **NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE` after restoring a JDK-capable build environment, then finish runtime coverage and exact-head CI/CodeQL. See [R7C3 report](step-reports/43t1-r7c3-final-android-integration-closure.md) and [R7D decision](research/runtime/r7c3-r7d-entry-decision.md). No Honda or vehicle execution occurred.
+R7C5 preserved the existing R7C4 work and passed the full suite (902 passed, 14 skipped), API17 Java/APK build, host socket/R7C1 ASan/UBSan and TSan, and local NDK r23c ARMv7/API17 build/import audit (zero unknown imports). The API17 emulator runner failed before boot because its system image lacks `devices.xml`; no further ADB calls were made after an unowned target appeared. Deterministic framework races, Android native socket fault/per-cycle coverage, and complete per-cycle resource accounting remain open. Decision: `R7C_FRAMEWORK_RACE_BLOCKED`; R7D stays closed and PR #17 is not merged. **NEXT:** restore a safely isolated API17 AVD and finish the deterministic framework and native socket closure matrix. See [R7C5 report](step-reports/43t1-r7c5-final-software-closure.md). No Honda or vehicle execution occurred.
+
+## R7C4 final Android integration closure — blocked — 2026-10-07
+
+R7C4 started at `0804bc0b3c6f6b7a63483562ce539eaa8550d778` on `architecture/r7c-honda-target-adapters` (PR #17). JDK 17 and existing pytest were restored locally; the updated APK ran on API17 Dalvik, passing one native Type110 socket→ReceiverGeneration→H.264→Surface route, JNI exception probes, and 100 synthetic-ingest lifecycle cycles. The full Python suite passed (902 passed, 14 skipped). Deterministic Surface/Presentation/Activity races and the full socket/fault matrix remain incomplete; the R7C4 source also lacks a final ARMv7 audit and exact-head hosted checks. Decision: `R7C_FRAMEWORK_RACE_BLOCKED`; R7D stays closed. **NEXT:** complete the deterministic race and software fault matrix, rebuild/audit ARMv7, and verify the exact final head. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md). No Honda or vehicle execution occurred.
 
 ## R7C2 Android runtime integration closure — partial — 2026-10-07
 
@@ -102,3 +106,18 @@ R5C's official 2016/2017 Civic versions remain valid. R5X and R5Y are host-only 
 43T0-A completed offline at starting HEAD `10d39e5998f9c8018639b26a4bb4636683d10b0f`: **`40E_PARTIAL_PRECISE_DELTA_REQUIRED` / `RETURN_TO_ECC_WITH_EXACT_DELTA_PLAN`**. The verified host-only 40E bundle has three phase-tagged global socket snapshots and a CarPlay-correlated IPv6 link-local exchange, but no interface inventory, address-to-interface mapping, or route capture. G11 remains partial; the socket rows do not prove `jmcs` ownership or listener reachability. Next: review the exact five-read, three-phase offline dry-run delta in the [43T0-A report](step-reports/43t0a-40e-network-evidence-reanalysis.md). No car visit is authorized. No Honda or ADB contact occurred in 43T0-A.
 
 43S2 completed offline with decision **`43S2_PASS`** for the helper/reentrancy objective. G5 and G12 pass within emulator/host bounds; G11 remains partial because Honda listener reachability is unknown; G19 passes for the offline attachment seam with the Honda CoreFoundation response bridge explicitly unimplemented. The separate [43T0 ECC preflight review](step-reports/43t0-ecc-preflight-review.md) returned **`43T0_ECC_NO_GO`** and directed the now-completed 40E reanalysis above. No Type111 negotiation or deployment is authorized; Honda runtime/deployment remains disabled. Honda Type111 acceptance/security, actual CF response ownership, listener ABI/reachability, media compatibility, controls, and geometry remain `HONDA_UNKNOWN`. See the [43S2 report](step-reports/43s2-native-helper-reentrancy-readiness.md), [native transaction design](research/carplay/native-setup-transaction-core.md), [43S1 report](step-reports/43s1-executable-trampoline-listener-proof.md), and [43S report](step-reports/43s-honda-runtime-readiness-review.md).
+## Current action — R7C6 remains blocked — 2026-10-08
+
+The owned API17 AVD is restored. A fresh 100/100 native-socket cycle phase and
+the Type110/Type111 surface, Presentation, peer-close, setup/decode, and
+socket-shutdown checks passed; focused Activity destruction passed. The
+combined race run did not reach Activity `onDestroy()` after cumulative stress,
+and the complete production Dalvik socket fault matrix remains open. Finish
+those two software gates, then repeat the complete current-code run before any
+commit/push, exact-head CI, merge, or R7D entry. See
+[R7C6 decision](research/runtime/r7c6-r7d-entry-decision.md). Preserve all
+uncommitted R7C4/R7C5/R7C6 work. No Honda or vehicle execution occurred.
+
+## Current action — R7C7 software closure, 2026-10-08
+
+R7C7 closes the cumulative API17 Activity lifecycle blocker, completes the production Dalvik socket fault matrix, and passes the current-code combined 100-cycle suite plus 25/25 independent Activity-destroy repetitions. Local software evidence and repository gates are being finalized. Commit/push the accumulated R7C4–R7C7 work, require exact-head Offline CI and CodeQL, then merge PR #17 if those gates pass. Only after merge, start R7D from that merge head using the owned emulator. Honda, physical-device, vehicle, iPhone/MFi, and firmware actions remain outside scope. See [R7C7 decision](research/runtime/r7c7-r7d-entry-decision.md).

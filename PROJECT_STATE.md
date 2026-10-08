@@ -14,6 +14,10 @@ R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`; R7C started at 
 
 # ClarityLink project state
 
+## R7C4 final Android integration closure — blocked — 2026-10-07
+
+R7C4 started at `0804bc0b3c6f6b7a63483562ce539eaa8550d778`. Local JDK 17 and existing pytest were restored. The updated API17 Dalvik APK passed a test-only Type110 native loopback socket→ReceiverGeneration→H.264→Surface path, JNI exception probes, and 100 lifecycle cycles using synthetic ingest; the full repository suite passed (902 passed, 14 skipped). Deterministic framework races, the full socket/fault matrix, socket inclusion in every cycle, final ARMv7 rebuild/import audit, and hosted exact-head checks remain incomplete. Decision `R7C_FRAMEWORK_RACE_BLOCKED`; R7D CLOSED. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md). No Honda or vehicle action occurred.
+
 ## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
 
 R7C3 started from `7bf072bbd80ad8d8bcc742cd4f56a514bb03874b` on `architecture/r7c-honda-target-adapters` (PR #17). A test-only native socket/JNI path and pending-exception/lookup probes were added; x86 test-library build, ARMv7 production build/import audit, host socket test, and host R7C1 integration passed. Updated API17 test APK and Dalvik run are blocked because this host has no JDK; the full repository suite is blocked because pytest is unavailable. Framework/process races and the fault/resource matrix remain incomplete. Decision stays `R7C_INTEGRATION_PARTIAL`; R7D stays closed. **NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE` after restoring a JDK-capable build environment, then finish runtime coverage and exact-head CI/CodeQL. See [R7C3 report](step-reports/43t1-r7c3-final-android-integration-closure.md) and [R7D decision](research/runtime/r7c3-r7d-entry-decision.md). No Honda or vehicle execution occurred.
@@ -510,3 +514,22 @@ The [offline ECC preflight](step-reports/43t0-ecc-preflight-review.md) returned 
 ## R6H Gate 1 status (2026-10-05)
 
 R6H software sub-gate is complete: LIVI dispatch/auth proof and Node bridge, ClarityLink AF_UNIX provider and receiver session, /info+SETUP ownership tests, and Mac lab tool are implemented. CPC200-CCPA is absent; genuine authority and real iPhone tests are NOT_STARTED. Gate 1 result `GATE1_SOFTWARE_READY_HARDWARE_REQUIRED`; see `research/runtime/r6h-gate1-readiness.md`.
+# R7C5 update (2026-10-08)
+
+R7C5 remains `R7C_FRAMEWORK_RACE_BLOCKED`; R7D is CLOSED. Local repository tests, API17 Java/APK build, host sanitizer runs, and NDK r23c ARMv7/API17 build/import audit passed. Emulator startup failed before boot due to missing API17 image `devices.xml`. Deterministic framework races, the full Android native socket matrix, native socket in every 100-cycle acceptance run, full resource accounting, and exact-head hosted checks remain unverified. PR #17 was not merged. See [R7C5 decision](research/runtime/r7c5-r7d-entry-decision.md).
+# R7C6 state update (2026-10-08)
+
+R7C decision: `R7C_FRAMEWORK_RACE_BLOCKED`. The owned API17 AVD harness,
+100/100 production-native-socket media cycles with per-cycle zero-owner
+checks, Type110/Type111 Surface and Presentation races, 25 Type111 Surface/
+Presentation/peer-close repetitions, host suite/sanitizers, and fresh r23c
+ARMv7/import audit have passing evidence. A focused Activity destruction case
+passes, but the combined run stalled before `onDestroy()` after cumulative
+stress. Dalvik production socket fault cells remain untested. PR #17 is not
+merged; historical Offline CI and CodeQL apply only to `0804bc0...`; exact-head
+checks were not run. R7D remains CLOSED. Local R7C4/R7C5/R7C6 changes remain
+uncommitted and preserved.
+
+## R7C7 update — 2026-10-08
+
+The R7C software blockers are locally closed on the owned API17/Dalvik emulator: combined production socket fault matrix, cumulative framework races, 100 socket-inclusive cycles, and a fresh 25/25 Activity destroy stress run. Host suite/sanitizers and API17 ARMv7 build/import audit pass. Exact-head hosted checks and PR #17 merge remain prerequisites to R7D. Honda and real-CarPlay evidence remains unresolved. See [R7C7 closure](step-reports/43t1-r7c7-final-framework-race-closure.md).

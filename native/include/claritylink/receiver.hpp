@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <atomic>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -127,6 +128,8 @@ class ReceiverGeneration final {
   bool ingest(uint64_t generation, uint16_t connection_id,
               const std::vector<uint8_t>& packet, uint64_t timestamp);
   void close_stream(StreamType type);
+  void request_close() noexcept;
+  void request_close_stream(StreamType type) noexcept;
   void close();
   SessionState state() const;
   ResourceCounts resources() const;
@@ -147,6 +150,8 @@ class ReceiverGeneration final {
   std::unique_ptr<Stream> primary_;
   std::unique_ptr<Stream> secondary_;
   std::vector<std::string> events_;
+  std::atomic<bool> cancellation_requested_{false};
+  std::atomic<bool> cancel_secondary_setup_{false};
 };
 
 // Wire packet: big-endian generation(8), stream type(1), connection id(2),

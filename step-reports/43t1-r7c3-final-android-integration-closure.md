@@ -5,6 +5,8 @@
 **Decision:** `R7C_INTEGRATION_PARTIAL`
 **Next:** `GO_FOR_R7C_INTEGRATION_CLOSURE`
 
+**R7C4 correction:** The JDK/pytest environment was restored and updated Dalvik runtime coverage subsequently passed in [R7C4 report](43t1-r7c4-final-android-integration-closure.md). Offline CI and CodeQL passed on the pushed R7C3 exact head `0804bc0b3c6f6b7a63483562ce539eaa8550d778`; they do not certify the uncommitted R7C4 source.
+
 ## Scope
 
 Offline source/build/host checks and test-only Android bridge work. No Honda, physical-device ADB, APK installation on Honda, vehicle/I2C/CAN/framebuffer, firmware, real iPhone negotiation, or shared MFi credentials were used.
@@ -25,7 +27,7 @@ Offline source/build/host checks and test-only Android bridge work. No Honda, ph
 - Updated test APK + Dalvik run: **BLOCKED**. `/usr/bin/javac` reports no Java Runtime; existing APK predates these changes and cannot be used to claim runtime coverage.
 - Full repository suite: **BLOCKED** because `pytest` is unavailable (`tools/run_tests.sh`).
 - Framework callback/process/audio/socket race matrix, native socket fault matrix, JNI local-ref stress, and fresh 100-cycle run with native socket: **not complete**.
-- Exact-head Offline CI / CodeQL: **not yet run**; this partial implementation is being recorded on the existing PR branch, and hosted checks must be confirmed on its new exact head.
+- Exact-head Offline CI / CodeQL: **PASS** on R7C3 pushed head `0804bc0b3c6f6b7a63483562ce539eaa8550d778` (confirmed via PR #17 check rollup). R7C4 is not pushed and has no hosted checks.
 - Repository health: **PASS**, 705 Markdown files, 145 indexed, no curated broken links or forbidden tracked extensions; `git diff --check`: **PASS**.
 
 ## Final status

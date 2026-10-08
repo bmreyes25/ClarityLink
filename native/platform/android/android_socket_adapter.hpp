@@ -1,6 +1,9 @@
 #pragma once
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <mutex>
 #include <string>
 
 namespace claritylink::android {
@@ -11,6 +14,7 @@ struct SocketEndpoint {
   uint32_t timeout_ms = 1000;
   uint64_t generation = 0;
 };
+
 class AndroidSocketAdapter final {
  public:
   AndroidSocketAdapter() = default;
@@ -22,10 +26,14 @@ class AndroidSocketAdapter final {
   int write(const uint8_t* buffer, size_t length, uint64_t generation);
   void shutdown();
   void close();
-  int error() const { return error_; }
+  int error() const { return error_.load(); }
+
  private:
-  int fd_ = -1;
-  uint64_t generation_ = 0;
-  int error_ = 0;
+  struct SocketState;
+  std::shared_ptr<SocketState> snapshot() const;
+  mutable std::mutex mutex_;
+  std::shared_ptr<SocketState> state_;
+  uint64_t revision_ = 0;
+  std::atomic<int> error_{0};
 };
-} // namespace claritylink::android
+}  // namespace claritylink::android

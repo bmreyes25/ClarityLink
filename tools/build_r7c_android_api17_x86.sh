@@ -34,15 +34,17 @@ if [ ! -f "$out/ffmpeg/lib/libavcodec.a" ] || [ ! -f "$out/ffmpeg/lib/libavutil.
   make -j"${JOBS:-4}"
   make install
 fi
-"$CXX" -std=c++17 -O2 -fPIC -fvisibility=hidden -fno-rtti -DCLARITYLINK_TEST_DIAGNOSTICS \
-  -I"$repo/native/include" \
+"$CXX" -std=c++17 -O2 -g -fPIC -fvisibility=hidden -fno-rtti -DCLARITYLINK_TEST_DIAGNOSTICS \
+  -I"$repo/native/include" -I"$repo/native/platform/android" \
   -I"$out/ffmpeg/include" -fexceptions -shared "$repo/native/core/receiver.cpp" \
   "$repo/native/platform/android/surface_sink_core.cpp" \
   "$repo/native/platform/android/android_surface_sink.cpp" \
   "$repo/native/platform/android/android_socket_adapter.cpp" \
+  "$repo/native/platform/android/r7c6_race_controller.cpp" \
   "$repo/native/platform/android/jni_bridge.cpp" -L"$out/ffmpeg/lib" \
   -Wl,--no-undefined -Wl,--exclude-libs,ALL -Wl,-soname,libclaritylink_android.so \
-  -lavcodec -lswscale -lavutil -landroid -lm -ldl -static-libstdc++ -o "$r7c_out/libclaritylink_android.so"
+  -lavcodec -lswscale -lavutil -landroid -llog -lm -ldl -static-libstdc++ -o "$r7c_out/libclaritylink_android.so"
+cp "$r7c_out/libclaritylink_android.so" "$r7c_out/libclaritylink_android.unstripped.so"
 "$toolchain/bin/llvm-strip" --strip-unneeded "$r7c_out/libclaritylink_android.so"
 "$toolchain/bin/llvm-readelf" -h -d "$r7c_out/libclaritylink_android.so" > "$r7c_out/elf-report.txt"
 shasum -a 256 "$r7c_out/libclaritylink_android.so" > "$r7c_out/SHA256SUMS"

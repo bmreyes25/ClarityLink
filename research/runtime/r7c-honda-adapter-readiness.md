@@ -40,3 +40,15 @@ R7C3 attempt: test-only native socket and JNI exception seams are present in the
 Generic Java API17 compilation, API17 Dalvik x86 execution, and ARMv7/API17 JNI shared-library build are separate evidence levels; none establishes Honda execution. R7C2 software integration remains partial because actual native Android socket JNI runtime, pending-exception injection, and deterministic framework callback/stop races are incomplete. No status uses HONDA_COMPATIBLE.
 
 R7C1/R7C2 evidence: [`runtime baseline`](r7c2-android-runtime-baseline.md), [`Dalvik/JNI`](r7c2-dalvik-jni-runtime.md), [`Surface`](r7c2-android-surface-runtime.md), [`secondary display`](r7c2-secondary-display-runtime.md), [`Java adapter integration`](r7c2-java-adapter-integration.md), [`fault matrix`](r7c2-android-fault-matrix.md), and [`resource accounting`](r7c2-runtime-resource-accounting.md). R7C remains partial until software gaps in the [`R7D entry gate`](r7c-r7d-entry-gate.md) are closed.
+
+R7C5 update: local NDK r23c ARMv7/API17 build and import audit pass; deterministic Surface/Presentation/Activity races, Android native socket faults and every-cycle socket coverage, and complete per-cycle owner accounting remain unproven. See [R7C5 ARM build](r7c5-armv7-final-build.md), [race status](r7c5-framework-race-closure.md), and [native socket status](r7c5-native-socket-runtime-closure.md). No Honda readiness classification is promoted.
+# R7C6 update (2026-10-08)
+
+API17 generic owned-AVD smoke now passes. Selected Type111 Surface and
+Presentation teardown races passed on Dalvik and Type110 remained usable.
+R7C is still blocked on the remaining framework races and full fault matrix;
+see `r7c6-final-software-fault-matrix.md`.
+
+## R7C7 software gate update — 2026-10-08
+
+Owned API17/Dalvik software validation now closes the cumulative Activity lifecycle and production native socket fault matrix; the combined socket-inclusive 100-cycle run and independent 25-repeat Activity run pass. See [R7C7 closure](../../step-reports/43t1-r7c7-final-framework-race-closure.md). This does not resolve Honda-specific or real-CarPlay readiness: those rows remain evidence-required.

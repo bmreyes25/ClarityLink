@@ -4,12 +4,15 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 ## Current / latest milestones
 
+- [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.
+
 - [43T1-R7C2 — Android API17 runtime integration closure](43t1-r7c2-android-runtime-integration-closure.md) — actual API17 Dalvik x86 JNI/Surface/Presentation and selected Java adapter execution; 100 receiver cycles with zero native resource counters; R7C remains partial and R7D gate closed.
 
 - [43T1-R7C1 — Honda adapter integration closure](43t1-r7c1-honda-adapter-integration-closure.md) — host receiver/H.264/SurfaceSinkCore integration, opaque-handle and surface lifecycle stress; 100 host cycles and sanitizers pass. Direct Android JNI/Surface runtime and complete all-adapter failure matrix remain open; R7D entry gate stays closed.
 
 - [43T1-R7A — integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md) — historical R7A result: synthetic `/info`, SETUP, Type110 + Type111 media/decode/display, isolation and 100-cycle cleanup; `MODEL_ONLY`; followed by R7B and R7C.
 - [43T1-R7B — Android API17 / ARMv7 native receiver build](43t1-r7b-android-api17-armv7-native-build.md)
+- [43T1-R7C5 — final software closure attempt](43t1-r7c5-final-software-closure.md) — repository/host/API17 build and ARMv7 checks passed; framework race and native socket/runtime gates remain blocked.
 - [43T1-R7C — Honda-target adapter implementation (offline, partial)](43t1-r7c-honda-target-adapter-implementation.md)
 
 - [R7 host-to-Honda adapter boundary inventory](../research/runtime/r7a-host-honda-boundary-inventory.md) — interface and readiness classifications; target adapters remain evidence gated.
@@ -255,3 +258,13 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 
 - [43T1-R6H — LIVI control delegation and real Mac auth Gate 1](43t1-r6h-gate1-livi-adapter-completion.md) — partial software bridge; Gate 1 remains open.
 - [43T1-R7B — Android API17 / ARMv7 native receiver build](43t1-r7b-android-api17-armv7-native-build.md)
+## 43t1 R7C6 — Final R7C software closure
+
+Status: `R7C_FRAMEWORK_RACE_BLOCKED`. See
+[`43t1-r7c6-final-r7c-software-closure.md`](43t1-r7c6-final-r7c-software-closure.md)
+and the linked `research/runtime/r7c6-*` evidence. PR #17 has not been merged;
+R7D remains closed.
+
+## 43t1 R7C7 — Final framework race closure
+
+Status: `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES`. The cumulative API17 Activity lifecycle now reaches onDestroy in the full suite and 25/25 repeat stress. Production Dalvik socket fault matrix and socket-inclusive 100-cycle combined run pass. See [`43t1-r7c7-final-framework-race-closure.md`](43t1-r7c7-final-framework-race-closure.md) and the linked `research/runtime/r7c7-*` evidence. Exact-head CI/CodeQL and PR #17 merge remain prerequisites to R7D.

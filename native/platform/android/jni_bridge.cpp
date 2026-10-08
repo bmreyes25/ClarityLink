@@ -1,13 +1,22 @@
 #include "android_surface_sink.hpp"
 #include "opaque_handle_allocator.hpp"
 #include "android_socket_adapter.hpp"
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+#include "r7c6_race_controller.hpp"
+#endif
 
 #include <android/native_window_jni.h>
+#include <android/log.h>
 #include <jni.h>
 #include <memory>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <set>
+#include <dirent.h>
+#include <cstdio>
+#include <cstring>
+#include <unistd.h>
 
 namespace {
 using claritylink::ReceiverGeneration;
@@ -16,6 +25,7 @@ using claritylink::StreamType;
 using claritylink::SyntheticTestAuthenticationAuthority;
 using claritylink::UnavailableAuthenticationAuthority;
 using claritylink::android::AndroidSurfaceSink;
+using claritylink::android::AndroidSocketAdapter;
 std::mutex registry_mutex;
 claritylink::android::OpaqueHandleAllocator next_handle;
 claritylink::android::OpaqueHandleTable<AndroidSurfaceSink> surfaces(next_handle);
@@ -145,13 +155,117 @@ Java_org_claritylink_android_NativeBridge_nativeReleaseReceiver(JNIEnv* env, jcl
 }
 
 #if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+namespace {
+std::mutex active_socket_mutex;
+std::map<int, AndroidSocketAdapter*> active_test_sockets;
+
+class ActiveSocketRegistration {
+ public:
+  ActiveSocketRegistration(AndroidSocketAdapter& socket, int stream) : socket_(&socket), stream_(stream) {
+    std::lock_guard<std::mutex> lock(active_socket_mutex);
+    if (active_test_sockets.count(stream_) == 0) { active_test_sockets[stream_] = socket_; registered_ = true; }
+  }
+  ~ActiveSocketRegistration() {
+    if (!registered_) return;
+    std::lock_guard<std::mutex> lock(active_socket_mutex);
+    const auto found=active_test_sockets.find(stream_);
+    if (found!=active_test_sockets.end() && found->second == socket_) active_test_sockets.erase(found);
+  }
+  bool registered() const { return registered_; }
+ private:
+  AndroidSocketAdapter* socket_;
+  int stream_;
+  bool registered_ = false;
+};
+
+class SocketStreamContext {
+ public:
+  explicit SocketStreamContext(int stream) { claritylink::android::r7c6test::set_stream_context(stream); }
+  ~SocketStreamContext() { claritylink::android::r7c6test::set_stream_context(0); }
+};
+
+claritylink::android::r7c6test::Checkpoint test_checkpoint(jint value) {
+  using claritylink::android::r7c6test::Checkpoint;
+  switch (value) {
+    case 1: return Checkpoint::SetupPrimaryAllocated;
+    case 2: return Checkpoint::SetupSecondaryAllocated;
+    case 3: return Checkpoint::DecodePrimaryBeforePost;
+    case 4: return Checkpoint::DecodeSecondaryBeforePost;
+    case 5: return Checkpoint::SocketReadActive;
+    case 6: return Checkpoint::SocketWriteActive;
+    default: throw std::invalid_argument("unknown R7C6 checkpoint");
+  }
+}
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C6TestBridge_armCheckpoint(JNIEnv* env, jclass,
+    jint checkpoint, jlong generation, jint stream, jint timeout_ms) {
+  try {
+    return claritylink::android::r7c6test::arm(test_checkpoint(checkpoint),
+        static_cast<uint64_t>(generation), stream, static_cast<uint32_t>(timeout_ms)) ? JNI_TRUE : JNI_FALSE;
+  } catch (...) { fail(env, "invalid R7C6 checkpoint arm request"); return JNI_FALSE; }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C6TestBridge_waitForCheckpoint(JNIEnv* env, jclass,
+    jint checkpoint, jlong generation, jint stream, jint timeout_ms) {
+  try {
+    if (checkpoint == 0 && generation == 0 && stream == 0)
+      return claritylink::android::r7c6test::wait_idle(static_cast<uint32_t>(timeout_ms)) ? JNI_TRUE : JNI_FALSE;
+    return claritylink::android::r7c6test::wait_reached(test_checkpoint(checkpoint),
+        static_cast<uint64_t>(generation), stream, static_cast<uint32_t>(timeout_ms)) ? JNI_TRUE : JNI_FALSE;
+  } catch (...) { fail(env, "invalid R7C6 checkpoint wait request"); return JNI_FALSE; }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C6TestBridge_releaseCheckpoint(JNIEnv* env, jclass,
+    jint checkpoint, jlong generation, jint stream) {
+  try {
+    return claritylink::android::r7c6test::release(test_checkpoint(checkpoint),
+        static_cast<uint64_t>(generation), stream) ? JNI_TRUE : JNI_FALSE;
+  } catch (...) { fail(env, "invalid R7C6 checkpoint release request"); return JNI_FALSE; }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_claritylink_android_R7C6TestBridge_clearCheckpoints(JNIEnv*, jclass) {
+  claritylink::android::r7c6test::clear();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_claritylink_android_R7C6TestBridge_requestReceiverClose(JNIEnv* env, jclass,
+    jlong receiver_handle, jint stream) {
+  auto receiver = receivers.get(receiver_handle);
+  if (!receiver) { fail(env, "invalid receiver for cancellation request"); return; }
+  if (stream == 0) receiver->request_close();
+  else if (stream == 110) receiver->request_close_stream(StreamType::Type110);
+  else if (stream == 111) receiver->request_close_stream(StreamType::Type111);
+  else fail(env, "invalid stream for cancellation request");
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C6TestBridge_setupStream(JNIEnv* env, jclass,
+    jlong receiver_handle, jlong generation, jint stream, jint connection) {
+  if (generation <= 0 || connection <= 0 || connection > 65535 ||
+      (stream != 110 && stream != 111)) {
+    fail(env, "invalid diagnostic stream setup request");
+    return JNI_FALSE;
+  }
+  auto receiver = receivers.get(receiver_handle);
+  if (!receiver) { fail(env, "invalid receiver for diagnostic stream setup"); return JNI_FALSE; }
+  const auto type = static_cast<StreamType>(stream);
+  const std::vector<StreamConfig> config{{type, static_cast<uint16_t>(connection), false}};
+  return receiver->setup(static_cast<uint64_t>(generation), config) ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_claritylink_android_R7C3TestBridge_receiveSocketFrame(JNIEnv* env, jclass,
-    jlong id, jlong generation, jstring address, jint port, jint timeout_ms) {
+    jlong id, jlong generation, jstring address, jint port, jint timeout_ms, jint stream) {
   // This seam is compiled only into the isolated x86 test library.  The socket
   // adapter itself is the same production class linked into the ARM library.
   if (env->ExceptionCheck()) return JNI_FALSE;
-  if (!address || generation <= 0 || port <= 0 || port > 65535 || timeout_ms <= 0 || timeout_ms > 30000) {
+  if (!address || generation <= 0 || port <= 0 || port > 65535 || timeout_ms <= 0 || timeout_ms > 30000 ||
+      (stream != 110 && stream != 111)) {
     fail(env, "invalid test socket request"); return JNI_FALSE;
   }
   const char* ipv4 = env->GetStringUTFChars(address, nullptr);
@@ -168,10 +282,21 @@ Java_org_claritylink_android_R7C3TestBridge_receiveSocketFrame(JNIEnv* env, jcla
     bool is_lab = false;
     { std::lock_guard<std::mutex> lock(registry_mutex); is_lab = lab_receivers.count(id) != 0; }
     if (!is_lab) { fail(env, "socket LAB ingress requires explicit lab mode"); return JNI_FALSE; }
-    claritylink::android::AndroidSocketAdapter socket;
+    AndroidSocketAdapter socket;
+    ActiveSocketRegistration registration(socket, stream);
+    if (!registration.registered()) { fail(env, "another diagnostic socket operation is active"); return JNI_FALSE; }
+    SocketStreamContext stream_context(stream);
     claritylink::android::SocketEndpoint endpoint{numeric, "127.0.0.1",
       static_cast<uint16_t>(port), static_cast<uint32_t>(timeout_ms), static_cast<uint64_t>(generation)};
-    if (!socket.connect(endpoint)) return JNI_FALSE;
+    const auto fail_scope = [&]() {
+      socket.shutdown(); socket.close();
+      if (stream == 111) receiver->close_stream(StreamType::Type111);
+      else receiver->close();
+      return JNI_FALSE;
+    };
+    __android_log_print(ANDROID_LOG_INFO, "ClarityLinkR7C2", "R7C3_SOCKET before_connect generation=%lld port=%d", static_cast<long long>(generation), port);
+    if (!socket.connect(endpoint)) return fail_scope();
+    __android_log_print(ANDROID_LOG_INFO, "ClarityLinkR7C2", "R7C3_SOCKET connected");
     // Read the bounded LAB packet header and body with explicit partial-read
     // handling.  Maximum packet size matches the receiver's synthetic limit.
     std::vector<uint8_t> packet(15);
@@ -185,18 +310,61 @@ Java_org_claritylink_android_R7C3TestBridge_receiveSocketFrame(JNIEnv* env, jcla
       }
       return true;
     };
-    if (!read_exact(packet.data(), packet.size())) return JNI_FALSE;
+    if (!read_exact(packet.data(), packet.size())) return fail_scope();
     const uint32_t payload_size = (static_cast<uint32_t>(packet[11]) << 24) |
       (static_cast<uint32_t>(packet[12]) << 16) | (static_cast<uint32_t>(packet[13]) << 8) | packet[14];
-    if (payload_size == 0 || payload_size > 2u * 1024u * 1024u) return JNI_FALSE;
+    __android_log_print(ANDROID_LOG_INFO, "ClarityLinkR7C2", "R7C3_SOCKET header=%02x%02x%02x%02x payload=%u", packet[11], packet[12], packet[13], packet[14], payload_size);
+    if (payload_size == 0 || payload_size > 2u * 1024u * 1024u) return fail_scope();
     used = packet.size(); packet.resize(used + payload_size);
-    if (!read_exact(packet.data() + used, payload_size)) return JNI_FALSE;
+    if (!read_exact(packet.data() + used, payload_size)) return fail_scope();
     uint64_t packet_generation = 0; StreamType type{}; uint16_t connection = 0; std::vector<uint8_t> payload;
     if (!claritylink::parse_media_packet(packet, packet_generation, type, connection, payload) ||
-        packet_generation != static_cast<uint64_t>(generation)) return JNI_FALSE;
+        packet_generation != static_cast<uint64_t>(generation) || static_cast<int>(type) != stream) return fail_scope();
+    __android_log_print(ANDROID_LOG_INFO, "ClarityLinkR7C2", "R7C3_SOCKET parsed bytes=%zu stream=%d", packet.size(), static_cast<int>(type));
     socket.shutdown(); socket.close();
-    return receiver->ingest(packet_generation, connection, packet, 0) ? JNI_TRUE : JNI_FALSE;
+    const bool ingested = receiver->ingest(packet_generation, connection, packet, 0);
+    __android_log_print(ANDROID_LOG_INFO, "ClarityLinkR7C2", "R7C3_SOCKET ingested=%d", ingested ? 1 : 0);
+    return ingested ? JNI_TRUE : fail_scope();
   } catch (...) { fail(env, "native test socket frame failed"); return JNI_FALSE; }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_claritylink_android_R7C6TestBridge_shutdownActiveSocket(JNIEnv* env, jclass) {
+  std::lock_guard<std::mutex> lock(active_socket_mutex);
+  // Activity teardown can race the readers' normal completion. In that case
+  // their scoped adapters have already unregistered and there is nothing left
+  // to shut down; keep this test-only cleanup hook idempotent.
+  for (const auto& entry : active_test_sockets) if(entry.second) entry.second->shutdown();
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_claritylink_android_R7C6TestBridge_connectAndWrite(JNIEnv* env, jclass,
+    jstring address, jint port, jlong generation, jint stream, jbyteArray bytes, jint timeout_ms) {
+  if (env->ExceptionCheck() || !address || !bytes || generation <= 0 ||
+      (stream != 110 && stream != 111) || port <= 0 || port > 65535 ||
+      timeout_ms <= 0 || timeout_ms > 30000) { fail(env, "invalid socket write probe"); return -1; }
+  const char* text = env->GetStringUTFChars(address, nullptr);
+  if (env->ExceptionCheck() || !text) return -1;
+  std::string host;
+  try { host.assign(text); }
+  catch (...) { env->ReleaseStringUTFChars(address, text); fail(env, "socket probe address allocation failed"); return -1; }
+  env->ReleaseStringUTFChars(address, text);
+  if (host != "127.0.0.1") { fail(env, "socket write probe restricted to loopback"); return -1; }
+  const jsize size = env->GetArrayLength(bytes);
+  if (env->ExceptionCheck() || size <= 0 || size > 1024 * 1024) { fail(env, "socket write payload outside bounds"); return -1; }
+  std::vector<uint8_t> data(static_cast<size_t>(size));
+  env->GetByteArrayRegion(bytes, 0, size, reinterpret_cast<jbyte*>(data.data()));
+  if (env->ExceptionCheck()) return -1;
+  AndroidSocketAdapter socket;
+  ActiveSocketRegistration registration(socket, stream);
+  if (!registration.registered()) { fail(env, "another diagnostic socket operation is active"); return -1; }
+  SocketStreamContext stream_context(stream);
+  claritylink::android::SocketEndpoint endpoint{host, "127.0.0.1", static_cast<uint16_t>(port),
+      static_cast<uint32_t>(timeout_ms), static_cast<uint64_t>(generation)};
+  if (!socket.connect(endpoint)) return -1;
+  const int written = socket.write(data.data(), data.size(), static_cast<uint64_t>(generation));
+  socket.close();
+  return written;
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -216,6 +384,26 @@ Java_org_claritylink_android_R7C3TestBridge_lookupFailureProbe(JNIEnv* env, jcla
   env->FindClass("org/claritylink/test/DeliberatelyMissingHelper");
   if (env->ExceptionCheck()) return JNI_TRUE; // Preserve ClassNotFoundException; perform no dependent JNI call.
   return JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_org_claritylink_android_R7C3TestBridge_openSocketDescriptorCount(JNIEnv*, jclass) {
+  DIR* directory = opendir("/proc/self/fd");
+  if (!directory) return -1;
+  int count = 0;
+  while (dirent* entry = readdir(directory)) {
+    if (entry->d_name[0] == '.') continue;
+    char path[64];
+    std::snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
+    char target[128];
+    const ssize_t size = readlink(path, target, sizeof(target) - 1);
+    if (size > 0) {
+      target[size] = '\0';
+      if (std::strncmp(target, "socket:[", 8) == 0) ++count;
+    }
+  }
+  closedir(directory);
+  return count;
 }
 
 extern "C" JNIEXPORT jlongArray JNICALL

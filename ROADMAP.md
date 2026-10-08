@@ -20,6 +20,10 @@ Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Complete Android/JNI runtime coverage, i
 
 # ClarityLink roadmap
 
+## R7C4 closure status — blocked — 2026-10-07
+
+R7C4 restored the local JDK/pytest environment and ran the updated APK on the isolated API17 Dalvik emulator. One fragmented Type110 native socket route, JNI exception probes, and a 100-cycle synthetic-ingest lifecycle run passed. Deterministic framework races and full socket/fault/resource coverage remain incomplete; the final ARMv7 audit and exact-head hosted checks are also outstanding. R7C remains blocked as `R7C_FRAMEWORK_RACE_BLOCKED`; R7D is CLOSED. Next action: complete those gates on one final revision. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md).
+
 ## R7 offline implementation first — 2026-10-06
 
 **`R7_OFFLINE_IMPLEMENTATION_FIRST`** supersedes the R6 CPC200 prerequisite for offline receiver development. R7A starts from verified main `c254d7f6172dbd45bb1cd6a87b10bcb4cd96d811` and builds on existing R6 receiver/session/security components. R7A outcome: `R7A_INTEGRATED_SYNTHETIC_DUAL_STREAM_PASS`, host/model-only. The 901-pass repository suite and local repository health passed. Offline CI and CodeQL passed on implementation head `bb80c159421d92452ecc6405ac264cb8fc615734`; the newest PR head is checked separately. See [R7A report](step-reports/43t1-r7a-integrated-offline-dual-carplay.md) and [adapter boundary inventory](research/runtime/r7a-host-honda-boundary-inventory.md).
@@ -149,3 +153,16 @@ R5B found versioned public research metadata for a close 2016–2021 Civic Andro
 ## R6 Gate trajectory (canonical)
 
 R6F authority selection → R6G LIVI seam → R6H software delegate/bridge → **R6H1 CPC200/LIVI Link authority bring-up (Gate 1; blocked waiting for CPC200; Gate 1 remains open)** → real authenticated ClarityLink `/info` → Gate 2 complete real Mac receiver → Gate 3 API17/ARMv7 target build → Gate 4 Honda process/lifecycle adapter → Gate 5 Honda Display1 adapter → Gate 6 Honda Display0 adapter → Gate 7 Honda USB/iAP2/auth target architecture. Gate 2 remains `NOT_STARTED`; no Honda activity is authorized by this sequence. R6H1 reached no real-iPhone tier.
+## R7C5 milestone correction (2026-10-08)
+
+R7C5 did not pass its software acceptance gate. Local NDK r23c ARMv7/API17 build/import audit and repository/host checks passed, but deterministic framework races, expanded Android native socket faults, per-cycle native socket integration/resource assertions, and exact-head hosted checks remain open. R7D stays CLOSED; no merge or R7D work is authorized by this evidence. See [R7C5 decision](research/runtime/r7c5-r7d-entry-decision.md).
+## R7C6 update (2026-10-08)
+
+R7C closure is still blocked by the remaining framework lifecycle races,
+Dalvik socket matrix, exact-current final runtime evidence, and verification
+gates. R7D has not started and remains CLOSED. See
+`research/runtime/r7c6-r7d-entry-decision.md`.
+
+## R7C7 — final software blocker closure (2026-10-08)
+
+The owned-emulator R7C software evidence is complete: production Dalvik socket faults, cumulative Activity teardown, socket-inclusive 100 cycles, repository suite/sanitizers, and API17 ARMv7 import audit pass. Next: commit/push, exact-head Offline CI and CodeQL, and merge PR #17; then begin R7D from the merge commit. No Honda or vehicle execution is part of R7C7/R7D.

@@ -18,6 +18,7 @@ public final class SecondaryDisplayHost {
     private Candidate presentation;
     private long generation;
     private boolean surfaceAttached;
+    private boolean closing;
     private Listener listener;
     private final Handler mainHandler=new Handler(Looper.getMainLooper());
     public SecondaryDisplayHost(Listener listener) { this.listener = listener; }
@@ -60,10 +61,26 @@ public final class SecondaryDisplayHost {
         }
     }
     public void close() {
-        requireMainThread(); Candidate old=presentation; boolean detach=surfaceAttached;
-        presentation=null; surfaceAttached=false;
-        if(detach && listener!=null) listener.surface(null);
+        requireMainThread();
+        if (closing) return;
+        closing=true;
+        Candidate old=presentation;
         if(old!=null) old.dismiss();
+        if(surfaceAttached) {
+            surfaceAttached=false;
+            if(listener!=null) listener.surface(null);
+        }
+        presentation=null;
+        generation=0;
+        closing=false;
+    }
+    boolean destroySurfaceForRuntimeTest() {
+        requireMainThread();
+        return presentation!=null && presentation.destroyLabSurface();
+    }
+    boolean recreateSurfaceForRuntimeTest() {
+        requireMainThread();
+        return presentation!=null && presentation.recreateLabSurface();
     }
     /** Called by the generation owner after native present() reports success. */
     public void firstFramePresented(final long frameGeneration) {
@@ -79,12 +96,18 @@ public final class SecondaryDisplayHost {
     private final class Candidate extends Presentation {
         private final DisplayPolicy.Layout layout;
         private final long candidateGeneration;
+        private FrameLayout root;
+        private SurfaceView surfaceView;
         Candidate(Context context, Display display, DisplayPolicy.Layout layout,long generation) {
             super(context, display); this.layout=layout; candidateGeneration=generation;
         }
         protected void onCreate(Bundle state) {
             super.onCreate(state);
-            FrameLayout root = new FrameLayout(getContext());
+            root = new FrameLayout(getContext());
+            attachLabSurface();
+            setContentView(root);
+        }
+        private void attachLabSurface() {
             SurfaceView view = new SurfaceView(getContext());
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(layout.width,layout.height,Gravity.TOP|Gravity.LEFT);
             lp.leftMargin=layout.x; lp.topMargin=layout.y; view.setLayoutParams(lp);
@@ -101,7 +124,16 @@ public final class SecondaryDisplayHost {
                     surfaceAttached=false; if (listener != null) listener.surface(null);
                 }
             });
-            root.addView(view); setContentView(root);
+            surfaceView=view;
+            root.addView(view);
+        }
+        private boolean destroyLabSurface() {
+            if(!layout.testOnly || root==null || surfaceView==null) return false;
+            SurfaceView old=surfaceView; surfaceView=null; root.removeView(old); return true;
+        }
+        private boolean recreateLabSurface() {
+            if(!layout.testOnly || root==null || surfaceView!=null) return false;
+            attachLabSurface(); return true;
         }
         public void onDisplayRemoved() {
             super.onDisplayRemoved();
@@ -109,7 +141,7 @@ public final class SecondaryDisplayHost {
                 surfaceAttached=false;
                 if(listener!=null) listener.surface(null);
                 state(DisplayPolicy.Admission.FAILED);
-                close();
+                if(!closing) close();
             }
         }
     }

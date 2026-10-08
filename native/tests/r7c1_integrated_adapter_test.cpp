@@ -74,6 +74,7 @@ class SimulatedSurfaceWindow final : public SurfaceWindow {
   int posts = 0;
   int32_t width() const { return width_; }
   int32_t height() const { return height_; }
+  int32_t stride() const { return stride_; }
   const std::vector<uint8_t>& pixels() const { return pixels_; }
  private:
   int32_t width_ = 0, height_ = 0, stride_ = 0;
@@ -82,6 +83,14 @@ class SimulatedSurfaceWindow final : public SurfaceWindow {
 };
 void require(bool ok, const std::string& message, uint64_t cycle = 0) {
   if (!ok) throw std::runtime_error((cycle ? "cycle " + std::to_string(cycle) + ": " : "") + message);
+}
+bool visible_pixels_zero(const SimulatedSurfaceWindow& window) {
+  const size_t row_bytes = static_cast<size_t>(window.width()) * 4u;
+  const size_t stride_bytes = static_cast<size_t>(window.stride()) * 4u;
+  for (int32_t y = 0; y < window.height(); ++y)
+    for (size_t x = 0; x < row_bytes; ++x)
+      if (window.pixels()[static_cast<size_t>(y) * stride_bytes + x] != 0) return false;
+  return true;
 }
 std::vector<uint8_t> read_file(const char* path) {
   std::ifstream f(path, std::ios::binary);
@@ -211,9 +220,9 @@ void integrated_cycle(uint64_t cycle, const std::vector<uint8_t>& h110,
     require_receiver_zero(receiver, cycle);
     require(d0->valid() && (secondary_loss_after_frame ? !d1->valid() : d1->valid()) && !w0->pixels().empty(),
             "surface owner unexpectedly destroyed before Java owner release", cycle);
-    for (uint8_t byte : w0->pixels()) require(byte == 0, "Display0 was not cleared", cycle);
+    require(visible_pixels_zero(*w0), "Display0 was not cleared", cycle);
     if (!secondary_loss_after_frame)
-      for (uint8_t byte : w1->pixels()) require(byte == 0, "Display1 retained stale frame bytes", cycle);
+      require(visible_pixels_zero(*w1), "Display1 retained stale frame bytes", cycle);
     d1->invalidate(); d0->invalidate();
     require(!d0->valid() && !d1->valid(), "surface release did not invalidate owners", cycle);
     registry.erase(receiver_handle); registry.erase(secondary_surface_handle);

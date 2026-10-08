@@ -1,6 +1,13 @@
+# R7C4 final Android integration closure — 2026-10-07
+
+- [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.
+- [JDK provenance](research/runtime/r7c4-jdk-toolchain-recovery.md) and [Python/API17 test environment](research/runtime/r7c4-test-environment-recovery.md) — pinned user-local JDK and existing `.venv`; no dependency-file changes.
+- [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md) — CLOSED pending deterministic lifecycle races, full fault matrix, final ARMv7 audit, and hosted checks.
+- PR #17 exact R7C3 head `0804bc0b3c6f6b7a63483562ce539eaa8550d778` — OPEN/CLEAN; Offline CI and CodeQL SUCCESS. These checks predate uncommitted R7C4 changes.
+
 # R7C3 attempt (2026-10-07)
 
-- [R7C3 milestone report](step-reports/43t1-r7c3-final-android-integration-closure.md) — partial; updated Dalvik run unavailable because the JDK is missing.
+- [R7C3 milestone report](step-reports/43t1-r7c3-final-android-integration-closure.md) — historical snapshot; R7C4 later restored JDK/pytest and executed the updated Dalvik APK.
 - [Native socket runtime](research/runtime/r7c3-native-socket-runtime.md) — test seam compiled; runtime/fault coverage unverified.
 - [JNI exception/reference closure](research/runtime/r7c3-jni-exception-reference-closure.md) — no production global/weak refs or native worker callback; VM probes unexecuted.
 - [Framework lifecycle races](research/runtime/r7c3-framework-lifecycle-races.md) — deterministic runtime matrix incomplete.
@@ -1072,3 +1079,36 @@ Honda-specific source notes remain separately indexed below; no external project
 | Decoder/dependency | [Decoder selection](research/runtime/r7b-decoder-selection.md) | FFmpeg 6.1.6 static H.264 decoder; no target runtime execution or Honda codec proof |
 | Adapter readiness | [Readiness inventory](research/runtime/r7b-target-readiness.md) | Honda adapters and real auth/security remain `EVIDENCE_REQUIRED`; interfaces are not vehicle implementations |
 | Local verification | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md) | Native 100 cycles, ASan/UBSan, TSan, full suite, health and diff checks; hosted exact-head checks pending |
+# R7C5 — final software closure attempt (2026-10-08)
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Closure decision | [R7C5 report](step-reports/43t1-r7c5-final-software-closure.md); [entry decision](research/runtime/r7c5-r7d-entry-decision.md) | `R7C_FRAMEWORK_RACE_BLOCKED`; R7D CLOSED; PR #17 not merged |
+| API17 build and host checks | R7C5 report | Suite 902 passed/14 skipped; API17 Java/APK build; host socket and R7C1 ASan/UBSan/TSan passed |
+| ARMv7/API17 | [Build record](research/runtime/r7c5-armv7-final-build.md); [NDK recovery](research/runtime/r7c5-ndk-recovery.md) | NDK r23c local build; zero unknown API17 imports; SHA-256 recorded |
+| Open software gates | [Race closure](research/runtime/r7c5-framework-race-closure.md); [native socket](research/runtime/r7c5-native-socket-runtime-closure.md); [fault matrix](research/runtime/r7c5-final-software-fault-matrix.md) | Emulator failed before boot; deterministic races, full native socket matrix, native socket every cycle, and complete resource oracle remain open |
+# R7C6 (2026-10-08)
+
+- AVD recovery and ownership: `research/runtime/r7c6-api17-avd-recovery.md`,
+  `research/runtime/r7c6-emulator-ownership-proof.md`
+- Race controller/results: `research/runtime/r7c6-deterministic-race-controller.md`,
+  `research/runtime/r7c6-framework-race-results.md`
+- Socket/runtime/fault/accounting: `research/runtime/r7c6-native-socket-fault-matrix.md`,
+  `research/runtime/r7c6-final-100-cycle-runtime.md`,
+  `research/runtime/r7c6-resource-accounting.md`,
+  `research/runtime/r7c6-memory-observation.md`
+- ARMv7 and decision: `research/runtime/r7c6-armv7-final-build.md`,
+  `research/runtime/r7c6-r7d-entry-decision.md`
+- Milestone: `step-reports/43t1-r7c6-final-r7c-software-closure.md`
+
+## 43T1 R7C7 — final software closure (2026-10-08)
+
+| Evidence | Source | Classification |
+|---|---|---|
+| Lifecycle root cause and repeated Activity closure | [R7C7 lifecycle report](research/runtime/r7c7-activity-lifecycle-root-cause.md) | `PASS_EMULATOR`, 25/25 |
+| Cumulative ownership audit | [R7C7 state audit](research/runtime/r7c7-cumulative-stress-state-audit.md) | `PASS_EMULATOR` |
+| Production native socket faults | [R7C7 socket matrix](research/runtime/r7c7-native-socket-fault-matrix.md) | `PASS_EMULATOR`; local port collision N/A |
+| Combined acceptance | [R7C7 combined run](research/runtime/r7c7-combined-acceptance-run.md) | `RESULT=PASS`, 100 cycles |
+| Final cycle and memory/resource observations | [100-cycle runtime](research/runtime/r7c7-final-100-cycle-runtime.md), [memory](research/runtime/r7c7-memory-observation.md), [resource accounting](research/runtime/r7c7-resource-accounting.md) | `PASS_EMULATOR` |
+| Final software matrix and R7D decision | [fault matrix](research/runtime/r7c7-final-software-fault-matrix.md), [entry decision](research/runtime/r7c7-r7d-entry-decision.md) | local software gates PASS; exact-head CI/CodeQL and merge pending |
+| Milestone report | [43T1 R7C7](step-reports/43t1-r7c7-final-framework-race-closure.md) | `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES` |

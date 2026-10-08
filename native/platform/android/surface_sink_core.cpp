@@ -66,26 +66,43 @@ bool SurfaceSinkCore::present(const Frame& frame) noexcept {
   }
   const bool posted = window_->unlock_and_post();
   frame_in_progress_ = false;
+  if (copied && posted) {
+    last_frame_width_ = frame.width;
+    last_frame_height_ = frame.height;
+  }
   return copied && posted;
 }
 
 void SurfaceSinkCore::clear(uint64_t generation) noexcept {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!valid_ || !window_ || generation != generation_ || frame_in_progress_) return;
+  if (!valid_ || !window_ || generation != generation_ || frame_in_progress_ ||
+      last_frame_width_ == 0 || last_frame_height_ == 0) return;
+  const uint32_t frame_width = last_frame_width_;
+  const uint32_t frame_height = last_frame_height_;
   SurfaceBuffer buffer;
   if (!window_->lock(buffer)) return;
   frame_in_progress_ = true;
-  if (valid_buffer(buffer)) {
-    std::memset(buffer.bits, 0, static_cast<size_t>(buffer.stride_pixels) *
-                                  static_cast<size_t>(buffer.height) * 4u);
+  bool cleared = false;
+  if (frame_width != 0 && frame_height != 0 && valid_buffer(buffer)) {
+    const size_t row_bytes = static_cast<size_t>(buffer.width) * 4u;
+    const size_t dst_stride = static_cast<size_t>(buffer.stride_pixels) * 4u;
+    for (int32_t y = 0; y < buffer.height; ++y)
+      std::memset(buffer.bits + static_cast<size_t>(y) * dst_stride, 0, row_bytes);
+    cleared = true;
   }
-  window_->unlock_and_post();
+  const bool posted = window_->unlock_and_post();
   frame_in_progress_ = false;
+  if (cleared && posted) {
+    last_frame_width_ = 0;
+    last_frame_height_ = 0;
+  }
 }
 
 void SurfaceSinkCore::invalidate() noexcept {
   std::lock_guard<std::mutex> lock(mutex_);
   valid_ = false;
+  last_frame_width_ = 0;
+  last_frame_height_ = 0;
   window_.reset();
 }
 
