@@ -166,3 +166,11 @@ gates. R7D has not started and remains CLOSED. See
 ## R7C7 — final software blocker closure (2026-10-08)
 
 The owned-emulator R7C software evidence is complete: production Dalvik socket faults, cumulative Activity teardown, socket-inclusive 100 cycles, repository suite/sanitizers, and API17 ARMv7 import audit pass. Next: commit/push, exact-head Offline CI and CodeQL, and merge PR #17; then begin R7D from the merge commit. No Honda or vehicle execution is part of R7C7/R7D.
+
+## R7D — integrated target simulation (active, 2026-10-08)
+
+R7C merged at `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562` with exact-head CI and CodeQL green. R7D worktree/branch starts from that commit. Current results and remaining tests are tracked in the [R7D report](step-reports/43t1-r7d-integrated-target-simulation.md) and `research/runtime/r7d-*` evidence. No Honda execution.
+
+## R7D local acceptance update — 2026-10-08
+
+Local R7D acceptance passed. The synthetic API17 run sustained both streams for 30 minutes, with 14.405 FPS measured against the 30-FPS target; the gap is recorded. All fault/stress paths, cleanup, repository checks, ARMv7 import audit, and post-run R7C regression passed. PR #18's exact-head Offline CI and CodeQL passed. R7E entry is open for preparation only; next action is `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. No Honda or vehicle execution occurred.

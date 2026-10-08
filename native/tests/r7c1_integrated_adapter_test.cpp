@@ -265,6 +265,35 @@ void primary_failure_policy(const std::vector<uint8_t>& h110,
   require(!receiver.ingest(generation, 1101,
       packet(generation, StreamType::Type111, 1101, h111), 2), "Type111 continued after primary session failure");
 }
+
+void secondary_restart_preserves_primary(const std::vector<uint8_t>& h110,
+                                         const std::vector<uint8_t>& h111) {
+  const uint64_t generation = 881;
+  auto w0 = std::make_shared<SimulatedSurfaceWindow>();
+  auto w1 = std::make_shared<SimulatedSurfaceWindow>();
+  auto d0 = std::make_shared<SurfaceSinkCore>(w0, generation, StreamType::Type110, 711);
+  auto d1 = std::make_shared<SurfaceSinkCore>(w1, generation, StreamType::Type111, 712);
+  ReceiverGeneration receiver(generation, d0, d1,
+      std::make_shared<SyntheticTestAuthenticationAuthority>());
+  require(receiver.exchange_info(generation) && receiver.setup(generation,
+      {{StreamType::Type110, 1100}, {StreamType::Type111, 1101}}), "restart fixture setup");
+  require(receiver.ingest(generation, 1100, packet(generation, StreamType::Type110, 1100, h110), 1) &&
+          receiver.ingest(generation, 1101, packet(generation, StreamType::Type111, 1101, h111), 2),
+          "initial dual-stream frames failed");
+  receiver.close_stream(StreamType::Type111);
+  require(receiver.state() == SessionState::Active && receiver.resources().streams == 1 &&
+          receiver.resources().decoders == 1, "Type111 close did not preserve only Type110");
+  require(receiver.setup(generation, {{StreamType::Type111, 1201}}),
+          "Type111 restart was rejected after completed teardown");
+  require(receiver.ingest(generation, 1100, packet(generation, StreamType::Type110, 1100, h110), 3) &&
+          receiver.ingest(generation, 1201, packet(generation, StreamType::Type111, 1201, h111), 4),
+          "restarted dual-stream frames failed");
+  require(w0->posts >= 2 && w1->posts >= 2,
+          "restart frame posts were not preserved: primary=" + std::to_string(w0->posts) +
+              " secondary=" + std::to_string(w1->posts));
+  receiver.close();
+  require_receiver_zero(receiver, generation);
+}
 }
 
 int main(int argc, char** argv) {
@@ -274,6 +303,7 @@ int main(int argc, char** argv) {
     OpaqueHandleAllocator ids;
     fail_closed_checks();
     primary_failure_policy(h110, h111);
+    secondary_restart_preserves_primary(h110, h111);
     integrated_cycle(1, h110, h111, ids);
     integrated_cycle(2, h110, h111, ids, true);
     integrated_cycle(3, h110, h111, ids, false, true);

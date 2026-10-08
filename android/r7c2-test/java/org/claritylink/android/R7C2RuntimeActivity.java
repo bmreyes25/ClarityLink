@@ -25,6 +25,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.io.OutputStream;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,7 @@ public final class R7C2RuntimeActivity extends Activity {
         primary.setListener(new PrimaryDisplayHost.Listener() {
             public void onSurface(Surface surface) {
                 record(surface == null ? "PRIMARY_SURFACE_DESTROYED" : "PRIMARY_SURFACE_CREATED");
+                if(surface!=null) record("PRIMARY_SURFACE_READY displayId=0");
                 synchronized(surfaceLock) { primarySurface=surface; }
                 CountDownLatch created=primarySurfaceCreated;
                 if(created!=null) created.countDown();
@@ -597,6 +599,8 @@ public final class R7C2RuntimeActivity extends Activity {
             for(Display d:manager.getDisplays()) if(d!=null && d.isValid() && d.getDisplayId()!=0) { if(secondary!=null) { secondary=null; break; } secondary=d; }
             if(secondary!=null) {
                 secondaryDisplay=secondary;
+                final int targetDisplayId=secondary.getDisplayId();
+                record("SECONDARY_DISPLAY_ENUMERATED id="+targetDisplayId);
                 secondaryHost=new SecondaryDisplayHost(new SecondaryDisplayHost.Listener() {
                     public void state(DisplayPolicy.Admission state) { record("PRESENTATION_STATE="+state.name()); }
                     public void surface(Surface surface) {
@@ -608,6 +612,7 @@ public final class R7C2RuntimeActivity extends Activity {
                             CountDownLatch destroyed=secondarySurfaceDestroyed;
                             if(destroyed!=null) destroyed.countDown();
                         } else {
+                            record("SECONDARY_SURFACE_READY displayId="+targetDisplayId);
                             CountDownLatch created=secondarySurfaceCreated;
                             if(created!=null) created.countDown();
                         }
@@ -660,6 +665,39 @@ public final class R7C2RuntimeActivity extends Activity {
             catch(Throwable t) { error=t.getClass().getName()+":"+String.valueOf(t.getMessage()); Log.e(TAG,"focused socket-read case failed",t); }
             saveResult(0,error);
             runOnUiThread(new Runnable() { public void run() { finish(); } });
+            return;
+        }
+        if ("long-run".equals(getIntent().getStringExtra("r7dMode"))) {
+            try {
+                runR7DLongRun(primary, secondary);
+                saveResult(0, null);
+            } catch (Throwable t) {
+                error=t.getClass().getName()+":"+String.valueOf(t.getMessage());
+                Log.e(TAG,"R7D long run failed",t);
+                saveResult(0,error);
+            } finally {
+                if(secondaryHost!=null) runOnUiThread(new Runnable(){public void run(){secondaryHost.close();}});
+                runOnUiThread(new Runnable(){public void run(){finish();}});
+            }
+            return;
+        }
+        String r7dMode=getIntent().getStringExtra("r7dMode");
+        if(r7dMode!=null) {
+            try {
+                if("type111-restart".equals(r7dMode)) runR7DType111RestartStress(primary,secondary);
+                else if("display".equals(r7dMode)) runR7DDisplayRecreation(primary,secondary);
+                else if("churn".equals(r7dMode)) runR7DSessionChurn(primary,secondary);
+                else if("decoder".equals(r7dMode)) runR7DDecoderStress(primary,secondary);
+                else if("network".equals(r7dMode)) runR7DNetworkStress(primary,secondary);
+                else throw new IllegalArgumentException("unknown R7D mode="+r7dMode);
+                record("R7D_MODE="+r7dMode+" PASS"); saveResult(0,null);
+            } catch(Throwable t) {
+                error=t.getClass().getName()+":"+String.valueOf(t.getMessage());
+                Log.e(TAG,"R7D stress mode failed: "+r7dMode,t); saveResult(0,error);
+            } finally {
+                if(secondaryHost!=null) runOnUiThread(new Runnable(){public void run(){secondaryHost.close();}});
+                runOnUiThread(new Runnable(){public void run(){finish();}});
+            }
             return;
         }
         boolean invalidSurfaceRejected=false;
@@ -737,6 +775,276 @@ public final class R7C2RuntimeActivity extends Activity {
         }
     }
 
+    /** R7D continuous synthetic dual-stream target-like load, fully offline. */
+    private void runR7DLongRun(Surface primary, Surface secondary) throws Exception {
+        int minutes=getIntent().getIntExtra("r7dMinutes",30);
+        final int targetFps=getIntent().getIntExtra("r7dFps",30);
+        if(minutes<30 || minutes>180 || targetFps<1 || targetFps>30)
+            throw new IllegalArgumentException("R7D requires >=30 minutes and target FPS 1..30");
+        byte[] h110=fixture("type110-red.h264.b64"), h111=fixture("type111-blue.h264.b64");
+        NativeBridge.nativeDebugResourceCounts(); // Loads the JNI library before the test bridge descriptor probe.
+        int fdBaseline=R7C3TestBridge.openSocketDescriptorCount();
+        long generation=SystemClock.elapsedRealtimeNanos() & 0x0000ffffffffffffL;
+        long p=NativeBridge.nativeAttachSurface(primary,generation,110,generation*2);
+        long s=NativeBridge.nativeAttachSurface(secondary,generation,111,generation*2+1);
+        long receiver=NativeBridge.nativeCreateReceiver(generation,p,s,true);
+        if(!NativeBridge.nativeSetup(receiver,generation,1100,1101,true))
+            throw new IllegalStateException("R7D receiver SETUP failed");
+        long[] active=NativeBridge.nativeDebugResourceCounts();
+        if(active.length!=8 || active[0]!=1 || active[1]!=2 || active[4]!=2 || active[5]!=2)
+            throw new IllegalStateException("R7D dual-stream ownership not active");
+        List<Long> t110=new ArrayList<Long>(),t111=new ArrayList<Long>(),pairLatency=new ArrayList<Long>();
+        List<Long> decode110=new ArrayList<Long>(),post110=new ArrayList<Long>();
+        List<Long> decode111=new ArrayList<Long>(),post111=new ArrayList<Long>();
+        int frames110=0,frames111=0,failures=0;
+        long start=SystemClock.elapsedRealtimeNanos(), deadline=start+TimeUnit.MINUTES.toNanos(minutes);
+        long period=TimeUnit.SECONDS.toNanos(1)/targetFps, next=start;
+        record("TYPE110_ACTIVE generation="+generation);
+        record("TYPE111_ACTIVE generation="+generation);
+        AndroidAudioAdapter audio=new AndroidAudioAdapter(this);
+        try {
+            if(!audio.open(48000,2,AudioFormat.ENCODING_PCM_16BIT))
+                throw new IllegalStateException("R7D AudioTrack unavailable error="+audio.errorState());
+            final byte[] silence=new byte[6400];
+            record("AUDIO_READY=true source=synthetic-silence route=android-default");
+        record("R7D_LONG_RUN_BEGIN minutes="+minutes+" targetFps="+targetFps+
+                    " secondaryWidth=800 secondaryHeight=480 primaryDisplay=0 synthetic=true streams=110,111"+
+                    " projectThreads="+countProjectThreads());
+            while(SystemClock.elapsedRealtimeNanos()<deadline) {
+                long pairStart=SystemClock.elapsedRealtimeNanos();
+                long before=SystemClock.elapsedRealtimeNanos();
+                if(!deliverFragmentedSocketFrame(receiver,generation,110,1100,h110)) failures++;
+                long after=SystemClock.elapsedRealtimeNanos(); t110.add(Long.valueOf(after-before));
+                long[] timing110=R7C3TestBridge.lastFrameLatencies(receiver);
+                if(timing110==null||timing110.length!=2)throw new IllegalStateException("missing Type110 decode/post timings");
+                decode110.add(Long.valueOf(timing110[0]));post110.add(Long.valueOf(timing110[1]));
+                if(!deliverFragmentedSocketFrame(receiver,generation,111,1101,h111)) failures++;
+                long pairEnd=SystemClock.elapsedRealtimeNanos(); t111.add(Long.valueOf(pairEnd-after));
+                long[] timing111=R7C3TestBridge.lastFrameLatencies(receiver);
+                if(timing111==null||timing111.length!=2)throw new IllegalStateException("missing Type111 decode/post timings");
+                decode111.add(Long.valueOf(timing111[0]));post111.add(Long.valueOf(timing111[1]));
+                int audioWritten=0;
+                while(audioWritten<silence.length) {
+                    int wrote=audio.write(silence,audioWritten,silence.length-audioWritten);
+                    if(wrote<=0) throw new IllegalStateException("R7D AudioTrack write failed="+wrote);
+                    audioWritten+=wrote;
+                }
+                pairLatency.add(Long.valueOf(pairEnd-pairStart)); frames110++; frames111++;
+                if(failures!=0) throw new IllegalStateException("R7D dual-stream frame delivery failed");
+                next+=period;
+                long now=SystemClock.elapsedRealtimeNanos();
+                if(now<next) SystemClock.sleep(Math.max(1,(next-now)/1000000L));
+                else next=now;
+                if(frames110%300==0) {
+                    long[] counts=NativeBridge.nativeDebugResourceCounts();
+                    int fds=R7C3TestBridge.openSocketDescriptorCount();
+                    long expectedSlots=(SystemClock.elapsedRealtimeNanos()-start)/period;
+                    long missedSlots=Math.max(0,expectedSlots-frames110);
+                    record("R7D_LONG_RUN_SAMPLE elapsedMs="+((SystemClock.elapsedRealtimeNanos()-start)/1000000L)+
+                            " frame110="+frames110+" frame111="+frames111+" missedTargetSlots="+missedSlots+
+                            " native="+java.util.Arrays.toString(counts)+" fds="+fds+
+                            " pssKb="+Debug.getPss()+" nativeHeap="+Debug.getNativeHeapAllocatedSize()+
+                            " javaThreads="+Thread.activeCount()+" projectThreads="+countProjectThreads());
+                }
+            }
+        } finally {
+            audio.close();
+            NativeBridge.nativeDisconnect(receiver); NativeBridge.nativeReleaseReceiver(receiver);
+            NativeBridge.nativeReleaseSurface(p); NativeBridge.nativeReleaseSurface(s);
+        }
+        long elapsed=SystemClock.elapsedRealtimeNanos()-start;
+        long[] closed=NativeBridge.nativeDebugResourceCounts();
+        int fdAfter=R7C3TestBridge.openSocketDescriptorCount();
+        long expectedSlots=elapsed/period;
+        long missedSlots=Math.max(0,expectedSlots-Math.min(frames110,frames111));
+        for(int i=0;i<closed.length;i++) if(closed[i]!=0)
+            throw new IllegalStateException("R7D owner remained after long run index="+i);
+        if(fdAfter!=fdBaseline) throw new IllegalStateException("R7D socket FD delta="+(fdAfter-fdBaseline)+
+                " baseline="+fdBaseline+" after="+fdAfter);
+        record("R7D_LONG_RUN_METRICS elapsedMs="+(elapsed/1000000L)+" frame110="+frames110+
+                " frame111="+frames111+" effectiveFps="+String.format(java.util.Locale.US,"%.3f",frames110/(elapsed/1e9))+
+                " targetFps="+targetFps+" missedTargetSlots="+missedSlots+" failures="+failures+
+                " socketToPost110Ns="+latencySummary(t110)+" socketToPost111Ns="+latencySummary(t111)+
+                " decode110Ns="+latencySummary(decode110)+" decode111Ns="+latencySummary(decode111)+
+                " post110Ns="+latencySummary(post110)+" post111Ns="+latencySummary(post111)+
+                " mediaToDisplayPairNs="+latencySummary(pairLatency)+
+                " queueDepth=0 decoderResets=0 surfaceRecreates=0");
+        record("R7D_LONG_RUN_CLEANUP native="+java.util.Arrays.toString(closed)+" fdCount="+fdAfter+
+                " fdBaseline="+fdBaseline+" fdDelta="+(fdAfter-fdBaseline)+
+                " javaThreads="+Thread.activeCount()+" projectThreads="+countProjectThreads()+
+                " raceControllerIdle="+R7C6TestBridge.raceControllerIdle());
+        record("RESTORED=true phase=long-run-cleanup");
+        if(elapsed<TimeUnit.MINUTES.toNanos(30) || frames110==0 || frames111==0)
+            throw new IllegalStateException("R7D long run did not meet 30-minute acceptance");
+        record("R7D_LONG_RUN=PASS");
+    }
+
+    private static String latencySummary(List<Long> samples) {
+        if(samples.isEmpty()) return "empty";
+        List<Long> sorted=new ArrayList<Long>(samples); Collections.sort(sorted);
+        long min=sorted.get(0).longValue(), max=sorted.get(sorted.size()-1).longValue();
+        long median=sorted.get(sorted.size()/2).longValue();
+        long p95=sorted.get(Math.min(sorted.size()-1,(int)Math.ceil(sorted.size()*0.95)-1)).longValue();
+        return min+"/"+median+"/"+p95+"/"+max;
+    }
+
+    private static int countProjectThreads() {
+        Thread[] threads=new Thread[Math.max(16,Thread.activeCount()*2+8)];
+        int count=Thread.enumerate(threads),owned=0;
+        for(int i=0;i<count;i++) if(threads[i]!=null && threads[i].isAlive() &&
+                (threads[i].getName().startsWith("r7c") || threads[i].getName().startsWith("r7d"))) owned++;
+        return owned;
+    }
+
+    private void runR7DType111RestartStress(Surface primary,Surface secondary) throws Exception {
+        final long generation=SystemClock.elapsedRealtimeNanos() & 0x0000ffffffffffffL;
+        byte[] h110=fixture("type110-red.h264.b64"),h111=fixture("type111-blue.h264.b64");
+        long p=NativeBridge.nativeAttachSurface(primary,generation,110,generation*2);
+        long s=NativeBridge.nativeAttachSurface(secondary,generation,111,generation*2+1);
+        long receiver=NativeBridge.nativeCreateReceiver(generation,p,s,true);
+        if(!NativeBridge.nativeSetup(receiver,generation,1100,1101,false))
+            throw new IllegalStateException("Type110 persistent SETUP failed");
+        record("TYPE110_ACTIVE generation="+generation);
+        record("SECONDARY_CLEARED generation="+generation);
+        int restarts=0;
+        try {
+            for(int i=0;i<100;i++) {
+                if(!deliverFragmentedSocketFrame(receiver,generation,110,1100,h110))
+                    throw new IllegalStateException("Type110 continuity failed before restart "+i);
+                if(!R7C6TestBridge.setupStream(receiver,generation,111,1101))
+                    throw new IllegalStateException("Type111 setup failed at restart "+i);
+                if(!deliverFragmentedSocketFrame(receiver,generation,111,1101,h111))
+                    throw new IllegalStateException("Type111 frame failed at restart "+i);
+                NativeBridge.nativeClearSurface(s,generation);
+                R7C6TestBridge.closeStream(receiver,111);
+                long[] during=NativeBridge.nativeDebugResourceCounts();
+                if(during[0]!=1 || during[4]!=1 || during[5]!=1)
+                    throw new IllegalStateException("Type111 owners survived restart close "+i+
+                            " counters="+java.util.Arrays.toString(during));
+                if(!deliverFragmentedSocketFrame(receiver,generation,110,1100,h110))
+                    throw new IllegalStateException("Type110 continuity failed after restart "+i);
+                restarts++;
+                assertRaceIdle("type111-restart-"+restarts);
+                if(restarts%10==0) record("R7D_TYPE111_RESTART_PROGRESS cycles="+restarts+
+                        " type110ContinuityFrames="+(2*restarts)+" secondaryCleared=true");
+            }
+        } finally {
+            NativeBridge.nativeDisconnect(receiver);NativeBridge.nativeReleaseReceiver(receiver);
+            NativeBridge.nativeReleaseSurface(p);NativeBridge.nativeReleaseSurface(s);
+        }
+        requireNativeZero("Type111 restart stress");
+        record("R7D_TYPE111_RESTARTS=PASS cycles="+restarts+" type110ContinuityFrames="+(2*restarts));
+    }
+
+    private void runR7DDisplayRecreation(Surface primary,Surface secondary) throws Exception {
+        byte[] h110=fixture("type110-red.h264.b64"),h111=fixture("type111-blue.h264.b64");
+        if(presentationSurface==null || secondaryHost==null) throw new IllegalStateException("Presentation unavailable");
+        record("SECONDARY_DISPLAY_ENUMERATED id="+secondaryDisplay.getDisplayId());
+        int surfaceCycles=0,presentationCycles=0;
+        for(int i=0;i<25;i++) {
+            runFrameworkSecondarySurfaceDestroyRace(primary,h110,h111,false);
+            surfaceCycles++; assertRaceIdle("display-surface-recreate-"+surfaceCycles);
+            runFrameworkSecondarySurfaceDestroyRace(primary,h110,h111,true);
+            presentationCycles++; assertRaceIdle("display-presentation-recreate-"+presentationCycles);
+            recreateSecondaryPresentation();
+            if(presentationSurface==null) throw new IllegalStateException("Presentation reattach lost Surface");
+        }
+        record("R7D_DISPLAY_RECREATION=PASS surfaceCycles="+surfaceCycles+
+                " presentationCycles="+presentationCycles+" type110Continuity=true");
+    }
+
+    private void runR7DSessionChurn(Surface primary,Surface secondary) throws Exception {
+        byte[] h110=fixture("type110-red.h264.b64"),h111=fixture("type111-blue.h264.b64");
+        NativeBridge.nativeDebugResourceCounts(); // Ensure test JNI counters share a loaded library.
+        int fdBaseline=R7C3TestBridge.openSocketDescriptorCount();
+        for(int cycle=1;cycle<=500;cycle++) {
+            long generation=500000L+cycle;
+            long p=NativeBridge.nativeAttachSurface(primary,generation,110,generation*2);
+            long s=NativeBridge.nativeAttachSurface(secondary,generation,111,generation*2+1);
+            long receiver=NativeBridge.nativeCreateReceiver(generation,p,s,true);
+            if(!NativeBridge.nativeSetup(receiver,generation,1100,1101,true))
+                throw new IllegalStateException("session SETUP failed cycle="+cycle);
+            if(!NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,110,1100,h110)) ||
+                    !NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,111,1101,h111)))
+                throw new IllegalStateException("session media post failed cycle="+cycle);
+            NativeBridge.nativeDisconnect(receiver);NativeBridge.nativeReleaseReceiver(receiver);
+            NativeBridge.nativeReleaseSurface(p);NativeBridge.nativeReleaseSurface(s);
+            long[] counts=NativeBridge.nativeDebugResourceCounts();
+            for(int i=0;i<counts.length;i++)if(counts[i]!=0)
+                throw new IllegalStateException("session owner leak cycle="+cycle+" index="+i);
+            int fds=R7C3TestBridge.openSocketDescriptorCount();
+            if(fds!=fdBaseline)throw new IllegalStateException("session FD leak cycle="+cycle+" baseline="+fdBaseline+" now="+fds);
+            if(cycle%50==0)record("R7D_SESSION_CHURN_PROGRESS cycles="+cycle+
+                    " native="+java.util.Arrays.toString(counts)+" fds="+fds+" fdBaseline="+fdBaseline+" fdDelta="+(fds-fdBaseline)+
+                    " pssKb="+Debug.getPss()+" nativeHeap="+Debug.getNativeHeapAllocatedSize()+
+                    " javaThreads="+Thread.activeCount()+" projectThreads="+countProjectThreads());
+        }
+        record("R7D_SESSION_CHURN=PASS cycles=500 nativeZeroEveryCycle=true fdBaselineUnchangedEveryCycle=true fdBaseline="+fdBaseline);
+    }
+
+    private void runR7DDecoderStress(Surface primary,Surface secondary) throws Exception {
+        byte[] h110=fixture("type110-red.h264.b64"),h111=fixture("type111-blue.h264.b64");
+        byte[] malformed=new byte[]{0,0,0,1,0x7f,0x7f,0x7f,0x00};
+        byte[] truncated=new byte[]{0,0,0,1,0x65,0x00,0x00};
+        int recovered=0, truncatedRejected=0, decoderRecreated=0;
+        for(int i=0;i<25;i++) {
+            long generation=600000L+i;
+            long p=NativeBridge.nativeAttachSurface(primary,generation,110,generation*2);
+            long s=NativeBridge.nativeAttachSurface(secondary,generation,111,generation*2+1);
+            long receiver=NativeBridge.nativeCreateReceiver(generation,p,s,true);
+            if(!NativeBridge.nativeSetup(receiver,generation,1100,1101,true))throw new IllegalStateException("decoder SETUP failed");
+            if(!NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,110,1100,h110)))
+                throw new IllegalStateException("repeated Type110 IDR failed");
+            if(i%5==0 || i==1) {
+                byte[] invalid=i==1?truncated:malformed;
+                boolean bad=NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,111,1101,invalid));
+                if(bad)throw new IllegalStateException(i==1?"truncated Type111 NAL unexpectedly decoded":"malformed Type111 NAL unexpectedly decoded");
+                if(i==1)truncatedRejected++;
+                if(!NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,110,1100,h110)))
+                    throw new IllegalStateException("Type110 did not recover after Type111 decoder failure");
+                if(!R7C6TestBridge.setupStream(receiver,generation,111,1101) ||
+                        !NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,111,1101,h111)))
+                    throw new IllegalStateException("Type111 decoder could not restart after malformed input");
+                decoderRecreated++;
+                recovered++;
+            } else if(!NativeBridge.nativeTestIngestSyntheticPacket(receiver,generation,packet(generation,111,1101,h111)))
+                throw new IllegalStateException("Type111 decoder restart failed");
+            NativeBridge.nativeDisconnect(receiver);NativeBridge.nativeReleaseReceiver(receiver);
+            NativeBridge.nativeReleaseSurface(p);NativeBridge.nativeReleaseSurface(s);
+            requireNativeZero("decoder stress cycle "+i);
+        }
+        record("R7D_DECODER_STRESS=PASS idr=25 malformedType111="+(recovered-truncatedRejected)+
+                " truncatedType111="+truncatedRejected+" type110Isolation=PASS type111DecoderRecreated="+decoderRecreated);
+    }
+
+    private void runR7DNetworkStress(Surface primary,Surface secondary) throws Exception {
+        byte[] h110=fixture("type110-red.h264.b64"),h111=fixture("type111-blue.h264.b64");
+        runNativeSocketFaultMatrix(primary,secondary,h110,h111);
+        int reconnects=0;
+        for(int i=0;i<25;i++) {
+            long generation=700000L+i;
+            long p=NativeBridge.nativeAttachSurface(primary,generation,110,generation*2);
+            long s=NativeBridge.nativeAttachSurface(secondary,generation,111,generation*2+1);
+            long receiver=NativeBridge.nativeCreateReceiver(generation,p,s,true);
+            try {
+                if(!NativeBridge.nativeSetup(receiver,generation,1100,1101,true))
+                    throw new IllegalStateException("network reconnect SETUP failed");
+                if(!deliverFragmentedSocketFrame(receiver,generation,110,1100,h110) ||
+                        !deliverFragmentedSocketFrame(receiver,generation,111,1101,h111))
+                    throw new IllegalStateException("network reconnect frame failed");
+                reconnects++;
+                if(reconnects%5==0) record("R7D_NETWORK_RECONNECT_PROGRESS cycles="+reconnects+" type110=PASS type111=PASS");
+            } finally {
+                NativeBridge.nativeDisconnect(receiver);NativeBridge.nativeReleaseReceiver(receiver);
+                NativeBridge.nativeReleaseSurface(p);NativeBridge.nativeReleaseSurface(s);
+            }
+            requireNativeZero("network reconnect "+i);
+            assertRaceIdle("network-reconnect-"+reconnects);
+        }
+        record("R7D_NETWORK_RECOVERY=PASS faults=timeout,peer-close,refusal,fragmentation,reconnect,rapid-reconnect reconnects="+reconnects+
+                " scopes=TYPE111_LOCAL,TYPE110_GLOBAL");
+    }
+
     private void injectType111SurfaceLoss(Surface primary,Surface secondary) throws Exception {
         long generation=30110;
         byte[] h110=fixture("type110-red.h264.b64"), h111=fixture("type111-blue.h264.b64");
@@ -800,7 +1108,7 @@ public final class R7C2RuntimeActivity extends Activity {
         AndroidUsbTransport usb=new AndroidUsbTransport(this);
         Map<String,android.hardware.usb.UsbDevice> devices=usb.discover();
         if(!devices.isEmpty()) throw new IllegalStateException("unexpected physical USB device in emulator-only test");
-        usb.close(); record("USB_MANAGER=READY devices="+devices.size()); checks++;
+        usb.close(); record("USB_MANAGER=AVAILABLE devices="+devices.size()+" deviceReady="+(!devices.isEmpty())); checks++;
         AndroidAudioAdapter audio=new AndroidAudioAdapter(this);
         if(audio.open(44100,2,AudioFormat.ENCODING_PCM_16BIT)) {
             byte[] pcm=new byte[4096];

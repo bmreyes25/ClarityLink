@@ -23,3 +23,7 @@ One fresh 25-repeat run initially logged an `IllegalStateException` when the tea
 This closes R7C software evidence only. Honda, physical device, vehicle, real iPhone negotiation, and MFi evidence remain unresolved and outside the scope. Commit/push, exact-head Offline CI and CodeQL, and PR #17 merge are still required. R7D starts from the resulting merge head.
 
 See [lifecycle diagnosis](../research/runtime/r7c7-activity-lifecycle-root-cause.md), [socket matrix](../research/runtime/r7c7-native-socket-fault-matrix.md), [combined run](../research/runtime/r7c7-combined-acceptance-run.md), and [R7D entry decision](../research/runtime/r7c7-r7d-entry-decision.md).
+
+## Hosted verification and merge closure
+
+R7C implementation commit `f24255c58ea000255c37d1dea28e5b26a569745b` received exact-head Offline CI PASS and CodeQL PASS. PR #17 merged into `main` at `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`. R7D began from that merge head in a separate worktree. Final R7C decision: `R7C_HONDA_ADAPTER_LAYER_OFFLINE_PASS`; R7D entry opened for offline simulation only.

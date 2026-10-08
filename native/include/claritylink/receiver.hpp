@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace claritylink {
 
@@ -135,6 +136,9 @@ class ReceiverGeneration final {
   ResourceCounts resources() const;
   uint64_t generation() const { return generation_; }
   std::vector<std::string> events() const;
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+  std::pair<uint64_t, uint64_t> last_frame_timing_ns() const;
+#endif
 
  private:
   struct Stream;
@@ -152,6 +156,10 @@ class ReceiverGeneration final {
   std::vector<std::string> events_;
   std::atomic<bool> cancellation_requested_{false};
   std::atomic<bool> cancel_secondary_setup_{false};
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+  uint64_t last_decode_ns_ = 0;
+  uint64_t last_post_ns_ = 0;
+#endif
 };
 
 // Wire packet: big-endian generation(8), stream type(1), connection id(2),

@@ -40,3 +40,7 @@ are not complete. See `r7c6-r7d-entry-decision.md` and the R7C6 step report.
 The API17 owned-emulator cumulative Activity blocker is closed: the test runner holds process liveness with a guard Activity, awaits lifecycle off-main, and 25/25 current-code repetitions reach `onDestroy`. The production Dalvik socket fault matrix and socket-inclusive 100-cycle combined suite pass. Final evidence is indexed in the [R7C7 report](../../step-reports/43t1-r7c7-final-framework-race-closure.md), [socket matrix](r7c7-native-socket-fault-matrix.md), [combined run](r7c7-combined-acceptance-run.md), and [100-cycle report](r7c7-final-100-cycle-runtime.md).
 
 All software gates are locally evidenced. Final commit/push, exact-head Offline CI and CodeQL, and PR #17 merge remain prerequisites. R7D starts from the merge commit only. Honda/iPhone/MFi/physical-device evidence remains separate and unclaimed.
+
+## Exact-head checks and merge result
+
+R7C implementation HEAD `f24255c58ea000255c37d1dea28e5b26a569745b`: Offline CI PASS, CodeQL PASS. PR #17 merged at `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`. R7C decision `R7C_HONDA_ADAPTER_LAYER_OFFLINE_PASS`; R7D entry opened for offline simulation. Honda-specific/real-CarPlay evidence remains unresolved.

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <chrono>
 #include <new>
 #include <stdexcept>
 #include <utility>
@@ -203,6 +204,9 @@ bool ReceiverGeneration::setup(uint64_t generation, const std::vector<StreamConf
 
 bool ReceiverGeneration::decode_and_present(Stream& stream,
     const std::vector<uint8_t>& encrypted, uint64_t timestamp) {
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+  const auto decode_begin = std::chrono::steady_clock::now();
+#endif
   std::vector<uint8_t> clear;
   if (!stream.security || !stream.security->open_test_media(encrypted, clear) || clear.empty()) return false;
   if (clear.size() > static_cast<size_t>(std::numeric_limits<int>::max()) ||
@@ -238,9 +242,18 @@ bool ReceiverGeneration::decode_and_present(Stream& stream,
         if (!android::r7c6test::pause_if_armed(checkpoint, generation_,
                 stream.type == StreamType::Type110 ? 110 : 111)) return false;
 #endif
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+        const auto post_begin = std::chrono::steady_clock::now();
+        last_decode_ns_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+            post_begin - decode_begin).count());
+#endif
         if (cancellation_requested_.load() ||
             (stream.type == StreamType::Type111 && cancel_secondary_setup_.load()) ||
             !stream.sink->present(frame)) return false;
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+        last_post_ns_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - post_begin).count());
+#endif
         presented = true;
     av_frame_unref(stream.decoded.get());
   }
@@ -291,7 +304,15 @@ bool ReceiverGeneration::ingest(uint64_t generation, uint16_t id,
 void ReceiverGeneration::close_stream(StreamType type) {
   request_close_stream(type);
   std::lock_guard<std::mutex> lock(mutex_);
-  if (type == StreamType::Type110) primary_.reset(); else if (type == StreamType::Type111) secondary_.reset();
+  if (type == StreamType::Type110) {
+    primary_.reset();
+  } else if (type == StreamType::Type111) {
+    secondary_.reset();
+    // A completed Type111 teardown must permit a later stream setup in the
+    // same receiver generation. The flag only cancels an in-flight setup;
+    // clearing it under the generation lock cannot revive the closed stream.
+    cancel_secondary_setup_.store(false);
+  }
   sync_state();
 }
 void ReceiverGeneration::request_close() noexcept { cancellation_requested_.store(true); }
@@ -333,6 +354,12 @@ ResourceCounts ReceiverGeneration::resources() const {
       static_cast<std::size_t>(static_cast<bool>(secondary_))};
 }
 std::vector<std::string> ReceiverGeneration::events() const { std::lock_guard<std::mutex> l(mutex_); return events_; }
+#if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+std::pair<uint64_t, uint64_t> ReceiverGeneration::last_frame_timing_ns() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return {last_decode_ns_, last_post_ns_};
+}
+#endif
 
 bool parse_media_packet(const std::vector<uint8_t>& bytes, uint64_t& generation,
     StreamType& type, uint16_t& connection_id, std::vector<uint8_t>& payload) {

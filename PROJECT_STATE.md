@@ -533,3 +533,11 @@ uncommitted and preserved.
 ## R7C7 update — 2026-10-08
 
 The R7C software blockers are locally closed on the owned API17/Dalvik emulator: combined production socket fault matrix, cumulative framework races, 100 socket-inclusive cycles, and a fresh 25/25 Activity destroy stress run. Host suite/sanitizers and API17 ARMv7 build/import audit pass. Exact-head hosted checks and PR #17 merge remain prerequisites to R7D. Honda and real-CarPlay evidence remains unresolved. See [R7C7 closure](step-reports/43t1-r7c7-final-framework-race-closure.md).
+
+## R7D active — 2026-10-08
+
+R7C software closure merged at `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562` after exact-head Offline CI and CodeQL success. R7D is in progress in the separate `architecture/r7d-integrated-target-simulation` worktree from that merge head. Type111 restart stress has passed 100 cycles; long-run, display/network/decoder stress, 500-session churn, repository verification, and R7D hosted gates remain underway. Target remains synthetic/offline only; Honda-specific questions are not asserted as resolved.
+
+## R7D acceptance and hosted verification update — 2026-10-08
+
+All R7D gates have passed, including the corrected 30-minute run, repeated stream/display/network/decoder stress, 500-session churn, post-long-run R7C regression, repository suite and sanitizers, API17 ARMv7 import audit, repository health, and diff check. Throughput measured 14.405 FPS against the 30-FPS goal and remains a documented limitation. PR #18 is open and mergeable; exact-head Offline CI and CodeQL passed. R7E entry is open for preparation only. Next action: `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. No Honda or vehicle execution occurred.
