@@ -1,5 +1,6 @@
 #include "android_surface_sink.hpp"
 #include "opaque_handle_allocator.hpp"
+#include "android_socket_adapter.hpp"
 
 #include <android/native_window_jni.h>
 #include <jni.h>
@@ -144,6 +145,79 @@ Java_org_claritylink_android_NativeBridge_nativeReleaseReceiver(JNIEnv* env, jcl
 }
 
 #if defined(CLARITYLINK_TEST_DIAGNOSTICS)
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C3TestBridge_receiveSocketFrame(JNIEnv* env, jclass,
+    jlong id, jlong generation, jstring address, jint port, jint timeout_ms) {
+  // This seam is compiled only into the isolated x86 test library.  The socket
+  // adapter itself is the same production class linked into the ARM library.
+  if (env->ExceptionCheck()) return JNI_FALSE;
+  if (!address || generation <= 0 || port <= 0 || port > 65535 || timeout_ms <= 0 || timeout_ms > 30000) {
+    fail(env, "invalid test socket request"); return JNI_FALSE;
+  }
+  const char* ipv4 = env->GetStringUTFChars(address, nullptr);
+  if (env->ExceptionCheck() || !ipv4) return JNI_FALSE;
+  std::string numeric;
+  try { numeric.assign(ipv4); }
+  catch (...) { env->ReleaseStringUTFChars(address, ipv4); fail(env, "test socket address allocation failed"); return JNI_FALSE; }
+  env->ReleaseStringUTFChars(address, ipv4);
+  if (env->ExceptionCheck()) return JNI_FALSE;
+  if (numeric != "127.0.0.1") { fail(env, "test socket is restricted to 127.0.0.1"); return JNI_FALSE; }
+  try {
+    auto receiver = receivers.get(id);
+    if (!receiver) { fail(env, "invalid socket receiver handle"); return JNI_FALSE; }
+    bool is_lab = false;
+    { std::lock_guard<std::mutex> lock(registry_mutex); is_lab = lab_receivers.count(id) != 0; }
+    if (!is_lab) { fail(env, "socket LAB ingress requires explicit lab mode"); return JNI_FALSE; }
+    claritylink::android::AndroidSocketAdapter socket;
+    claritylink::android::SocketEndpoint endpoint{numeric, "127.0.0.1",
+      static_cast<uint16_t>(port), static_cast<uint32_t>(timeout_ms), static_cast<uint64_t>(generation)};
+    if (!socket.connect(endpoint)) return JNI_FALSE;
+    // Read the bounded LAB packet header and body with explicit partial-read
+    // handling.  Maximum packet size matches the receiver's synthetic limit.
+    std::vector<uint8_t> packet(15);
+    size_t used = 0;
+    auto read_exact = [&](uint8_t* out, size_t count) {
+      size_t offset = 0;
+      while (offset < count) {
+        int n = socket.read(out + offset, count - offset, static_cast<uint64_t>(generation));
+        if (n <= 0) return false;
+        offset += static_cast<size_t>(n);
+      }
+      return true;
+    };
+    if (!read_exact(packet.data(), packet.size())) return JNI_FALSE;
+    const uint32_t payload_size = (static_cast<uint32_t>(packet[11]) << 24) |
+      (static_cast<uint32_t>(packet[12]) << 16) | (static_cast<uint32_t>(packet[13]) << 8) | packet[14];
+    if (payload_size == 0 || payload_size > 2u * 1024u * 1024u) return JNI_FALSE;
+    used = packet.size(); packet.resize(used + payload_size);
+    if (!read_exact(packet.data() + used, payload_size)) return JNI_FALSE;
+    uint64_t packet_generation = 0; StreamType type{}; uint16_t connection = 0; std::vector<uint8_t> payload;
+    if (!claritylink::parse_media_packet(packet, packet_generation, type, connection, payload) ||
+        packet_generation != static_cast<uint64_t>(generation)) return JNI_FALSE;
+    socket.shutdown(); socket.close();
+    return receiver->ingest(packet_generation, connection, packet, 0) ? JNI_TRUE : JNI_FALSE;
+  } catch (...) { fail(env, "native test socket frame failed"); return JNI_FALSE; }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C3TestBridge_pendingExceptionProbe(JNIEnv* env, jclass) {
+  if (env->ExceptionCheck()) return JNI_FALSE;
+  jclass type = env->FindClass("java/lang/IllegalArgumentException");
+  if (env->ExceptionCheck() || !type) return JNI_FALSE;
+  env->ThrowNew(type, "R7C3 pending-exception probe");
+  if (env->ExceptionCheck()) { env->DeleteLocalRef(type); return JNI_TRUE; }
+  env->DeleteLocalRef(type);
+  return JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_claritylink_android_R7C3TestBridge_lookupFailureProbe(JNIEnv* env, jclass) {
+  if (env->ExceptionCheck()) return JNI_FALSE;
+  env->FindClass("org/claritylink/test/DeliberatelyMissingHelper");
+  if (env->ExceptionCheck()) return JNI_TRUE; // Preserve ClassNotFoundException; perform no dependent JNI call.
+  return JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_org_claritylink_android_NativeBridge_nativeDebugResourceCounts(JNIEnv* env, jclass) {
   jlong streams = 0, decoders = 0, listeners = 0, display_owners = 0;

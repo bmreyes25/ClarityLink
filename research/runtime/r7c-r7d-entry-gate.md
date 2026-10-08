@@ -1,3 +1,5 @@
+R7C3 attempt (2026-10-07) does not change the decision: `R7C_INTEGRATION_PARTIAL`, R7D `CLOSED`. A test-only socket/JNI seam and exception probes compile in the x86 native library, but APK/Dalvik verification is blocked by absent JDK. Deterministic framework races, full software fault/resource closure, fresh 100-cycle test with native socket, and exact-head CI/CodeQL remain pending. See [R7C3 decision](r7c3-r7d-entry-decision.md).
+
 # R7C closure → R7D entry gate
 
 R7D is blocked until every software gate below is evidenced on an exact PR head. Honda runtime evidence is not required for this software gate and cannot be inferred from host simulation.

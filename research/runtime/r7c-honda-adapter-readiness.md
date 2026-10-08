@@ -1,3 +1,5 @@
+R7C3 attempt: test-only native socket and JNI exception seams are present in the worktree, but updated API17 APK/Dalvik execution did not occur (JDK unavailable). No readiness classification is promoted; R7C remains partial and R7D remains closed. See [`R7C3 decision`](r7c3-r7d-entry-decision.md).
+
 # R7C Honda adapter readiness
 
 | Adapter | Classification | Honda status |

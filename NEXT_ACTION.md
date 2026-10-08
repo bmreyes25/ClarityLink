@@ -1,5 +1,9 @@
 # Next action
 
+## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
+
+R7C3 started from `7bf072bbd80ad8d8bcc742cd4f56a514bb03874b` on `architecture/r7c-honda-target-adapters` (PR #17). A test-only native socket/JNI path and pending-exception/lookup probes were added; x86 test-library build, ARMv7 production build/import audit, host socket test, and host R7C1 integration passed. Updated API17 test APK and Dalvik run are blocked because this host has no JDK; the full repository suite is blocked because pytest is unavailable. Framework/process races and the fault/resource matrix remain incomplete. Decision stays `R7C_INTEGRATION_PARTIAL`; R7D stays closed. **NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE` after restoring a JDK-capable build environment, then finish runtime coverage and exact-head CI/CodeQL. See [R7C3 report](step-reports/43t1-r7c3-final-android-integration-closure.md) and [R7D decision](research/runtime/r7c3-r7d-entry-decision.md). No Honda or vehicle execution occurred.
+
 ## R7C2 Android runtime integration closure — partial — 2026-10-07
 
 R7C2 continued PR #17 from exact starting candidate `9ee07dac2b6eda842567b8dbdb3a36cdd7336e54`. An isolated API17/Android 4.2.2 x86 emulator ran Dalvik, actual ClarityLink JNI entrypoints, API17 DisplayManager/Presentation/Surface callbacks, production `ANativeWindow` posts, and actual R7B H.264 Type110/Type111 decode to two Android Surfaces. Selected Java audio/input/USB/process/security adapters ran; the runtime lifecycle passed 100/100 cycles with native resource counters zero after every cycle. Result: `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; ARMv7 is separately build-confirmed only.

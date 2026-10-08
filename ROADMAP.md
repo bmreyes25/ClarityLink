@@ -1,3 +1,5 @@
+- [43T1-R7C3 — final Android integration closure attempt](step-reports/43t1-r7c3-final-android-integration-closure.md) — test-only JNI socket/exception seams and native builds added, but APK/Dalvik and complete race/fault closure remain blocked; R7C stays partial and R7D closed.
+
 ## R7C2 Android runtime integration closure — partial — 2026-10-07
 
 R7C2 continued PR #17 and closed the actual API17 Dalvik/JNI/Surface runtime gap using an isolated x86 AVD. Production Java display adapters, Presentation/Surface callbacks, ANativeWindow RGBA post, actual Type110/Type111 H.264 outputs, selected Java adapters, and 100 resource-checked lifecycle cycles passed. Classification: `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; ARMv7 remains build-only. R7C decision: `R7C_INTEGRATION_PARTIAL` because native Android POSIX socket runtime integration, exhaustive JNI VM exception/reference tests, and deterministic framework stop/callback fault coverage are not closed. The R7D entry gate remains closed.

@@ -1,3 +1,12 @@
+# R7C3 attempt (2026-10-07)
+
+- [R7C3 milestone report](step-reports/43t1-r7c3-final-android-integration-closure.md) — partial; updated Dalvik run unavailable because the JDK is missing.
+- [Native socket runtime](research/runtime/r7c3-native-socket-runtime.md) — test seam compiled; runtime/fault coverage unverified.
+- [JNI exception/reference closure](research/runtime/r7c3-jni-exception-reference-closure.md) — no production global/weak refs or native worker callback; VM probes unexecuted.
+- [Framework lifecycle races](research/runtime/r7c3-framework-lifecycle-races.md) — deterministic runtime matrix incomplete.
+- [Fault matrix](research/runtime/r7c3-final-fault-matrix.md) and [resource accounting](research/runtime/r7c3-final-resource-accounting.md) — partial; do not infer R7C PASS.
+- [R7D entry decision](research/runtime/r7c3-r7d-entry-decision.md) — CLOSED; next `GO_FOR_R7C_INTEGRATION_CLOSURE`.
+
 # R7C2 Android API17 runtime integration — 2026-10-07
 
 | Evidence item | Source | Result / scope |

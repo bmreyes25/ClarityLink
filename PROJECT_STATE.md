@@ -14,6 +14,10 @@ R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`; R7C started at 
 
 # ClarityLink project state
 
+## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
+
+R7C3 started from `7bf072bbd80ad8d8bcc742cd4f56a514bb03874b` on `architecture/r7c-honda-target-adapters` (PR #17). A test-only native socket/JNI path and pending-exception/lookup probes were added; x86 test-library build, ARMv7 production build/import audit, host socket test, and host R7C1 integration passed. Updated API17 test APK and Dalvik run are blocked because this host has no JDK; the full repository suite is blocked because pytest is unavailable. Framework/process races and the fault/resource matrix remain incomplete. Decision stays `R7C_INTEGRATION_PARTIAL`; R7D stays closed. **NEXT:** `GO_FOR_R7C_INTEGRATION_CLOSURE` after restoring a JDK-capable build environment, then finish runtime coverage and exact-head CI/CodeQL. See [R7C3 report](step-reports/43t1-r7c3-final-android-integration-closure.md) and [R7D decision](research/runtime/r7c3-r7d-entry-decision.md). No Honda or vehicle execution occurred.
+
 ## R7A integrated offline dual-stream receiver — 2026-10-06
 
 Starting HEAD and `origin/main`: `c254d7f6172dbd45bb1cd6a87b10bcb4cd96d811`. Implemented on `architecture/r7a-integrated-offline-dual-carplay` in a clean linked worktree. Result: `R7A_INTEGRATED_SYNTHETIC_DUAL_STREAM_PASS` (`MODEL_ONLY`). One synthetic authenticated session runs `/info`, SETUP, both independent media paths, actual FFmpeg H.264 decode, separate 800×480 host outputs and disconnect cleanup. Both stream orders and single-stream configurations pass; Type111 failures leave Type110 active. Lifecycle test: 100/100 cycles with no tracked resources after close. Full suite: 901 passed, 14 skipped. Repository health and `git diff --check` passed. Offline CI and CodeQL passed on implementation head `bb80c159421d92452ecc6405ac264cb8fc615734`; any later PR-head revision needs its own result.

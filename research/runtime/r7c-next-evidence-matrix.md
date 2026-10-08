@@ -1,3 +1,5 @@
+R7C3 attempt added a test-only socket/JNI route, but runtime verification is pending because this host lacks a JDK. The software rows below remain open; see [R7C3 socket](r7c3-native-socket-runtime.md), [JNI](r7c3-jni-exception-reference-closure.md), [race](r7c3-framework-lifecycle-races.md), [fault matrix](r7c3-final-fault-matrix.md), and [decision](r7c3-r7d-entry-decision.md).
+
 # R7C next evidence matrix
 
 | Gate | Exact evidence that closes it |

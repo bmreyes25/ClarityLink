@@ -20,6 +20,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.io.OutputStream;
+import java.io.File;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -112,6 +114,8 @@ public final class R7C2RuntimeActivity extends Activity {
             record("ADAPTER_CHECKS="+adapterChecks);
             byte[] h110=fixture("type110-red.h264.b64");
             byte[] h111=fixture("type111-blue.h264.b64");
+            exerciseNativeSocketReceiver(primary,secondary,h110);
+            exerciseJniExceptionSeams();
             recordMemory("baseline",0);
             for(int cycle=0;cycle<100;cycle++) {
                 long generation=20000L+cycle;
@@ -270,6 +274,50 @@ public final class R7C2RuntimeActivity extends Activity {
         client.getOutputStream().write(0x5a); byte[] response=new byte[3]; int n=client.getInputStream().read(response); client.close(); server.close();
         if(n!=3 || response[0]!=1 || response[2]!=3 || !served.await(3,TimeUnit.SECONDS) || failure[0]!=null)
             throw new IllegalStateException("bounded emulator loopback test failed");
+    }
+
+    private void exerciseNativeSocketReceiver(Surface primary, Surface secondary, byte[] h264) throws Exception {
+        final long generation=30200;
+        final byte[] frame=packet(generation,110,1100,h264);
+        final ServerSocket server=new ServerSocket(0,1,java.net.InetAddress.getByName("127.0.0.1"));
+        server.setSoTimeout(3000);
+        final Throwable[] peerFailure=new Throwable[1];
+        Thread peer=new Thread(new Runnable() { public void run() {
+            try {
+                Socket accepted=server.accept(); accepted.setSoTimeout(3000);
+                OutputStream out=accepted.getOutputStream();
+                // Deliberately fragment the frame to exercise adapter partial reads.
+                for(int i=0;i<frame.length;i+=37) { int n=Math.min(37,frame.length-i); out.write(frame,i,n); out.flush(); }
+                accepted.shutdownOutput(); accepted.close();
+            } catch(Throwable t) { peerFailure[0]=t; }
+        }},"r7c3-native-socket-peer");
+        long p=NativeBridge.nativeAttachSurface(primary,generation,110,8101);
+        long s=NativeBridge.nativeAttachSurface(secondary,generation,111,8102);
+        long receiver=NativeBridge.nativeCreateReceiver(generation,p,s,true);
+        if(!NativeBridge.nativeSetup(receiver,generation,1100,1101,true)) throw new IllegalStateException("socket receiver SETUP failed");
+        int fdBefore=new File("/proc/self/fd").list().length;
+        peer.start();
+        boolean accepted=R7C3TestBridge.receiveSocketFrame(receiver,generation,"127.0.0.1",server.getLocalPort(),3000);
+        peer.join(4000); server.close();
+        if(!accepted || peer.isAlive() || peerFailure[0]!=null) throw new IllegalStateException("native socket LAB frame did not reach ReceiverGeneration");
+        NativeBridge.nativeDisconnect(receiver); NativeBridge.nativeReleaseReceiver(receiver);
+        NativeBridge.nativeReleaseSurface(p); NativeBridge.nativeReleaseSurface(s);
+        requireNativeZero("native socket receiver cleanup");
+        int fdAfter=new File("/proc/self/fd").list().length;
+        if(fdAfter>fdBefore+1) throw new IllegalStateException("native socket retained descriptors before="+fdBefore+" after="+fdAfter);
+        record("NATIVE_POSIX_SOCKET_JNI_RECEIVER=PASS protocol=LAB_LOOPBACK fdBefore="+fdBefore+" fdAfter="+fdAfter);
+    }
+
+    private void exerciseJniExceptionSeams() {
+        boolean pending=false;
+        try { R7C3TestBridge.pendingExceptionProbe(); }
+        catch(IllegalArgumentException expected) { pending=expected.getMessage().contains("R7C3 pending-exception probe"); }
+        if(!pending) throw new IllegalStateException("JNI-created pending exception was not preserved");
+        boolean lookup=false;
+        try { R7C3TestBridge.lookupFailureProbe(); }
+        catch(ClassNotFoundException expected) { lookup=true; }
+        if(!lookup) throw new IllegalStateException("JNI lookup exception was not preserved");
+        record("JNI_PENDING_EXCEPTION=PASS JNI_LOOKUP_FAILURE=PASS");
     }
 
     private byte[] fixture(String name) throws Exception {

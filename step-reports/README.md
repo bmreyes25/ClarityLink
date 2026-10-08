@@ -1,3 +1,7 @@
+## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
+
+See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI native-socket/exception seams and native builds added; APK/Dalvik, complete races/faults, final 100-cycle run, and exact-head hosted checks remain open.
+
 ## Current / latest milestones
 
 - [43T1-R7C2 — Android API17 runtime integration closure](43t1-r7c2-android-runtime-integration-closure.md) — actual API17 Dalvik x86 JNI/Surface/Presentation and selected Java adapter execution; 100 receiver cycles with zero native resource counters; R7C remains partial and R7D gate closed.
