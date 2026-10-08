@@ -24,12 +24,12 @@ Offline API17/Android 4.2.2 x86 Dalvik emulator; synthetic media; actual product
 
 ## Final local gate status
 
-All R7D runtime and repository checks pass. The 14.405 FPS result remains below the near-30-FPS target and is a documented performance limitation; both streams continued for the full duration without delivery failure or FD/native-owner leak. PR #18's Offline CI and CodeQL passed on its exact head. A final documentation-only status refresh is being rechecked against the resulting head.
+All R7D runtime and repository checks pass. The 14.405 FPS result remains below the near-30-FPS target and is a documented performance limitation; both streams continued for the full duration without delivery failure or FD/native-owner leak. PR #18's exact-head Offline CI and CodeQL passed.
 
 Post-long-run R7C API17 default regression also passed: 100 cycles; Type110 and Type111 H.264 Surface posts; responsive main-looper heartbeat; cumulative race suite with 25 Type111 Surface, 25 Presentation, and 25 peer-close cases; Activity destruction; `RESULT=PASS`, `ERROR=NONE`.
 
 Repository suite: 901 passed, 15 skipped. Host socket ASan/UBSan and TSan passed; integrated adapter ASan/UBSan and TSan passed. API17 x86 build passed. API17 ARMv7 build/import audit had zero unknown imports and excluded both test-only bridge methods; artifact SHA-256 `ebba888796584d583493194155a0f997e6ac279f5da89e1271ac4030509d19c9`. Repository health and `git diff --check` passed.
 
-Next: finish the documentation-only verification record and rerun hosted checks on that final PR head. If they pass, recommend `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. R7D itself authorizes no Honda or vehicle execution.
+Next action: `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. R7E preparation only; R7D itself authorizes no Honda or vehicle execution.
 
 R7D does not establish Honda factory restoration, Honda display behavior, real CarPlay, or MFi authority. See linked `research/runtime/r7d-*` evidence.
