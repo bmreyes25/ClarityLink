@@ -1,6 +1,6 @@
 # R7E evidence capture package
 
-R7E2 A0-R and A0-W fields are in [A0 evidence capture](r7e2-test-a0-evidence-capture.md). Keep target identity private/redacted; these are separate authorization scopes and neither authorizes Test A.
+R7E2 A0-R and A0-W fields are in [A0 evidence capture](r7e2-test-a0-evidence-capture.md). The R7E3 collector records these observations locally and adds command IDs, timestamps, exit statuses, full output, classifications, collector/plan IDs, repository HEAD, and redacted target identity. See the [R7E3 design](r7e3-a0r-collector-design.md) and [authorization packet](r7e3-a0r-authorization-packet.md). Keep target identity private/redacted; these are separate authorization scopes and neither authorizes Test A.
 
 Use one sanitized record per separately authorized test. Store raw logs/captures locally under approved handling; commit only redacted summaries and hashes.
 

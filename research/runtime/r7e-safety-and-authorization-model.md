@@ -20,6 +20,8 @@ R7D's `14.405 FPS` is retained as an emulator/software limitation against the re
 
 R7E2 adds `A0-R` as separately authorized Tier 1 read-only inventory and `A0-W` as separately authorized Tier 2 one-marker write/delete, only if A0-R requires it. Neither authorizes Test A. Test A execution is separately authorized Tier 2. `EXEC_PERMISSION_IS_TEST_A_MEASUREMENT`: successful executable mapping is the result, provided A0-R reveals no known mount/policy blocker. `SPECIFIC_SAFE_POWER_STATE_SUFFICIENT`: require a separately approved operator-observed state, stationary/parked vehicle, fully booted head unit, normal cluster/no warnings, unique target and immediate stop capability; proving a theoretical minimum is unnecessary.
 
+R7E3 freezes A0-R in the host-side collector and hash-pinned manifest. The default is `NOT_AUTHORIZED`; the explicit runtime flag is a conscious local gate only and never represents user authorization. No collector path can enter A0-W or Test A.
+
 An authorization applies only to the named test and exact artifact, commands, state, and rollback. Test A approval does not approve B–H. Enumeration does not approve Presentation admission. Admission does not approve rendering.
 
 ## Global stop and rollback boundary

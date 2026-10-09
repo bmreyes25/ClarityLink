@@ -50,6 +50,12 @@
 
 # Evidence index
 
+## R7E3 A0-R execution package (2026-10-08)
+
+- [R7E3 milestone report](step-reports/43t1-r7e3-a0r-execution-package.md): frozen host-side read-only collector and fixtures; A0-R not executed.
+- [Collector design](research/runtime/r7e3-a0r-collector-design.md), [command manifest](research/runtime/r7e3-a0r-command-manifest.md), and [plan manifest](research/runtime/r7e3-a0r-plan-manifest.json): allowlist, exact source/plan hashes, stop rules, ECC audit and redaction.
+- [Authorization packet](research/runtime/r7e3-a0r-authorization-packet.md), [runbook](research/runtime/r7e3-a0r-runbook.md), [test results](research/runtime/r7e3-a0r-test-results.md), and [readiness decision](research/runtime/r7e3-a0r-readiness-decision.md): separate authorization remains required; A0-W and Test A cannot auto-chain.
+
 ## R7E parked-car compatibility preparation (2026-10-08)
 
 - [R7E milestone report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md): historical starting state; superseded by R7E1 artifact closure and evidence-blocked readiness.

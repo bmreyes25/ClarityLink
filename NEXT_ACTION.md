@@ -1,6 +1,6 @@
-## Current next action — R7E2 exact-head verification, then A0-R authorization
+## Current next action — separate explicit A0-R authorization decision
 
-Decision: `R7E_TEST_A0_READONLY_PREFLIGHT_READY`. ECC resolves exec permission as a Test A measurement and specific approved observed power state as sufficient; A0-R is needed for current destination/mount/SELinux/state facts. A0-W is conditional and separately authorized. After exact-head verification, first next action is a separate explicit A0-R authorization decision. No Honda action is authorized now. See [R7E2 report](step-reports/43t1-r7e2-test-a-evidence-closure.md).
+Decision: `R7E_A0R_EXECUTION_PACKAGE_READY`. The frozen host collector is disabled by default and has not been run on a Honda. First separately authorizable action remains A0-R only, requiring a new explicit user authorization tied to the exact R7E3 commit and plan-manifest SHA-256. Authorization is not currently granted. A0-W remains `BLOCKED_BY_A0_R_RESULT`; Test A remains `BLOCKED_BY_A0` / `NOT_AUTHORIZED`. Stop offline coding and wait for that decision. See [R7E3 report](step-reports/43t1-r7e3-a0r-execution-package.md) and [authorization packet](research/runtime/r7e3-a0r-authorization-packet.md).
 
 # Next action
 

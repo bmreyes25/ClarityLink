@@ -55,6 +55,10 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 # Step reports
 
+## 43T1 R7E3 — A0-R execution package ready
+
+See [R7E3 report](43t1-r7e3-a0r-execution-package.md): host-only A0-R collector/manifest and authorization packet prepared and fixture-tested. The tool is disabled by default; no Honda operation occurred. First separately authorizable step is A0-R only, requiring new explicit user authorization.
+
 ## 43t1 R7E — Parked-car compatibility preparation (blocked)
 
 R7E1 supersedes the original artifact blocker: see [R7E1 milestone report](43t1-r7e1-target-diagnostic-artifact-closure.md). The original [R7E preparation report](43t1-r7e-parked-car-compatibility-preparation.md) records its historical starting state. Test A remains evidence-blocked and unauthorized; no Honda or vehicle action occurred.

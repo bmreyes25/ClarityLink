@@ -1,4 +1,8 @@
-# Current project state — R7E1 artifact complete; Test A evidence blocked
+# Current project state — R7E3 A0-R package prepared; no target execution
+
+R7E3 converts the reviewed A0-R plan into a hash-pinned host-only collector, synthetic fixtures, authorization packet, and runbook. Decision: `R7E_A0R_EXECUTION_PACKAGE_READY`; first separately authorizable action is A0-R only, but **no authorization has been granted**. Collector default is `NOT_AUTHORIZED`; dry-run performs zero ADB calls. A0-W remains `BLOCKED_BY_A0_R_RESULT`; Test A remains `BLOCKED_BY_A0` / `NOT_AUTHORIZED`. R7E2 implementation HEAD was `b39f7c445f8cb1dc603affdf2d09976cfba3a4df`; final pushed/verified HEAD was `fc2eceef2ab53c0d8ea3141f24f1571aee3802e8`, with Offline CI and CodeQL passing on that exact head. PR #19 stays open. No Honda action occurred. See [R7E3 report](step-reports/43t1-r7e3-a0r-execution-package.md).
+
+## R7E1 historical state — superseded by R7E2/R7E3
 
 R7E1 uses split diagnostics: a minimal API17/ARMv7 Test A CLI and a separate API17 display APK. Offline build, ELF/API17 import audit, APK build, mode checks, isolated API17 x86 runtime, 100 cycles, and host ASan/UBSan passed. Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Test A remains `BLOCKED_BY_EVIDENCE` / `NOT_AUTHORIZED`: destination semantics, ordinary-shell sufficiency, minimum head-unit power state, and exact commands/rollback are unknown. PR #19 remains open; exact-head checks are pending after push. No Honda/vehicle/physical-device/iPhone/MFi/CarPlay execution occurred.
 

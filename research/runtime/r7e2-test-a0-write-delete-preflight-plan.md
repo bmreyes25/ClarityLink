@@ -8,6 +8,8 @@ If A0-R confirms the path and ordinary-shell context are suitable but write/dele
 
 ## Gate and naming
 
+A0-W remains `BLOCKED_BY_A0_R_RESULT` and requires separate Tier 2 authorization. It becomes relevant for review only when actual reviewed A0-R evidence reports the candidate destination present, observes UID-2000 ordinary shell and the expected platform, identifies no `/data` `noexec` blocker, and still leaves write/delete unproven. A missing/mismatched destination, elevated/unknown shell, platform mismatch, `noexec`, ambiguous target, command failure, or stop condition does not justify progressing to A0-W. Even a favorable A0-R result never authorizes A0-W automatically.
+
 Select destination only from reviewed A0-R result. Do not default to `/data/local/tmp` if absent/different. The future exact path is `DESTINATION_FROM_APPROVED_A0_RESULT/claritylink_a0_<approved_nonce>.probe`. Nonce must be precomputed offline and unique; no runtime timestamp/shell expansion. Check exact path absence before create; if it exists, STOP. Commands below are design patterns, not runnable approval; final literal sequence is produced only after A0-R and separate A0-W authorization.
 
 ## Proposed minimum operation (NOT EXECUTED)

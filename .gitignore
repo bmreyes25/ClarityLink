@@ -65,6 +65,7 @@
 !/tools/step43t0d_offline.py
 !/tools/step43t0d3_netcfg_plan.py
 !/tools/step43t0d3_static_review.py
+!/tools/r7e_a0r_collector.py
 !/tools/honda-readonly-preflight/
 !/tools/honda-readonly-preflight/**
 /tools/honda-readonly-preflight/__pycache__/
