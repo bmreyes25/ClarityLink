@@ -18,3 +18,8 @@ All tests are `NOT_AUTHORIZED`. Plan readiness never authorizes execution.
 R7E executed **zero** Honda/ADB/vehicle commands. Every future command must appear in the individually reviewed test document with literal values and a per-command account of reads, writes, processes started/stopped, files created/modified/removed, display changes, listeners, and privilege. No exact target commands are prepared where artifact, destination, display ID, or environment values are unknown. No placeholders conceal writes. This makes A non-ready until the offline artifact and target-independent values exist.
 
 R6D's no-supported-factory-session-handoff finding is retained; no plan assumes stock `jmcs` hands an authenticated session to ClarityLink. CPC200 is not a dependency for A–G.
+
+
+## R7E1 status correction
+
+All tests remain `NOT_AUTHORIZED`. Test A's artifact/build/import/dependency/offline-test prerequisite is now closed: SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`, API17/ARMv7, zero unknown dependencies/imports, 100 isolated runtime cycles. A remains `BLOCKED_BY_EVIDENCE` for temporary destination semantics, ordinary-shell privilege sufficiency, minimum head-unit power state, literal commands, and exact rollback. B–D reference the separate APK but remain blocked by prior tests and Honda installation/admission evidence. E remains evidence blocked; F partial; G keeps 14.405 FPS emulator `PERFORMANCE_UNRESOLVED`; H `AUTHORITY_REQUIRED`.

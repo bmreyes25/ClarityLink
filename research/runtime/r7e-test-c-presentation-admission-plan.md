@@ -12,3 +12,8 @@
 **Safety/stop/rollback:** safe area, crop and warning z-order remain UNKNOWN. No geometry claims or screenshot-derived bounds. Stop immediately on unexpected visible content, warning/cluster change, instability, or resource cleanup failure. Dismiss Presentation, release Surface/ANativeWindow, stop process, verify no owner remains and check normal center UI, cluster, warnings and audio.
 
 **Success:** explicit state diagnostics reach only the individually recorded admission/Surface stages. It does not prove safe region or visible rendering. **Readiness:** `BLOCKED_BY_PRIOR_TEST`; requires separately authorized Test A and Test B passes. No current authorization.
+
+
+## R7E1 update
+
+Presentation preflight is implemented only in the separate API17 diagnostic APK, with explicit `PRESENTATION_PREFLIGHT`, offline emulator acknowledgement, and guest-emulator identity gate. An isolated API17 x86 synthetic display reached shown/surface-created and clean teardown without posting frame content. Honda warning coexistence, safe area, display identity, package installation, and admission remain unproven; Test C is `NOT_AUTHORIZED`.

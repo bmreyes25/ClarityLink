@@ -14,3 +14,8 @@
 **Stop conditions:** any failed close, persistent process/file, warning or UI anomaly, audio loss, or mismatch triggers stop and only preapproved rollback. Exact Test F execution is coupled to the separately authorized preceding test; it grants no new test authority.
 
 **Success:** all owned-resource checks pass and stock behavior is observed after that run. Repetition and adequate evidence remain necessary before stronger restoration claims. **Readiness:** `PLAN_PARTIAL`, blocked on a built artifact, future authorized predecessor, concrete rollback commands, and target observation.
+
+
+## R7E1 update
+
+The known Test A process name is `claritylink-target-diag`; artifact SHA-256 is `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`. Future rollback must target only that process and exact transferred file, verify process/file/resource absence, and observe stock center UI, cluster, warnings, and audio. The candidate path lacks live semantics evidence, so exact cleanup commands and factory restoration remain unproven. Emulator cleanup is not Honda restoration evidence.

@@ -1,6 +1,10 @@
 # R7E target diagnostic artifact
 
-**Status:** `R7E_TARGET_ARTIFACT_BLOCKED` — no R7E artifact was built or audited.
+**Status:** Superseded by R7E1. The offline artifact blocker is closed; Test A remains blocked on target-only evidence. See [R7E1 artifact architecture](r7e1-target-artifact-architecture.md), [manifest](r7e1-target-artifact-manifest.md), and [readiness decision](r7e1-test-a-readiness-decision.md).
+
+## R7E1 update (2026-10-08)
+
+The singular proposal has been replaced with split `TEST_A_NATIVE_DIAGNOSTIC` and `TEST_B_D_ANDROID_DIAGNOSTIC` artifacts. ARMv7/API17 CLI build, ELF/API17 import audit, static negative audit, offline mode checks, 100-cycle x86 API17 runtime, and separate emulator-only APK display checks passed. Build products remain ignored and are not committed. Target installation/execution is not authorized. The historical blocked status below records the original R7E state only.
 
 ## Intended contract
 

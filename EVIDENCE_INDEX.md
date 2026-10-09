@@ -1,3 +1,9 @@
+# R7E1 current evidence — 2026-10-08
+
+- [R7E1 milestone report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md) — split artifact closure; Test A remains evidence-blocked and unauthorized.
+- [Artifact architecture](research/runtime/r7e1-target-artifact-architecture.md), [manifest](research/runtime/r7e1-target-artifact-manifest.md), [ELF audit](research/runtime/r7e1-target-artifact-elf-audit.md), [offline tests](research/runtime/r7e1-target-artifact-offline-tests.md), [target evidence review](research/runtime/r7e1-test-a-target-evidence-review.md), [readiness](research/runtime/r7e1-test-a-readiness-decision.md).
+- [Pinned NDK provenance](research/runtime/r7e1-ndk-toolchain.md). Target execution remains unauthorized; no Honda action occurred.
+
 # R7C4 final Android integration closure — 2026-10-07
 
 - [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.
@@ -46,7 +52,7 @@
 
 ## R7E parked-car compatibility preparation (2026-10-08)
 
-- [R7E milestone report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md): R7D merge/start SHA, exact-head gate, preparation-only scope, and `R7E_TARGET_ARTIFACT_BLOCKED` decision.
+- [R7E milestone report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md): historical starting state; superseded by R7E1 artifact closure and evidence-blocked readiness.
 - [Safety and authorization model](research/runtime/r7e-safety-and-authorization-model.md), [test authorization matrix](research/runtime/r7e-test-authorization-matrix.md), and [first-test readiness](research/runtime/r7e-first-test-readiness.md): tiering, authorization boundaries, ECC review, and Test A blocker.
 - [Test plans A–D](research/runtime/r7e-test-a-executable-acceptance-plan.md), [B](research/runtime/r7e-test-b-display-enumeration-plan.md), [C](research/runtime/r7e-test-c-presentation-admission-plan.md), [D](research/runtime/r7e-test-d-single-frame-render-plan.md), [E](research/runtime/r7e-test-e-warning-coexistence-plan.md), [F](research/runtime/r7e-test-f-restoration-plan.md), [G](research/runtime/r7e-test-g-performance-plan.md), [H](research/runtime/r7e-test-h-real-carplay-preflight.md): individually gated, not authorized.
 - [Target diagnostic artifact](research/runtime/r7e-target-diagnostic-artifact.md) and [dependency audit](research/runtime/r7e-target-dependency-audit.md): no artifact built; NDK r23c not configured.

@@ -1,3 +1,7 @@
+# Current project state — R7E1 artifact complete; Test A evidence blocked
+
+R7E1 uses split diagnostics: a minimal API17/ARMv7 Test A CLI and a separate API17 display APK. Offline build, ELF/API17 import audit, APK build, mode checks, isolated API17 x86 runtime, 100 cycles, and host ASan/UBSan passed. Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Test A remains `BLOCKED_BY_EVIDENCE` / `NOT_AUTHORIZED`: destination semantics, ordinary-shell sufficiency, minimum head-unit power state, and exact commands/rollback are unknown. PR #19 remains open; exact-head checks are pending after push. No Honda/vehicle/physical-device/iPhone/MFi/CarPlay execution occurred.
+
 ## R7C2 Android API17 runtime integration — partial — 2026-10-07
 
 Continued PR #17 from exact candidate `9ee07dac2b6eda842567b8dbdb3a36cdd7336e54`. Actual Android 4.2.2/API17 Dalvik ran on an isolated x86 emulator. The real JNI bridge, DisplayManager/Presentation/Surface path, ANativeWindow sink, H.264 Type110/Type111 outputs, and selected Java adapters were exercised; 100/100 runtime cycles returned test-build native resource counters to zero. This is `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`, not ARM runtime or Honda proof. Production ARMv7/API17 remains separately build-confirmed.
@@ -14,7 +18,7 @@ R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`; R7C started at 
 
 # ClarityLink project state
 
-## R7E parked-car compatibility preparation — artifact blocked — 2026-10-08
+## Original R7E parked-car compatibility preparation state — superseded by R7E1 — 2026-10-08
 
 R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`; R7E starts cleanly from that exact commit. Preparation documents define separate Tests A–H, write/command gates, safety/rollback/stop conditions, evidence capture and authorization states. Test A is `BLOCKED_BY_EVIDENCE`: the R7E-specific fail-closed API17/ARMv7 diagnostic was not built or audited because NDK r23c is not configured. Decision `R7E_TARGET_ARTIFACT_BLOCKED`; this is not a Honda compatibility result and does not authorize Test A. No Honda/vehicle/physical device/iPhone/MFi/CarPlay action or Honda write occurred. R7D's 14.405 FPS remains emulator-only. See [R7E report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md) and [readiness](research/runtime/r7e-first-test-readiness.md).
 

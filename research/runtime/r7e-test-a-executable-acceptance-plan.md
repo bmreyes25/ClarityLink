@@ -1,13 +1,13 @@
 # R7E Test A — temporary executable acceptance plan
 
-**Plan state:** `BLOCKED_BY_EVIDENCE` / `NOT_AUTHORIZED`  
+**Plan state:** `BLOCKED_BY_EVIDENCE` / `NOT_AUTHORIZED` (R7E1 artifact blocker closed; target evidence blockers remain).
 **Risk:** Tier 2 (temporary project process/file).  
 **Question:** Can the project-owned API17/ARMv7 diagnostic start and terminate cleanly on the Honda platform, without display, USB/iAP2, or CarPlay behavior?
 
 ## Blockers and prerequisites
 
-1. Build the R7E-specific fail-closed diagnostic offline and record its exact SHA-256, ELF32 ARM EABI5 ABI, API17 imports, dependencies, and manifest. It does not currently exist.
-2. Complete its no-argument, self-test, invalid-mode, bounded-resource, and shutdown tests offline.
+1. **Closed offline:** build/audit split artifact; Test A CLI SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`; ELF32 ARM EABI5/API17; 10 imports, zero unknown; dependencies `libdl.so` and `libc.so`.
+2. **Closed offline:** no-argument, help/version/status/self-test, invalid-mode, bounded-resource, and 100-cycle checks passed; see R7E1 offline test report.
 3. Establish an exact temporary destination and prove its write/delete semantics. `/data/local/tmp` is only a candidate and remains `EVIDENCE_REQUIRED`.
 4. Establish minimum head-unit power state from evidence. Current evidence does not distinguish accessory/ON/READY: `VEHICLE_POWER_STATE_REQUIRES_CONFIRMATION`.
 5. Have a separately reviewed, exact Test A plan and explicit Test A authorization.

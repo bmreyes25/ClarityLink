@@ -2,6 +2,10 @@
 
 Use one sanitized record per separately authorized test. Store raw logs/captures locally under approved handling; commit only redacted summaries and hashes.
 
+## R7E1 Test A fields
+
+Record native artifact `claritylink-target-diag`, SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`, build source `5b1d490`, expected identity `CLARITYLINK_DIAG_VERSION=1.0.0`, `API_TARGET=17`, `ABI=armeabi-v7a`. Expected self-test markers: `SELF_TEST_BEGIN`, `RESOURCE_COUNTS final=0`, `SELF_TEST_PASS`. Exact future command/path and expected invocation result remain unset until destination, privilege, power state, and rollback evidence are established. Expected execution in R7E1: NONE.
+
 ```text
 test_id:
 date_time_timezone:

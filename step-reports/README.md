@@ -1,3 +1,7 @@
+## 43T1 R7E1 — target diagnostic artifact closure (2026-10-08)
+
+Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Split API17/ARMv7 native Test A CLI and separate API17 emulator-only display APK built and audited offline; exact target destination/power/privilege/command/rollback evidence remains blocked. No Honda, vehicle, physical Android device, real iPhone, MFi, or live CarPlay execution occurred. See [R7E1 report](43t1-r7e1-target-diagnostic-artifact-closure.md) and `../research/runtime/r7e1-*`.
+
 ## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
 
 See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI native-socket/exception seams and native builds added; APK/Dalvik, complete races/faults, final 100-cycle run, and exact-head hosted checks remain open.
@@ -53,7 +57,7 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 ## 43t1 R7E — Parked-car compatibility preparation (blocked)
 
-Decision: `R7E_TARGET_ARTIFACT_BLOCKED`. R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`; R7E preparation started at that SHA. Individually gated A–H plans are documented, but Test A remains blocked because no R7E diagnostic artifact was built/audited (NDK r23c unavailable in the environment). No Honda or vehicle action occurred. See [milestone report](43t1-r7e-parked-car-compatibility-preparation.md) and `research/runtime/r7e-*`.
+R7E1 supersedes the original artifact blocker: see [R7E1 milestone report](43t1-r7e1-target-diagnostic-artifact-closure.md). The original [R7E preparation report](43t1-r7e-parked-car-compatibility-preparation.md) records its historical starting state. Test A remains evidence-blocked and unauthorized; no Honda or vehicle action occurred.
 
 - [43T1 staged prototype discipline rules v2](43t1-rules-v2-staged-prototype-discipline.md) — governance update; no car experiment authorized
 

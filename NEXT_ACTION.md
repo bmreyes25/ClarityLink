@@ -1,6 +1,10 @@
+## Current next action — R7E1 exact-head verification
+
+Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Test A native artifact and isolated display APK are built/audited offline; target destination, privilege, minimum power state, literal execution commands, and exact rollback remain evidence-blocked. Commit the documentation/readiness update, push PR #19, and verify Offline CI and CodeQL on the exact new head. Do not merge automatically. No Honda action is authorized. See [R7E1 report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md).
+
 # Next action
 
-## Current next action — R7E target diagnostic artifact (blocked)
+## Original R7E state — superseded by R7E1
 
 R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a` after verification of exact head `afbdae970c07ee0fdc180169c020db4078a38b6c` (Offline CI and CodeQL passed). R7E started cleanly from the merge SHA. Preparation-only plans for Tests A–H are recorded. Test A is `BLOCKED_BY_EVIDENCE`: the R7E diagnostic artifact has not been built or audited, and pinned NDK r23c is not configured. Decision: `R7E_TARGET_ARTIFACT_BLOCKED`; no Honda/vehicle/device/iPhone/CarPlay execution or Honda writes occurred. **NEXT:** configure NDK r23c offline and implement/build/audit the minimal fail-closed API17/ARMv7 diagnostic. This does not authorize Test A. See [R7E report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md) and [first-test readiness](research/runtime/r7e-first-test-readiness.md).
 

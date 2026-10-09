@@ -1,6 +1,10 @@
 # R7E target dependency audit
 
-**Status:** `BLOCKED_BY_ARTIFACT`. No R7E target diagnostic was built, so there is no NEEDED/import list to classify.
+**Status:** R7E1 artifact dependency audit complete; Test A has zero unknown dependencies/imports. See [R7E1 ELF audit](r7e1-target-artifact-elf-audit.md). The historical blocked status below describes the original R7E baseline.
+
+## R7E1 audit result
+
+Test A NEEDED: `libdl.so`, `libc.so` (`API17_STANDARD`). Ten imported symbols were checked against NDK r23c API17 stubs; all are `API17_AVAILABLE`, zero unknown. No project-bundled or Honda-static dependency is present. Separate display APK uses Android framework APIs and production R7C display adapter classes; it is only exercised on an isolated emulator and has no declared permissions. Honda execution remains unauthorized.
 
 | Dependency class | Current evidence | Classification / action |
 |---|---|---|

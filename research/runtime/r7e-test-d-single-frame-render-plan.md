@@ -14,3 +14,8 @@
 **Stop/rollback:** any warning/interrupt change, unexpected display coverage, center-display instability, cluster corruption, UI/audio instability, or cleanup failure ends the test. Clear frame, dismiss Presentation, release native resources, stop process; verify resource absence and normal center UI, cluster, warning, and audio behavior.
 
 **Success:** human-visible frame observation with timestamp, state logs, and resource counters, classified only `HONDA_PROTOTYPE_OBSERVED` for this precise setup. **Readiness:** `BLOCKED_BY_PRIOR_TEST`; A/B/C each require separate authorization/pass. Not authorized.
+
+
+## R7E1 update
+
+The separately built APK supports explicit `SINGLE_FRAME_DIAGNOSTIC` only on an identified x86 emulator with explicit offline acknowledgement. Its generated geometric PNG is 800×480 RGBA8, SHA-256 `02730d7e4ee85464f9cd0656e7c8cb64a8427d7dbd0044ba4937c5ff8246a320`; isolated API17 test posted one frame and cleared/released it. This is not Honda safety approval. Test D remains `NOT_AUTHORIZED`; installation, admission, safe area, crop, warning coexistence, and target rollback are unresolved.

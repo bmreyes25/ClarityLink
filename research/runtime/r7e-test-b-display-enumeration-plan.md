@@ -13,3 +13,8 @@
 **Stop/rollback:** global stop conditions apply. Terminate the diagnostic and verify no process/resource remains; verify normal center UI, cluster, warnings, and audio. Do not proceed to C on a mere second-display listing.
 
 **Success:** candidate secondary display properties are captured with provenance and classified `HONDA_PROTOTYPE_OBSERVED`; this means enumeration only. **Failure:** no candidate, unstable data, or unexpected side effects; stop. **Readiness:** `BLOCKED_BY_PRIOR_TEST`; Test A has not passed and is not authorized.
+
+
+## R7E1 update
+
+Separate B–D artifact: `claritylink-r7e1-display-diagnostic.apk`, SHA-256 `c92f103b49fae2cfd6aa8863a27448042d282708ffec3f5f5c4000c0e6528f5c`, min/target SDK 17. Explicit mode: `DISPLAY_ENUMERATION`. API17 emulator enumeration passed. Honda package installation and Test B remain `NOT_AUTHORIZED`; package installation mechanism and all prior-test gates remain unresolved. See R7E1 manifest.
