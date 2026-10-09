@@ -4,7 +4,7 @@
 **Starting HEAD:** `fc2eceef2ab53c0d8ea3141f24f1571aee3802e8`  
 **Implementation HEAD:** `216c5584479eec9b220859438a4029e04ed4faad`
 
-**Final verification HEAD:** pending exact-head checks
+**Final verification HEAD:** `fdded099597d5f663434da2a9fb3331083cb7de3`
 **Branch:** `architecture/r7e-parked-car-compatibility-preparation`  
 **PR:** #19, remains open  
 **Scope:** host/offline preparation only. A0-R was not executed.
@@ -27,10 +27,13 @@ Target selection requires one and only one listed `device`; zero, multiple, offl
 - Canonical repository suite: 893 passed, 17 skipped.
 - Self-locator smoke: 3 passed.
 - Simulator checks: passed (three simulator checks and Type111 failure twin).
-- Repository health: to be recorded after all R7E3 reports are indexed.
+- Repository health: passed; 789 Markdown files, 154 indexed reports, 0 curated broken links, 0 forbidden extensions.
 - `git diff --check`: passed.
 - ShellCheck: unavailable; no dependency installed for it.
-- Offline CI / CodeQL: to be recorded for the exact final pushed head.
+- Offline CI: passed on exact head `fdded099597d5f663434da2a9fb3331083cb7de3`.
+- CodeQL: passed on exact head `fdded099597d5f663434da2a9fb3331083cb7de3`.
+
+PR #19 remained OPEN and MERGEABLE at the exact verification head. This report-only follow-up records the result; the collector source is pinned to implementation commit `216c5584479eec9b220859438a4029e04ed4faad`.
 
 The system Python initially lacked pytest; a temporary external virtual environment was used, with the repository's pinned pytest range and required `cryptography` dependency. No project dependency or lockfile was changed.
 
