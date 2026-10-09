@@ -1,6 +1,6 @@
 ## Current roadmap — R7E4 exact-head validation
 
-1. R7E4 implementation head `47605adad4e83faa8e05e028cd46282848546139` passed Offline CI and CodeQL; PR #19 is OPEN and MERGEABLE.
+1. R7E4 implementation head `47605adad4e83faa8e05e028cd46282848546139` and final PR verification head `3133e36f82b86ed2fa1a0963115f6745ae752b6c` passed Offline CI and CodeQL; PR #19 is OPEN and MERGEABLE.
 2. Decision: `R7E_A0R_RESEARCH_HARDENED_READY`; next action `READY_FOR_EXPLICIT_USER_A0R_AUTHORIZATION`, A0-R only.
 3. Review actual A0-R evidence before considering A0-W; Test A remains separately authorized and blocked.
 

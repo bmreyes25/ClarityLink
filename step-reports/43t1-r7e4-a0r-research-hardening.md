@@ -1,8 +1,8 @@
 # 43T1-R7E4 — A0-R research-backed hardening (offline)
 
 **Starting HEAD:** `69f928368edcc13df80bee37bf3b19f621cf2b9f`
-**Implementation / exact verification HEAD:** `47605adad4e83faa8e05e028cd46282848546139`
-**Final verification HEAD:** `47605adad4e83faa8e05e028cd46282848546139`
+**Implementation HEAD:** `47605adad4e83faa8e05e028cd46282848546139`
+**Final verification HEAD:** `3133e36f82b86ed2fa1a0963115f6745ae752b6c`
 **PR:** [#19](https://github.com/bmreyes25/ClarityLink/pull/19), OPEN and MERGEABLE at the verified head
 **Decision:** `R7E_A0R_RESEARCH_HARDENED_READY`.
 
@@ -24,4 +24,4 @@ The old manifest SHA `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3
 - A0-R/A0-W/Test A: not executed.
 - Honda commands: none.
 
-**Exact-head hosted checks at `47605adad4e83faa8e05e028cd46282848546139`: Offline CI PASS; CodeQL PASS across all configured language scans.**
+**Exact-head hosted checks:** Implementation head `47605adad4e83faa8e05e028cd46282848546139` and final PR head `3133e36f82b86ed2fa1a0963115f6745ae752b6c` both passed Offline CI and CodeQL across all configured language scans.

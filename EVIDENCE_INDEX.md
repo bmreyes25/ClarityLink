@@ -6,7 +6,7 @@
 | A0-R collector | [Collector design](research/runtime/r7e3-a0r-collector-design.md); [manifest](research/runtime/r7e3-a0r-plan-manifest.json) | Six metadata-only future tool checks; SELinux unavailable informational; `/data` noexec blocks; zero target writes |
 | Test A artifact mode/hash | [Artifact manifest](research/runtime/r7e1-target-artifact-manifest.md); `tools/check_r7e1_target_diag_artifact.py` | SHA-256 canonical; MD5 transport-only; local mode 0755 verified |
 | A0-W / Test A planning | [A0-W plan](research/runtime/r7e2-test-a0-write-delete-preflight-plan.md); [Test A plan](research/runtime/r7e-test-a-executable-acceptance-plan.md) | One inert ADB-sync marker proposed; no target chmod assumed; all target actions unauthorized |
-| Verification | [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md) | 919 passed / 15 skipped; self-locator 3 passed; simulator checks and repo health passed; Offline CI and CodeQL PASS on exact implementation head `47605adad4e83faa8e05e028cd46282848546139`; PR #19 OPEN and MERGEABLE |
+| Verification | [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md) | 919 passed / 15 skipped; self-locator 3 passed; simulator checks and repo health passed; Offline CI and CodeQL PASS on final exact PR head `3133e36f82b86ed2fa1a0963115f6745ae752b6c`; PR #19 OPEN and MERGEABLE |
 | Decision | [R7E4 decision](research/runtime/r7e4-research-hardening-decision.md) | `R7E_A0R_RESEARCH_HARDENED_READY`; first separately authorizable action A0-R only |
 
 # R7E1 current evidence — 2026-10-08
@@ -1109,7 +1109,7 @@ Honda-specific source notes remain separately indexed below; no external project
 | ABI/API audit | [ABI report](research/runtime/r7b-armv7-abi-report.md); [API audit](research/runtime/r7b-api17-compatibility-audit.md); [symbol list](research/runtime/r7b-api17-symbol-audit.json) | `ANDROID_ARMV7_BUILD_CONFIRMED`: ELF32 ARM EABI5; 114 imports match API17 stubs; only libc/libm/libdl NEEDED |
 | Decoder/dependency | [Decoder selection](research/runtime/r7b-decoder-selection.md) | FFmpeg 6.1.6 static H.264 decoder; no target runtime execution or Honda codec proof |
 | Adapter readiness | [Readiness inventory](research/runtime/r7b-target-readiness.md) | Honda adapters and real auth/security remain `EVIDENCE_REQUIRED`; interfaces are not vehicle implementations |
-| Local verification | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md) | Native 100 cycles, ASan/UBSan, TSan, full suite, health and diff checks; Offline CI and CodeQL PASS on exact implementation head `47605adad4e83faa8e05e028cd46282848546139`; PR #19 OPEN and MERGEABLE |
+| Local verification | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md) | Native 100 cycles, ASan/UBSan, TSan, full suite, health and diff checks; Offline CI and CodeQL PASS on final exact PR head `3133e36f82b86ed2fa1a0963115f6745ae752b6c`; PR #19 OPEN and MERGEABLE |
 # R7C5 — final software closure attempt (2026-10-08)
 
 | Evidence item | Source | Result / scope |

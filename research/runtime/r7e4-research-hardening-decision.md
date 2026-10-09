@@ -17,7 +17,7 @@ The existing manifest hash `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc
 - Artifact: SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`; MD5 `89ef2a0e432ef1501e8a5c0431f9e41f`; host mode `0755`.
 - Repository health: 792 Markdown files, 155 indexed reports, zero curated broken links, zero forbidden tracked extensions.
 - Self-locator: 3 passed. Simulator contract, dual-screen, guidance-expiry and Type111 failure-twin checks passed. `git diff --check` passed.
-- Exact implementation HEAD `47605adad4e83faa8e05e028cd46282848546139`: Offline CI PASS; CodeQL PASS for all configured language scans. PR #19 OPEN and MERGEABLE.
+- Implementation HEAD `47605adad4e83faa8e05e028cd46282848546139` and final PR verification HEAD `3133e36f82b86ed2fa1a0963115f6745ae752b6c`: Offline CI PASS; CodeQL PASS for all configured language scans. PR #19 OPEN and MERGEABLE.
 
 ## Safety result
 
