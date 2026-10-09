@@ -12,10 +12,10 @@
 
 Android 4.2.2 does not establish universal SELinux enforcement as a platform baseline; the AOSP toolbox's SELinux tools are build-conditional. Android's [SELinux platform documentation](https://source.android.com/docs/security/features/selinux) describes the later rollout, with SELinux in Android 4.3 and partial enforcement in 4.4. Vendor backports remain possible. Therefore a missing, denied, unreadable, or malformed `/sys/fs/selinux/enforce` result is `SELINUX_STATE_UNAVAILABLE`, informational only. It is not evidence of disabled or permissive state. A separately observed policy denial that blocks the proposed path remains a blocker.
 
-## LEGACY_ADB_IMPLEMENTATION
+## AOSP_DOCUMENTED — LEGACY_ADB_IMPLEMENTATION
 
 - **Client source revision:** AOSP `platform/system/core` commit `77d0c65b950570edd5241a8f2ebecfc3acbc5135`, [`adb/file_sync_client.c`](https://android.googlesource.com/platform/system/core/+/77d0c65b950570edd5241a8f2ebecfc3acbc5135/adb/file_sync_client.c). The sync client stats the local file and supplies its mode in `sync_send`.
-- The paired legacy file-sync service implementation at the same source revision parses the supplied mode, restricts it to permission bits, creates/opens the destination, and applies `fchmod`. This supports the design expectation that a local 0755 artifact can carry executable bits through ADB sync. It is implementation evidence, not proof of Honda vendor adbd behavior. Remote mode must be verified with `ls -l`; if not executable, stop.
+- The paired legacy file-sync service at the same revision ([`adb/file_sync_service.c`](https://android.googlesource.com/platform/system/core/+/77d0c65b950570edd5241a8f2ebecfc3acbc5135/adb/file_sync_service.c)) parses the supplied mode, restricts it to permission bits, creates/opens the destination, and applies `fchmod`. This supports the design expectation that a local 0755 artifact can carry executable bits through ADB sync. It is implementation evidence, not proof of Honda vendor adbd behavior. Remote mode must be verified with `ls -l`; if not executable, stop.
 - SHA-256 is the canonical identity. MD5 is an optional transport-consistency comparison only, never cryptographic authenticity.
 
 ## HONDA_OFFICIAL_DOCUMENTED

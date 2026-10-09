@@ -1,9 +1,8 @@
 ## Current roadmap — R7E4 exact-head validation
 
-1. Finish R7E4 final local verification and push to the existing PR #19 branch.
-2. Require Offline CI and CodeQL on the new exact head.
-3. If green, mark `R7E_A0R_RESEARCH_HARDENED_READY`; first separately authorizable action is A0-R only. Wait for explicit user authorization before any Honda interaction.
-4. Review actual A0-R evidence before considering A0-W; Test A remains separately authorized and blocked.
+1. R7E4 implementation head `47605adad4e83faa8e05e028cd46282848546139` passed Offline CI and CodeQL; PR #19 is OPEN and MERGEABLE.
+2. Decision: `R7E_A0R_RESEARCH_HARDENED_READY`; next action `READY_FOR_EXPLICIT_USER_A0R_AUTHORIZATION`, A0-R only.
+3. Review actual A0-R evidence before considering A0-W; Test A remains separately authorized and blocked.
 
 R7E4 performs no Honda command, ADB target enumeration, target write, transfer, USB role change, display activity, iAP2/MFi, iPhone, or CarPlay action. See [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md).
 
