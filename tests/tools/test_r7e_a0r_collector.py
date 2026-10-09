@@ -15,10 +15,12 @@ class FakeAdb:
                  uid="uid=2000(shell) gid=2000(shell) groups=1003(graphics)\n",
                  release="4.2.2\n", sdk="17\n", abi="armeabi-v7a\n",
                  mounts="rootfs / rootfs rw 0 0\n/dev/block/data /data ext4 rw,nosuid,nodev 0 0\n",
-                 selinux="1\n", fail_id=False, fail_ls=False, timeout_at=None):
+                 selinux="1\n", fail_id=False, fail_ls=False, timeout_at=None,
+                 unavailable_tools=()):
         self.inventory, self.uid, self.release = inventory, uid, release
         self.sdk, self.abi, self.mounts, self.selinux = sdk, abi, mounts, selinux
         self.fail_id, self.fail_ls, self.timeout_at = fail_id, fail_ls, timeout_at
+        self.unavailable_tools = set(unavailable_tools)
         self.calls = []
 
     def __call__(self, argv, **kwargs):
@@ -34,6 +36,11 @@ class FakeAdb:
             return subprocess.CompletedProcess(argv, 1, "", "failed")
         if self.fail_ls and operation[:3] == ["shell", "ls", "-ld"]:
             return subprocess.CompletedProcess(argv, 127, "", "unknown option")
+        if operation[:3] == ["shell", "ls", "-l"]:
+            tool = operation[3].rsplit("/", 1)[-1]
+            if tool in self.unavailable_tools:
+                return subprocess.CompletedProcess(argv, 1, "", "No such file")
+            return subprocess.CompletedProcess(argv, 0, f"-rwxr-xr-x root shell {tool}\n", "")
         outputs = {
             ("shell", "id"): self.uid,
             ("shell", "getprop", "ro.build.version.release"): self.release,
@@ -75,7 +82,7 @@ def test_one_target_pins_every_command_and_redacts_identity(tmp_path):
     fake = FakeAdb()
     assert collector.main(authorized_args(tmp_path), runner=fake,
                           input_fn=lambda _: "STOCK_STATE_UNCHANGED") == 0
-    assert len(fake.calls) == 12
+    assert len(fake.calls) == 18
     assert fake.calls[0] == ["adb", "devices"]
     assert all(call[1:3] == ["-s", "HONDA_SERIAL_123"] for call in fake.calls[1:])
     run_dir = next(tmp_path.iterdir())
@@ -123,6 +130,15 @@ def test_platform_mismatch_stops_before_pwd_and_destination_queries(tmp_path):
     assert meta["decision"] == "A0R_BLOCKED_PLATFORM_MISMATCH"
 
 
+def test_wrong_abi_stops_before_destination_queries(tmp_path):
+    fake = FakeAdb(abi="x86\n")
+    assert collector.main(authorized_args(tmp_path), runner=fake,
+                          input_fn=lambda _: "STOCK_STATE_UNCHANGED") == 1
+    assert len(fake.calls) == 5
+    meta = json.loads(next(tmp_path.iterdir()).joinpath("metadata.json").read_text())
+    assert meta["decision"] == "A0R_BLOCKED_PLATFORM_MISMATCH"
+
+
 def test_noexec_classification_and_no_promotion(tmp_path):
     mounts = "dev /data ext4 rw,noexec,nosuid,nodev 0 0\n"
     fake = FakeAdb(mounts=mounts)
@@ -150,10 +166,10 @@ def test_selinux_unavailable_is_not_disabled_and_has_no_fallback(tmp_path):
     assert collector.main(authorized_args(tmp_path), runner=fake,
                           input_fn=lambda _: "STOCK_STATE_UNCHANGED") == 0
     calls = [call[3:] for call in fake.calls[1:]]
-    assert calls[-1] == ["shell", "cat", "/sys/fs/selinux/enforce"]
+    assert ["shell", "cat", "/sys/fs/selinux/enforce"] in calls
     assert not any("getenforce" in call for call in calls)
     meta = json.loads(next(tmp_path.iterdir()).joinpath("metadata.json").read_text())
-    assert meta["decision"] == "A0R_SELINUX_STATE_UNAVAILABLE"
+    assert meta["decision"] == "A0R_PASS_FOR_REVIEW"
     assert meta["selinux_state"] == "SELINUX_STATE_UNAVAILABLE"
 
 
@@ -190,10 +206,15 @@ def test_manifest_templates_contain_no_mutating_operations():
     import hashlib
     assert manifest["collector_source_sha256"] == hashlib.sha256(
         (ROOT / manifest["collector_source"]).read_bytes()).hexdigest()
-    prohibited = {"push", "install", "rm", "chmod", "touch", "mkdir", "dd", "mount",
-                  "remount", "setprop", "kill", "su", "reboot", "stat", "getenforce"}
+    prohibited = {"push", "install", "touch", "mkdir", "dd", "mount",
+                  "remount", "setprop", "su", "reboot", "stat", "getenforce"}
     for item in manifest["commands"]:
-        assert not prohibited.intersection(item["argv"])
+        argv = item["argv"]
+        assert not prohibited.intersection(argv)
+        # rm/ps/kill/md5/chmod may appear only as literal metadata operands to ls -l.
+        if any(argv[-1].endswith("/system/bin/" + x)
+               for x in {"rm", "ps", "kill", "md5", "chmod", "toolbox"}):
+            assert argv[:3] == ["shell", "ls", "-l"]
     assert not any("shell" in item["argv"] and "-c" in item["argv"] for item in manifest["commands"])
 
 
@@ -204,6 +225,35 @@ def test_a0w_and_test_a_never_auto_chain(tmp_path):
     assert meta["a0w"].startswith("WRITE_DELETE_EVIDENCE_STILL_REQUIRED")
     assert meta["test_a"] == "NOT_AUTHORIZED"
     assert not any("push" in call or "chmod" in call for call in fake.calls)
+
+
+def test_each_future_tool_absence_is_informational_and_never_executed(tmp_path):
+    tools = {"toolbox", "rm", "ps", "kill", "md5", "chmod"}
+    for tool in tools:
+        fake = FakeAdb(unavailable_tools={tool})
+        out = tmp_path / tool
+        assert collector.main(authorized_args(out), runner=fake,
+                              input_fn=lambda _: "STOCK_STATE_UNCHANGED") == 0
+        meta = json.loads(next(out.iterdir()).joinpath("metadata.json").read_text())
+        assert meta["decision"] == "A0R_PASS_FOR_REVIEW"
+        assert meta["future_tool_availability"][tool] == f"{tool.upper()}_UNAVAILABLE"
+        blockers = meta.get("future_plan_review_blockers", [])
+        assert bool(blockers) is (tool in {"rm", "ps", "kill"})
+        assert all(call[3:5] == ["shell", "ls"] for call in fake.calls[12:])
+
+
+def test_future_tool_metadata_checks_use_only_fixed_ls_l(tmp_path):
+    fake = FakeAdb()
+    assert collector.main(authorized_args(tmp_path), runner=fake,
+                          input_fn=lambda _: "STOCK_STATE_UNCHANGED") == 0
+    tail = [call[3:] for call in fake.calls[12:]]
+    assert tail == [["shell", "ls", "-l", f"/system/bin/{name}"]
+                    for name in ("toolbox", "rm", "ps", "kill", "md5", "chmod")]
+    meta = json.loads(next(tmp_path.iterdir()).joinpath("metadata.json").read_text())
+    assert meta["future_tool_availability"] == {
+        "toolbox": "TOOLBOX_PRESENT", "rm": "RM_PRESENT", "ps": "PS_PRESENT",
+        "kill": "KILL_PRESENT", "md5": "MD5_PRESENT", "chmod": "CHMOD_PRESENT",
+    }
 
 
 def test_stock_state_change_is_recorded_as_stop_condition(tmp_path):

@@ -20,8 +20,8 @@ import sys
 import time
 from typing import Callable, Sequence
 
-VERSION = "R7E3-A0R-1"
-PLAN_VERSION = "R7E3-A0R-COMMAND-SET-1"
+VERSION = "R7E4-A0R-1"
+PLAN_VERSION = "R7E4-A0R-COMMAND-SET-1"
 TIMEOUT_SECONDS = 15
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = REPO_ROOT / "research" / "runtime" / "r7e3-a0r-plan-manifest.json"
@@ -37,7 +37,18 @@ COMMANDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("A0R-09", ("shell", "cat", "/proc/mounts")),
     ("A0R-10", ("shell", "cat", "/proc/self/status")),
     ("A0R-11", ("shell", "cat", "/sys/fs/selinux/enforce")),
+    ("A0R-12", ("shell", "ls", "-l", "/system/bin/toolbox")),
+    ("A0R-13", ("shell", "ls", "-l", "/system/bin/rm")),
+    ("A0R-14", ("shell", "ls", "-l", "/system/bin/ps")),
+    ("A0R-15", ("shell", "ls", "-l", "/system/bin/kill")),
+    ("A0R-16", ("shell", "ls", "-l", "/system/bin/md5")),
+    ("A0R-17", ("shell", "ls", "-l", "/system/bin/chmod")),
 )
+FUTURE_TOOLS = {
+    "A0R-12": ("toolbox", "TOOLBOX"), "A0R-13": ("rm", "RM"),
+    "A0R-14": ("ps", "PS"), "A0R-15": ("kill", "KILL"),
+    "A0R-16": ("md5", "MD5"), "A0R-17": ("chmod", "CHMOD"),
+}
 ADB_INVENTORY = ("devices",)
 RELEASE_EXPECTED = "4.2.2"
 SDK_EXPECTED = "17"
@@ -275,11 +286,21 @@ def _run(args: argparse.Namespace, runner=subprocess.run, input_fn=input) -> int
         elif command_id == "A0R-11":
             val = str(rec["stdout"]).strip()
             metadata["selinux_state"] = val if val in {"0", "1"} else "SELINUX_STATE_UNAVAILABLE"
+            if metadata["selinux_state"] == "SELINUX_STATE_UNAVAILABLE":
+                rec["classification"] = "SELINUX_STATE_UNAVAILABLE"
+        elif command_id in FUTURE_TOOLS:
+            tool_key, tool_label = FUTURE_TOOLS[command_id]
+            present = rec["exit_status"] == 0 and bool(str(rec["stdout"]).strip())
+            status = f"{tool_label}_PRESENT" if present else f"{tool_label}_UNAVAILABLE"
+            metadata.setdefault("future_tool_availability", {})[tool_key] = status
+            if not present and tool_key in {"rm", "ps", "kill"}:
+                metadata.setdefault("future_plan_review_blockers", []).append(
+                    f"{status}: exact cleanup/process recovery plan needs separate evidence before Test A authorization"
+                )
+            rec["classification"] = status
 
     if decision == "ORDINARY_SHELL_OBSERVED":
         decision = "A0R_PASS_FOR_REVIEW"
-    if metadata.get("selinux_state") == "SELINUX_STATE_UNAVAILABLE" and decision == "A0R_PASS_FOR_REVIEW":
-        decision = "A0R_SELINUX_STATE_UNAVAILABLE"
     metadata["decision"] = decision
     metadata["platform_observed"] = {
         "android_release": values.get("A0R-02"),
@@ -297,7 +318,7 @@ def _run(args: argparse.Namespace, runner=subprocess.run, input_fn=input) -> int
     _finish(run_dir, metadata, records)
     print(f"{metadata['decision']} — local evidence: {run_dir}")
     print("A0-W remains separately gated. Test A remains NOT_AUTHORIZED.")
-    return 0 if metadata["decision"] in {"A0R_PASS_FOR_REVIEW", "A0R_SELINUX_STATE_UNAVAILABLE"} else 1
+    return 0 if metadata["decision"] == "A0R_PASS_FOR_REVIEW" else 1
 
 
 def _finish(run_dir: Path, metadata: dict[str, object], records: list[dict[str, object]]) -> None:

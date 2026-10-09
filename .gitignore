@@ -38,6 +38,7 @@
 /tools/*
 !/tools/README.md
 !/tools/check_repo_health.py
+!/tools/check_r7e1_target_diag_artifact.py
 !/tools/r6b_info_diff.py
 !/tools/r6e_info_diff.py
 !/tools/r6e_real_ios_lab.py

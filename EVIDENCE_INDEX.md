@@ -1,3 +1,14 @@
+## Latest evidence — R7E4 research-backed A0-R hardening
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Android 4.2.2 / legacy ADB research | [R7E4 research](research/runtime/r7e4-android42-target-path-research.md) | AOSP/Honda/related-platform/Clarity evidence classes kept distinct; no target proof inferred |
+| A0-R collector | [Collector design](research/runtime/r7e3-a0r-collector-design.md); [manifest](research/runtime/r7e3-a0r-plan-manifest.json) | Six metadata-only future tool checks; SELinux unavailable informational; `/data` noexec blocks; zero target writes |
+| Test A artifact mode/hash | [Artifact manifest](research/runtime/r7e1-target-artifact-manifest.md); `tools/check_r7e1_target_diag_artifact.py` | SHA-256 canonical; MD5 transport-only; local mode 0755 verified |
+| A0-W / Test A planning | [A0-W plan](research/runtime/r7e2-test-a0-write-delete-preflight-plan.md); [Test A plan](research/runtime/r7e-test-a-executable-acceptance-plan.md) | One inert ADB-sync marker proposed; no target chmod assumed; all target actions unauthorized |
+| Verification | [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md) | 919 passed / 15 skipped; self-locator 3 passed; simulator checks and repo health passed; hosted exact-head checks pending |
+| Decision | [R7E4 decision](research/runtime/r7e4-research-hardening-decision.md) | Pending exact-head CI/CodeQL; first separately authorizable action A0-R only |
+
 # R7E1 current evidence — 2026-10-08
 
 - [R7E1 milestone report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md) — split artifact closure; Test A remains evidence-blocked and unauthorized.

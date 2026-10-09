@@ -1,23 +1,178 @@
 {
-  "manifest_version": "R7E3-A0R-COMMAND-SET-1",
+  "manifest_version": "R7E4-A0R-COMMAND-SET-1",
   "collector_source": "tools/r7e_a0r_collector.py",
-  "collector_source_sha256": "fcb4ce3a8acfa088bfbd706973fa7ff9f0d360dc272640fd5dea11a284ff414c",
+  "collector_source_sha256": "8693ac5d9165343bb94b9f56be4c4d0b8f3666884361e2f2d07f65a4b53a9c1d",
   "timeout_seconds": 15,
   "commands": [
-    {"id": "A0R-00", "argv": ["devices"], "scope": "host adb inventory"},
-    {"id": "A0R-01", "argv": ["shell", "id"], "scope": "target read"},
-    {"id": "A0R-02", "argv": ["shell", "getprop", "ro.build.version.release"], "scope": "target read"},
-    {"id": "A0R-03", "argv": ["shell", "getprop", "ro.build.version.sdk"], "scope": "target read"},
-    {"id": "A0R-04", "argv": ["shell", "getprop", "ro.product.cpu.abi"], "scope": "target read"},
-    {"id": "A0R-05", "argv": ["shell", "pwd"], "scope": "target read"},
-    {"id": "A0R-06", "argv": ["shell", "ls", "-ld", "/data"], "scope": "target metadata read"},
-    {"id": "A0R-07", "argv": ["shell", "ls", "-ld", "/data/local"], "scope": "target metadata read"},
-    {"id": "A0R-08", "argv": ["shell", "ls", "-ld", "/data/local/tmp"], "scope": "target metadata read"},
-    {"id": "A0R-09", "argv": ["shell", "cat", "/proc/mounts"], "scope": "target read"},
-    {"id": "A0R-10", "argv": ["shell", "cat", "/proc/self/status"], "scope": "target read"},
-    {"id": "A0R-11", "argv": ["shell", "cat", "/sys/fs/selinux/enforce"], "scope": "target read; unavailable allowed"}
+    {
+      "id": "A0R-00",
+      "argv": [
+        "devices"
+      ],
+      "scope": "host adb inventory"
+    },
+    {
+      "id": "A0R-01",
+      "argv": [
+        "shell",
+        "id"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-02",
+      "argv": [
+        "shell",
+        "getprop",
+        "ro.build.version.release"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-03",
+      "argv": [
+        "shell",
+        "getprop",
+        "ro.build.version.sdk"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-04",
+      "argv": [
+        "shell",
+        "getprop",
+        "ro.product.cpu.abi"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-05",
+      "argv": [
+        "shell",
+        "pwd"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-06",
+      "argv": [
+        "shell",
+        "ls",
+        "-ld",
+        "/data"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-07",
+      "argv": [
+        "shell",
+        "ls",
+        "-ld",
+        "/data/local"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-08",
+      "argv": [
+        "shell",
+        "ls",
+        "-ld",
+        "/data/local/tmp"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-09",
+      "argv": [
+        "shell",
+        "cat",
+        "/proc/mounts"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-10",
+      "argv": [
+        "shell",
+        "cat",
+        "/proc/self/status"
+      ],
+      "scope": "target read"
+    },
+    {
+      "id": "A0R-11",
+      "argv": [
+        "shell",
+        "cat",
+        "/sys/fs/selinux/enforce"
+      ],
+      "scope": "target read; unavailable informational"
+    },
+    {
+      "id": "A0R-12",
+      "argv": [
+        "shell",
+        "ls",
+        "-l",
+        "/system/bin/toolbox"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-13",
+      "argv": [
+        "shell",
+        "ls",
+        "-l",
+        "/system/bin/rm"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-14",
+      "argv": [
+        "shell",
+        "ls",
+        "-l",
+        "/system/bin/ps"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-15",
+      "argv": [
+        "shell",
+        "ls",
+        "-l",
+        "/system/bin/kill"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-16",
+      "argv": [
+        "shell",
+        "ls",
+        "-l",
+        "/system/bin/md5"
+      ],
+      "scope": "target metadata read"
+    },
+    {
+      "id": "A0R-17",
+      "argv": [
+        "shell",
+        "ls",
+        "-l",
+        "/system/bin/chmod"
+      ],
+      "scope": "target metadata read"
+    }
   ],
-  "stop_policy": "one listed target in device state; stop on identity, shell, platform, metadata, mount noexec, timeout, or command failure; only SELinux read failure may continue as unavailable",
+  "stop_policy": "one listed target in device state; stop on identity, shell, platform, required destination metadata, mount noexec, timeout, or required command failure; SELinux state and future-tool metadata failures are recorded informationally; no fallback",
   "redaction_policy": "raw target selector only in local mode-0600 evidence; tracked and sanitized output uses TARGET_REDACTED",
   "target_writes": "NONE",
   "retries": 0,

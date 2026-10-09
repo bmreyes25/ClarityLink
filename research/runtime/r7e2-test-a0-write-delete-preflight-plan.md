@@ -1,29 +1,33 @@
-# TEST A0 — target environment preflight / A0-W (ECC)
+# TEST A0-W — write/delete transfer preflight (ECC)
 
-**Status:** `BLOCKED_BY_A0_R_RESULT`; not authorized, not executed. **Risk:** Tier 2, narrowly bounded temporary write/delete. Separate authorization required after A0-R review. A0-W does not authorize Test A.
+**Status:** `BLOCKED_BY_A0_R_RESULT`; `NOT_AUTHORIZED`; not executed. **Risk:** Tier 2, one temporary data file. A0-W does not authorize Test A.
 
-## Objective
+## Entry gate
 
-If A0-R confirms the path and ordinary-shell context are suitable but write/delete remain unknown, test only whether ordinary shell can create, inspect, and delete one unique inert non-executable marker in the selected path. Do not run any executable, chmod, binary transfer, package install, display, listener, or service action.
+A0-W may be separately considered only after human review of A0-R establishes the exact existing destination and ordinary UID-2000 shell, expected API/ABI, no `/data` `noexec`, and observed `/system/bin/rm` metadata. A0-R must also establish enough destination metadata to verify exact absence and final cleanup. If any required fact is absent or inconsistent, do not start A0-W. A0-W always requires its own explicit authorization tied to a frozen exact sequence.
 
-## Gate and naming
+## Proposed sequence — not a runnable authorization
 
-A0-W remains `BLOCKED_BY_A0_R_RESULT` and requires separate Tier 2 authorization. It becomes relevant for review only when actual reviewed A0-R evidence reports the candidate destination present, observes UID-2000 ordinary shell and the expected platform, identifies no `/data` `noexec` blocker, and still leaves write/delete unproven. A missing/mismatched destination, elevated/unknown shell, platform mismatch, `noexec`, ambiguous target, command failure, or stop condition does not justify progressing to A0-W. Even a favorable A0-R result never authorizes A0-W automatically.
+Use ADB sync/push to test the same transfer path intended for Test A. Before any future run, prepare one small inert plain-data marker on the host, verify exact bytes/hash and mode `0644`, and choose a unique exact filename offline. No executable bit, wildcard, shell redirection, `touch`, `mkdir`, chmod, or auto-chain is allowed.
 
-Select destination only from reviewed A0-R result. Do not default to `/data/local/tmp` if absent/different. The future exact path is `DESTINATION_FROM_APPROVED_A0_RESULT/claritylink_a0_<approved_nonce>.probe`. Nonce must be precomputed offline and unique; no runtime timestamp/shell expansion. Check exact path absence before create; if it exists, STOP. Commands below are design patterns, not runnable approval; final literal sequence is produced only after A0-R and separate A0-W authorization.
+1. Reconfirm the sole already-visible intended target and compare exact destination evidence with reviewed A0-R.
+2. Confirm the exact marker path is absent with read-only `ls -l`; if present or ambiguous, stop.
+3. `adb push` only the fixed marker to the one exact path.
+4. Inspect that exact path using `ls -l`; optionally run the proven `/system/bin/md5` against that exact file and compare to host MD5 for transport consistency only.
+5. Remove only that exact marker using the proven `/system/bin/rm` path.
+6. Verify exact marker absence with read-only metadata inspection.
 
-## Proposed minimum operation (NOT EXECUTED)
+No marker creation, transfer, removal, or target command has occurred in R7E4. The literal path, bytes, ADB command syntax, command timeout, and recovery plan must be frozen in a later A0-W packet before separately asking for authorization. If transfer succeeds but exact removal cannot be established, stop and request a separately reviewed recovery plan. Never broaden cleanup.
 
-Prefer a single bounded shell builtin/known tool with fixed bytes, but no target write command is approved in this document. Final review must pin the payload bytes/hash, exact command behavior on API17, and exact path. Create exactly one marker, write a small known inert payload, read back/hash if a proven tool exists, inspect owner/mode, remove only exact marker, verify absence. No wildcard, recursive removal, chmod, execute bit, or fallback.
+## Audit boundary
 
-## Per-command audit template
+| Operation | Reads | Writes | Process/privilege | Stop / rollback |
+|---|---|---|---|---|
+| Host preparation | host marker bytes/mode/hash | host-only marker | local user | wrong bytes/hash/mode stops |
+| Exact absence check | destination entry | none | transient ordinary shell + `ls` | present/ambiguous stops |
+| Push | exact source/destination | one non-executable 0644 marker | ADB sync service | any mismatch stops; no retry |
+| Verify | exact marker metadata; optional MD5 | none | transient `ls`/`md5` | mismatch stops |
+| Remove | exact marker path | unlink that file only | ordinary shell + proven `rm` | exact path only; no wildcard |
+| Verify absence | exact marker metadata | none | transient `ls` | unresolved cleanup is an incident; no improvised cleanup |
 
-| Stage | Reads | Writes | Path/bytes | Process/privilege | Expected result | Failure/rollback |
-|---|---|---|---|---|---|---|
-| Check absent | Exact marker metadata | None | Exact literal path | ordinary shell | absent | if present/malformed: stop |
-| Create/write | Path parent metadata | One new marker; fixed small payload (size/hash to be pinned) | exact marker only | ordinary shell, one shell/tool process | success; file exact | stop; cleanup only if exact created path is verified |
-| Verify | marker bytes/metadata | None | exact marker | ordinary shell | size/content/owner/mode recorded | stop on mismatch |
-| Delete | exact marker | unlink exact marker only | exact literal path | ordinary shell | success | stop; do not wildcard or broaden |
-| Verify absence | exact path metadata | None | exact marker | ordinary shell | absent | rollback unresolved; stop and request separate recovery plan |
-
-Any command with uncertain side effects is rejected. No A0-W authorization is requested until A0-R results make its necessity and literal command semantics reviewable.
+A0-W cannot execute a program, chmod, kill a process, alter USB role, change system properties, or proceed to Test A. A0-W remains `BLOCKED_BY_A0_R_RESULT` and `NOT_AUTHORIZED`.

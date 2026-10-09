@@ -1,8 +1,12 @@
-## Current next action — separate explicit A0-R authorization decision
+## Current next action — R7E4 exact-head verification, 2026-10-09
 
-Decision: `R7E_A0R_EXECUTION_PACKAGE_READY`. The frozen host collector is disabled by default and has not been run on a Honda. First separately authorizable action remains A0-R only, requiring a new explicit user authorization tied to the exact R7E3 commit and plan-manifest SHA-256. Authorization is not currently granted. A0-W remains `BLOCKED_BY_A0_R_RESULT`; Test A remains `BLOCKED_BY_A0` / `NOT_AUTHORIZED`. Stop offline coding and wait for that decision. See [R7E3 report](step-reports/43t1-r7e3-a0r-execution-package.md) and [authorization packet](research/runtime/r7e3-a0r-authorization-packet.md).
+R7E4 research-backed A0-R hardening is implemented offline. The old manifest SHA `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3ff963e` is `SUPERSEDED_BEFORE_AUTHORIZATION` (no authorization was granted). The updated collector adds six read-only tool metadata checks, SELinux-unavailable is informational, and `/data` noexec remains blocking. A0-W now proposes one inert `0644` ADB-pushed marker; Test A expects host mode `0755` then remote mode verification, with no automatic target chmod. Canonical suite: 919 passed / 15 skipped; self-locator 3 passed; simulator checks passed; artifact hash/mode gate passed; repo health passed. **NEXT:** commit and push R7E4 to `architecture/r7e-parked-car-compatibility-preparation`, verify PR #19 exact head and Offline CI/CodeQL. If successful, decision `R7E_A0R_RESEARCH_HARDENED_READY`; first separately authorizable action A0-R only. Do not run A0-R automatically. A0-W and Test A remain unauthorized. No Honda/ADB command or target write occurred. See [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md).
 
-# Next action
+## R7E3 next-action snapshot — superseded by R7E4
+
+The former R7E3 authorization packet and manifest are superseded before authorization by the R7E4 package. The current next action is exact-head verification above; no Honda command or target write has occurred.
+
+# Historical next-action index
 
 ## Original R7E state — superseded by R7E1
 

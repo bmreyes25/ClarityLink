@@ -1,3 +1,12 @@
+## Current roadmap — R7E4 exact-head validation
+
+1. Finish R7E4 final local verification and push to the existing PR #19 branch.
+2. Require Offline CI and CodeQL on the new exact head.
+3. If green, mark `R7E_A0R_RESEARCH_HARDENED_READY`; first separately authorizable action is A0-R only. Wait for explicit user authorization before any Honda interaction.
+4. Review actual A0-R evidence before considering A0-W; Test A remains separately authorized and blocked.
+
+R7E4 performs no Honda command, ADB target enumeration, target write, transfer, USB role change, display activity, iAP2/MFi, iPhone, or CarPlay action. See [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md).
+
 ## R7E1 — offline target diagnostic artifact closure
 
 R7E1 closes the offline target-artifact gap using split Test A native CLI and B–D API17 APK artifacts. Decision `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`; Test A remains unauthorized pending Honda-only destination, privilege, power-state, command, and rollback evidence. Next: push PR #19 and verify exact-head Offline CI/CodeQL; leave PR open. See [R7E1 report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md) and [readiness decision](research/runtime/r7e1-test-a-readiness-decision.md).
