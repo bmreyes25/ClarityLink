@@ -2,7 +2,8 @@
 
 **Starting HEAD:** `69f928368edcc13df80bee37bf3b19f621cf2b9f`
 **Implementation HEAD:** `47605adad4e83faa8e05e028cd46282848546139`
-**Final verification HEAD:** `3133e36f82b86ed2fa1a0963115f6745ae752b6c`
+**Intermediate documentation/verification HEAD:** `3133e36f82b86ed2fa1a0963115f6745ae752b6c`
+**Final verification HEAD at R7E4 close:** `aa2f0f7827cc8f0e0742c03edc2714f6449ee5ec`
 **PR:** [#19](https://github.com/bmreyes25/ClarityLink/pull/19), OPEN and MERGEABLE at the verified head
 **Decision:** `R7E_A0R_RESEARCH_HARDENED_READY`.
 
@@ -16,7 +17,7 @@ The old manifest SHA `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3
 
 - Collector fixtures: 17 passed.
 - Canonical suite: 919 passed, 15 skipped. Self-locator: 3 passed. Simulator contract, dual-screen, guidance-expiry and Type111 failure-twin checks passed.
-- Repository health: 792 Markdown files, 155 indexed reports, 0 curated broken links, 0 forbidden tracked file extensions.
+- Repository health: 793 Markdown files, 156 indexed reports, 0 curated broken links, 0 forbidden tracked file extensions.
 - Artifact SHA-256: `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`.
 - Artifact MD5: `89ef2a0e432ef1501e8a5c0431f9e41f` (transport consistency only).
 - Artifact local mode: `0755`.
@@ -24,4 +25,4 @@ The old manifest SHA `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3
 - A0-R/A0-W/Test A: not executed.
 - Honda commands: none.
 
-**Exact-head hosted checks:** Implementation head `47605adad4e83faa8e05e028cd46282848546139` and final PR head `3133e36f82b86ed2fa1a0963115f6745ae752b6c` both passed Offline CI and CodeQL across all configured language scans.
+**Exact-head hosted checks:** Implementation head `47605adad4e83faa8e05e028cd46282848546139` and final PR head `aa2f0f7827cc8f0e0742c03edc2714f6449ee5ec` passed Offline CI and CodeQL across all configured language scans; intermediate documentation head `3133e36f82b86ed2fa1a0963115f6745ae752b6c` was also green.

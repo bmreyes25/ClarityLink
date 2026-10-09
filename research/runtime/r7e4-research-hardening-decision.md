@@ -15,9 +15,9 @@ The existing manifest hash `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc
 - Collector fixture tests: 17 passed.
 - Canonical repository suite: 919 passed, 15 skipped.
 - Artifact: SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`; MD5 `89ef2a0e432ef1501e8a5c0431f9e41f`; host mode `0755`.
-- Repository health: 792 Markdown files, 155 indexed reports, zero curated broken links, zero forbidden tracked extensions.
+- Repository health: 793 Markdown files, 156 indexed reports, zero curated broken links, zero forbidden tracked extensions.
 - Self-locator: 3 passed. Simulator contract, dual-screen, guidance-expiry and Type111 failure-twin checks passed. `git diff --check` passed.
-- Implementation HEAD `47605adad4e83faa8e05e028cd46282848546139` and final PR verification HEAD `3133e36f82b86ed2fa1a0963115f6745ae752b6c`: Offline CI PASS; CodeQL PASS for all configured language scans. PR #19 OPEN and MERGEABLE.
+- Implementation HEAD `47605adad4e83faa8e05e028cd46282848546139` and final PR verification HEAD `aa2f0f7827cc8f0e0742c03edc2714f6449ee5ec`: Offline CI PASS; CodeQL PASS for all configured language scans. Intermediate documentation head `3133e36f82b86ed2fa1a0963115f6745ae752b6c` was also verified green. PR #19 OPEN and MERGEABLE.
 
 ## Safety result
 

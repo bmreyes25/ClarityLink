@@ -8,6 +8,8 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 ## Current / latest milestones
 
+- [43T1-R7E4A — A0-R authorization packet reconciliation](43t1-r7e4a-a0r-authorization-packet-reconciliation.md) — recomputed collector source hash at implementation/current PR refs; corrected packet hash; manifest bytes and hash unchanged; no Honda action.
+
 - [43T1-R7E4 — A0-R research-backed hardening](43t1-r7e4-a0r-research-hardening.md) — exact Android 4.2.2 / legacy ADB research, six read-only tool metadata checks, SELinux-unavailable policy refinement, host artifact mode gate, and ADB-sync marker plan; all Honda actions remain separately unauthorized.
 
 - [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.

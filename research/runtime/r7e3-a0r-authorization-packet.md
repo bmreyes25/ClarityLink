@@ -2,15 +2,19 @@
 
 **Purpose:** collect current identity, platform, destination metadata, mount flags, visible SELinux state, and operator-observed vehicle state for human review. **Risk:** Tier 1 `HONDA_READ_ONLY`. **Current status:** prepared only; not authorized and not executed.
 
-## Frozen implementation
+## Frozen implementation and authorization binding
 
 - Repository/branch: `bmreyes25/ClarityLink`, `architecture/r7e-parked-car-compatibility-preparation`.
 - Collector: `tools/r7e_a0r_collector.py`.
-- Collector source SHA-256: `fcb4ce3a8acfa088bfbd706973fa7ff9f0d360dc272640fd5dea11a284ff414c`.
+- Collector source SHA-256: `8693ac5d9165343bb94b9f56be4c4d0b8f3666884361e2f2d07f65a4b53a9c1d`.
 - Plan manifest: [r7e3-a0r-plan-manifest.json](r7e3-a0r-plan-manifest.json).
+- Manifest version: `R7E4-A0R-COMMAND-SET-1`.
 - Plan manifest SHA-256: `962b25fca36dabde11f2406da1e5d898a0fe5c3a49f78f2bd00f292910442004`.
 - Exact collector commit: `47605adad4e83faa8e05e028cd46282848546139`; a source or manifest change invalidates prior authorization.
+- Last completed package verification before this packet reconciliation: PR #19 at `aa2f0f7827cc8f0e0742c03edc2714f6449ee5ec`, OPEN and MERGEABLE; Offline CI and CodeQL passed. R7E4A records the reconciled package's new exact-head verification.
 - Command count: 17 target reads, plus one host-only inventory; target writes **ZERO**.
+
+Any collector source-byte change invalidates this packet. Any command-set or manifest-byte change invalidates the cited manifest SHA-256 and requires a new review and authorization binding. The exact authorization coordinates are the collector implementation commit, collector source SHA-256, manifest version, and manifest SHA-256 above. No packet hash is defined by repository policy.
 
 ## Exact commands
 
