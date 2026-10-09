@@ -1,7 +1,7 @@
 ## Latest evidence — R7E4 research-backed A0-R hardening
 
 | Evidence item | Source | Result / scope |
-| R7E4A identity reconciliation | [R7E4A report](step-reports/43t1-r7e4a-a0r-authorization-packet-reconciliation.md); [authorization packet](research/runtime/r7e3-a0r-authorization-packet.md) | Collector SHA-256 recomputed as `8693ac5d...` at working tree, implementation and prior PR refs; packet corrected; manifest SHA `962b25f...` unchanged; local verification passes; exact new-head hosted checks pending |
+| R7E4A identity reconciliation | [R7E4A report](step-reports/43t1-r7e4a-a0r-authorization-packet-reconciliation.md); [authorization packet](research/runtime/r7e3-a0r-authorization-packet.md) | Collector SHA-256 recomputed as `8693ac5d...` at working tree, implementation and prior PR refs; packet corrected; manifest SHA `962b25f...` unchanged; local verification passes; exact reconciliation head `ad44443b2c282442af4fef32f57b2da345a3d804` passed Offline CI and CodeQL; PR #19 OPEN and MERGEABLE |
 |---|---|---|
 | Android 4.2.2 / legacy ADB research | [R7E4 research](research/runtime/r7e4-android42-target-path-research.md) | AOSP/Honda/related-platform/Clarity evidence classes kept distinct; no target proof inferred |
 | A0-R collector | [Collector design](research/runtime/r7e3-a0r-collector-design.md); [manifest](research/runtime/r7e3-a0r-plan-manifest.json) | Six metadata-only future tool checks; SELinux unavailable informational; `/data` noexec blocks; zero target writes |

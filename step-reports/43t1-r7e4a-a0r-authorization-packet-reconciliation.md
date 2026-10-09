@@ -6,8 +6,8 @@
 **Collector SHA-256:** `8693ac5d9165343bb94b9f56be4c4d0b8f3666884361e2f2d07f65a4b53a9c1d`  
 **Manifest version:** `R7E4-A0R-COMMAND-SET-1`  
 **Manifest SHA-256:** `962b25fca36dabde11f2406da1e5d898a0fe5c3a49f78f2bd00f292910442004`  
-**R7E4A implementation HEAD:** pending documentation-only reconciliation commit  
-**R7E4A final verification HEAD:** pending exact-head hosted checks
+**R7E4A implementation HEAD:** `ad44443b2c282442af4fef32f57b2da345a3d804`
+**R7E4A exact-head hosted verification:** Offline CI PASS; CodeQL PASS (all configured scans); PR #19 OPEN and MERGEABLE at this head.
 
 ## Reconciliation
 
@@ -26,7 +26,7 @@ Command-set integrity: 18 entries total (`A0R-00` host inventory and `A0R-01` th
 - Repository health: 793 Markdown files, 156 indexed reports, zero curated broken links, zero forbidden tracked extensions.
 - Artifact checker: SHA-256 and mode gate passed.
 - `git diff --check`: passed.
-- Starting PR head `aa2f0f...`: Offline CI and CodeQL passed; PR #19 was OPEN and MERGEABLE.
+- Starting PR head `aa2f0f...`: Offline CI and CodeQL passed. Reconciliation head `ad44443b2c282442af4fef32f57b2da345a3d804`: Offline CI and CodeQL passed on exact head; PR #19 is OPEN and MERGEABLE.
 - Honda commands: NONE. A0-R: NOT EXECUTED. A0-W: NOT AUTHORIZED. Test A: NOT AUTHORIZED.
 
 No A0-R execution is authorized by this reconciliation. The package remains `R7E_A0R_RESEARCH_HARDENED_READY`; the first separately authorizable action is A0-R only after explicit user authorization tied to collector commit `47605ad...`, source SHA-256 `8693ac5d...`, manifest version `R7E4-A0R-COMMAND-SET-1`, and manifest SHA-256 `962b25f...`.
