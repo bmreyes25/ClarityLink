@@ -9,7 +9,7 @@
 - Collector source SHA-256: `fcb4ce3a8acfa088bfbd706973fa7ff9f0d360dc272640fd5dea11a284ff414c`.
 - Plan manifest: [r7e3-a0r-plan-manifest.json](r7e3-a0r-plan-manifest.json).
 - Plan manifest SHA-256: `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3ff963e`.
-- Exact collector commit: recorded after commit below; a source or manifest change invalidates prior authorization.
+- Exact collector commit: `216c5584479eec9b220859438a4029e04ed4faad`; a source or manifest change invalidates prior authorization.
 - Command count: 11 target reads, plus one host-only inventory; target writes **ZERO**.
 
 ## Exact commands
@@ -49,6 +49,6 @@ Local evidence includes metadata, run ID, collector/plan versions, repository HE
 
 ## Sample authorization text — NOT GRANTED
 
-> I authorize ClarityLink A0-R only, using collector commit `<EXACT_R7E3_IMPLEMENTATION_COMMIT>` and plan manifest SHA-256 `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3ff963e`, against my parked 2018 Honda Clarity under the stated operator gates. I do not authorize A0-W, Test A, file writes, executable transfer, display activity, USB/iAP2, MFi, or CarPlay.
+> I authorize ClarityLink A0-R only, using collector commit `216c5584479eec9b220859438a4029e04ed4faad` and plan manifest SHA-256 `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3ff963e`, against my parked 2018 Honda Clarity under the stated operator gates. I do not authorize A0-W, Test A, file writes, executable transfer, display activity, USB/iAP2, MFi, or CarPlay.
 
 This is sample wording for later review; the user has not granted this authorization. The runtime `--execute-authorized-a0-readonly` option is only a conscious local mode gate and does not grant authorization.
