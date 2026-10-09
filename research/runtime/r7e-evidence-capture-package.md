@@ -1,5 +1,7 @@
 # R7E evidence capture package
 
+R7E2 A0-R and A0-W fields are in [A0 evidence capture](r7e2-test-a0-evidence-capture.md). Keep target identity private/redacted; these are separate authorization scopes and neither authorizes Test A.
+
 Use one sanitized record per separately authorized test. Store raw logs/captures locally under approved handling; commit only redacted summaries and hashes.
 
 ## R7E1 Test A fields

@@ -13,4 +13,4 @@ Tests B–H retain their individual readiness states in [authorization matrix](r
 
 ## R7E1 readiness correction
 
-Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. The native API17/ARMv7 diagnostic now exists and passed offline artifact closure. Test A is still `BLOCKED_BY_EVIDENCE` and `NOT_AUTHORIZED`: `/data/local/tmp` is a static candidate only, shell privilege sufficiency is unknown, the minimum power state is unknown, and exact execution/rollback commands are therefore not prepared. See [R7E1 readiness decision](r7e1-test-a-readiness-decision.md).
+Decision after R7E2: `R7E_TEST_A0_READONLY_PREFLIGHT_READY`. Test A remains `BLOCKED_BY_A0` and `NOT_AUTHORIZED`; separately authorize A0-R first. A0-W remains conditional on A0-R. ECC review classifies successful executable permission as Test A's measurement, and a specifically approved operator-observed safe state as sufficient without proving a theoretical minimum. See [R7E2 readiness decision](r7e2-test-a-readiness-decision.md).

@@ -1,6 +1,6 @@
-## Current next action — R7E1 exact-head verification
+## Current next action — R7E2 exact-head verification, then A0-R authorization
 
-Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Test A native artifact and isolated display APK are built/audited offline; target destination, privilege, minimum power state, literal execution commands, and exact rollback remain evidence-blocked. Commit the documentation/readiness update, push PR #19, and verify Offline CI and CodeQL on the exact new head. Do not merge automatically. No Honda action is authorized. See [R7E1 report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md).
+Decision: `R7E_TEST_A0_READONLY_PREFLIGHT_READY`. ECC resolves exec permission as a Test A measurement and specific approved observed power state as sufficient; A0-R is needed for current destination/mount/SELinux/state facts. A0-W is conditional and separately authorized. After exact-head verification, first next action is a separate explicit A0-R authorization decision. No Honda action is authorized now. See [R7E2 report](step-reports/43t1-r7e2-test-a-evidence-closure.md).
 
 # Next action
 

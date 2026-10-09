@@ -181,3 +181,4 @@ Local R7D acceptance passed. The synthetic API17 run sustained both streams for 
 ## R7E current gate — target diagnostic artifact blocked
 
 R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`. R7E produced separate preparation plans for Tests A–H; no test is authorized. The first Test A plan remains blocked until a fail-closed API17/ARMv7 diagnostic is built and audited with NDK r23c. **Next:** offline artifact implementation/build/audit; see [R7E readiness](research/runtime/r7e-first-test-readiness.md). The 14.405-FPS R7D result remains emulator-only and does not predict Honda performance.
+## R7E2: A0-R read-only preflight plan is ready for separate authorization. Do not execute during preparation. A0-W and Test A remain separately gated. See `research/runtime/r7e2-test-a-readiness-decision.md`.

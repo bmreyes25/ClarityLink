@@ -4,7 +4,9 @@ All tests are `NOT_AUTHORIZED`. Plan readiness never authorizes execution.
 
 | Test | Prerequisites | Risk | Honda read/write class | Required evidence | Rollback ready | Current readiness |
 |---|---|---:|---|---|---|---|
-| A executable acceptance | Diagnostic built/audited; destination and power state established; exact plan and explicit authorization | Tier 2 | Temporary file/process (`HONDA_TEMPORARY_WRITE` if transferred) | Artifact SHA/ABI/deps, bounded self-test, cleanup proof | Partial; exact commands/destination unknown | `BLOCKED_BY_EVIDENCE` |
+| A0-R environment inventory | Exact read-only plan; unique verified target; separate A0-R authorization | Tier 1 | Read-only inventory | UID/GID, path metadata, mounts, visible SELinux, operator-observed state | No target mutation; stop on anomalies | `READY_FOR_SEPARATE_AUTHORIZATION` |
+| A0-W temporary write/delete | Reviewed A0-R result showing necessity; exact marker plan; separate A0-W authorization | Tier 2 | One inert file create/read/delete; NO execution | Exact path, bytes, ownership/mode, deletion/absence | Exact marker only; no wildcard | `BLOCKED_BY_A0_R_RESULT` |
+| A executable acceptance | A0-R reviewed; A0-W separately completed if needed; known mount/policy blockers screened; exact state, commands, rollback, and explicit Test A authorization | Tier 2 | Temporary file/process and execution | Artifact SHA/ABI/deps, bounded self-test; actual exec outcome measured by A | Not ready until exact remove/absence/process-disposition capability established | `BLOCKED_BY_A0` |
 | B enumeration | Separately authorized A pass | Tier 1 | Read-only inventory | ID/type/dimensions/refresh/validity from target | Process stop and stock observation described | `BLOCKED_BY_PRIOR_TEST` |
 | C Presentation | Separately authorized A and B pass | Tier 3 | Temporary display state | Separate context/show/Surface state diagnostics | Dismiss/release/stock checks described | `BLOCKED_BY_PRIOR_TEST` |
 | D one frame | Separately authorized A/B/C pass; reviewed frame | Tier 3 | Temporary visible output | Human observation, timestamps, logs, resources | Clear/dismiss/release/stock checks described | `BLOCKED_BY_PRIOR_TEST` |
@@ -15,11 +17,11 @@ All tests are `NOT_AUTHORIZED`. Plan readiness never authorizes execution.
 
 ## Command and write audit
 
-R7E executed **zero** Honda/ADB/vehicle commands. Every future command must appear in the individually reviewed test document with literal values and a per-command account of reads, writes, processes started/stopped, files created/modified/removed, display changes, listeners, and privilege. No exact target commands are prepared where artifact, destination, display ID, or environment values are unknown. No placeholders conceal writes. This makes A non-ready until the offline artifact and target-independent values exist.
+R7E2 executed **zero** Honda/ADB/vehicle commands. A0-R approval does not approve A0-W or Test A; A0-W approval does not approve Test A. Every future command must appear in its individually reviewed plan with literal values and read/write/process/path/privilege audit. No wildcard cleanup, root, or ambiguous target selector.
 
 R6D's no-supported-factory-session-handoff finding is retained; no plan assumes stock `jmcs` hands an authenticated session to ClarityLink. CPC200 is not a dependency for A–G.
 
 
 ## R7E1 status correction
 
-All tests remain `NOT_AUTHORIZED`. Test A's artifact/build/import/dependency/offline-test prerequisite is now closed: SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`, API17/ARMv7, zero unknown dependencies/imports, 100 isolated runtime cycles. A remains `BLOCKED_BY_EVIDENCE` for temporary destination semantics, ordinary-shell privilege sufficiency, minimum head-unit power state, literal commands, and exact rollback. B–D reference the separate APK but remain blocked by prior tests and Honda installation/admission evidence. E remains evidence blocked; F partial; G keeps 14.405 FPS emulator `PERFORMANCE_UNRESOLVED`; H `AUTHORITY_REQUIRED`.
+All tests remain `NOT_AUTHORIZED`. A0-R is prepared for separate Tier 1 authorization. A0-W is conditional; Test A remains `BLOCKED_BY_A0`. `EXEC_PERMISSION_IS_TEST_A_MEASUREMENT`; `SPECIFIC_SAFE_POWER_STATE_SUFFICIENT`. B–D remain blocked by prior tests and Honda admission evidence. E remains evidence blocked; F partial; G keeps 14.405 FPS emulator `PERFORMANCE_UNRESOLVED`; H `AUTHORITY_REQUIRED`.

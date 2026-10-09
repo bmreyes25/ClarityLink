@@ -1,6 +1,6 @@
 # R7E Test A — temporary executable acceptance plan
 
-**Plan state:** `BLOCKED_BY_EVIDENCE` / `NOT_AUTHORIZED` (R7E1 artifact blocker closed; target evidence blockers remain).
+**Plan state:** `BLOCKED_BY_A0` / `NOT_AUTHORIZED` (artifact closed; A0-R required first).
 **Risk:** Tier 2 (temporary project process/file).  
 **Question:** Can the project-owned API17/ARMv7 diagnostic start and terminate cleanly on the Honda platform, without display, USB/iAP2, or CarPlay behavior?
 
@@ -8,13 +8,13 @@
 
 1. **Closed offline:** build/audit split artifact; Test A CLI SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`; ELF32 ARM EABI5/API17; 10 imports, zero unknown; dependencies `libdl.so` and `libc.so`.
 2. **Closed offline:** no-argument, help/version/status/self-test, invalid-mode, bounded-resource, and 100-cycle checks passed; see R7E1 offline test report.
-3. Establish an exact temporary destination and prove its write/delete semantics. `/data/local/tmp` is only a candidate and remains `EVIDENCE_REQUIRED`.
-4. Establish minimum head-unit power state from evidence. Current evidence does not distinguish accessory/ON/READY: `VEHICLE_POWER_STATE_REQUIRES_CONFIRMATION`.
-5. Have a separately reviewed, exact Test A plan and explicit Test A authorization.
+3. A0-R establishes current candidate destination metadata, mount flags, visible SELinux observation, and operator-observed power mode; A0-R is separately authorized and read-only.
+4. If write/delete remain unknown, separately authorize A0-W; it must not execute any program. Do not require pre-proof of successful executable mapping: this is Test A's measurement (`EXEC_PERMISSION_IS_TEST_A_MEASUREMENT`), subject to A0-R showing no known mount/policy blocker.
+5. Separately reviewed exact Test A commands, rollback, and Test A authorization remain mandatory.
 
 ## Proposed later actions (NOT EXECUTED)
 
-No exact transfer/invocation command can be responsibly specified until artifact hash, destination, executable format, and target shell/runtime acceptance are known. Do not substitute guessed values or run a package install. Once those values are established offline, this section must be revised to list literal commands and each command's write audit before review. There is no display, Presentation, Surface, frame, listener, USB/iAP2, MFi, or CarPlay operation in Test A.
+**PROPOSED — NOT EXECUTED.** Exact sequence remains blocked until destination and shell-command/rollback capabilities are established. Artifact is exactly `claritylink-target-diag`, SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`. Use `DESTINATION_FROM_APPROVED_A0_RESULT` as a documentation gate only; it is not a runnable command. Do not guess a destination or assume `chmod`, `rm`, `ps`, `kill`, or target hash tooling. Transfer one exact artifact, verify identity via target hash if a tool is proven or record transport/host hash limitation, run `--version`, then `--self-test`, record status/output, verify process exit, remove only exact artifact, verify absence, and observe normal UI/cluster/warnings/audio. No display, Presentation, frame, listener, USB/iAP2, MFi, or CarPlay operation.
 
 ## Write and privilege audit
 
@@ -28,6 +28,6 @@ No system partition, package manager, startup/init, `jmcs`, `/dev/i2c-2`, CAN, U
 
 ## Vehicle, stop, rollback, and result
 
-Eventual execution must be stationary, parked, controlled, and monitored. Do not guess power state. Stop on any global stop condition, unexpected privilege, mutation, persistence, instability, or cleanup failure. Rollback: terminate the identified diagnostic process; verify it exited; remove the exact artifact; verify file absence and zero owned resources; observe normal center UI, cluster, warnings, and audio. Reboot is not an assumed rollback.
+Future test state must be separately approved and directly observed: stationary, parked, exact named power mode, center display fully booted, cluster normal/no warnings, and operator able to terminate. A theoretical minimum mode is unnecessary (`SPECIFIC_SAFE_POWER_STATE_SUFFICIENT`). `ps`/`kill` and `rm` are not yet proven; no wildcard stop/removal. Do not call rollback ready until exact process-disposition and removal commands are evidence-backed. Reboot is not assumed rollback.
 
-Success would establish only `HONDA_PROTOTYPE_OBSERVED` temporary execution under recorded conditions. Failure means stop and preserve sanitized logs; it does not imply a compatibility verdict. No test is run now. **Readiness: `BLOCKED_BY_EVIDENCE`** because artifact, destination, power state, and exact command are unestablished.
+Success/failure would establish only `HONDA_PROTOTYPE_OBSERVED` execution behavior under recorded conditions. Failure means stop and preserve sanitized logs; it does not imply a broader compatibility verdict. No test is run now. **Readiness: `BLOCKED_BY_A0`** because live destination/state observations and exact command/rollback evidence are unestablished.

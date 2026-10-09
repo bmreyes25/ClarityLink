@@ -18,6 +18,8 @@ R7D's `14.405 FPS` is retained as an emulator/software limitation against the re
 | 3 | Display state | Presentation, Surface, one frame, warnings, teardown/performance | Each test separately authorized after its predecessor |
 | 4 | Real session/auth | USB/iAP2/MFi/CarPlay | Blocked pending lawful authority and complete receiver/session/security evidence; separate review and authorization |
 
+R7E2 adds `A0-R` as separately authorized Tier 1 read-only inventory and `A0-W` as separately authorized Tier 2 one-marker write/delete, only if A0-R requires it. Neither authorizes Test A. Test A execution is separately authorized Tier 2. `EXEC_PERMISSION_IS_TEST_A_MEASUREMENT`: successful executable mapping is the result, provided A0-R reveals no known mount/policy blocker. `SPECIFIC_SAFE_POWER_STATE_SUFFICIENT`: require a separately approved operator-observed state, stationary/parked vehicle, fully booted head unit, normal cluster/no warnings, unique target and immediate stop capability; proving a theoretical minimum is unnecessary.
+
 An authorization applies only to the named test and exact artifact, commands, state, and rollback. Test A approval does not approve B–H. Enumeration does not approve Presentation admission. Admission does not approve rendering.
 
 ## Global stop and rollback boundary
@@ -38,6 +40,8 @@ Vehicle tests, if separately approved later, must be stationary, parked in a con
 | Artifact defaults | No R7E diagnostic artifact was built; behavior cannot be validated | Full target artifact gate remains blocked | Build prerequisite absent; no artifact claimed |
 | Performance | 14.405 FPS may be overinterpreted | Preserve as emulator-only; step rates only after earlier tests pass | Performance plan |
 | Real CarPlay | No lawful MFi authority, complete session handoff, or production Type110/111 security/framing | Test H blocked; CPC200 not mandatory for A–G; no stock-jmcs handoff assumed | R6D/R6E and unresolved matrix |
+| Test A circular prerequisite | Successful execution is the Test A objective | Exec permission is a measurement; preflight screens known blockers | `r7e2-prerequisite-circularity-review.md` |
+| A0 separation | Read-only could be conflated with write or execute | A0-R Tier 1, A0-W Tier 2 conditional, Test A Tier 2 execution | A0 plans and matrix |
 
 ## Decision
 
