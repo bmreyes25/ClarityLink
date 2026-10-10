@@ -1,3 +1,18 @@
+## Latest evidence — R7E5A A0-R review and A0-W package
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| A0-R result | [Sanitized result](research/runtime/r7e5-a0r-result.md) | `A0R_PASS_FOR_REVIEW`; 18 operations; zero target writes; private evidence remains local and unmodified |
+| A0-W package | [Authorization packet](research/runtime/r7e5a-a0w-authorization-packet.md); [manifest](research/runtime/r7e5a-a0w-plan-manifest.json); [collector](tools/r7e5a_a0w_collector.py) | One inert marker lifecycle; default-disabled; exact cleanup; no retries/fallbacks; A0-W not authorized |
+| Decision | [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md) | `R7E_A0W_EXECUTION_PACKAGE_READY`; Test A remains blocked and unauthorized; exact-head checks recorded in report |
+| Prior research | [R7E4 research](research/runtime/r7e4-android42-target-path-research.md) | AOSP/legacy ADB evidence supports the non-atomic destination precheck caveat; no target capability inferred |
+
+# R7E1 current evidence — 2026-10-08
+
+- [R7E1 milestone report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md) — split artifact closure; Test A remains evidence-blocked and unauthorized.
+- [Artifact architecture](research/runtime/r7e1-target-artifact-architecture.md), [manifest](research/runtime/r7e1-target-artifact-manifest.md), [ELF audit](research/runtime/r7e1-target-artifact-elf-audit.md), [offline tests](research/runtime/r7e1-target-artifact-offline-tests.md), [target evidence review](research/runtime/r7e1-test-a-target-evidence-review.md), [readiness](research/runtime/r7e1-test-a-readiness-decision.md).
+- [Pinned NDK provenance](research/runtime/r7e1-ndk-toolchain.md). Target execution remains unauthorized; no Honda action occurred.
+
 # R7C4 final Android integration closure — 2026-10-07
 
 - [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.
@@ -43,6 +58,20 @@
 - [Audio/input](research/runtime/r7c-audio-input-boundary.md), [process/restoration](research/runtime/r7c-process-restoration-model.md), [readiness](research/runtime/r7c-honda-adapter-readiness.md), and [next evidence](research/runtime/r7c-next-evidence-matrix.md).
 
 # Evidence index
+
+## R7E3 A0-R execution package (2026-10-08)
+
+- [R7E3 milestone report](step-reports/43t1-r7e3-a0r-execution-package.md): frozen host-side read-only collector and fixtures; A0-R not executed.
+- [Collector design](research/runtime/r7e3-a0r-collector-design.md), [command manifest](research/runtime/r7e3-a0r-command-manifest.md), and [plan manifest](research/runtime/r7e3-a0r-plan-manifest.json): allowlist, exact source/plan hashes, stop rules, ECC audit and redaction.
+- [Authorization packet](research/runtime/r7e3-a0r-authorization-packet.md), [runbook](research/runtime/r7e3-a0r-runbook.md), [test results](research/runtime/r7e3-a0r-test-results.md), and [readiness decision](research/runtime/r7e3-a0r-readiness-decision.md): separate authorization remains required; A0-W and Test A cannot auto-chain.
+
+## R7E parked-car compatibility preparation (2026-10-08)
+
+- [R7E milestone report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md): historical starting state; superseded by R7E1 artifact closure and evidence-blocked readiness.
+- [Safety and authorization model](research/runtime/r7e-safety-and-authorization-model.md), [test authorization matrix](research/runtime/r7e-test-authorization-matrix.md), and [first-test readiness](research/runtime/r7e-first-test-readiness.md): tiering, authorization boundaries, ECC review, and Test A blocker.
+- [Test plans A–D](research/runtime/r7e-test-a-executable-acceptance-plan.md), [B](research/runtime/r7e-test-b-display-enumeration-plan.md), [C](research/runtime/r7e-test-c-presentation-admission-plan.md), [D](research/runtime/r7e-test-d-single-frame-render-plan.md), [E](research/runtime/r7e-test-e-warning-coexistence-plan.md), [F](research/runtime/r7e-test-f-restoration-plan.md), [G](research/runtime/r7e-test-g-performance-plan.md), [H](research/runtime/r7e-test-h-real-carplay-preflight.md): individually gated, not authorized.
+- [Target diagnostic artifact](research/runtime/r7e-target-diagnostic-artifact.md) and [dependency audit](research/runtime/r7e-target-dependency-audit.md): no artifact built; NDK r23c not configured.
+- [Sanitized evidence capture format](research/runtime/r7e-evidence-capture-package.md). No vehicle evidence was collected.
 
 ## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
 
@@ -1123,3 +1152,4 @@ Honda-specific source notes remain separately indexed below; no external project
 | Restoration, observability, Honda questions | [restoration](research/runtime/r7d-restoration-sequencing.md), [observability](research/runtime/r7d-target-observability.md), [question matrix](research/runtime/r7d-honda-unresolved-question-matrix.md) | project-owned restoration and event audit pass; target questions remain explicit |
 | Local regression and repository gates | [43T1 R7D report](step-reports/43t1-r7d-integrated-target-simulation.md) | 901 passed/15 skipped; ASan/UBSan, TSan, API17 ARMv7 import, health, and diff pass |
 | Hosted checks and R7E gate | PR #18 on the R7D branch; [R7D→R7E gate](research/runtime/r7d-r7e-entry-gate.md) | exact-head Offline CI and CodeQL PASS; R7E entry open for preparation only |
+# R7E2 Test A evidence closure and A0 plans: `research/runtime/r7e2-test-a-evidence-gap.md`, `r7e2-prerequisite-circularity-review.md`, `r7e2-honda-shell-command-evidence.md`, `r7e2-test-a0-readonly-preflight-plan.md`, `r7e2-test-a0-write-delete-preflight-plan.md`, `r7e2-test-a0-evidence-capture.md`, `r7e2-test-a-readiness-decision.md`; summary `step-reports/43t1-r7e2-test-a-evidence-closure.md`.

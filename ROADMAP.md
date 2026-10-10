@@ -1,3 +1,15 @@
+## Current roadmap — R7E5A A0-R review and A0-W package
+
+1. A0-R is complete as `A0R_PASS_FOR_REVIEW`; sanitized summary is tracked and private evidence remains local.
+2. Write/transfer/delete are unproven, so A0-W is needed. R7E5A freezes an inert one-file ADB sync lifecycle with exact cleanup and absence verification.
+3. Decision: `R7E_A0W_EXECUTION_PACKAGE_READY`; next action `READY_FOR_EXPLICIT_USER_A0W_AUTHORIZATION`. A0-W is not authorized; Test A remains blocked and not authorized.
+4. AOSP 4.2.2 sync push removes an existing exact destination before sending. The A0-W packet therefore requires an exclusive ADB window and states the precheck race.
+5. R7E5A performs no Honda commands or writes. See [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md).
+
+## R7E1 — offline target diagnostic artifact closure
+
+R7E1 closes the offline target-artifact gap using split Test A native CLI and B–D API17 APK artifacts. Decision `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`; Test A remains unauthorized pending Honda-only destination, privilege, power-state, command, and rollback evidence. Next: push PR #19 and verify exact-head Offline CI/CodeQL; leave PR open. See [R7E1 report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md) and [readiness decision](research/runtime/r7e1-test-a-readiness-decision.md).
+
 - [43T1-R7C3 — final Android integration closure attempt](step-reports/43t1-r7c3-final-android-integration-closure.md) — test-only JNI socket/exception seams and native builds added, but APK/Dalvik and complete race/fault closure remain blocked; R7C stays partial and R7D closed.
 
 ## R7C2 Android runtime integration closure — partial — 2026-10-07
@@ -174,3 +186,10 @@ R7C merged at `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562` with exact-head CI and 
 ## R7D local acceptance update — 2026-10-08
 
 Local R7D acceptance passed. The synthetic API17 run sustained both streams for 30 minutes, with 14.405 FPS measured against the 30-FPS target; the gap is recorded. All fault/stress paths, cleanup, repository checks, ARMv7 import audit, and post-run R7C regression passed. PR #18's exact-head Offline CI and CodeQL passed. R7E entry is open for preparation only; next action is `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. No Honda or vehicle execution occurred.
+## R7E current gate — target diagnostic artifact blocked
+
+R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`. R7E produced separate preparation plans for Tests A–H; no test is authorized. The first Test A plan remains blocked until a fail-closed API17/ARMv7 diagnostic is built and audited with NDK r23c. **Next:** offline artifact implementation/build/audit; see [R7E readiness](research/runtime/r7e-first-test-readiness.md). The 14.405-FPS R7D result remains emulator-only and does not predict Honda performance.
+## R7E2: A0-R read-only preflight plan is ready for separate authorization. Do not execute during preparation. A0-W and Test A remain separately gated. See `research/runtime/r7e2-test-a-readiness-decision.md`.
+## Current R7E3 gate — authorization boundary
+
+R7E3 A0-R host collection package is ready for review. No Honda action has been authorized or executed. Next action is to wait for a separate explicit A0-R authorization tied to the exact collector commit and plan manifest hash. Do not continue into A0-W or Test A. See [R7E3 readiness](research/runtime/r7e3-a0r-readiness-decision.md).

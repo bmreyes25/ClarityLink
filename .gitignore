@@ -38,6 +38,7 @@
 /tools/*
 !/tools/README.md
 !/tools/check_repo_health.py
+!/tools/check_r7e1_target_diag_artifact.py
 !/tools/r6b_info_diff.py
 !/tools/r6e_info_diff.py
 !/tools/r6e_real_ios_lab.py
@@ -65,6 +66,7 @@
 !/tools/step43t0d_offline.py
 !/tools/step43t0d3_netcfg_plan.py
 !/tools/step43t0d3_static_review.py
+!/tools/r7e_a0r_collector.py
 !/tools/honda-readonly-preflight/
 !/tools/honda-readonly-preflight/**
 /tools/honda-readonly-preflight/__pycache__/
@@ -149,3 +151,5 @@
 *.cap
 *.dump
 *.raw
+
+/android/r7e1-display/assets/r7e1-diagnostic-frame.png

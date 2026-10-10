@@ -1,8 +1,20 @@
+## 43T1 R7E5A — A0-R evidence review and A0-W package (2026-10-10)
+
+See [R7E5A report](43t1-r7e5a-a0r-review-a0w-package.md): private A0-R evidence reviewed without modification; sanitized result committed; one default-disabled A0-W collector and exact marker lifecycle frozen. A0-W remains unauthorized, Test A remains unauthorized, and no Honda operation occurred.
+
+## 43T1 R7E1 — target diagnostic artifact closure (2026-10-08)
+
+Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Split API17/ARMv7 native Test A CLI and separate API17 emulator-only display APK built and audited offline; exact target destination/power/privilege/command/rollback evidence remains blocked. No Honda, vehicle, physical Android device, real iPhone, MFi, or live CarPlay execution occurred. See [R7E1 report](43t1-r7e1-target-diagnostic-artifact-closure.md) and `../research/runtime/r7e1-*`.
+
 ## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
 
 See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI native-socket/exception seams and native builds added; APK/Dalvik, complete races/faults, final 100-cycle run, and exact-head hosted checks remain open.
 
 ## Current / latest milestones
+
+- [43T1-R7E4A — A0-R authorization packet reconciliation](43t1-r7e4a-a0r-authorization-packet-reconciliation.md) — recomputed collector source hash at implementation/current PR refs; corrected packet hash; manifest bytes and hash unchanged; no Honda action.
+
+- [43T1-R7E4 — A0-R research-backed hardening](43t1-r7e4-a0r-research-hardening.md) — exact Android 4.2.2 / legacy ADB research, six read-only tool metadata checks, SELinux-unavailable policy refinement, host artifact mode gate, and ADB-sync marker plan; all Honda actions remain separately unauthorized.
 
 - [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.
 
@@ -50,6 +62,14 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 - [43T1-R3 non-inline mediation seam study](43t1-r3-non-inline-mediation-seam-study.md) — preserved historical draft; R3C controls
 
 # Step reports
+
+## 43T1 R7E3 — A0-R execution package ready
+
+See [R7E3 report](43t1-r7e3-a0r-execution-package.md): host-only A0-R collector/manifest and authorization packet prepared and fixture-tested. The tool is disabled by default; no Honda operation occurred. First separately authorizable step is A0-R only, requiring new explicit user authorization.
+
+## 43t1 R7E — Parked-car compatibility preparation (blocked)
+
+R7E1 supersedes the original artifact blocker: see [R7E1 milestone report](43t1-r7e1-target-diagnostic-artifact-closure.md). The original [R7E preparation report](43t1-r7e-parked-car-compatibility-preparation.md) records its historical starting state. Test A remains evidence-blocked and unauthorized; no Honda or vehicle action occurred.
 
 - [43T1 staged prototype discipline rules v2](43t1-rules-v2-staged-prototype-discipline.md) — governance update; no car experiment authorized
 
@@ -272,3 +292,6 @@ Status: `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES`. The cumulative API17 Activ
 ## 43t1 R7D — Integrated target simulation (active)
 
 Local R7D acceptance passed on `architecture/r7d-integrated-target-simulation`; starting head is R7C merge `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`. The 30-minute run measured 14.405 FPS against the 30-FPS target; the gap is documented. PR #18's exact-head Offline CI and CodeQL passed. R7E entry is open for preparation only. Next action: `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. See [`43t1-r7d-integrated-target-simulation.md`](43t1-r7d-integrated-target-simulation.md) and `research/runtime/r7d-*`.
+## 43T1 R7E2 — Test A evidence closure and A0 preparation
+
+R7E2 review/report: [43t1-r7e2-test-a-evidence-closure.md](43t1-r7e2-test-a-evidence-closure.md). Preparation only; no Honda action.

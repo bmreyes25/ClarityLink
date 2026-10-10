@@ -1,4 +1,16 @@
-# Next action
+## Current next action — explicit A0-W authorization, 2026-10-10
+
+R7E5A reviewed the completed A0-R private evidence and committed only its sanitized summary. A0-R returned `A0R_PASS_FOR_REVIEW`; `rm`, `ps`, `kill`, and `md5` metadata were present, while SELinux state remains unavailable and unclassified. The write/transfer/delete path is still unproven, so A0-W is needed. Its exact inert marker lifecycle is frozen in [the authorization packet](research/runtime/r7e5a-a0w-authorization-packet.md) and [manifest](research/runtime/r7e5a-a0w-plan-manifest.json). Decision: `R7E_A0W_EXECUTION_PACKAGE_READY`. **NEXT:** `READY_FOR_EXPLICIT_USER_A0W_AUTHORIZATION`, binding the exact collector and manifest hashes in the packet. A0-W has not run and remains unauthorized; Test A remains blocked and unauthorized. No target command or target write occurred in R7E5A. See [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md).
+
+## R7E3 next-action snapshot — superseded by R7E4
+
+At the R7E3 snapshot, its former packet and manifest were superseded before authorization by R7E4. This historical next-action state predates A0-R execution and R7E5A.
+
+# Historical next-action index
+
+## Original R7E state — superseded by R7E1
+
+R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a` after verification of exact head `afbdae970c07ee0fdc180169c020db4078a38b6c` (Offline CI and CodeQL passed). R7E started cleanly from the merge SHA. Preparation-only plans for Tests A–H are recorded. Test A is `BLOCKED_BY_EVIDENCE`: the R7E diagnostic artifact has not been built or audited, and pinned NDK r23c is not configured. Decision: `R7E_TARGET_ARTIFACT_BLOCKED`; no Honda/vehicle/device/iPhone/CarPlay execution or Honda writes occurred. **NEXT:** configure NDK r23c offline and implement/build/audit the minimal fail-closed API17/ARMv7 diagnostic. This does not authorize Test A. See [R7E report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md) and [first-test readiness](research/runtime/r7e-first-test-readiness.md).
 
 ## R7C5 final software closure — blocked — 2026-10-08
 
