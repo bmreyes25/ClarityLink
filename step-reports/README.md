@@ -1,3 +1,7 @@
+## 43T1 R7E5A — A0-R evidence review and A0-W package (2026-10-10)
+
+See [R7E5A report](43t1-r7e5a-a0r-review-a0w-package.md): private A0-R evidence reviewed without modification; sanitized result committed; one default-disabled A0-W collector and exact marker lifecycle frozen. A0-W remains unauthorized, Test A remains unauthorized, and no Honda operation occurred.
+
 ## 43T1 R7E1 — target diagnostic artifact closure (2026-10-08)
 
 Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Split API17/ARMv7 native Test A CLI and separate API17 emulator-only display APK built and audited offline; exact target destination/power/privilege/command/rollback evidence remains blocked. No Honda, vehicle, physical Android device, real iPhone, MFi, or live CarPlay execution occurred. See [R7E1 report](43t1-r7e1-target-diagnostic-artifact-closure.md) and `../research/runtime/r7e1-*`.

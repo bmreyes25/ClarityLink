@@ -1,14 +1,11 @@
-## Latest evidence — R7E4 research-backed A0-R hardening
+## Latest evidence — R7E5A A0-R review and A0-W package
 
 | Evidence item | Source | Result / scope |
-| R7E4A identity reconciliation | [R7E4A report](step-reports/43t1-r7e4a-a0r-authorization-packet-reconciliation.md); [authorization packet](research/runtime/r7e3-a0r-authorization-packet.md) | Collector SHA-256 recomputed as `8693ac5d...` at working tree, implementation and prior PR refs; packet corrected; manifest SHA `962b25f...` unchanged; local verification passes; exact reconciliation head `ad44443b2c282442af4fef32f57b2da345a3d804` passed Offline CI and CodeQL; PR #19 OPEN and MERGEABLE |
 |---|---|---|
-| Android 4.2.2 / legacy ADB research | [R7E4 research](research/runtime/r7e4-android42-target-path-research.md) | AOSP/Honda/related-platform/Clarity evidence classes kept distinct; no target proof inferred |
-| A0-R collector | [Collector design](research/runtime/r7e3-a0r-collector-design.md); [manifest](research/runtime/r7e3-a0r-plan-manifest.json) | Six metadata-only future tool checks; SELinux unavailable informational; `/data` noexec blocks; zero target writes |
-| Test A artifact mode/hash | [Artifact manifest](research/runtime/r7e1-target-artifact-manifest.md); `tools/check_r7e1_target_diag_artifact.py` | SHA-256 canonical; MD5 transport-only; local mode 0755 verified |
-| A0-W / Test A planning | [A0-W plan](research/runtime/r7e2-test-a0-write-delete-preflight-plan.md); [Test A plan](research/runtime/r7e-test-a-executable-acceptance-plan.md) | One inert ADB-sync marker proposed; no target chmod assumed; all target actions unauthorized |
-| Verification | [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md) | 919 passed / 15 skipped; self-locator 3 passed; simulator checks and repo health passed; Offline CI and CodeQL PASS on final exact PR head `aa2f0f7827cc8f0e0742c03edc2714f6449ee5ec`; PR #19 OPEN and MERGEABLE |
-| Decision | [R7E4 decision](research/runtime/r7e4-research-hardening-decision.md) | `R7E_A0R_RESEARCH_HARDENED_READY`; first separately authorizable action A0-R only |
+| A0-R result | [Sanitized result](research/runtime/r7e5-a0r-result.md) | `A0R_PASS_FOR_REVIEW`; 18 operations; zero target writes; private evidence remains local and unmodified |
+| A0-W package | [Authorization packet](research/runtime/r7e5a-a0w-authorization-packet.md); [manifest](research/runtime/r7e5a-a0w-plan-manifest.json); [collector](tools/r7e5a_a0w_collector.py) | One inert marker lifecycle; default-disabled; exact cleanup; no retries/fallbacks; A0-W not authorized |
+| Decision | [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md) | `R7E_A0W_EXECUTION_PACKAGE_READY`; Test A remains blocked and unauthorized; exact-head checks recorded in report |
+| Prior research | [R7E4 research](research/runtime/r7e4-android42-target-path-research.md) | AOSP/legacy ADB evidence supports the non-atomic destination precheck caveat; no target capability inferred |
 
 # R7E1 current evidence — 2026-10-08
 

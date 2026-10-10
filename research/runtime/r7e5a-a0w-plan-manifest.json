@@ -1,0 +1,129 @@
+{
+  "collector_source": "tools/r7e5a_a0w_collector.py",
+  "collector_source_sha256": "54001498a474c0233ffa7e27eced9340834a91672d670c4df05ce2acf9410d5b",
+  "commands": [
+    {
+      "argv": [
+        "devices"
+      ],
+      "id": "A0W-00",
+      "scope": "host adb inventory"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-ld",
+        "/data/local/tmp"
+      ],
+      "id": "A0W-01",
+      "scope": "target read; destination revalidation"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-l",
+        "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe"
+      ],
+      "id": "A0W-02",
+      "scope": "target read; exact-path pre-existence gate"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "push",
+        "build/r7e/a0w/claritylink-a0w-marker.txt",
+        "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe"
+      ],
+      "id": "A0W-03",
+      "scope": "single target write; one inert data file"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-l",
+        "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe"
+      ],
+      "id": "A0W-04",
+      "scope": "target read; exact marker metadata"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "/system/bin/md5",
+        "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe"
+      ],
+      "id": "A0W-05",
+      "scope": "target read; optional-tool metadata previously present; transport consistency only"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "/system/bin/rm",
+        "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe"
+      ],
+      "id": "A0W-06",
+      "scope": "single exact-path cleanup mutation"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-l",
+        "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe"
+      ],
+      "id": "A0W-07",
+      "scope": "target read; exact absence verification"
+    }
+  ],
+  "exclusive_adb_window_required": true,
+  "fallbacks": [],
+  "host_marker_path": "build/r7e/a0w/claritylink-a0w-marker.txt",
+  "manifest_version": "R7E5A-A0W-COMMAND-SET-1",
+  "marker_content_ascii": "ClarityLink A0-W inert transfer marker\nR7E5A\nNO EXECUTION\n",
+  "marker_md5": "395de139036f88640ad5acf7c6f6230e",
+  "marker_mode": "0644",
+  "marker_sha256": "6b0693fdcff5be76f10a0886ee0e82efeed070e493abaf28633775d8979706df",
+  "marker_size_bytes": 58,
+  "push_semantics_note": "AOSP 4.2.2 ADB sync unlinks the exact destination before creating it; the absence precheck is not atomic, so this plan requires a unique path and an operator-confirmed exclusive ADB window. Stop if that condition cannot be met.",
+  "remote_path": "/data/local/tmp/claritylink_a0w_r7e5a_5f9ffbe9dc38eaa3f98fb387f35109bd.probe",
+  "required_operator_gate": "--exclusive-adb-window-confirmed",
+  "retries": 0,
+  "success_does_not_prove": [
+    "executable mapping or launch",
+    "ClarityLink operation",
+    "Display1 or Presentation",
+    "CarPlay",
+    "USB/iAP2",
+    "MFi",
+    "any Test A result"
+  ],
+  "success_proves": [
+    "one exact ADB sync transfer succeeded",
+    "the exact regular marker was observed with expected bytes, mode, and ownership",
+    "optional MD5 transport consistency matched",
+    "the exact marker path was removed and verified absent"
+  ],
+  "target_cleanup": [
+    "A0W-06: /system/bin/rm of the exact marker path"
+  ],
+  "target_writes": [
+    "A0W-03: one adb push of the exact inert marker"
+  ],
+  "timeout_seconds": 15
+}

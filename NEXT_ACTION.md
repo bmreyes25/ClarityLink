@@ -1,10 +1,10 @@
-## Current next action — explicit A0-R authorization, 2026-10-09
+## Current next action — explicit A0-W authorization, 2026-10-10
 
-R7E4 research-backed A0-R hardening is implemented offline. The old manifest SHA `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3ff963e` is `SUPERSEDED_BEFORE_AUTHORIZATION` (no authorization was granted). The updated collector adds six read-only tool metadata checks, SELinux-unavailable is informational, and `/data` noexec remains blocking. A0-W now proposes one inert `0644` ADB-pushed marker; Test A expects host mode `0755` then remote mode verification, with no automatic target chmod. Canonical suite: 919 passed / 15 skipped; self-locator 3 passed; simulator checks passed; artifact hash/mode gate passed; repo health passed. Offline CI and CodeQL passed on implementation head `47605adad4e83faa8e05e028cd46282848546139` and prior final PR verification head `aa2f0f7827cc8f0e0742c03edc2714f6449ee5ec`; PR #19 is OPEN and MERGEABLE. Decision: `R7E_A0R_RESEARCH_HARDENED_READY`. **NEXT:** `READY_FOR_EXPLICIT_USER_A0R_AUTHORIZATION`; first separately authorizable action A0-R only. Do not run A0-R automatically. A0-W and Test A remain unauthorized. No Honda/ADB command or target write occurred. See [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md).
+R7E5A reviewed the completed A0-R private evidence and committed only its sanitized summary. A0-R returned `A0R_PASS_FOR_REVIEW`; `rm`, `ps`, `kill`, and `md5` metadata were present, while SELinux state remains unavailable and unclassified. The write/transfer/delete path is still unproven, so A0-W is needed. Its exact inert marker lifecycle is frozen in [the authorization packet](research/runtime/r7e5a-a0w-authorization-packet.md) and [manifest](research/runtime/r7e5a-a0w-plan-manifest.json). Decision: `R7E_A0W_EXECUTION_PACKAGE_READY`. **NEXT:** `READY_FOR_EXPLICIT_USER_A0W_AUTHORIZATION`, binding the exact collector and manifest hashes in the packet. A0-W has not run and remains unauthorized; Test A remains blocked and unauthorized. No target command or target write occurred in R7E5A. See [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md).
 
 ## R7E3 next-action snapshot — superseded by R7E4
 
-The former R7E3 authorization packet and manifest are superseded before authorization by the R7E4 package. The current next action is exact-head verification above; no Honda command or target write has occurred.
+At the R7E3 snapshot, its former packet and manifest were superseded before authorization by R7E4. This historical next-action state predates A0-R execution and R7E5A.
 
 # Historical next-action index
 

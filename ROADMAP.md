@@ -1,10 +1,10 @@
-## Current roadmap — R7E4 exact-head validation
+## Current roadmap — R7E5A A0-R review and A0-W package
 
-1. R7E4 implementation head `47605adad4e83faa8e05e028cd46282848546139` and final PR verification head `3133e36f82b86ed2fa1a0963115f6745ae752b6c` passed Offline CI and CodeQL; PR #19 is OPEN and MERGEABLE.
-2. Decision: `R7E_A0R_RESEARCH_HARDENED_READY`; next action `READY_FOR_EXPLICIT_USER_A0R_AUTHORIZATION`, A0-R only.
-3. Review actual A0-R evidence before considering A0-W; Test A remains separately authorized and blocked.
-
-R7E4 performs no Honda command, ADB target enumeration, target write, transfer, USB role change, display activity, iAP2/MFi, iPhone, or CarPlay action. See [R7E4 report](step-reports/43t1-r7e4-a0r-research-hardening.md).
+1. A0-R is complete as `A0R_PASS_FOR_REVIEW`; sanitized summary is tracked and private evidence remains local.
+2. Write/transfer/delete are unproven, so A0-W is needed. R7E5A freezes an inert one-file ADB sync lifecycle with exact cleanup and absence verification.
+3. Decision: `R7E_A0W_EXECUTION_PACKAGE_READY`; next action `READY_FOR_EXPLICIT_USER_A0W_AUTHORIZATION`. A0-W is not authorized; Test A remains blocked and not authorized.
+4. AOSP 4.2.2 sync push removes an existing exact destination before sending. The A0-W packet therefore requires an exclusive ADB window and states the precheck race.
+5. R7E5A performs no Honda commands or writes. See [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md).
 
 ## R7E1 — offline target diagnostic artifact closure
 
