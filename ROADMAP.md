@@ -1,3 +1,7 @@
+## R7E5F — self-contained Test A process bound — 2026-10-11
+
+Implemented direct-child supervision for `--version` and `--self-test`, host fault tests, rebuilt/audited ARMv7/API17 artifact, and verified ignored 0555 staging copy. ECC reviewed the exact PID ownership and reap boundary; external toolbox `ps`/`kill` are excluded from the proposed normal lifecycle. API17 x86 runtime proof is still required and was not run because R7E5F prohibits ADB. Decision remains `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; no Test A package or authorization was frozen. No Honda/ADB action. See [design](research/runtime/r7e5f-self-bounded-diagnostic-design.md), [closure](research/runtime/r7e5f-process-rollback-closure.md), and [report](step-reports/43t1-r7e5f-test-a-process-bound-closure.md).
+
 ## R7E5C — legacy ADB mode-semantics closure (offline, 2026-10-11)
 
 Reviewed exact Android 4.2.2_r1.2 AOSP sync semantics and the sanitized prior A0-W result. The observed remote 0666 matches the transform from host 0644; prior stop decision and raw evidence remain unchanged; MD5 remains unproven. A revised 0444 marker package with deterministic mode validation, required MD5, exact cleanup/absence, tests, and a separate authorization packet is prepared. Decision `R7E_A0WR_LEGACY_MODE_PACKAGE_READY`; A0-WR is not authorized. Test A remains unauthorized; future staging policy is an ignored byte-identical artifact copy at mode 0555. No Honda/ADB action. See [R7E5C report](step-reports/43t1-r7e5c-legacy-adb-mode-closure.md).

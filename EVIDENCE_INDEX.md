@@ -1,3 +1,10 @@
+# R7E5F process-bound review — 2026-10-11
+
+- [Self-bounded diagnostic design](research/runtime/r7e5f-self-bounded-diagnostic-design.md) and [rollback closure review](research/runtime/r7e5f-process-rollback-closure.md).
+- [R7E5F report](step-reports/43t1-r7e5f-test-a-process-bound-closure.md).
+- Host watchdog tests: `tests/native/test_r7e1_target_diag_watchdog.py`; ARM artifact checker: `tools/check_r7e1_target_diag_artifact.py`.
+- API17 x86 runtime proof not run (ADB prohibited); Test A remains blocked and unauthorized; no runnable package was frozen.
+
 ## R7E5C offline mode-semantics closure — 2026-10-11
 
 - [Pinned AOSP mode semantics and model](research/runtime/r7e5c-legacy-adb-mode-semantics.md) — source-backed 4.2.2_r1.2 transform; observed Honda agreement is behavioral only.

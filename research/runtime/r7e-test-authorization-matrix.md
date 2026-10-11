@@ -1,3 +1,7 @@
+## R7E5F current authorization state — 2026-10-11
+
+A0 remains complete. The exact-child supervisor removes external toolbox `ps`/`kill` from the proposed normal lifecycle and host fault tests pass. API17 x86 runtime proof remains unobserved because this milestone prohibits ADB. Test A remains `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED` and `NOT_AUTHORIZED`; no runnable package is frozen. See [process rollback review](r7e5f-process-rollback-closure.md).
+
 
 ## R7E5E current authorization state — 2026-10-11
 

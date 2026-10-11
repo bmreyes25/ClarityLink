@@ -6,8 +6,9 @@ import hashlib
 from pathlib import Path
 import sys
 
-EXPECTED_SHA256 = "f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0"
+EXPECTED_SHA256 = "ea1cbd38e0b5a2162ab58b20c9f2758bcf25693106db2337897db8bf62ae256a"
 EXPECTED_MODE = 0o755
+EXPECTED_SIZE = 7228
 DEFAULT_PATH = Path(__file__).resolve().parents[1] / "build/r7e1/native-armv7/claritylink-target-diag"
 
 
@@ -29,8 +30,8 @@ def main() -> int:
     print(f"sha256={sha256}")
     print(f"md5={md5} (transport consistency only)")
     print(f"mode={mode:04o}")
-    if sha256 != EXPECTED_SHA256 or mode != EXPECTED_MODE:
-        print("ARTIFACT_CHECK_FAILED: canonical SHA-256 or intended mode mismatch", file=sys.stderr)
+    if sha256 != EXPECTED_SHA256 or mode != EXPECTED_MODE or args.path.stat().st_size != EXPECTED_SIZE:
+        print("ARTIFACT_CHECK_FAILED: canonical SHA-256, size, or intended mode mismatch", file=sys.stderr)
         return 1
     print("ARTIFACT_CHECK_OK")
     return 0

@@ -297,3 +297,7 @@ Local R7D acceptance passed on `architecture/r7d-integrated-target-simulation`; 
 ## 43T1 R7E2 — Test A evidence closure and A0 preparation
 
 R7E2 review/report: [43t1-r7e2-test-a-evidence-closure.md](43t1-r7e2-test-a-evidence-closure.md). Preparation only; no Honda action.
+
+## 43T1 R7E5F — self-contained Test A process-bound closure
+
+Status: `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; host lifecycle tests and ARMv7 audit pass, while API17 x86 runtime proof remains unobserved because ADB was prohibited. Test A remains unauthorized. See [R7E5F report](43t1-r7e5f-test-a-process-bound-closure.md).

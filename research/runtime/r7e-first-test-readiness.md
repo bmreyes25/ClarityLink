@@ -1,3 +1,7 @@
+## R7E5F current decision — 2026-10-11
+
+The process-local supervisor is implemented and host fault-tested. Production ARMv7 rebuild and pinned NDK API17 import audit pass; staging copy is byte-identical at 0555. However, API17 x86 emulator runtime proof was not run because the required runner uses ADB and R7E5F forbids ADB. Decision remains `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; Test A is `NOT_AUTHORIZED`. No runnable collector, execution manifest, or authorization packet is frozen. Next: separately scoped offline API17 x86 runtime proof without Honda contact, then review and freeze only if all gates pass. See [design](r7e5f-self-bounded-diagnostic-design.md), [rollback review](r7e5f-process-rollback-closure.md), and [R7E5F report](../../step-reports/43t1-r7e5f-test-a-process-bound-closure.md).
+
 
 ## R7E5C update — legacy ADB mode closure (offline)
 
