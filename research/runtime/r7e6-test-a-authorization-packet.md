@@ -18,7 +18,7 @@
 - Expected remote state: regular `shell:shell`, 7,904 bytes, mode `0555` (`-r-xr-xr-x`), executable and not writable
 - Historical R7E6 packet and manifest are preserved in the `*-historical` files.
 
-GitHub checks were verified on the prior package head `fad39c42fc58638afd5d003deee3e4d97df89c58`: Offline CI, CodeQL workflow, and all five configured language jobs were successful; Advanced Security reported no new alerts in changed code. The final R7E6A commit must be checked on its exact GitHub head before any separate authorization.
+GitHub checks were verified on the prior package head `fad39c42fc58638afd5d003deee3e4d97df89c58`: Offline CI, CodeQL workflow, and all five configured language jobs were successful; Advanced Security reported no new alerts in changed code. The first pushed R7E6A head `3c588e254539f802126ea6fdd0bcbe1dd94bd069` passed Offline CI, aggregate CodeQL with no new alerts, and all five configured CodeQL language jobs. The final documentation-only commit must also be checked on its exact GitHub head before any separate authorization.
 
 ## Test A scope and operator gates
 

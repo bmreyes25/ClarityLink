@@ -43,6 +43,7 @@ The historical R7E6 authorization packet and manifest are preserved separately. 
 - Staging comparison: byte-identical; mode `0555`; expected remote mode `0555`.
 - `git diff --check`: passed.
 - The collector default path printed `NOT_AUTHORIZED`; dry-run reported `adb_operations: 0`.
+- Exact GitHub head `3c588e254539f802126ea6fdd0bcbe1dd94bd069`: Offline CI success; aggregate CodeQL success with no new alerts; Analyze C/C++, Python, Java/Kotlin, JavaScript/TypeScript, and Actions all success.
 
 ## ECC review record
 
