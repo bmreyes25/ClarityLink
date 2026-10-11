@@ -328,6 +328,15 @@ static int supervise(enum diagnostic_mode mode) {
         (void)alarm(0U);
         _exit(SUPERVISOR_ERROR_EXIT_CODE);
     }
+    if (printf("SUPERVISOR_CHILD_STARTED parent_pid=%ld child_pid=%ld\n",
+               (long)getpid(), (long)child_pid) < 0 || fflush(stdout) != 0) {
+        (void)kill(child_pid, SIGKILL);
+        while (waitpid(child_pid, &child_status, 0) < 0 && errno == EINTR) {
+        }
+        supervised_child_pid = -1;
+        (void)alarm(0U);
+        _exit(SUPERVISOR_ERROR_EXIT_CODE);
+    }
     for (;;) {
         sigset_t previous_mask;
         pid_t waited;
@@ -359,8 +368,8 @@ static int supervise(enum diagnostic_mode mode) {
                                                         wait_error) != 0) {
                 _exit(PARENT_WATCHDOG_EXIT_CODE);
             }
-            if (printf("SUPERVISOR_CHILD_REAPED pid=%ld recovery=kill_waitpid\n",
-                       (long)child_pid) < 0 || fflush(stdout) != 0) {
+            if (printf("SUPERVISOR_CHILD_REAPED parent_pid=%ld child_pid=%ld recovery=kill_waitpid\n",
+                       (long)getpid(), (long)child_pid) < 0 || fflush(stdout) != 0) {
                 return SUPERVISOR_ERROR_EXIT_CODE;
             }
             return SUPERVISOR_ERROR_EXIT_CODE;
@@ -383,7 +392,8 @@ static int supervise(enum diagnostic_mode mode) {
         return SUPERVISOR_ERROR_EXIT_CODE;
     }
 
-    if (printf("SUPERVISOR_CHILD_REAPED pid=%ld\n", (long)child_pid) < 0 ||
+    if (printf("SUPERVISOR_CHILD_REAPED parent_pid=%ld child_pid=%ld\n",
+               (long)getpid(), (long)child_pid) < 0 ||
         fflush(stdout) != 0) {
         return SUPERVISOR_ERROR_EXIT_CODE;
     }
