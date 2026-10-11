@@ -1160,3 +1160,7 @@ Honda-specific source notes remain separately indexed below; no external project
 | Local regression and repository gates | [43T1 R7D report](step-reports/43t1-r7d-integrated-target-simulation.md) | 901 passed/15 skipped; ASan/UBSan, TSan, API17 ARMv7 import, health, and diff pass |
 | Hosted checks and R7E gate | PR #18 on the R7D branch; [R7D→R7E gate](research/runtime/r7d-r7e-entry-gate.md) | exact-head Offline CI and CodeQL PASS; R7E entry open for preparation only |
 # R7E2 Test A evidence closure and A0 plans: `research/runtime/r7e2-test-a-evidence-gap.md`, `r7e2-prerequisite-circularity-review.md`, `r7e2-honda-shell-command-evidence.md`, `r7e2-test-a0-readonly-preflight-plan.md`, `r7e2-test-a0-write-delete-preflight-plan.md`, `r7e2-test-a0-evidence-capture.md`, `r7e2-test-a-readiness-decision.md`; summary `step-reports/43t1-r7e2-test-a-evidence-closure.md`.
+# R7E5E A0-WR review — 2026-10-11
+
+- [Sanitized A0-WR evidence review](research/runtime/r7e5e-a0wr-result.md): pass reviewed against metadata and all eight command records; A0 transfer/write/delete closed; no additional marker required; Test A remains unauthorized and process-rollback blocked.
+- Ignored Test A staging copy under `build/r7e5e/test-a/` is byte-identical to the canonical ELF and mode 0555. No Test A collector/authorization package is frozen because exact process recovery and diagnostic deadline remain unproven.

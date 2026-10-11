@@ -197,3 +197,6 @@ R7D PR #18 merged at `edea469044c1e259a43e3dd441600e95e148670a`. R7E produced se
 ## Current R7E3 gate — authorization boundary
 
 R7E3 A0-R host collection package is ready for review. No Honda action has been authorized or executed. Next action is to wait for a separate explicit A0-R authorization tied to the exact collector commit and plan manifest hash. Do not continue into A0-W or Test A. See [R7E3 readiness](research/runtime/r7e3-a0r-readiness-decision.md).
+## R7E5E — A0-WR evidence reviewed; Test A process rollback blocked — 2026-10-11
+
+A0-WR is `A0WR_PASS_FOR_REVIEW`; A0 transfer and write/verify/delete are closed, and no additional marker test is required. A0 is complete. Test A remains unauthorized because exact process discovery/recovery on the preserved Android 4.2.2 target is not proven and the current diagnostic has no enforced self-test deadline. Next: offline-only bound and recovery proof, then rebuild/audit and a separate package review. No Honda/ADB action. See [R7E5E evidence review](research/runtime/r7e5e-a0wr-result.md).

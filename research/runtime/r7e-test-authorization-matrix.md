@@ -1,5 +1,9 @@
 
-## R7E5C current authorization state — 2026-10-11
+## R7E5E current authorization state — 2026-10-11
+
+R7E5E reviewed the actual private A0-WR evidence. `A0WR_PASS_FOR_REVIEW`; `A0_TRANSFER_PATH_CLOSED`; `A0_WRITE_VERIFY_DELETE_CLOSED`; `NO_ADDITIONAL_A0_MARKER_TEST_REQUIRED`. A0 is complete. Test A is `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED` and `NOT_AUTHORIZED`. No second marker run is needed. The exact blocker is that captured evidence does not establish Android 4.2.2 `ps` output grammar, exact unique process/PID matching, or exact `/system/bin/kill` invocation behavior, while the current self-test has no enforced completion deadline. Read [the sanitized evidence review](r7e5e-a0wr-result.md).
+
+## Historical R7E5C authorization state — 2026-10-11
 
 The prior A0-W collector retains its historical `A0W_STOP_CONDITION`. Reviewed cause: `A0W_STOP_CAUSE_EXPECTATION_MISMATCH_LEGACY_ADB_MODE_SEMANTICS`; its observed 0644→0666 mode agrees with the pinned Android 4.2.2_r1.2 AOSP transform, but MD5 was not run. Transfer and exact cleanup/absence were observed; full acceptance was not closed. No target chmod is needed.
 
@@ -12,8 +16,8 @@ All tests are `NOT_AUTHORIZED`. Plan readiness never authorizes execution.
 | Test | Prerequisites | Risk | Honda read/write class | Required evidence | Rollback ready | Current readiness |
 |---|---|---:|---|---|---|---|
 | A0-R environment inventory | Completed with frozen R7E4 collector/manifest; evidence reviewed | Tier 1 | Read-only inventory | UID/GID, path metadata, mounts, visible SELinux, operator-observed state | No target mutation; stock state reported unchanged | `A0R_PASS_FOR_REVIEW`; completed, evidence local/private |
-| A0-W temporary write/delete | Reviewed A0-R result; frozen exact marker, collector, manifest, and separate authorization required | Tier 2 | One inert file transfer/read/delete; NO execution | Exact path, bytes, ownership/mode, deletion/absence | Exact marker only; no wildcard; cleanup hard stop | `READY_FOR_EXPLICIT_USER_A0W_AUTHORIZATION`; not authorized |
-| A executable acceptance | A0-R reviewed; A0-W separately completed if needed; known mount/policy blockers screened; exact state, commands, rollback, and explicit Test A authorization | Tier 2 | Temporary file/process and execution | Artifact SHA/ABI/deps, bounded self-test; actual exec outcome measured by A | Not ready until exact remove/absence/process-disposition capability established | `BLOCKED_BY_A0W` |
+| A0-W temporary write/delete | A0-R reviewed; A0-WR evidence reviewed | Tier 2 | One inert file transfer/read/delete; NO execution | Exact path, bytes, ownership/mode, deletion/absence | Exact marker only; no wildcard; cleanup completed | `A0WR_PASS_FOR_REVIEW`; `COMPLETE` |
+| A executable acceptance | A0-R and A0-WR reviewed; exact state, commands, bounded diagnostic and process rollback required | Tier 2 | Temporary file/process and execution | Artifact SHA/ABI/deps, bounded self-test; actual exec outcome measured by A | Exact remove/absence and proven exact process recovery required | `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; `NOT_AUTHORIZED` |
 | B enumeration | Separately authorized A pass | Tier 1 | Read-only inventory | ID/type/dimensions/refresh/validity from target | Process stop and stock observation described | `BLOCKED_BY_PRIOR_TEST` |
 | C Presentation | Separately authorized A and B pass | Tier 3 | Temporary display state | Separate context/show/Surface state diagnostics | Dismiss/release/stock checks described | `BLOCKED_BY_PRIOR_TEST` |
 | D one frame | Separately authorized A/B/C pass; reviewed frame | Tier 3 | Temporary visible output | Human observation, timestamps, logs, resources | Clear/dismiss/release/stock checks described | `BLOCKED_BY_PRIOR_TEST` |

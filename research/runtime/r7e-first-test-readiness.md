@@ -5,6 +5,12 @@ The previous A0-W outcome remains historically `A0W_STOP_CONDITION`: Android 4.2
 
 # R7E first-test readiness
 
+## R7E5E current decision — 2026-10-11
+
+`A0WR_PASS_FOR_REVIEW`. `A0_TRANSFER_PATH_CLOSED` and `A0_WRITE_VERIFY_DELETE_CLOSED`; `NO_ADDITIONAL_A0_MARKER_TEST_REQUIRED`. Test A moved to package review but is now `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`, `NOT_AUTHORIZED`, because exact Android 4.2.2 `ps` grammar/PID matching and `kill` behavior are not evidenced, and the current self-test does not enforce a completion bound. The canonical diagnostic remains byte-identical to its recorded SHA-256; its current size is 5,024 bytes (the old 4,836-byte documentation is stale). An ignored 0555 staging copy is byte-identical and predicts remote mode 0555. These facts do not close the process-recovery blocker. Do not create a runnable collector or request Test A authorization until the blocker is resolved and the artifact is rebuilt/audited if source changes.
+
+See the [sanitized A0-WR review](r7e5e-a0wr-result.md). The artifact's historical audit remains at [R7E1 ELF audit](r7e1-target-artifact-elf-audit.md).
+
 **Historical decision (superseded by R7E1):** `R7E_TEST_A_PLAN_BLOCKED`
 **Test A plan readiness:** `BLOCKED_BY_EVIDENCE`  
 **Execution authorization:** `NOT_AUTHORIZED`.
