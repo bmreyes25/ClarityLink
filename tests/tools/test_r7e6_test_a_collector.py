@@ -4,7 +4,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
 
 import pytest
@@ -34,7 +33,7 @@ class FakeADB:
                 self.existing = True
                 return subprocess.CompletedProcess(
                     argv, 0, "", f"{collector.ARTIFACT}: 1 file pushed, 0 skipped. "
-                    "1 MB/s (7904 bytes in 0.01s)\n")
+                    f"1 MB/s ({collector.SIZE} bytes in 0.01s)\n")
         elif argv[-3:] == ["ls", "-ld", collector.PARENT]:
             out = ("drwxrwx--x shell shell 2048 2026-10-11 /data/local/tmp\n"
                    if self.failure != "destination" else "drwx------ root root 2048 /data/local/tmp\n")
@@ -47,7 +46,7 @@ class FakeADB:
                 mode = "-rwxr-xr-x"
             elif self.failure == "nonexecutable":
                 mode = "-rw-r--r--"
-            size = 42 if self.failure == "size" else 7904
+            size = 42 if self.failure == "size" else collector.SIZE
             out = f"{mode} shell shell {size} 2026-10-11 {Path(collector.REMOTE).name}\n"
         elif argv[-2:] == ["/system/bin/md5", collector.REMOTE]:
             out = ("00000000000000000000000000000000\n" if self.failure == "md5"
@@ -89,9 +88,12 @@ def package(tmp_path, monkeypatch):
     monkeypatch.setattr(collector, "ROOT", tmp_path)
     artifact = tmp_path / "build/r7e6/test-a/claritylink-target-diag"
     artifact.parent.mkdir(parents=True)
-    shutil.copyfile(Path(__file__).resolve().parents[2] / "build/r7e6/test-a/claritylink-target-diag", artifact)
+    artifact.write_bytes(b"fake diagnostic bytes for collector fixture")
     artifact.chmod(0o555)
     monkeypatch.setattr(collector, "ARTIFACT", artifact)
+    monkeypatch.setattr(collector, "SIZE", artifact.stat().st_size)
+    monkeypatch.setattr(collector, "SHA256", hashlib.sha256(artifact.read_bytes()).hexdigest())
+    monkeypatch.setattr(collector, "MD5", hashlib.md5(artifact.read_bytes(), usedforsecurity=False).hexdigest())
     manifest = tmp_path / "research/runtime/r7e6-test-a-plan-manifest.json"
     manifest.parent.mkdir(parents=True)
     template = collector.manifest_template()
