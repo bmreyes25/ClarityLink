@@ -1,6 +1,10 @@
-## R7E6 — API17 runtime validation (blocked) — 2026-10-11
+## R7E6 — Test A execution package ready — 2026-10-11
 
-Host watchdog tests and the rebuilt ARMv7/API17 artifact audit pass. API17 x86 runtime proof remains blocked because a pre-existing shared ADB server attached to the emulator transport before any guest command was issued. No physical Android or Honda contact occurred. Test A remains unauthorized; no execution package is frozen. Next: use a host with exclusive emulator ADB isolation, then complete watchdog fault injection and 100 cycles. See the [R7E6 decision](research/runtime/r7e6-test-a-readiness-decision.md).
+API17 x86 runtime watchdog proof, child/parent fault injection, and 100/100 version/self-test cycles passed. ARMv7/API17 artifact audit, staging identity, default-disabled collector, fake-ADB fixtures, manifest, and separate authorization packet are frozen. Decision `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED`. Next step requires separate explicit user authorization bound to the exact package hashes; Test B cannot auto-start. See the [R7E6 decision](research/runtime/r7e6-test-a-readiness-decision.md).
+
+## R7E6 initial API17 runtime attempt — superseded — 2026-10-11
+
+This initial run stopped before guest commands when a shared ADB server attached to the emulator transport. R7E6 subsequently isolated the emulator ADB server, completed runtime/fault testing, and froze the package as described above. No physical Android or Honda contact occurred.
 
 ## R7E5F — self-contained Test A process bound — 2026-10-11
 

@@ -1,0 +1,149 @@
+{
+  "artifact_md5": "6137a693a77646aaf9a4cf0f351731d4",
+  "artifact_path": "build/r7e6/test-a/claritylink-target-diag",
+  "artifact_sha256": "9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063",
+  "artifact_size_bytes": 7904,
+  "authorization": "separate explicit user authorization required; Test A remains NOT_AUTHORIZED",
+  "child_deadline_seconds": 2,
+  "collector_source": "tools/r7e6_test_a_collector.py",
+  "collector_source_sha256": "5837624209be870b60027041235428e5839dcf4b85055bbdfd83cd759794235e",
+  "commands": [
+    [
+      "version"
+    ],
+    [
+      "devices"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "ls",
+      "-ld",
+      "/data/local/tmp"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "test",
+      "!",
+      "-e",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "push",
+      "build/r7e6/test-a/claritylink-target-diag",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "ls",
+      "-l",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/system/bin/md5",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8 --version; echo __R7E6_STATUS:$?"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "sh",
+      "-c",
+      "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8 --self-test; echo __R7E6_STATUS:$?"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "sh",
+      "-c",
+      "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/system/bin/rm",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "test",
+      "!",
+      "-e",
+      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+    ]
+  ],
+  "exceptional_recovery": "Host timeout is TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY: stop, preserve local evidence, and require separate recovery review; issue no more target commands. Other post-push failures permit one exact /system/bin/rm cleanup and one exact absence check.",
+  "expected_remote_mode": "0555",
+  "expected_remote_owner_group": "shell:shell",
+  "external_kill": false,
+  "external_ps": false,
+  "fallbacks": [],
+  "host_command_timeout_seconds": 12,
+  "manifest_version": "R7E6-TEST-A-COMMAND-SET-1",
+  "maximum_target_command_wall_seconds": 174,
+  "operator_gates": [
+    "stationary",
+    "safely parked",
+    "center display fully booted",
+    "cluster normal",
+    "no unexpected warnings",
+    "exact power-state observation",
+    "exact audio-state observation",
+    "exclusive ADB window"
+  ],
+  "parent_deadline_seconds": 4,
+  "parent_path": "/data/local/tmp",
+  "post_test_gate": "direct observation STOCK_STATE_UNCHANGED",
+  "push_timeout_seconds": 30,
+  "remote_path": "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8",
+  "required_adb_version": "37.0.1-15733141",
+  "retries": 0,
+  "staging_mode": "0555",
+  "success_does_not_prove": [
+    "Display1",
+    "Presentation",
+    "visual output",
+    "CarPlay",
+    "MFi",
+    "iAP2",
+    "USB ownership",
+    "Test B",
+    "root",
+    "jmcs changes"
+  ],
+  "success_proves": [
+    "ARMv7/API17 diagnostic launched",
+    "--version passed",
+    "bounded --self-test passed",
+    "child and parent processes absent",
+    "exact cleanup and final absence passed",
+    "operator observed stock state unchanged"
+  ],
+  "target_chmod": false
+}

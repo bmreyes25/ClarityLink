@@ -1,6 +1,8 @@
 # R7E6 current readiness — 2026-10-11
 
-R7E6 decision: `R7E_API17_WATCHDOG_RUNTIME_BLOCKED`. Host watchdog tests pass and ARMv7/API17 artifact audit/staging integrity pass, but API17 x86 runtime proof is absent because the host's shared ADB server attached to the emulator transport. No guest command was issued by the runner. Test A remains `NOT_AUTHORIZED`; no collector, manifest, or authorization packet is frozen. No Honda or physical Android contact. See [R7E6 decision](r7e6-test-a-readiness-decision.md).
+Decision: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; next `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`. API17 x86 watchdog runtime, fault matrix, and 100/100 repeated mode pairs passed. ARM artifact/import audit and staging integrity passed; default-disabled collector, 23 fixture cases, manifest, and authorization packet are frozen. Test A remains `NOT_AUTHORIZED` and unexecuted. No Honda or physical Android contact occurred. See [R7E6 packet](r7e6-test-a-authorization-packet.md) and [decision](r7e6-test-a-readiness-decision.md).
+
+Historical initial R7E6 attempt: runtime proof was not established because a shared ADB server attached to the emulator transport before guest commands. This was resolved by the later isolated API17 x86 run recorded in the current decision above; the initial failed attempt remains part of the audit history. No Honda or physical Android contact occurred.
 
 ## R7E5F current decision — 2026-10-11
 

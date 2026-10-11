@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 import sys
 
-EXPECTED_SHA256 = "3eecced4b46585b79566d7a17ebd5c692883c83e88db92447128a1e215ade42a"
+EXPECTED_SHA256 = "9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063"
 EXPECTED_MODE = 0o755
 EXPECTED_SIZE = 7904
 DEFAULT_PATH = Path(__file__).resolve().parents[1] / "build/r7e1/native-armv7/claritylink-target-diag"

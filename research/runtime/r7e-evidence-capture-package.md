@@ -4,6 +4,12 @@ R7E2 A0-R and A0-W fields are in [A0 evidence capture](r7e2-test-a0-evidence-cap
 
 Use one sanitized record per separately authorized test. Store raw logs/captures locally under approved handling; commit only redacted summaries and hashes.
 
+## R7E6 API17 runtime and Test A package
+
+R7E6's private API17 x86 AVD record is retained locally under ignored `build/r7e6/runs/api17-runtime-69ad6acbcd28.json` (SHA-256 `297e1dd98b93947a7e1595a7d48474c56f618f9f6ed544305ec7f8d84bf3a71c`). It records emulator identity, private ADB routing, exact child/parent lifecycle output, 100 repeated mode pairs and timings, cleanup, and no physical/Honda target selection. Do not copy emulator serials or local process details into public reports.
+
+Future separately authorized Test A uses the [R7E6 collector](r7e6-test-a-collector-verification.md), [frozen manifest](r7e6-test-a-plan-manifest.json), and [authorization packet](r7e6-test-a-authorization-packet.md). The collector writes a local mode-0600 summary with the target selector redacted, exact artifact identity, output digests, process PIDs, cleanup result, and direct post-test stock-state observation. Raw target command outputs are not committed. Test A remains unauthorized until a separate explicit user authorization binds the collector and manifest hashes.
+
 ## R7E1 Test A fields
 
 Record native artifact `claritylink-target-diag`, SHA-256 `f2e12aafe221ff51e153ccc7c1b71402cf3cf0c3a4f1648fb5963e2e66cffca0`, build source `5b1d490`, expected identity `CLARITYLINK_DIAG_VERSION=1.0.0`, `API_TARGET=17`, `ABI=armeabi-v7a`. Expected self-test markers: `SELF_TEST_BEGIN`, `RESOURCE_COUNTS final=0`, `SELF_TEST_PASS`. Exact future command/path and expected invocation result remain unset until destination, privilege, power state, and rollback evidence are established. Expected execution in R7E1: NONE.

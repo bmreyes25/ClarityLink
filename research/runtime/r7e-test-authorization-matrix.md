@@ -1,6 +1,8 @@
 ## R7E6 current authorization state — 2026-10-11
 
-Test A remains `NOT_AUTHORIZED`. R7E6 host watchdog and artifact checks pass, but API17 x86 runtime proof is blocked because the existing shared ADB server attached to the emulator transport. No collector or authorization package is frozen; no Honda or physical Android was contacted. Test B remains not authorized and cannot auto-start. See [R7E6 decision](r7e6-test-a-readiness-decision.md).
+Test A package readiness: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; execution authorization: `NOT_AUTHORIZED`. The exact collector and manifest hashes are frozen in [the authorization packet](r7e6-test-a-authorization-packet.md). Test B remains not authorized and cannot auto-start. No Honda or physical Android contact occurred in R7E6.
+
+Historical initial R7E6 attempt: the shared ADB server attached to the emulator before guest commands, so that attempt did not establish runtime proof. The later isolated API17 run and frozen package are recorded in the current state above. No Honda or physical Android contact occurred.
 
 ## R7E5F current authorization state — 2026-10-11
 

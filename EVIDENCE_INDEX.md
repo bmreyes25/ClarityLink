@@ -1,3 +1,11 @@
+## R7E6 Test A execution package ready (2026-10-11)
+
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED`.
+- [API17 runtime proof](research/runtime/r7e6-api17-watchdog-runtime-validation.md), [emulator isolation](research/runtime/r7e6-emulator-ownership-and-isolation.md), [fault matrix](research/runtime/r7e6-watchdog-fault-matrix.md), [containment proof](research/runtime/r7e6-process-containment-proof.md).
+- [Artifact audit](research/runtime/r7e6-target-artifact-audit.md): rebuilt ARMv7/API17 artifact and byte-identical 0555 staging copy.
+- [Collector verification](research/runtime/r7e6-test-a-collector-verification.md): default disabled; fake-ADB fixtures passed.
+- [Frozen manifest](research/runtime/r7e6-test-a-plan-manifest.json), [separate authorization packet](research/runtime/r7e6-test-a-authorization-packet.md), and [milestone report](step-reports/43t1-r7e6-test-a-readiness-closure.md).
+
 ## R7E6 API17 runtime blocker (2026-10-11)
 
 - [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_API17_WATCHDOG_RUNTIME_BLOCKED`; Test A not authorized and no runnable package frozen.

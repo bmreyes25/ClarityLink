@@ -1,6 +1,10 @@
-## 43T1 R7E6 — Test A readiness closure attempt (2026-10-11)
+## 43T1 R7E6 — API17 runtime and Test A package readiness (2026-10-11)
 
-See [R7E6 report](43t1-r7e6-test-a-readiness-closure.md): host watchdog tests and ARMv7/API17 artifact checks pass; API17 runtime remains blocked because a pre-existing shared ADB server attached to the emulator. No guest command or physical/Honda operation occurred; Test A remains unauthorized and no execution package is frozen.
+See [R7E6 report](43t1-r7e6-test-a-readiness-closure.md): API17 x86 watchdog and 100-cycle runtime proof passed; ARMv7/API17 artifact audit, default-disabled collector, fixture matrix, manifest, and authorization packet are ready for separate review. Test A remains unauthorized; no Honda or physical Android target was contacted.
+
+## 43T1 R7E6 — initial runtime attempt (superseded) — 2026-10-11
+
+Historical initial attempt: a shared ADB server attached to the emulator before guest commands. The later isolated runtime pass and frozen package are recorded in the [R7E6 report](43t1-r7e6-test-a-readiness-closure.md).
 
 ## 43T1 R7E5A — A0-R evidence review and A0-W package (2026-10-10)
 
@@ -307,4 +311,4 @@ R7E2 review/report: [43t1-r7e2-test-a-evidence-closure.md](43t1-r7e2-test-a-evid
 Status: `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; host lifecycle tests and ARMv7 audit pass, while API17 x86 runtime proof remains unobserved because ADB was prohibited. Test A remains unauthorized. See [R7E5F report](43t1-r7e5f-test-a-process-bound-closure.md).
 ## 43T1 R7E6 — Test A readiness closure attempt (2026-10-11)
 
-See [R7E6 report](43t1-r7e6-test-a-readiness-closure.md): host watchdog tests and ARMv7/API17 artifact checks pass; API17 runtime remains blocked because a pre-existing shared ADB server attached to the emulator. No guest command or physical/Honda operation occurred; Test A remains unauthorized and no execution package is frozen.
+The initial API17 runtime attempt stopped before guest commands because a shared ADB server attached to the emulator. The later isolated run passed; see the [R7E6 report](43t1-r7e6-test-a-readiness-closure.md).

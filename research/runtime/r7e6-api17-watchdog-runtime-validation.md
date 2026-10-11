@@ -2,31 +2,36 @@
 
 ## Result
 
-Decision: `R7E_API17_WATCHDOG_RUNTIME_BLOCKED`.
+Runtime decision: `ANDROID_API17_X86_RUNTIME_WATCHDOG_PROVEN_X86`.
 
-The API17 x86 diagnostic was **not** executed. This host has a pre-existing shared ADB server that independently attached to each test emulator's local ADB port. Stopping or reconfiguring that shared server was outside this milestone's isolation boundary. The runner's dedicated server remained on its own port and reported no target, so no target command was issued through it. No physical Android device or Honda was contacted.
+The final run used a unique project-owned AVD (`r7e6_api17_69ad6acbcd28`), exact emulator serial `emulator-5580`, and a dedicated ADB server on port 5038. The guest identified as Android 4.2.2, API17, x86, and Dalvik 1.6.0. `ADB_USB=0` disabled USB enumeration on the private server. Host socket ownership checks found only the owned emulator and private server on the emulator ADB port. Every ADB target command used that exact server and serial. No physical Android device or Honda was contacted.
 
-Two cold boots were stopped before any shell, push, or diagnostic operation. Their private, ignored records are `build/r7e6/runs/api17-runtime-54316acbc602.json` (no emulator transport appeared on the isolated server) and `build/r7e6/runs/api17-runtime-569f6acbc7e6.json` (cancelled after the host's shared server attached). A later isolation probe on port 5586 reproduced the shared-server attachment; its record is `build/r7e6/runs/api17-runtime-57796acbc83d.json`. Each runner cleanup stopped only its owned emulator and private ADB server and removed its unique AVD. Cleanup reported no failures. The runner now checks local socket ownership and stops before any guest command when it sees a foreign ADB owner.
+Final private evidence is `build/r7e6/runs/api17-runtime-69ad6acbcd28.json`, SHA-256 `297e1dd98b93947a7e1595a7d48474c56f618f9f6ed544305ec7f8d84bf3a71c`. It records 213 diagnostic invocations, all runtime results and exact PID observations, and 100 completed version/self-test pairs. The runner stopped only its owned emulator/private server, removed the run-specific AVD, and reported no cleanup failures. It does not retain raw remote `ls`/MD5 output; the assertions for regular-file mode, owner, group, size, and MD5 passed before any diagnostic mode ran.
 
-The `--one-device` setting does not isolate emulator transports: current ADB help describes it as a USB-device constraint. Disabling USB enumeration on the private server (`ADB_USB=0`) prevents that server from scanning host USB interfaces, but it cannot prevent a separate already-running ADB server from discovering a loopback emulator. The subsequent unexecuted runner revision now sets `ANDROID_ADB_SERVER_PORT` to the private port and adds an exact-port host-socket ownership guard; this mitigation has not been runtime-validated. Emulator runtime proof therefore remains unestablished. No Test A package or authorization packet is frozen.
+Early failed attempts are retained as ignored local evidence. They exposed the shared-server conflict, an incorrect emulator-console identity query, ADB push progress on stderr, emulator `root:root` ownership, the `ls` basename format, and inherited ignored `SIGSEGV` in the test-only crash mode. The runner/test variant was corrected and rerun; the passing result is from the final run above.
 
-## Host and artifact results
+## Runtime results
 
-- Focused host watchdog tests: 9 passed.
-- Full offline suite: 982 passed, 15 skipped; self-locator (3 passed), configured simulator checks, repository health, and whitespace check passed.
-- ARMv7 build: NDK r23c `armv7a-linux-androideabi17`, API17; 7,904 bytes.
-- SHA-256: `3eecced4b46585b79566d7a17ebd5c692883c83e88db92447128a1e215ade42a`.
-- MD5: `b6d64f70999739bc0f180c6cda923342`.
-- ELF: ELF32, little-endian, ARM EABI5, PIE; `DT_NEEDED`: `libdl.so`, `libc.so`.
-- Imports: `__cxa_atexit`, `__libc_init`, `__errno`, `__sF`, `_exit`, `alarm`, `clock_gettime`, `fflush`, `fork`, `fputs`, `free`, `getpid`, `kill`, `malloc`, `memset`, `nanosleep`, `pause`, `printf`, `puts`, `sigaction`, `sigpending`, `sigprocmask`, `sigwait`, `strcmp`, `waitpid`.
-- The checker passed. The ignored staging copy at mode `0555` remains byte-identical (same SHA-256 and MD5). This is an offline artifact audit, not target execution proof.
+- `--version`: five initial invocations and 100/100 repeated invocations returned 0 and exact child-reaped records.
+- `--self-test`: initial invocation and 100/100 repeated invocations returned 0, reported `SELF_TEST_PASS` and `RESOURCE_COUNTS final=0`, and emitted exact child-reaped records.
+- Child busy loop: watchdog status 124; child reaped; exact child PID absent afterward.
+- Child blocked sleep: watchdog status 124; child reaped; exact child PID absent afterward.
+- Test-only child crash: status 126 after explicitly restoring `SIGSEGV` default; exact child reaped.
+- Ignored inherited `SIGCHLD`: reset and exact wait succeeded.
+- Injected fork failure: deterministic status 127; no child reported.
+- Injected waitpid error: exact child termination/reap recovery; status 127.
+- Parent watchdog: status 125; exact child and parent PIDs absent after completion.
+- 100 repeated version/self-test pairs: 100 completed. Maximum observed pair duration 1.9353 s; self-test 1.3013 s; initial version samples min/median/max 0.8072/1.0969/1.4390 s.
+- Host command timeout: 12 s. Production internal parent bound: 4 s; child bound: 2 s.
 
-## Process-lifecycle review
+The emulator's pushed test artifact had mode `0555`, owner/group `root:root`, and exact local size/hash/MD5 assertions passed. The root ownership belongs to this emulator image; Honda Test A still requires `shell:shell`.
 
-The supervisor's PID comes directly from `fork()`, and it waits only on that PID. An exited but unreaped direct child remains the parent's zombie and its PID is not available for reassignment until reaped; this reasoning applies only to this parent-child relationship. It does not establish safe external PID discovery or recovery.
+## Build and import audit
 
-Host tests cover normal return, child busy-loop and sleep timeouts, parent timeout, crash mapping, inherited `SIGCHLD=SIG_IGN`, fork failure, waitpid error recovery, and repeated child lifecycles. These establish host behavior only. API17 runtime deadlines and cleanup remain unverified.
+The rebuilt ARMv7 target is 7,904 bytes, SHA-256 `9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063`, MD5 `6137a693a77646aaf9a4cf0f351731d4`. ELF is 32-bit little-endian ARM EABI5 PIE with only `libdl.so` and `libc.so` needed. Pinned API17 NDK stubs classify every import as available; unknown imports: zero. The ignored staging copy is byte-identical at mode `0555`.
 
-## Next requirement
+The separate test-only API17 x86 fault binary is SHA-256 `1df178f499f50fe5efdf1a782e3898e16541d03b8ec2423b12e4572ba2c12247`; it is not the Honda artifact and is never staged by the Test A collector.
 
-Re-run the dedicated API17 AVD with the updated explicit server-port selection and host-socket guard. If the pre-existing server still attaches, use a host arrangement where no shared ADB server can attach, with USB enumeration disabled. Then complete the API17 direct-runtime matrix. Do not treat the present partial boot attempts as passes. Test A remains `NOT_AUTHORIZED`.
+## Limits
+
+This proves the shared source's process lifecycle on an API17 x86 emulator, not ARMv7 execution on the Honda or behavior under Honda-specific kernel/loader conditions. It does not establish any display, USB, MFi, iAP2, CarPlay, or vehicle capability. The separate Test A collector and package have their own hash-bound authorization gate; Test A remains `NOT_AUTHORIZED`.
