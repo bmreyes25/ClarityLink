@@ -17,7 +17,7 @@ from typing import Callable, Sequence
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "research/runtime/r7e6-test-a-plan-manifest.json"
 ARTIFACT = ROOT / "build/r7e6/test-a/claritylink-target-diag"
-REMOTE = "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+REMOTE = "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
 PARENT = "/data/local/tmp"
 SIZE = 7904
 SHA256 = "9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063"
@@ -36,6 +36,11 @@ class TransportAnomaly(Blocked):
     pass
 
 
+class ProcessExitedFailure(Blocked):
+    """Diagnostic returned nonzero after exact process exit was verified."""
+
+
+
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -49,7 +54,7 @@ def command_plan() -> list[list[str]]:
         ["version"],
         ["devices"],
         ["-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", PARENT],
-        ["-s", "<EXACT_SERIAL>", "shell", "test", "!", "-e", REMOTE],
+        ["-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", REMOTE],
         ["-s", "<EXACT_SERIAL>", "push", str(ARTIFACT.relative_to(ROOT)), REMOTE],
         ["-s", "<EXACT_SERIAL>", "shell", "ls", "-l", REMOTE],
         ["-s", "<EXACT_SERIAL>", "shell", "/system/bin/md5", REMOTE],
@@ -62,13 +67,13 @@ def command_plan() -> list[list[str]]:
          "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && "
          "echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"],
         ["-s", "<EXACT_SERIAL>", "shell", "/system/bin/rm", REMOTE],
-        ["-s", "<EXACT_SERIAL>", "shell", "test", "!", "-e", REMOTE],
+        ["-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", REMOTE],
     ]
 
 
 def manifest_template() -> dict[str, object]:
     return {
-        "manifest_version": "R7E6-TEST-A-COMMAND-SET-1",
+        "manifest_version": "R7E6A-TEST-A-COMMAND-SET-1",
         "collector_source": "tools/r7e6_test_a_collector.py",
         "collector_source_sha256": "FROZEN_AFTER_SOURCE",
         "artifact_path": "build/r7e6/test-a/claritylink-target-diag",
@@ -94,8 +99,10 @@ def manifest_template() -> dict[str, object]:
         "commands": command_plan(),
         "exceptional_recovery": (
             "Host timeout is TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY: stop, preserve local evidence, "
-            "and require separate recovery review; issue no more target commands. Other post-push "
-            "failures permit one exact /system/bin/rm cleanup and one exact absence check."
+            "and issue no more target commands. Post-push failures permit one exact rm and exact "
+            "ENOENT verification only while no diagnostic was started or after its exact supervisor "
+            "lifecycle and PID absence were confirmed. If process state is uncertain, do not remove "
+            "the executable; preserve evidence and require separate recovery review."
         ),
         "operator_gates": ["stationary", "safely parked", "center display fully booted",
                            "cluster normal", "no unexpected warnings", "exact power-state observation",
@@ -140,15 +147,53 @@ def _shell(runner: Callable[..., subprocess.CompletedProcess[str]], adb: str,
 
 
 def _mode(output: str) -> tuple[str, str, str, int, str] | None:
-    match = re.search(r"(?m)^(-[rwx-]{9})\s+(\w+)\s+(\w+)\s+(\d+)\s+.*\s+(\S+)\s*$", output)
+    lines = output.replace("\r", "").splitlines()
+    if len(lines) != 1:
+        return None
+    match = re.fullmatch(r"(-[rwx-]{9})\s+(\w+)\s+(\w+)\s+(\d+)\s+.*\s+(\S+)", lines[0])
     if not match:
         return None
     return (match.group(1), match.group(2), match.group(3), int(match.group(4)), match.group(5))
 
 
 def _digest(output: str) -> str | None:
-    match = re.search(r"\b([0-9a-fA-F]{32})\b", output)
-    return match.group(1).lower() if match else None
+    lines = output.splitlines()
+    if len(lines) != 1:
+        return None
+    match = re.fullmatch(r"([0-9a-fA-F]{32}) (\S+)", lines[0])
+    if not match or match.group(2) != REMOTE:
+        return None
+    return match.group(1).lower()
+
+
+def _is_exact_enoent(output: str, path: str = REMOTE,
+                     stderr: str = "", returncode: int = 0) -> bool:
+    """Recognize only one exact legacy ls ENOENT line, never remote status."""
+    if returncode not in (0, 1) or (output and stderr):
+        return False
+    line = stderr if stderr else output
+    if line.endswith("\r\n"):
+        line = line[:-2]
+    elif line.endswith("\n"):
+        line = line[:-1]
+    if not line or "\n" in line or "\r" in line:
+        return False
+    prefixes = ("", "ls: ", "/system/bin/ls: ", "/system/bin/sh: ",
+                "/system/bin/sh: ls: ", "/system/bin/sh: /system/bin/ls: ")
+    return any(line == f"{prefix}{path}: No such file or directory"
+               for prefix in prefixes)
+
+
+def _absence_gate(runner: Callable[..., subprocess.CompletedProcess[str]],
+                  adb: str, serial: str, label: str) -> None:
+    try:
+        result = runner([adb, "-s", serial, "shell", "ls", "-ld", REMOTE],
+                        capture_output=True, text=True, timeout=TIMEOUT,
+                        check=False, cwd=ROOT)
+    except subprocess.TimeoutExpired as exc:
+        raise TransportAnomaly(f"{label}: TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY") from exc
+    if not _is_exact_enoent(result.stdout or "", REMOTE, result.stderr or "", result.returncode):
+        raise Blocked(f"{label}: TEST_A_REMOTE_PATH_STATE_UNCERTAIN")
 
 
 def _invocation(runner: Callable[..., subprocess.CompletedProcess[str]], adb: str,
@@ -156,8 +201,6 @@ def _invocation(runner: Callable[..., subprocess.CompletedProcess[str]], adb: st
     command = _shell(runner, adb, serial, f"{REMOTE} {mode}; echo __R7E6_STATUS:$?",
                      label=f"diagnostic {mode}")
     statuses = re.findall(r"(?m)^__R7E6_STATUS:(\d+)\s*$", command)
-    if statuses != ["0"]:
-        raise Blocked(f"diagnostic {mode}: nonzero or missing exact guest status")
     started = re.findall(r"SUPERVISOR_CHILD_STARTED parent_pid=(\d+) child_pid=(\d+)", command)
     reaped = re.findall(r"SUPERVISOR_CHILD_REAPED parent_pid=(\d+) child_pid=(\d+)", command)
     if len(started) != 1 or len(reaped) != 1 or started[0] != reaped[0]:
@@ -170,6 +213,8 @@ def _invocation(runner: Callable[..., subprocess.CompletedProcess[str]], adb: st
                     f"echo R7E6_PIDS_ABSENT:{child}:{parent}", label=f"{mode} exact process absence")
     if absent.strip() != f"R7E6_PIDS_ABSENT:{child}:{parent}":
         raise Blocked(f"diagnostic {mode}: process state remains or is uncertain")
+    if statuses != ["0"]:
+        raise ProcessExitedFailure(f"diagnostic {mode}: nonzero or missing exact guest status")
     return command, [parent, child]
 
 
@@ -206,25 +251,107 @@ def execute(args: argparse.Namespace,
         raise Blocked("exact directly observed power and audio states are required")
 
     adb = args.adb
-    adb_version = _run(runner, [adb, "version"], "host ADB version")
-    if f"Version {ADB_VERSION}" not in adb_version.stdout:
-        raise Blocked("host ADB version differs from the frozen command environment")
-    inventory = _run(runner, [adb, "devices"], "exact target inventory")
-    if _devices(inventory.stdout) != [(args.serial, "device")]:
-        raise Blocked("target inventory is absent, ambiguous, or differs from the supplied exact serial")
-    parent = _shell(runner, adb, args.serial, "ls", "-ld", PARENT, label="destination metadata")
-    if not re.search(r"(?m)^drwxrwx--x\s+shell\s+shell\s+\d+\s+.*\s+/data/local/tmp\s*$", parent):
-        raise Blocked("destination metadata differs from the frozen shell-owned directory")
-    absent = _shell(runner, adb, args.serial, "test", "!", "-e", REMOTE,
-                    label="exact destination absence")
-    if absent.strip():
-        raise Blocked("exact destination absence check returned unexpected output")
+    state: dict[str, object] = {
+        "push_attempted": False, "diagnostic_started": False,
+        "process_state": "NOT_STARTED", "cleanup": "NOT_ATTEMPTED",
+        "final_absence": "NOT_CHECKED",
+    }
+    command_results: list[dict[str, object]] = []
+
+    def classify_operation(argv: Sequence[str]) -> str:
+        if argv[-1:] == ["version"]:
+            return "HOST_ADB_VERSION"
+        if argv[-1:] == ["devices"]:
+            return "TARGET_INVENTORY"
+        if "push" in argv:
+            return "SINGLE_ARTIFACT_PUSH"
+        if argv[-3:] == ["ls", "-ld", PARENT]:
+            return "PARENT_METADATA"
+        if argv[-3:] == ["ls", "-ld", REMOTE]:
+            return "EXACT_PATH_ABSENCE_OR_METADATA"
+        if argv[-2:] == ["/system/bin/md5", REMOTE]:
+            return "REMOTE_MD5"
+        if argv[-2:] == ["/system/bin/rm", REMOTE]:
+            return "EXACT_PATH_CLEANUP"
+        if argv and isinstance(argv[-1], str) and REMOTE in argv[-1] and ("--version" in argv[-1] or "--self-test" in argv[-1]):
+            return "DIAGNOSTIC_" + ("VERSION" if "--version" in argv[-1] else "SELF_TEST")
+        if "/proc/" in " ".join(argv):
+            return "EXACT_PROCESS_ABSENCE"
+        return "FROZEN_COMMAND"
+
+    def recorded_runner(argv, **kwargs):
+        operation = classify_operation(argv)
+        record: dict[str, object] = {
+            "command_id": f"R7E6A-{len(command_results) + 1:02d}",
+            "operation": operation,
+            "push_attempted": bool(state["push_attempted"]),
+            "diagnostic_started": bool(state["diagnostic_started"]),
+            "process_state": state["process_state"],
+        }
+        try:
+            result = runner(argv, **kwargs)
+        except subprocess.TimeoutExpired as exc:
+            record.update({"exit_status": "TIMEOUT", "output_classification": "INCOMPLETE",
+                           "stderr_classification": "UNKNOWN"})
+            command_results.append(record)
+            raise
+        except OSError:
+            record.update({"exit_status": "RUNNER_ERROR", "output_classification": "UNKNOWN",
+                           "stderr_classification": "UNKNOWN"})
+            command_results.append(record)
+            raise
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+        if operation == "EXACT_PATH_ABSENCE_OR_METADATA":
+            output_classification = (
+                "ENOENT" if _is_exact_enoent(stdout, REMOTE, stderr, result.returncode)
+                else "EMPTY" if not stdout and not stderr else "PRESENT_OR_UNRECOGNIZED"
+            )
+        else:
+            output_classification = "EMPTY" if not stdout else "NONEMPTY"
+        record.update({"exit_status": result.returncode,
+                       "output_classification": output_classification,
+                       "stderr_classification": "EMPTY" if not stderr else "NONEMPTY"})
+        command_results.append(record)
+        return result
+
+    def write_failure_evidence(decision: str) -> str:
+        evidence_root = ROOT / "build/r7e6a/test-a/evidence"
+        evidence_root.mkdir(parents=True, mode=0o700, exist_ok=True)
+        if evidence_root.is_symlink():
+            raise Blocked("private evidence directory must not be a symlink")
+        evidence_root.chmod(0o700)
+        evidence_path = evidence_root / (
+            f"collector-failure-{dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{os.getpid():x}.json"
+        )
+        evidence = {"decision": decision, "target_selector": "REDACTED",
+                    "remote_path": REMOTE, "artifact_sha256": SHA256,
+                    "collector_sha256": sha(source), "manifest_sha256": manifest_sha,
+                    **state, "command_results": command_results,
+                    "finished_utc": dt.datetime.now(dt.timezone.utc).isoformat()}
+        evidence_path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        evidence_path.chmod(0o600)
+        return str(evidence_path.relative_to(ROOT))
 
     push_attempted = False
     cleanup_attempted = False
+    process_state_uncertain = False
     try:
+        adb_version = _run(recorded_runner, [adb, "version"], "host ADB version")
+        if f"Version {ADB_VERSION}" not in adb_version.stdout:
+            raise Blocked("host ADB version differs from the frozen command environment")
+        inventory = _run(recorded_runner, [adb, "devices"], "exact target inventory")
+        if _devices(inventory.stdout) != [(args.serial, "device")]:
+            raise Blocked("target inventory is absent, ambiguous, or differs from the supplied exact serial")
+        parent = _shell(recorded_runner, adb, args.serial, "ls", "-ld", PARENT,
+                        label="destination metadata")
+        if not re.search(r"(?m)^drwxrwx--x\s+shell\s+shell\s+\d+\s+.*\s+/data/local/tmp\s*$", parent):
+            raise Blocked("destination metadata differs from the frozen shell-owned directory")
+        _absence_gate(recorded_runner, adb, args.serial, "exact destination absence")
+
         push_attempted = True
-        push_result = _run(runner, [adb, "-s", args.serial, "push", str(ARTIFACT), REMOTE],
+        state["push_attempted"] = True
+        push_result = _run(recorded_runner, [adb, "-s", args.serial, "push", str(ARTIFACT), REMOTE],
                            "single artifact push", 30, allow_stderr=True)
         transfer_lines = [line.strip() for line in (push_result.stdout + "\n" + push_result.stderr).splitlines()
                           if line.strip()]
@@ -234,44 +361,93 @@ def execute(args: argparse.Namespace,
         )
         if len(transfer_lines) != 1 or not expected_transfer.fullmatch(transfer_lines[0]):
             raise Blocked("single push returned an unrecognized transfer result")
-        metadata = _shell(runner, adb, args.serial, "ls", "-l", REMOTE, label="remote artifact metadata")
+        metadata = _shell(recorded_runner, adb, args.serial, "ls", "-l", REMOTE,
+                          label="remote artifact metadata")
         observed = _mode(metadata)
         if observed != ("-r-xr-xr-x", "shell", "shell", SIZE, Path(REMOTE).name):
             raise Blocked("remote artifact type, owner, group, size, or exact mode mismatch")
-        remote_md5 = _shell(runner, adb, args.serial, "/system/bin/md5", REMOTE,
+        remote_md5 = _shell(recorded_runner, adb, args.serial, "/system/bin/md5", REMOTE,
                             label="remote artifact MD5")
         if _digest(remote_md5) != MD5:
             raise Blocked("remote artifact MD5 mismatch")
-        version, version_pids = _invocation(runner, adb, args.serial, "--version")
+        process_state_uncertain = True
+        state["diagnostic_started"] = True
+        state["process_state"] = "UNCERTAIN"
+        try:
+            version, version_pids = _invocation(recorded_runner, adb, args.serial, "--version")
+        except ProcessExitedFailure:
+            process_state_uncertain = False
+            state["process_state"] = "PROCESS_CONFIRMED_EXITED"
+            raise
+        process_state_uncertain = False
+        state["process_state"] = "PROCESS_CONFIRMED_EXITED"
         if ("CLARITYLINK_DIAG_VERSION=1.0.0" not in version or
                 "API_TARGET=17" not in version or "ABI=armeabi-v7a" not in version):
             raise Blocked("--version output differs from the frozen ARMv7/API17 diagnostic")
-        self_test, test_pids = _invocation(runner, adb, args.serial, "--self-test")
+        process_state_uncertain = True
+        state["process_state"] = "UNCERTAIN"
+        try:
+            self_test, test_pids = _invocation(recorded_runner, adb, args.serial, "--self-test")
+        except ProcessExitedFailure:
+            process_state_uncertain = False
+            state["process_state"] = "PROCESS_CONFIRMED_EXITED"
+            raise
+        process_state_uncertain = False
+        state["process_state"] = "PROCESS_CONFIRMED_EXITED"
         if "SELF_TEST_PASS" not in self_test or "RESOURCE_COUNTS final=0" not in self_test:
             raise Blocked("--self-test did not report bounded success and zero resources")
         cleanup_attempted = True
-        rm = _shell(runner, adb, args.serial, "/system/bin/rm", REMOTE, label="exact artifact cleanup")
+        state["cleanup"] = "ATTEMPTED"
+        rm = _shell(recorded_runner, adb, args.serial, "/system/bin/rm", REMOTE,
+                    label="exact artifact cleanup")
         if rm.strip():
             raise Blocked("exact cleanup returned unexpected output")
-        final = _shell(runner, adb, args.serial, "test", "!", "-e", REMOTE,
-                       label="final exact absence")
-        if final.strip():
-            raise Blocked("final exact absence could not be verified")
+        _absence_gate(recorded_runner, adb, args.serial, "final exact absence")
+        state["cleanup"] = "RM_COMMAND_RETURNED"
+        state["final_absence"] = "ENOENT_CONFIRMED"
         if not confirm_stock_state():
             raise Blocked("direct post-test stock-state observation did not confirm unchanged state")
-    except TransportAnomaly:
-        # A host timeout is an anomaly. Do not issue another target command.
-        raise
+    except TransportAnomaly as exc:
+        try:
+            evidence_ref = write_failure_evidence("TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY")
+        except Exception:
+            evidence_ref = "PRIVATE_EVIDENCE_WRITE_FAILED"
+        raise TransportAnomaly(f"{exc}; evidence={evidence_ref}") from exc
     except (Blocked, OSError, ValueError, json.JSONDecodeError) as exc:
         if push_attempted and not cleanup_attempted:
+            if process_state_uncertain:
+                state["cleanup"] = "NOT_ATTEMPTED_PROCESS_STATE_UNCERTAIN"
+                state["process_state"] = "PROCESS_STATE_UNCERTAIN"
+                try:
+                    evidence_ref = write_failure_evidence("TEST_A_PROCESS_STATE_UNCERTAIN")
+                except Exception:
+                    evidence_ref = "PRIVATE_EVIDENCE_WRITE_FAILED"
+                raise Blocked(
+                    f"{exc}; TEST_A_PROCESS_STATE_UNCERTAIN; executable cleanup was not attempted; evidence={evidence_ref}"
+                ) from exc
             try:
-                _shell(runner, adb, args.serial, "/system/bin/rm", REMOTE,
+                cleanup_attempted = True
+                state["cleanup"] = "ATTEMPTED"
+                _shell(recorded_runner, adb, args.serial, "/system/bin/rm", REMOTE,
                        label="single exact-path failure cleanup")
-                _shell(runner, adb, args.serial, "test", "!", "-e", REMOTE,
-                       label="failure cleanup exact absence")
+                _absence_gate(recorded_runner, adb, args.serial, "failure cleanup exact absence")
+                state["cleanup"] = "RM_COMMAND_RETURNED"
+                state["final_absence"] = "ENOENT_CONFIRMED"
             except Exception as cleanup_error:
-                raise Blocked(f"{exc}; exact cleanup failed: {cleanup_error}") from exc
-        raise
+                state["cleanup"] = "FAILED_OR_UNCERTAIN"
+                state["final_absence"] = "NOT_CONFIRMED"
+                try:
+                    evidence_ref = write_failure_evidence("TEST_A_CLEANUP_NOT_VERIFIED")
+                except Exception:
+                    evidence_ref = "PRIVATE_EVIDENCE_WRITE_FAILED"
+                raise Blocked(
+                    f"{exc}; TEST_A_CLEANUP_NOT_VERIFIED: {cleanup_error}; evidence={evidence_ref}"
+                ) from exc
+        try:
+            evidence_ref = write_failure_evidence("TEST_A_BLOCKED")
+        except Exception:
+            evidence_ref = "PRIVATE_EVIDENCE_WRITE_FAILED"
+        raise Blocked(f"{exc}; evidence={evidence_ref}") from exc
     evidence_root = ROOT / "build/r7e6/test-a/evidence"
     evidence_root.mkdir(parents=True, mode=0o700, exist_ok=True)
     evidence_path = evidence_root / f"test-a-result-{dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{os.getpid():x}.json"
@@ -291,11 +467,16 @@ def execute(args: argparse.Namespace,
         "self_test_output_sha256": hashlib.sha256(self_test.encode()).hexdigest(),
         "version_process_pids": version_pids,
         "self_test_process_pids": test_pids,
-        "cleanup": "exact rm succeeded; exact absence verified",
         "stock_state": "directly observed unchanged",
         "collector_source_sha256": sha(source),
         "manifest_sha256": manifest_sha,
         "finished_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "command_results": command_results,
+        "push_attempted": bool(state["push_attempted"]),
+        "diagnostic_started": bool(state["diagnostic_started"]),
+        "process_state": state["process_state"],
+        "cleanup": state["cleanup"],
+        "final_absence": state["final_absence"],
     }
     evidence_path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     evidence_path.chmod(0o600)

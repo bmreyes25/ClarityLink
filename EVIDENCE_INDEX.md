@@ -1,4 +1,12 @@
-## R7E6 Test A execution package ready (2026-10-11)
+## R7E6A Test A collector safety closure (2026-10-11)
+
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`.
+- [Authorization packet](research/runtime/r7e6-test-a-authorization-packet.md) and [manifest](research/runtime/r7e6-test-a-plan-manifest.json): new exact R7E6A package; prior package preserved separately as historical.
+- [Collector verification](research/runtime/r7e6-test-a-collector-verification.md): strict absence/digest/process policy and focused test results.
+- [API17 absence probe](research/runtime/r7e6a-api17-absence-probe.md): offline emulator evidence; ignored raw evidence remains local.
+- [R7E6A report](step-reports/43t1-r7e6a-test-a-collector-safety-closure.md): exact-head checks and final verification.
+
+## Historical R7E6 package snapshot, superseded by R7E6A (2026-10-11)
 
 - [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED`.
 - [API17 runtime proof](research/runtime/r7e6-api17-watchdog-runtime-validation.md), [emulator isolation](research/runtime/r7e6-emulator-ownership-and-isolation.md), [fault matrix](research/runtime/r7e6-watchdog-fault-matrix.md), [containment proof](research/runtime/r7e6-process-containment-proof.md).

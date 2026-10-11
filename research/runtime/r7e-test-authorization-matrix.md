@@ -1,3 +1,9 @@
+# R7E6A current Test A authorization state
+
+The collector safety defects are closed offline: both absence gates require strict exact-path ENOENT output; digest parsing binds the single MD5 result to the exact artifact path; post-invocation cleanup is blocked when process state is uncertain. API17 x86 regression and focused host fixtures passed. Package readiness is `R7E_TEST_A_EXECUTION_PACKAGE_READY`, but Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED` until a separate explicit authorization binds the current collector and manifest. Test B remains independently unauthorized and cannot auto-start. No Honda or physical Android contact occurred. See [R7E6A packet](r7e6-test-a-authorization-packet.md) and [decision](r7e6-test-a-readiness-decision.md).
+
+---
+
 ## R7E6 current authorization state — 2026-10-11
 
 Test A package readiness: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; execution authorization: `NOT_AUTHORIZED`. The exact collector and manifest hashes are frozen in [the authorization packet](r7e6-test-a-authorization-packet.md). Test B remains not authorized and cannot auto-start. No Honda or physical Android contact occurred in R7E6.

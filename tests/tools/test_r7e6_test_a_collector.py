@@ -16,7 +16,7 @@ class FakeADB:
         self.failure = failure
         self.devices = devices or "List of devices attached\nTESTSER\tdevice\n"
         self.calls: list[list[str]] = []
-        self.existing = failure == "existing"
+        self.existing = failure in {"existing", "existing_symlink", "existing_directory"}
 
     def __call__(self, argv, **kwargs):
         self.calls.append(argv)
@@ -37,9 +37,32 @@ class FakeADB:
         elif argv[-3:] == ["ls", "-ld", collector.PARENT]:
             out = ("drwxrwx--x shell shell 2048 2026-10-11 /data/local/tmp\n"
                    if self.failure != "destination" else "drwx------ root root 2048 /data/local/tmp\n")
-        elif argv[-4:] == ["test", "!", "-e", collector.REMOTE]:
-            if self.existing:
-                code = 1
+        elif argv[-3:] == ["ls", "-ld", collector.REMOTE]:
+            if not self.existing:
+                code = 0 if self.failure != "absence_status_1" else 1
+                out = f"{collector.REMOTE}: No such file or directory\n"
+                if self.failure == "absence_empty":
+                    out = ""
+                elif self.failure == "absence_permission":
+                    out = "Permission denied\n"
+                elif self.failure == "absence_command_missing":
+                    out = "/system/bin/sh: ls: not found\n"
+                elif self.failure == "absence_ambiguous":
+                    out += "warning: extra response\n"
+                elif self.failure == "absence_other_path":
+                    out = "/data/local/tmp/other: No such file or directory\n"
+                elif self.failure == "absence_stderr":
+                    return subprocess.CompletedProcess(argv, 0, "", "permission denied\n")
+                elif self.failure == "absence_extra_blank":
+                    out += "\n"
+                elif self.failure == "absence_whitespace":
+                    out = " " + out
+            elif self.failure == "existing_symlink":
+                out = f"lrwxrwxrwx shell shell 1 2026-10-11 {Path(collector.REMOTE).name} -> marker\n"
+            elif self.failure == "existing_directory":
+                out = f"drwxr-xr-x shell shell 0 2026-10-11 {Path(collector.REMOTE).name}\n"
+            else:
+                out = f"-r--r--r-- shell shell {collector.SIZE} 2026-10-11 {Path(collector.REMOTE).name}\n"
         elif argv[-3:] == ["ls", "-l", collector.REMOTE]:
             mode = "-r-xr-xr-x"
             if self.failure in {"mode", "writable"}:
@@ -48,9 +71,11 @@ class FakeADB:
                 mode = "-rw-r--r--"
             size = 42 if self.failure == "size" else collector.SIZE
             out = f"{mode} shell shell {size} 2026-10-11 {Path(collector.REMOTE).name}\n"
+            if self.failure == "metadata_warning":
+                out += "warning: unexpected output\n"
         elif argv[-2:] == ["/system/bin/md5", collector.REMOTE]:
             out = ("00000000000000000000000000000000\n" if self.failure == "md5"
-                   else f"MD5 ({collector.REMOTE}) = {collector.MD5}\n")
+                   else f"{collector.MD5} {collector.REMOTE}\n")
         elif argv[-1:] == ["/system/bin/rm"] or argv[-2:] == ["/system/bin/rm", collector.REMOTE]:
             if self.failure == "rm":
                 code = 1
@@ -149,14 +174,14 @@ def test_target_zero_multiple_or_mismatch_fails_closed(package, devices):
 
 
 @pytest.mark.parametrize("failure", ["destination", "existing", "push", "size", "mode", "writable",
-                                      "nonexecutable", "md5", "--version", "--version_timeout",
+                                      "nonexecutable", "metadata_warning", "md5", "--version", "--version_timeout",
                                       "--self-test", "--self-test_timeout", "process_present",
                                       "ambiguous_process", "rm", "final_absent"])
 def test_fault_fixture_stops_or_cleans_exactly_once(package, failure):
     fake = FakeADB(failure=failure)
     with pytest.raises(collector.Blocked):
         collector.execute(package, runner=fake, confirm_stock_state=lambda: True)
-    if failure in {"destination", "existing"}:
+    if failure in {"destination", "existing", "existing_symlink", "existing_directory"}:
         assert not any("push" in call for call in fake.calls)
     if failure.endswith("_timeout"):
         # Host timeout anomaly must issue no rollback or subsequent target command.
@@ -164,6 +189,39 @@ def test_fault_fixture_stops_or_cleans_exactly_once(package, failure):
         assert target_calls and "rm" not in target_calls[-1]
     if failure in {"rm", "final_absent"}:
         assert sum("/system/bin/rm" in call for call in fake.calls) == 1
+
+
+@pytest.mark.parametrize("failure", ["absence_empty", "absence_permission", "absence_command_missing",
+                                      "absence_ambiguous", "absence_other_path", "absence_stderr",
+                                      "absence_extra_blank", "absence_whitespace", "existing",
+                                      "existing_symlink", "existing_directory"])
+def test_legacy_absence_gate_requires_exact_enoent_before_push(package, failure):
+    fake = FakeADB(failure=failure)
+    with pytest.raises(collector.Blocked, match="TEST_A_REMOTE_PATH_STATE_UNCERTAIN"):
+        collector.execute(package, runner=fake, confirm_stock_state=lambda: True)
+    assert not any("push" in call for call in fake.calls)
+
+
+def test_legacy_remote_failure_with_host_zero_and_exact_enoent_is_accepted(package):
+    fake = FakeADB()
+    result = subprocess.CompletedProcess(["adb"], 0,
+        f"{collector.REMOTE}: No such file or directory\n", "")
+    assert collector._is_exact_enoent(result.stdout, collector.REMOTE, result.stderr, result.returncode)
+
+
+def test_host_zero_and_empty_remote_failure_is_not_absence():
+    assert not collector._is_exact_enoent("", collector.REMOTE, "", 0)
+
+
+@pytest.mark.parametrize("output", [
+    f"{collector.MD5} /data/local/tmp/another-file\n",
+    f"{collector.MD5} {collector.REMOTE}\n{collector.MD5} {collector.REMOTE}\n",
+    f"{collector.MD5[:20]} {collector.REMOTE}\n",
+    f"{collector.MD5} {collector.REMOTE}\nwarning\n",
+    f"prefix {collector.MD5} {collector.REMOTE}\n",
+])
+def test_md5_requires_one_exact_digest_and_remote_path(output):
+    assert collector._digest(output) is None
 
 
 def test_stock_state_mismatch_fails_after_cleanup(package):

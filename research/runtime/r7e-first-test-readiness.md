@@ -1,3 +1,9 @@
+# R7E6A Test A readiness
+
+Decision: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; next `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`. R7E6A corrected the exact-path pre-transfer and final absence checks, MD5 filename binding, and process-state cleanup policy. Isolated Android 4.2.2/API17 x86 regression reproduced the legacy empty-output/host-zero `test -e` result and proved the revised exact `ls -ld` parser distinguishes absence from regular files, symlinks, and directories. 42 focused fake-ADB tests passed. The new package is bound to collector SHA-256 `{collector_sha}` and manifest SHA-256 `{manifest_sha}`. The artifact bytes remain unchanged. Test A is `NOT_AUTHORIZED` and `NOT_EXECUTED`; no Honda or physical Android contact occurred. See [packet](r7e6-test-a-authorization-packet.md), [decision](r7e6-test-a-readiness-decision.md), [collector verification](r7e6-test-a-collector-verification.md), and [R7E6A report](../../step-reports/43t1-r7e6a-test-a-collector-safety-closure.md).
+
+---
+
 # R7E6 current readiness — 2026-10-11
 
 Decision: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; next `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`. API17 x86 watchdog runtime, fault matrix, and 100/100 repeated mode pairs passed. ARM artifact/import audit and staging integrity passed; default-disabled collector, 23 fixture cases, manifest, and authorization packet are frozen. Test A remains `NOT_AUTHORIZED` and unexecuted. No Honda or physical Android contact occurred. See [R7E6 packet](r7e6-test-a-authorization-packet.md) and [decision](r7e6-test-a-readiness-decision.md).

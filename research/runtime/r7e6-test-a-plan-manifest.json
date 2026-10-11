@@ -6,7 +6,7 @@
   "authorization": "separate explicit user authorization required; Test A remains NOT_AUTHORIZED",
   "child_deadline_seconds": 2,
   "collector_source": "tools/r7e6_test_a_collector.py",
-  "collector_source_sha256": "5837624209be870b60027041235428e5839dcf4b85055bbdfd83cd759794235e",
+  "collector_source_sha256": "b3abf6ea52d2b89031a84c686203c780d61c8aed4b2af997647c12592e8c781a",
   "commands": [
     [
       "version"
@@ -26,17 +26,16 @@
       "-s",
       "<EXACT_SERIAL>",
       "shell",
-      "test",
-      "!",
-      "-e",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+      "ls",
+      "-ld",
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ],
     [
       "-s",
       "<EXACT_SERIAL>",
       "push",
       "build/r7e6/test-a/claritylink-target-diag",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ],
     [
       "-s",
@@ -44,20 +43,20 @@
       "shell",
       "ls",
       "-l",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ],
     [
       "-s",
       "<EXACT_SERIAL>",
       "shell",
       "/system/bin/md5",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ],
     [
       "-s",
       "<EXACT_SERIAL>",
       "shell",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8 --version; echo __R7E6_STATUS:$?"
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f --version; echo __R7E6_STATUS:$?"
     ],
     [
       "-s",
@@ -71,7 +70,7 @@
       "-s",
       "<EXACT_SERIAL>",
       "shell",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8 --self-test; echo __R7E6_STATUS:$?"
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f --self-test; echo __R7E6_STATUS:$?"
     ],
     [
       "-s",
@@ -86,26 +85,25 @@
       "<EXACT_SERIAL>",
       "shell",
       "/system/bin/rm",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ],
     [
       "-s",
       "<EXACT_SERIAL>",
       "shell",
-      "test",
-      "!",
-      "-e",
-      "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8"
+      "ls",
+      "-ld",
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ]
   ],
-  "exceptional_recovery": "Host timeout is TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY: stop, preserve local evidence, and require separate recovery review; issue no more target commands. Other post-push failures permit one exact /system/bin/rm cleanup and one exact absence check.",
+  "exceptional_recovery": "Host timeout is TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY: stop, preserve local evidence, and issue no more target commands. Post-push failures permit one exact rm and exact ENOENT verification only while no diagnostic was started or after its exact supervisor lifecycle and PID absence were confirmed. If process state is uncertain, do not remove the executable; preserve evidence and require separate recovery review.",
   "expected_remote_mode": "0555",
   "expected_remote_owner_group": "shell:shell",
   "external_kill": false,
   "external_ps": false,
   "fallbacks": [],
   "host_command_timeout_seconds": 12,
-  "manifest_version": "R7E6-TEST-A-COMMAND-SET-1",
+  "manifest_version": "R7E6A-TEST-A-COMMAND-SET-1",
   "maximum_target_command_wall_seconds": 174,
   "operator_gates": [
     "stationary",
@@ -121,7 +119,7 @@
   "parent_path": "/data/local/tmp",
   "post_test_gate": "direct observation STOCK_STATE_UNCHANGED",
   "push_timeout_seconds": 30,
-  "remote_path": "/data/local/tmp/claritylink_target_diag_r7e6_7f1a3c9d2b6e40a8",
+  "remote_path": "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f",
   "required_adb_version": "37.0.1-15733141",
   "retries": 0,
   "staging_mode": "0555",

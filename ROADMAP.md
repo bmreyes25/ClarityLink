@@ -1,4 +1,8 @@
-## R7E6 — Test A execution package ready — 2026-10-11
+## R7E6A — Test A collector safety closure — 2026-10-11
+
+Corrected legacy ADB exact-absence verification, exact-path MD5 parsing, and process-state-dependent cleanup. API17 x86 regression reproduced empty `test -e` output with host status 0 and verified strict exact-path ENOENT for absence. Focused fake-ADB tests: 42 passed. New frozen package: collector SHA-256 `b3abf6ea52d2b89031a84c686203c780d61c8aed4b2af997647c12592e8c781a`; manifest SHA-256 `39105acfae65cc05804bcab7d23fc7ab5a139e7f716d371787669b20d1da6a57`. Decision `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED` / `NOT_EXECUTED`. Next requires separate explicit authorization; Test B cannot auto-start. No Honda or physical Android contact. See [decision](research/runtime/r7e6-test-a-readiness-decision.md) and [R7E6A report](step-reports/43t1-r7e6a-test-a-collector-safety-closure.md).
+
+## Historical R7E6 snapshot — Test A package ready before R7E6A correction — 2026-10-11
 
 API17 x86 runtime watchdog proof, child/parent fault injection, and 100/100 version/self-test cycles passed. ARMv7/API17 artifact audit, staging identity, default-disabled collector, fake-ADB fixtures, manifest, and separate authorization packet are frozen. Decision `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED`. Next step requires separate explicit user authorization bound to the exact package hashes; Test B cannot auto-start. See the [R7E6 decision](research/runtime/r7e6-test-a-readiness-decision.md).
 

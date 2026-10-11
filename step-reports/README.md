@@ -1,3 +1,7 @@
+## 43T1 R7E6A — Test A collector safety closure (2026-10-11)
+
+See [R7E6A report](43t1-r7e6a-test-a-collector-safety-closure.md): corrected strict legacy ADB absence verification, MD5 path binding, and fail-closed process-aware cleanup. API17 x86 absence regression and focused collector fixtures passed. New package is ready for separate explicit authorization; Test A remains unauthorized and was not executed. No Honda or physical Android contact occurred.
+
 ## 43T1 R7E6 — API17 runtime and Test A package readiness (2026-10-11)
 
 See [R7E6 report](43t1-r7e6-test-a-readiness-closure.md): API17 x86 watchdog and 100-cycle runtime proof passed; ARMv7/API17 artifact audit, default-disabled collector, fixture matrix, manifest, and authorization packet are ready for separate review. Test A remains unauthorized; no Honda or physical Android target was contacted.
