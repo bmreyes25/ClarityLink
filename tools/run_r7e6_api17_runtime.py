@@ -45,6 +45,10 @@ class RuntimeFailure(RuntimeError):
     pass
 
 
+class ProcOnlyComplete(Exception):
+    """Stop after the focused procfs matrix, before diagnostic lifecycle runs."""
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
@@ -438,6 +442,37 @@ def main() -> int:
         evidence["guest_identity"] = identity
         evidence["dalvikvm_version"] = dalvik
 
+        if os.environ.get("R7E7A_PROC_ONLY") == "1":
+            proc_results: list[dict[str, object]] = evidence["runtime_results"]  # type: ignore[assignment]
+
+            def proc_case(label: str, script: str, expected: str | None) -> str:
+                output = target_command(adb_port, serial, adb_server, env,
+                                        "sh -c '" + script + "'", label, 5.0)
+                if expected is not None and output.strip() != expected:
+                    raise RuntimeFailure(f"{label}: expected {expected!r}, got {output!r}")
+                if expected is None and output.strip():
+                    raise RuntimeFailure(f"{label}: unexpected sentinel/output {output!r}")
+                proc_results.append({"label": label, "stdout": output})
+                return output
+
+            live = "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat"
+            proc_case("same-shell procfs positive control", live + " && echo PROC_SELF_OK", "PROC_SELF_OK")
+            proc_case("visible live PID blocks absence sentinel",
+                      live + " && test ! -e /proc/$$ && echo R7E6_PIDS_ABSENT:1:2", None)
+            proc_case("inaccessible positive control blocks absence sentinel",
+                      "test -d /proc/$$ && test -r /proc/$$/stat && "
+                      "test -r /proc/r7e7a_missing_control/stat && "
+                      "test ! -e /proc/4194302 && test ! -e /proc/4194303 && "
+                      "echo R7E6_PIDS_ABSENT:4194302:4194303", None)
+            proc_case("reaped child PID absence after wait",
+                      "sleep 1 & p=$!; wait $p; "
+                      "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
+                      "test ! -e /proc/$p && echo REAPED_PID_ABSENT", "REAPED_PID_ABSENT")
+            evidence["procfs_matrix"] = "API17_PROCFS_POSITIVE_CONTROL_PASS"
+            evidence["emulator_runtime_result"] = "API17_PROCFS_REVIEW_ONLY"
+            return_code = 0
+            raise ProcOnlyComplete()
+
         # A unique 0555 local staging copy is used; canonical artifacts are
         # not chmod'ed or rewritten. The fault binary is test-only.
         stage_dir = RUN_ROOT / f"staging-{run_id}"
@@ -563,6 +598,8 @@ def main() -> int:
         evidence["normal_execution_result"] = "PASS"
         evidence["host_timeout_failure_policy"] = "abort; stop only owned emulator; preserve local evidence; no retry"
         return_code = 0
+    except ProcOnlyComplete:
+        pass
     except Exception as exc:  # evidence and owned-process cleanup are mandatory on every failure
         evidence["failure"] = f"{type(exc).__name__}: {exc}"
         return_code = 1
@@ -602,7 +639,10 @@ def main() -> int:
             print("R7E6_CLEANUP_FAILURE=" + "; ".join(failures), file=sys.stderr)
             return_code = 1
     if return_code == 0:
-        print("ANDROID_API17_X86_RUNTIME_WATCHDOG_PROVEN_X86")
+        if os.environ.get("R7E7A_PROC_ONLY") == "1":
+            print("ANDROID_API17_X86_PROCFS_REVIEW_PASS")
+        else:
+            print("ANDROID_API17_X86_RUNTIME_WATCHDOG_PROVEN_X86")
     return return_code
 
 

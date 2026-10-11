@@ -1,15 +1,15 @@
-# R7E6A Test A authorization packet — NOT AUTHORIZED
+# R7E7A Test A authorization packet — NOT AUTHORIZED
 
 ## Decision and exact package identity
 
-**Package readiness:** `R7E_TEST_A_EXECUTION_PACKAGE_READY` after the R7E6A collector corrections. This packet does not grant execution permission. Test A remains **NOT_AUTHORIZED** and **NOT_EXECUTED**.
+**Package readiness:** pending exact-head hosted verification after the R7E7A procfs positive-control correction. This packet does not grant execution permission. Test A remains **NOT_AUTHORIZED** and **NOT_EXECUTED**.
 
 - Repository: `bmreyes25/ClarityLink`, PR #19
-- R7E6A manifest version: `R7E6A-TEST-A-COMMAND-SET-1`
+- R7E7A manifest version: `R7E7A-TEST-A-COMMAND-SET-2`
 - Collector: `tools/r7e6_test_a_collector.py`
-- Collector SHA-256: `b3abf6ea52d2b89031a84c686203c780d61c8aed4b2af997647c12592e8c781a`
+- Collector SHA-256: `083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750`
 - Manifest: `research/runtime/r7e6-test-a-plan-manifest.json`
-- Manifest SHA-256: `39105acfae65cc05804bcab7d23fc7ab5a139e7f716d371787669b20d1da6a57`
+- Manifest SHA-256: `e498971cf45219832827fd77ec2f7f71a0829cdc9b0307d5a564213459171c21`
 - ARMv7/API17 artifact size: 7,904 bytes
 - Artifact SHA-256: `9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063`
 - Artifact MD5: `6137a693a77646aaf9a4cf0f351731d4`
@@ -18,7 +18,7 @@
 - Expected remote state: regular `shell:shell`, 7,904 bytes, mode `0555` (`-r-xr-xr-x`), executable and not writable
 - Historical R7E6 packet and manifest are preserved in the `*-historical` files.
 
-GitHub checks were verified on the prior package head `fad39c42fc58638afd5d003deee3e4d97df89c58`: Offline CI, CodeQL workflow, and all five configured language jobs were successful; Advanced Security reported no new alerts in changed code. The first pushed R7E6A head `3c588e254539f802126ea6fdd0bcbe1dd94bd069` passed Offline CI, aggregate CodeQL with no new alerts, and all five configured CodeQL language jobs. The final documentation-only commit must also be checked on its exact GitHub head before any separate authorization.
+Earlier R7E6A checks do not apply to this changed collector. Exact-head Offline CI and CodeQL checks are required before separate authorization.
 
 ## Test A scope and operator gates
 
@@ -37,13 +37,13 @@ Commands use the supplied exact serial after inventory. The collector requires A
 5. One `adb -s <EXACT_SERIAL> push build/r7e6/test-a/claritylink-target-diag /data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f`
 6. Exact `ls -l` metadata and `/system/bin/md5` verification.
 7. `<EXACT_PATH> --version; echo __R7E6_STATUS:$?`
-8. Exact `/proc/<PID>` absence check for the exact parent and child PIDs reported by the diagnostic.
+8. Same-shell `/proc/$$` directory and readable-stat positive controls, `/proc/self/stat` readable control, then exact parent/child PID absence checks for the PIDs reported by the diagnostic. Require the exact PID-bound success marker.
 9. `<EXACT_PATH> --self-test; echo __R7E6_STATUS:$?`
 10. Repeat the exact parent/child absence check.
 11. `/system/bin/rm <EXACT_PATH>`
 12. `adb -s <EXACT_SERIAL> shell ls -ld <EXACT_PATH>` — require the exact single-line ENOENT output.
 
-There is no `test ! -e` absence gate. Android 4.2.2 raw ADB shell can return host status 0 with empty output after a guest `test` failure; empty output is not evidence of absence. The collector accepts only one exact output line naming the frozen path and `No such file or directory`, with host return code 0 or 1. It rejects empty, extra, mismatched, permission, command-not-found, and all other output. The API17 emulator probe observed the host-zero/empty-output case and verified exact ENOENT for absent paths, while regular files, symlinks, and directories were rejected as absent. See the [probe summary](r7e6a-api17-absence-probe.md).
+The remote-file absence gate uses exact `ls -ld` ENOENT output because Android 4.2.2 raw ADB shell can return host status 0 with empty output after a guest `test` failure. The process-absence check is separate: it first verifies the invoking shell's `/proc/$$` directory and readable `stat`, and `/proc/self/stat`, then tests the exact diagnostic PIDs and emits a bound sentinel. The isolated API17 x86 review verified these controls, that a visible live PID blocks the sentinel, and that a reaped PID becomes absent. Host fixtures reject empty, duplicate, malformed, and extra sentinel output and unavailable procfs controls. See the [R7E7A review](r7e7a-test-a-identity-proc-review.md) and [remote absence probe](r7e6a-api17-absence-probe.md).
 
 Remote MD5 must be exactly one line containing the expected 32-hex digest, one space, and the exact frozen remote path. Wrong-path, multiple, truncated, malformed, or noisy output fails closed.
 

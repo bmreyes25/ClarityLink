@@ -6,7 +6,7 @@
   "authorization": "separate explicit user authorization required; Test A remains NOT_AUTHORIZED",
   "child_deadline_seconds": 2,
   "collector_source": "tools/r7e6_test_a_collector.py",
-  "collector_source_sha256": "b3abf6ea52d2b89031a84c686203c780d61c8aed4b2af997647c12592e8c781a",
+  "collector_source_sha256": "083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750",
   "commands": [
     [
       "version"
@@ -64,7 +64,7 @@
       "shell",
       "sh",
       "-c",
-      "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
+      "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
     ],
     [
       "-s",
@@ -78,7 +78,7 @@
       "shell",
       "sh",
       "-c",
-      "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
+      "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
     ],
     [
       "-s",
@@ -103,7 +103,7 @@
   "external_ps": false,
   "fallbacks": [],
   "host_command_timeout_seconds": 12,
-  "manifest_version": "R7E6A-TEST-A-COMMAND-SET-1",
+  "manifest_version": "R7E7A-TEST-A-COMMAND-SET-2",
   "maximum_target_command_wall_seconds": 174,
   "operator_gates": [
     "stationary",

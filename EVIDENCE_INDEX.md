@@ -1,3 +1,9 @@
+## R7E7A Test A identity and procfs review (2026-10-11)
+
+- [Review](research/runtime/r7e7a-test-a-identity-proc-review.md): external prompt path mismatch reconciled; same-shell API17 procfs positive controls passed. Test A remains unauthorized.
+- [Current authorization packet](research/runtime/r7e6-test-a-authorization-packet.md) and [manifest](research/runtime/r7e6-test-a-plan-manifest.json): `R7E7A-TEST-A-COMMAND-SET-2`; collector SHA-256 `083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750`; manifest SHA-256 `e498971cf45219832827fd77ec2f7f71a0829cdc9b0307d5a564213459171c21`.
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`, pending exact-head hosted checks. No Honda commands or writes.
+
 ## R7E6A Test A collector safety closure (2026-10-11)
 
 - [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`.

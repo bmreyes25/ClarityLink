@@ -1,6 +1,10 @@
-## R7E6A — Test A collector safety closure — 2026-10-11
+## R7E7A — Test A identity and procfs review — 2026-10-11
 
-Corrected legacy ADB exact-absence verification, exact-path MD5 parsing, and process-state-dependent cleanup. API17 x86 regression reproduced empty `test -e` output with host status 0 and verified strict exact-path ENOENT for absence. Focused fake-ADB tests: 42 passed. New frozen package: collector SHA-256 `b3abf6ea52d2b89031a84c686203c780d61c8aed4b2af997647c12592e8c781a`; manifest SHA-256 `39105acfae65cc05804bcab7d23fc7ab5a139e7f716d371787669b20d1da6a57`. Decision `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED` / `NOT_EXECUTED`. Next requires separate explicit authorization; Test B cannot auto-start. No Honda or physical Android contact. See [decision](research/runtime/r7e6-test-a-readiness-decision.md) and [R7E6A report](step-reports/43t1-r7e6a-test-a-collector-safety-closure.md).
+Reconciled the prior prompt's obsolete path as an external instruction mismatch and retained the consistent R7E6A destination. Added same-shell procfs positive controls before exact process absence checks. Focused Android 4.2.2/API17 x86 procfs matrix passed; collector fixtures: 49 passed. Collector SHA-256 `083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750`; manifest `R7E7A-TEST-A-COMMAND-SET-2`, SHA-256 `e498971cf45219832827fd77ec2f7f71a0829cdc9b0307d5a564213459171c21`. Decision `R7E_TEST_A_EXECUTION_PACKAGE_READY`, pending exact-head hosted checks. Test A remains `NOT_AUTHORIZED` / `NOT_EXECUTED`. No Honda or physical Android contact. See [R7E7A review](research/runtime/r7e7a-test-a-identity-proc-review.md) and [authorization packet](research/runtime/r7e6-test-a-authorization-packet.md).
+
+## Historical R7E6A — Test A collector safety closure — 2026-10-11
+
+Corrected legacy ADB exact-absence verification, exact-path MD5 parsing, and process-state-dependent cleanup. Superseded by R7E7A's procfs positive control and new package hashes. See the [R7E6A report](step-reports/43t1-r7e6a-test-a-collector-safety-closure.md).
 
 ## Historical R7E6 snapshot — Test A package ready before R7E6A correction — 2026-10-11
 

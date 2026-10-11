@@ -60,10 +60,12 @@ def command_plan() -> list[list[str]]:
         ["-s", "<EXACT_SERIAL>", "shell", "/system/bin/md5", REMOTE],
         ["-s", "<EXACT_SERIAL>", "shell", f"{REMOTE} --version; echo __R7E6_STATUS:$?"],
         ["-s", "<EXACT_SERIAL>", "shell", "sh", "-c",
+         "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
          "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && "
          "echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"],
         ["-s", "<EXACT_SERIAL>", "shell", f"{REMOTE} --self-test; echo __R7E6_STATUS:$?"],
         ["-s", "<EXACT_SERIAL>", "shell", "sh", "-c",
+         "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
          "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && "
          "echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"],
         ["-s", "<EXACT_SERIAL>", "shell", "/system/bin/rm", REMOTE],
@@ -73,7 +75,7 @@ def command_plan() -> list[list[str]]:
 
 def manifest_template() -> dict[str, object]:
     return {
-        "manifest_version": "R7E6A-TEST-A-COMMAND-SET-1",
+        "manifest_version": "R7E7A-TEST-A-COMMAND-SET-2",
         "collector_source": "tools/r7e6_test_a_collector.py",
         "collector_source_sha256": "FROZEN_AFTER_SOURCE",
         "artifact_path": "build/r7e6/test-a/claritylink-target-diag",
@@ -209,6 +211,7 @@ def _invocation(runner: Callable[..., subprocess.CompletedProcess[str]], adb: st
     if parent <= 1 or child <= 1 or parent == child:
         raise Blocked(f"diagnostic {mode}: invalid reported process identity")
     absent = _shell(runner, adb, serial, "sh", "-c",
+                    "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
                     f"test ! -e /proc/{child} && test ! -e /proc/{parent} && "
                     f"echo R7E6_PIDS_ABSENT:{child}:{parent}", label=f"{mode} exact process absence")
     if absent.strip() != f"R7E6_PIDS_ABSENT:{child}:{parent}":

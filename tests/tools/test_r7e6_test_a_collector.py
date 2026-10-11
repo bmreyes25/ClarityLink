@@ -86,8 +86,21 @@ class FakeADB:
         elif len(argv) >= 4 and argv[-3] == "sh" and argv[-2] == "-c":
             match = re.search(r"R7E6_PIDS_ABSENT:(\d+):(\d+)", argv[-1])
             assert match
-            if self.failure == "process_present":
+            assert "test -d /proc/$$" in argv[-1]
+            assert "test -r /proc/$$/stat" in argv[-1]
+            assert "test -r /proc/self/stat" in argv[-1]
+            if self.failure in {"process_present", "procfs_unavailable",
+                                "procfs_self_unreadable", "procfs_shell_stat_unreadable"}:
                 out = "PROCESS_REMAINS\n"
+            elif self.failure == "process_extra":
+                out = f"R7E6_PIDS_ABSENT:{match.group(1)}:{match.group(2)}\nEXTRA\n"
+            elif self.failure == "process_duplicate":
+                out = (f"R7E6_PIDS_ABSENT:{match.group(1)}:{match.group(2)}\n"
+                       f"R7E6_PIDS_ABSENT:{match.group(1)}:{match.group(2)}\n")
+            elif self.failure == "process_empty":
+                out = ""
+            elif self.failure == "process_bad_sentinel":
+                out = f"R7E6_PIDS_ABSENT:{match.group(1)}:999\n"
             else:
                 out = f"R7E6_PIDS_ABSENT:{match.group(1)}:{match.group(2)}\n"
         elif argv[-1:] and collector.REMOTE in argv[-1]:
@@ -176,6 +189,9 @@ def test_target_zero_multiple_or_mismatch_fails_closed(package, devices):
 @pytest.mark.parametrize("failure", ["destination", "existing", "push", "size", "mode", "writable",
                                       "nonexecutable", "metadata_warning", "md5", "--version", "--version_timeout",
                                       "--self-test", "--self-test_timeout", "process_present",
+                                      "procfs_unavailable", "procfs_self_unreadable",
+                                      "procfs_shell_stat_unreadable", "process_empty",
+                                      "process_bad_sentinel", "process_duplicate", "process_extra",
                                       "ambiguous_process", "rm", "final_absent"])
 def test_fault_fixture_stops_or_cleans_exactly_once(package, failure):
     fake = FakeADB(failure=failure)
