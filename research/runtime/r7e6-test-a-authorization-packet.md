@@ -18,7 +18,7 @@
 - Expected remote state: regular `shell:shell`, 7,904 bytes, mode `0555` (`-r-xr-xr-x`), executable and not writable
 - Historical R7E6 packet and manifest are preserved in the `*-historical` files.
 
-Earlier R7E6A checks do not apply to this changed collector. Exact-head Offline CI and CodeQL checks are required before separate authorization.
+Earlier R7E6A checks do not apply to this changed collector. On intermediate head `70e83618ecba7a3e1f0ed337a014488f9419a3e6`, Offline CI, aggregate CodeQL, and all five language jobs passed. The final review-record commit must also pass these exact-head checks before separate authorization.
 
 ## Test A scope and operator gates
 

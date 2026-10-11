@@ -1,6 +1,6 @@
 # R7E7A Test A readiness decision
 
-**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY`, subject to exact-head hosted checks.
+**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY`, subject to confirmation of exact-head hosted checks after the final review record.
 
 **Next:** `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`.
 
