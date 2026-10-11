@@ -25,6 +25,10 @@ from datetime import datetime, timezone
 
 REPO = Path(__file__).resolve().parents[1]
 SDK = Path(os.environ.get("R7E6_SDK_ROOT", str(Path.home() / "Android/r7c2-sdk")))
+JAVA_HOME = Path(os.environ.get(
+    "R7E6_JAVA_HOME",
+    str(Path.home() / ".local/toolchains/temurin-17.0.20.1+1-aarch64/jdk-17.0.20.1+1/Contents/Home"),
+))
 ADB = SDK / "platform-tools/adb"
 EMULATOR = SDK / ".emulator-intel/emulator/emulator"
 AVDMANAGER = SDK / "cmdline-tools/latest/bin/avdmanager"
@@ -149,6 +153,25 @@ def ensure_success(result: subprocess.CompletedProcess[bytes], label: str) -> st
     return stdout.replace("\r", "")
 
 
+def ensure_push_success(result: subprocess.CompletedProcess[bytes],
+                        local_path: Path, label: str) -> str:
+    """Accept this ADB version's stderr progress line only after exact shape validation."""
+    stdout = result.stdout.decode("utf-8", errors="replace").replace("\r", "")
+    stderr = result.stderr.decode("utf-8", errors="replace").replace("\r", "").strip()
+    if result.returncode != 0 or stdout.strip():
+        raise RuntimeFailure(
+            f"{label} failed rc={result.returncode}: stdout={stdout[-1000:]!r} "
+            f"stderr={stderr[-1000:]!r}"
+        )
+    path = re.escape(str(local_path))
+    if not re.fullmatch(
+        path + r": 1 file pushed, 0 skipped\. [0-9.]+ [KMG]?B/s "
+        r"\([0-9]+ bytes in [0-9.]+s\)", stderr
+    ):
+        raise RuntimeFailure(f"{label} returned an unrecognized transfer result: {stderr!r}")
+    return stdout
+
+
 def adb_command(adb_port: int, serial: str, *args: str) -> list[str]:
     # Every operation names both the dedicated server and its exact emulator.
     return [str(ADB), "-P", str(adb_port), "-s", serial, *args]
@@ -171,6 +194,40 @@ def assert_inventory(adb_port: int, serial: str, server: subprocess.Popen[bytes]
     if rows != [[serial, "device"]]:
         raise RuntimeFailure(f"isolated ADB target inventory is not the exact owned emulator: {rows!r}")
     return output
+
+
+def assert_owned_emulator_transport(console_port: int, serial: str,
+                                    emulator: subprocess.Popen[bytes],
+                                    server: subprocess.Popen[bytes],
+                                    env: dict[str, str],
+                                    evidence: dict[str, object]) -> None:
+    """Refuse guest commands if another host ADB process attached to this AVD."""
+    adb_port = console_port + 1
+    result = subprocess.run(
+        ["/usr/sbin/lsof", "-nP", "-t", f"-iTCP:{adb_port}"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env=env, timeout=5.0, check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise RuntimeFailure("could not verify exclusive emulator transport ownership")
+    pids = {int(line) for line in result.stdout.splitlines() if line.strip().isdigit()}
+    allowed = {emulator.pid, server.pid}
+    foreign = sorted(pids - allowed)
+    observation = {
+        "label": "host loopback transport ownership",
+        "serial": serial,
+        "port": adb_port,
+        "pids": sorted(pids),
+        "allowed_owned_pids": sorted(allowed),
+    }
+    records = evidence["host_checks"]
+    assert isinstance(records, list)
+    records.append(observation)
+    if foreign:
+        raise RuntimeFailure(
+            f"emulator loopback transport has foreign ADB owner(s) {foreign}; "
+            "refusing every guest command"
+        )
 
 
 def invoke_diag(adb_port: int, serial: str, server: subprocess.Popen[bytes],
@@ -214,7 +271,8 @@ def verify_pid_absent(adb_port: int, serial: str, server: subprocess.Popen[bytes
 def main() -> int:
     if platform.system() != "Darwin":
         raise RuntimeFailure("this pinned x86 emulator runner is supported only on macOS")
-    required = [ADB, EMULATOR, AVDMANAGER, IMAGE / "system.img", PRODUCTION_X86, FAULT_X86]
+    required = [ADB, EMULATOR, AVDMANAGER, IMAGE / "system.img", PRODUCTION_X86,
+                FAULT_X86, JAVA_HOME / "bin/java"]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
         raise RuntimeFailure("missing runtime input(s): " + ", ".join(missing))
@@ -227,6 +285,8 @@ def main() -> int:
     avd_ini = AVD_ROOT / f"{avd}.ini"
     host_home = RUN_ROOT / f"host-home-{run_id}"
     evidence_path = RUN_ROOT / f"api17-runtime-{run_id}.json"
+    # Use a legal even emulator port, point the emulator at the private server,
+    # and let the host socket-ownership guard catch any competing server.
     console_port = free_port_pair(5580, 5680)
     serial = f"emulator-{console_port}"
     adb_port = free_port(5038, 5138)
@@ -239,10 +299,17 @@ def main() -> int:
     env = os.environ.copy()
     env.update({"HOME": str(host_home), "ANDROID_HOME": str(SDK),
                 "ANDROID_SDK_ROOT": str(SDK), "ANDROID_AVD_HOME": str(AVD_ROOT),
-                "ANDROID_USER_HOME": str(host_home / ".android")})
+                "ANDROID_USER_HOME": str(host_home / ".android"),
+                "JAVA_HOME": str(JAVA_HOME),
+                "PATH": str(JAVA_HOME / "bin") + os.pathsep + env.get("PATH", "")})
     env.pop("ANDROID_SERIAL", None)
     env.pop("ADB_SERVER_SOCKET", None)
     env.pop("ADB_SERVER_PORT", None)
+    # ADB_USB=0 prevents this dedicated server from enumerating or opening any
+    # host USB interface. Emulator discovery remains enabled (ADB_EMU unset).
+    env["ADB_USB"] = "0"
+    env["ADB_LOCAL_TRANSPORT_MAX_PORT"] = str(console_port + 5)
+    env["ANDROID_ADB_SERVER_PORT"] = str(adb_port)
 
     evidence: dict[str, object] = {
         "run_id": run_id, "started_utc": now(), "host": platform.platform(),
@@ -253,7 +320,7 @@ def main() -> int:
         "host_command_timeout_seconds": HOST_COMMAND_TIMEOUT,
         "production_x86_sha256": sha256(PRODUCTION_X86),
         "fault_test_x86_sha256": sha256(FAULT_X86),
-        "host_commands": [], "runtime_results": [], "cleanup": {},
+        "host_commands": [], "host_checks": [], "runtime_results": [], "cleanup": {},
     }
     adb_log = open(RUN_ROOT / f"adb-server-{run_id}.log", "wb")
     emulator_log = open(RUN_ROOT / f"emulator-{run_id}.log", "wb")
@@ -282,11 +349,15 @@ def main() -> int:
         evidence["adb_version"] = local([str(ADB), "version"], "ADB version", 5.0).stdout.decode().strip()
         evidence["emulator_version"] = local(["arch", "-x86_64", str(EMULATOR), "-version"],
                                              "x86 emulator version", 10.0).stdout.decode().strip()
-        avd_cfg = local([str(AVDMANAGER), "create", "avd", "--name", avd,
+        evidence["java_version"] = local([str(JAVA_HOME / "bin/java"), "-version"],
+                                          "pinned Temurin JDK version", 5.0).stderr.decode().strip()
+        if avd_dir.exists() or avd_ini.exists():
+            raise RuntimeFailure("run-unique AVD name already exists; refusing to replace it")
+        avd_created = True
+        local([str(AVDMANAGER), "create", "avd", "--name", avd,
                          "--package", "system-images;android-17;default;x86", "--force"],
                         "create unique project AVD", 60.0, stdin=b"no\n")
-        avd_created = avd_dir.is_dir() and avd_ini.is_file()
-        if not avd_created:
+        if not avd_dir.is_dir() or not avd_ini.is_file():
             raise RuntimeFailure("AVD manager did not create the unique AVD in the isolated directory")
         config = (avd_dir / "config.ini").read_text(errors="replace")
         if "abi.type=x86" not in config or "system-images/android-17/default/x86" not in config:
@@ -294,8 +365,9 @@ def main() -> int:
         if not (avd_dir / "userdata.img").exists():
             raise RuntimeFailure("unique AVD user data image is missing")
 
-        # The one-device server filter prevents this ADB server from selecting
-        # any USB/physical serial. It accepts only this run's emulator serial.
+        # USB discovery is disabled for this dedicated server. Its emulator
+        # scan range is extended to include this run's unique local port;
+        # the shared default server remains on its smaller default range.
         adb_server = subprocess.Popen(
             [str(ADB), "--one-device", serial, "-P", str(adb_port), "server", "nodaemon"],
             stdout=adb_log, stderr=subprocess.STDOUT, env=env, start_new_session=True)
@@ -307,7 +379,8 @@ def main() -> int:
         emulator_argv = ["arch", "-x86_64", str(EMULATOR), "-avd", avd,
                          "-ports", f"{console_port},{console_port + 1}",
                          "-no-window", "-no-audio", "-no-snapshot", "-no-boot-anim",
-                         "-wipe-data", "-accel", "off", "-gpu", "swiftshader_indirect"]
+                         "-wipe-data", "-accel", "off", "-gpu", "swiftshader_indirect",
+                         "-no-metrics", "-crash-report-mode", "disabled"]
         emulator = subprocess.Popen(emulator_argv, stdout=emulator_log,
                                     stderr=subprocess.STDOUT, env=env,
                                     start_new_session=True)
@@ -321,6 +394,8 @@ def main() -> int:
                 raise RuntimeFailure("isolated ADB server exited during emulator boot")
             if emulator.poll() is not None:
                 raise RuntimeFailure(f"owned emulator exited during boot (rc={emulator.returncode})")
+            assert_owned_emulator_transport(console_port, serial, emulator,
+                                            adb_server, env, evidence)
             result = run_client([str(ADB), "-P", str(adb_port), "devices"], env, 5.0,
                                 adb_server, "owned-emulator boot inventory")
             inventory = ensure_success(result, "owned-emulator boot inventory")
@@ -338,12 +413,21 @@ def main() -> int:
             raise RuntimeFailure("owned API17 emulator did not boot within 300 seconds")
 
         assert_inventory(adb_port, serial, adb_server, env)
+        avd_console = run_client(
+            adb_command(adb_port, serial, "emu", "avd", "name"), env, 5.0,
+            adb_server, "exact emulator console AVD identity",
+        )
+        avd_console_output = ensure_success(avd_console, "exact emulator console AVD identity")
+        avd_names = [line.strip() for line in avd_console_output.splitlines()
+                     if line.strip() and line.strip() not in {"OK", "KO"}]
+        if len(avd_names) != 1:
+            raise RuntimeFailure(f"emulator console returned ambiguous AVD name: {avd_console_output!r}")
         identity = {
             "qemu": target_command(adb_port, serial, adb_server, env, "getprop ro.kernel.qemu", "qemu identity").strip(),
             "release": target_command(adb_port, serial, adb_server, env, "getprop ro.build.version.release", "release identity").strip(),
             "api": target_command(adb_port, serial, adb_server, env, "getprop ro.build.version.sdk", "API identity").strip(),
             "abi": target_command(adb_port, serial, adb_server, env, "getprop ro.product.cpu.abi", "ABI identity").strip(),
-            "avd": target_command(adb_port, serial, adb_server, env, "emu avd name", "AVD console identity"),
+            "avd": avd_names[0],
         }
         if identity["qemu"] != "1" or identity["release"] != "4.2.2" or identity["api"] != "17" or identity["abi"] != "x86" or avd not in identity["avd"]:
             raise RuntimeFailure(f"guest identity verification failed: {identity!r}")
@@ -375,15 +459,21 @@ def main() -> int:
                 raise RuntimeFailure(f"remote test path already exists: {remote_path}")
             push = run_client(adb_command(adb_port, serial, "push", str(local_path), remote_path),
                               env, 30.0, adb_server, f"push {local_path.name}")
-            ensure_success(push, f"push {local_path.name}")
+            ensure_push_success(push, local_path, f"push {local_path.name}")
             metadata = target_command(adb_port, serial, adb_server, env,
                                       f"ls -l {remote_path}", f"remote metadata {local_path.name}")
             md5_output = target_command(adb_port, serial, adb_server, env,
                                         f"/system/bin/md5 {remote_path}", f"remote md5 {local_path.name}")
-            stat = re.search(r"(?m)^(-[rwx-]{9})\s+shell\s+shell\s+(\d+)\s+.*\s+(\/data\/local\/tmp\/\S+)\s*$", metadata)
+            stat = re.search(
+                r"(?m)^(-[rwx-]{9})\s+(\w+)\s+(\w+)\s+(\d+)\s+.*\s+"
+                r"([^\s]+)\s*$", metadata
+            )
             md5_match = re.search(r"\b([0-9a-fA-F]{32})\b", md5_output)
             expected_md5 = md5(local_path)
-            if not stat or stat.group(1) != "-r-xr-xr-x" or int(stat.group(2)) != local_path.stat().st_size or stat.group(3) != remote_path:
+            if (not stat or stat.group(1) != "-r-xr-xr-x"
+                    or stat.group(2, 3) != ("root", "root")
+                    or int(stat.group(4)) != local_path.stat().st_size
+                    or stat.group(5) != Path(remote_path).name):
                 raise RuntimeFailure(f"remote mode/owner/size/type mismatch: {metadata!r}")
             if not md5_match or md5_match.group(1).lower() != expected_md5:
                 raise RuntimeFailure(f"remote MD5 mismatch for {local_path.name}: {md5_output!r}")
@@ -476,6 +566,9 @@ def main() -> int:
     except Exception as exc:  # evidence and owned-process cleanup are mandatory on every failure
         evidence["failure"] = f"{type(exc).__name__}: {exc}"
         return_code = 1
+    except KeyboardInterrupt:
+        evidence["failure"] = "KeyboardInterrupt: runner cancelled; only owned emulator/server were stopped"
+        return_code = 130
     finally:
         evidence["shutdown_started_utc"] = now()
         stop_owned(emulator, "emulator", failures)

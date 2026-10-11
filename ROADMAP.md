@@ -1,3 +1,7 @@
+## R7E6 — API17 runtime validation (blocked) — 2026-10-11
+
+Host watchdog tests and the rebuilt ARMv7/API17 artifact audit pass. API17 x86 runtime proof remains blocked because a pre-existing shared ADB server attached to the emulator transport before any guest command was issued. No physical Android or Honda contact occurred. Test A remains unauthorized; no execution package is frozen. Next: use a host with exclusive emulator ADB isolation, then complete watchdog fault injection and 100 cycles. See the [R7E6 decision](research/runtime/r7e6-test-a-readiness-decision.md).
+
 ## R7E5F — self-contained Test A process bound — 2026-10-11
 
 Implemented direct-child supervision for `--version` and `--self-test`, host fault tests, rebuilt/audited ARMv7/API17 artifact, and verified ignored 0555 staging copy. ECC reviewed the exact PID ownership and reap boundary; external toolbox `ps`/`kill` are excluded from the proposed normal lifecycle. API17 x86 runtime proof is still required and was not run because R7E5F prohibits ADB. Decision remains `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; no Test A package or authorization was frozen. No Honda/ADB action. See [design](research/runtime/r7e5f-self-bounded-diagnostic-design.md), [closure](research/runtime/r7e5f-process-rollback-closure.md), and [report](step-reports/43t1-r7e5f-test-a-process-bound-closure.md).

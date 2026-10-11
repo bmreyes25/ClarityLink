@@ -1,3 +1,7 @@
+# R7E6 current readiness — 2026-10-11
+
+R7E6 decision: `R7E_API17_WATCHDOG_RUNTIME_BLOCKED`. Host watchdog tests pass and ARMv7/API17 artifact audit/staging integrity pass, but API17 x86 runtime proof is absent because the host's shared ADB server attached to the emulator transport. No guest command was issued by the runner. Test A remains `NOT_AUTHORIZED`; no collector, manifest, or authorization packet is frozen. No Honda or physical Android contact. See [R7E6 decision](r7e6-test-a-readiness-decision.md).
+
 ## R7E5F current decision — 2026-10-11
 
 The process-local supervisor is implemented and host fault-tested. Production ARMv7 rebuild and pinned NDK API17 import audit pass; staging copy is byte-identical at 0555. However, API17 x86 emulator runtime proof was not run because the required runner uses ADB and R7E5F forbids ADB. Decision remains `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; Test A is `NOT_AUTHORIZED`. No runnable collector, execution manifest, or authorization packet is frozen. Next: separately scoped offline API17 x86 runtime proof without Honda contact, then review and freeze only if all gates pass. See [design](r7e5f-self-bounded-diagnostic-design.md), [rollback review](r7e5f-process-rollback-closure.md), and [R7E5F report](../../step-reports/43t1-r7e5f-test-a-process-bound-closure.md).

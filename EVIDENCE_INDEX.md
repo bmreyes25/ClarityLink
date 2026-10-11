@@ -1,3 +1,11 @@
+## R7E6 API17 runtime blocker (2026-10-11)
+
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_API17_WATCHDOG_RUNTIME_BLOCKED`; Test A not authorized and no runnable package frozen.
+- [Runtime validation](research/runtime/r7e6-api17-watchdog-runtime-validation.md), [emulator isolation](research/runtime/r7e6-emulator-ownership-and-isolation.md), [fault matrix](research/runtime/r7e6-watchdog-fault-matrix.md), and [containment proof](research/runtime/r7e6-process-containment-proof.md): host coverage passes; API17 runtime was not run because the shared ADB server independently attached to the emulator.
+- [Artifact audit](research/runtime/r7e6-target-artifact-audit.md): rebuilt ARMv7/API17 artifact, updated hashes/imports, and byte-identical 0555 staging copy.
+- [Collector status](research/runtime/r7e6-test-a-collector-verification.md): collector, manifest, and authorization packet deferred pending runtime closure.
+- [Milestone report](step-reports/43t1-r7e6-test-a-readiness-closure.md).
+
 # R7E5F process-bound review — 2026-10-11
 
 - [Self-bounded diagnostic design](research/runtime/r7e5f-self-bounded-diagnostic-design.md) and [rollback closure review](research/runtime/r7e5f-process-rollback-closure.md).

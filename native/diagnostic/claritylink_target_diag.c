@@ -172,7 +172,14 @@ static int run_requested_operation(enum diagnostic_mode mode) {
         return 0;
     }
     if (mode == MODE_TEST_CHILD_CRASH) {
-        (void)raise(SIGSEGV);
+        struct sigaction default_action;
+        (void)memset(&default_action, 0, sizeof(default_action));
+        default_action.sa_handler = SIG_DFL;
+        if (sigemptyset(&default_action.sa_mask) != 0 ||
+            sigaction(SIGSEGV, &default_action, NULL) != 0 ||
+            kill(getpid(), SIGSEGV) != 0) {
+            return SUPERVISOR_ERROR_EXIT_CODE;
+        }
         return SUPERVISOR_ERROR_EXIT_CODE;
     }
     if (mode == MODE_TEST_WAITPID_ERROR) {

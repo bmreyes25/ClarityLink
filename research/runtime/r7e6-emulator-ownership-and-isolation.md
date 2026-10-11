@@ -1,0 +1,9 @@
+# R7E6 emulator ownership and ADB isolation
+
+The runner created a unique API17 x86 AVD under the ignored `build/r7e6/avd` tree and owned both its emulator process group and a foreground ADB server on a per-run port. All intended ADB clients were constructed with that server port and an exact emulator serial. The private server set `ADB_USB=0`, cleared inherited device selectors, and was never allowed to restart implicitly. Cleanup stopped only the runner-owned processes and deleted only its generated AVD and temporary host profile.
+
+The host also had a pre-existing ADB server on its usual shared port. Host socket inspection showed that server attached to the emulator's loopback ADB port. This means the emulator was not isolated from all ADB servers, even though the private server did not list it. The runner was stopped before issuing any target shell, push, or executable command. No physical USB target or Honda was addressed. The shared server was not stopped or reconfigured.
+
+The `--one-device` ADB option is limited to one USB device; it does not enforce exclusive emulator ownership. `ADB_USB=0` controls only the private server process environment. Exact `-P` and `-s` selection prevents the runner's clients from falling back to another server or target, but cannot prevent another server from independently attaching to a loopback emulator.
+
+**Conclusion:** private-server command routing was in place, but complete emulator ADB isolation was not proven. API17 execution remains blocked. The runner has since been updated to set `ANDROID_ADB_SERVER_PORT` explicitly and to reject any foreign process on the exact emulator ADB port before issuing guest commands; that revision has not yet been run. If the shared server still attaches, a future attempt needs an isolated host/server environment. No shared server stop or restart is authorized by this record.
