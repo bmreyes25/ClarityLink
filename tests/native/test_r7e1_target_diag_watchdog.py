@@ -44,12 +44,14 @@ def test_supervised_version_and_self_test_complete(fault_binary: Path) -> None:
     version_code, version_output, version_elapsed = invoke(fault_binary, "--version")
     assert version_code == 0
     assert "CLARITYLINK_DIAG_VERSION=1.0.0" in version_output
+    assert "SUPERVISOR_CHILD_REAPED pid=" in version_output
     assert version_elapsed < 1.0
 
     test_code, test_output, test_elapsed = invoke(fault_binary, "--self-test")
     assert test_code == 0
     assert "RESOURCE_COUNTS final=0" in test_output
     assert "SELF_TEST_PASS" in test_output
+    assert "SUPERVISOR_CHILD_REAPED pid=" in test_output
     assert test_elapsed < 1.0
 
 
@@ -73,6 +75,29 @@ def test_child_crash_is_reaped_and_mapped(fault_binary: Path) -> None:
     exit_code, output, elapsed = invoke(fault_binary, "--test-child-crash")
     assert exit_code == 126
     assert "SELF_TEST_PASS" not in output
+    assert "SUPERVISOR_CHILD_REAPED pid=" in output
+    assert elapsed < 1.0
+
+
+def test_inherited_sigchld_ignore_is_reset_before_fork(fault_binary: Path) -> None:
+    exit_code, output, elapsed = invoke(fault_binary, "--test-sigchld-ignored")
+    assert exit_code == 0
+    assert "SUPERVISOR_CHILD_REAPED pid=" in output
+    assert elapsed < 1.0
+
+
+def test_fork_failure_fails_closed_without_claiming_a_child(fault_binary: Path) -> None:
+    exit_code, output, elapsed = invoke(fault_binary, "--test-fork-failure")
+    assert exit_code == 127
+    assert "SUPERVISOR_CHILD_REAPED" not in output
+    assert elapsed < 1.0
+
+
+def test_waitpid_error_kills_and_reaps_only_the_owned_child(fault_binary: Path) -> None:
+    exit_code, output, elapsed = invoke(fault_binary, "--test-waitpid-error")
+    assert exit_code == 127
+    assert "SUPERVISOR_CHILD_REAPED pid=" in output
+    assert "recovery=kill_waitpid" in output
     assert elapsed < 1.0
 
 

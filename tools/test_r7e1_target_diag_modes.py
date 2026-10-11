@@ -33,7 +33,9 @@ def check(binary: Path, cycles: int) -> None:
                  ("--display",), ("--usb",), ("--iap2",), ("--mfi",),
                  ("--listen",), ("--daemon",), ("--test-child-loop",),
                  ("--test-child-sleep",), ("--test-child-crash",),
-                 ("--test-parent-timeout",), ("--self-test", "--display")):
+                 ("--test-parent-timeout",), ("--test-sigchld-ignored",),
+                 ("--test-fork-failure",), ("--test-waitpid-error",),
+                 ("--self-test", "--display")):
         output = run(binary, *args, expected=2)
         assert "SELF_TEST_BEGIN" not in output
     for cycle in range(cycles):

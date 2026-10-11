@@ -14,6 +14,7 @@ out="$repo/build/r7e1/native-x86"
 mkdir -p "$out"
 "$compiler" -std=c11 -O2 -Wall -Wextra -Werror -Wformat=2 -Wconversion \
   -fno-builtin -fno-ident -DCLARITYLINK_BUILD_SHA=\"$source_sha\" \
+  -DCLARITYLINK_DIAG_ABI=\"x86\" \
   "$repo/native/diagnostic/claritylink_target_diag.c" -Wl,--no-undefined \
   -Wl,-z,relro -Wl,-z,now -o "$out/claritylink-target-diag"
 "$toolchain/bin/llvm-strip" --strip-unneeded "$out/claritylink-target-diag"

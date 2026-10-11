@@ -15,6 +15,10 @@
 #define CLARITYLINK_BUILD_SHA "UNRECORDED"
 #endif
 
+#ifndef CLARITYLINK_DIAG_ABI
+#define CLARITYLINK_DIAG_ABI "armeabi-v7a"
+#endif
+
 #define DIAG_VERSION "1.0.0"
 #define SELF_TEST_ALLOCATION_SIZE 64U
 #define CHILD_WATCHDOG_EXIT_CODE 124
@@ -43,13 +47,24 @@ enum diagnostic_mode {
     MODE_TEST_CHILD_SLEEP,
     MODE_TEST_CHILD_CRASH,
     MODE_TEST_PARENT_TIMEOUT,
+    MODE_TEST_SIGCHLD_IGNORED,
+    MODE_TEST_FORK_FAILURE,
+    MODE_TEST_WAITPID_ERROR,
 #endif
 };
+
+_Static_assert(sizeof(pid_t) <= sizeof(sig_atomic_t),
+               "sig_atomic_t must be able to hold an exact child PID");
+
+#ifdef CLARITYLINK_TEST_FAULTS
+static int inject_fork_failure = 0;
+static int inject_waitpid_error = 0;
+#endif
 
 static void print_identity(void) {
     (void)printf("CLARITYLINK_DIAG_VERSION=%s\n", DIAG_VERSION);
     (void)printf("BUILD_SHA=%s\n", CLARITYLINK_BUILD_SHA);
-    (void)puts("API_TARGET=17\nABI=armeabi-v7a");
+    (void)printf("API_TARGET=17\nABI=%s\n", CLARITYLINK_DIAG_ABI);
 }
 
 static void print_usage(void) {
@@ -68,8 +83,15 @@ static void parent_watchdog_handler(int signal_number) {
 
     if (child_pid > 0) {
         int status = 0;
-        (void)kill(child_pid, SIGKILL);
-        while (waitpid(child_pid, &status, 0) < 0 && errno == EINTR) {
+        pid_t waited;
+        if (kill(child_pid, SIGKILL) < 0 && errno != ESRCH) {
+            _exit(SUPERVISOR_ERROR_EXIT_CODE);
+        }
+        do {
+            waited = waitpid(child_pid, &status, 0);
+        } while (waited < 0 && errno == EINTR);
+        if (waited != child_pid) {
+            _exit(SUPERVISOR_ERROR_EXIT_CODE);
         }
     }
     _exit(PARENT_WATCHDOG_EXIT_CODE);
@@ -153,6 +175,10 @@ static int run_requested_operation(enum diagnostic_mode mode) {
         (void)raise(SIGSEGV);
         return SUPERVISOR_ERROR_EXIT_CODE;
     }
+    if (mode == MODE_TEST_WAITPID_ERROR) {
+        for (;;) {
+        }
+    }
 #endif
     return SUPERVISOR_ERROR_EXIT_CODE;
 }
@@ -173,8 +199,21 @@ static int disarm_parent_watchdog_and_reap_pending(pid_t child_pid,
     mask_changed = 1;
 
     if (wait_error != 0) {
-        (void)kill(child_pid, SIGKILL);
-        while (waitpid(child_pid, child_status, 0) < 0 && errno == EINTR) {
+        pid_t waited;
+        if (kill(child_pid, SIGKILL) < 0 && errno != ESRCH) {
+            (void)alarm(0U);
+            supervised_child_pid = -1;
+            (void)sigprocmask(SIG_SETMASK, &previous_mask, NULL);
+            return -1;
+        }
+        do {
+            waited = waitpid(child_pid, child_status, 0);
+        } while (waited < 0 && errno == EINTR);
+        if (waited != child_pid) {
+            (void)alarm(0U);
+            supervised_child_pid = -1;
+            (void)sigprocmask(SIG_SETMASK, &previous_mask, NULL);
+            return -1;
         }
     }
 
@@ -195,6 +234,7 @@ static int disarm_parent_watchdog_and_reap_pending(pid_t child_pid,
 
 static int supervise(enum diagnostic_mode mode) {
     struct sigaction parent_action;
+    struct sigaction child_status_action;
     sigset_t alarm_set;
     sigset_t original_mask;
     pid_t child_pid;
@@ -205,6 +245,14 @@ static int supervise(enum diagnostic_mode mode) {
     parent_action.sa_handler = parent_watchdog_handler;
     if (sigemptyset(&parent_action.sa_mask) != 0 ||
         sigaction(SIGALRM, &parent_action, NULL) != 0) {
+        return SUPERVISOR_ERROR_EXIT_CODE;
+    }
+    /* SIG_IGN survives exec and can auto-reap children; this supervisor
+     * needs exclusive waitpid ownership of its direct child. */
+    (void)memset(&child_status_action, 0, sizeof(child_status_action));
+    child_status_action.sa_handler = SIG_DFL;
+    if (sigemptyset(&child_status_action.sa_mask) != 0 ||
+        sigaction(SIGCHLD, &child_status_action, NULL) != 0) {
         return SUPERVISOR_ERROR_EXIT_CODE;
     }
     if (sigemptyset(&alarm_set) != 0 || sigaddset(&alarm_set, SIGALRM) != 0 ||
@@ -223,7 +271,15 @@ static int supervise(enum diagnostic_mode mode) {
     (void)alarm(PARENT_DEADLINE_SECONDS);
 #endif
 
-    child_pid = fork();
+#ifdef CLARITYLINK_TEST_FAULTS
+    if (inject_fork_failure != 0) {
+        child_pid = -1;
+        errno = EAGAIN;
+    } else
+#endif
+    {
+        child_pid = fork();
+    }
     if (child_pid < 0) {
         (void)alarm(0U);
         (void)sigprocmask(SIG_SETMASK, &original_mask, NULL);
@@ -233,24 +289,28 @@ static int supervise(enum diagnostic_mode mode) {
         struct sigaction child_action;
         int operation_status;
 
+        (void)alarm(0U);
         (void)memset(&child_action, 0, sizeof(child_action));
         child_action.sa_handler = child_watchdog_handler;
         if (sigemptyset(&child_action.sa_mask) != 0 ||
             sigaction(SIGALRM, &child_action, NULL) != 0) {
             _exit(SUPERVISOR_ERROR_EXIT_CODE);
         }
-        if (sigprocmask(SIG_UNBLOCK, &alarm_set, NULL) != 0) {
-            _exit(SUPERVISOR_ERROR_EXIT_CODE);
-        }
 #ifdef CLARITYLINK_TEST_FAULTS
         if (mode == MODE_TEST_PARENT_TIMEOUT) {
             (void)alarm(PARENT_DEADLINE_SECONDS + 1U);
+            if (sigprocmask(SIG_UNBLOCK, &alarm_set, NULL) != 0) {
+                _exit(SUPERVISOR_ERROR_EXIT_CODE);
+            }
             operation_status = run_requested_operation(mode);
             (void)fflush(NULL);
             _exit(operation_status);
         }
 #endif
         (void)alarm(CHILD_DEADLINE_SECONDS);
+        if (sigprocmask(SIG_UNBLOCK, &alarm_set, NULL) != 0) {
+            _exit(SUPERVISOR_ERROR_EXIT_CODE);
+        }
         operation_status = run_requested_operation(mode);
         if (fflush(NULL) != 0) {
             operation_status = SUPERVISOR_ERROR_EXIT_CODE;
@@ -277,7 +337,16 @@ static int supervise(enum diagnostic_mode mode) {
                 (void)pause();
             }
         }
-        waited = waitpid(child_pid, &child_status, WNOHANG);
+#ifdef CLARITYLINK_TEST_FAULTS
+        if (inject_waitpid_error != 0) {
+            inject_waitpid_error = 0;
+            waited = -1;
+            errno = EIO;
+        } else
+#endif
+        {
+            waited = waitpid(child_pid, &child_status, WNOHANG);
+        }
         if (waited == child_pid) {
             if (disarm_parent_watchdog_and_reap_pending(child_pid, &child_status, 0) != 0) {
                 _exit(PARENT_WATCHDOG_EXIT_CODE);
@@ -289,6 +358,10 @@ static int supervise(enum diagnostic_mode mode) {
             if (disarm_parent_watchdog_and_reap_pending(child_pid, &child_status,
                                                         wait_error) != 0) {
                 _exit(PARENT_WATCHDOG_EXIT_CODE);
+            }
+            if (printf("SUPERVISOR_CHILD_REAPED pid=%ld recovery=kill_waitpid\n",
+                       (long)child_pid) < 0 || fflush(stdout) != 0) {
+                return SUPERVISOR_ERROR_EXIT_CODE;
             }
             return SUPERVISOR_ERROR_EXIT_CODE;
         }
@@ -307,6 +380,11 @@ static int supervise(enum diagnostic_mode mode) {
     }
 
     if (sigprocmask(SIG_SETMASK, &original_mask, NULL) != 0) {
+        return SUPERVISOR_ERROR_EXIT_CODE;
+    }
+
+    if (printf("SUPERVISOR_CHILD_REAPED pid=%ld\n", (long)child_pid) < 0 ||
+        fflush(stdout) != 0) {
         return SUPERVISOR_ERROR_EXIT_CODE;
     }
 
@@ -342,6 +420,15 @@ static enum diagnostic_mode parse_mode(int argc, char** argv) {
     if (strcmp(argv[1], "--test-parent-timeout") == 0) {
         return MODE_TEST_PARENT_TIMEOUT;
     }
+    if (strcmp(argv[1], "--test-sigchld-ignored") == 0) {
+        return MODE_TEST_SIGCHLD_IGNORED;
+    }
+    if (strcmp(argv[1], "--test-fork-failure") == 0) {
+        return MODE_TEST_FORK_FAILURE;
+    }
+    if (strcmp(argv[1], "--test-waitpid-error") == 0) {
+        return MODE_TEST_WAITPID_ERROR;
+    }
 #endif
     return MODE_INVALID;
 }
@@ -373,5 +460,24 @@ int main(int argc, char** argv) {
         (void)fputs("UNSUPPORTED_MODE\n", stderr);
         return 2;
     }
+#ifdef CLARITYLINK_TEST_FAULTS
+    if (mode == MODE_TEST_SIGCHLD_IGNORED) {
+        struct sigaction ignore_child;
+        (void)memset(&ignore_child, 0, sizeof(ignore_child));
+        ignore_child.sa_handler = SIG_IGN;
+        if (sigemptyset(&ignore_child.sa_mask) != 0 ||
+            sigaction(SIGCHLD, &ignore_child, NULL) != 0) {
+            return SUPERVISOR_ERROR_EXIT_CODE;
+        }
+        return supervise(MODE_VERSION);
+    }
+    if (mode == MODE_TEST_FORK_FAILURE) {
+        inject_fork_failure = 1;
+        return supervise(MODE_VERSION);
+    }
+    if (mode == MODE_TEST_WAITPID_ERROR) {
+        inject_waitpid_error = 1;
+    }
+#endif
     return supervise(mode);
 }
