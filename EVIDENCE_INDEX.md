@@ -1,3 +1,10 @@
+## R7E5C offline mode-semantics closure — 2026-10-11
+
+- [Pinned AOSP mode semantics and model](research/runtime/r7e5c-legacy-adb-mode-semantics.md) — source-backed 4.2.2_r1.2 transform; observed Honda agreement is behavioral only.
+- [Prior A0-W stop review](research/runtime/r7e5c-a0w-stop-review.md) — sanitized interpretation; raw evidence remains ignored and unmodified.
+- [A0-WR manifest](research/runtime/r7e5c-a0wr-plan-manifest.json) and [authorization packet](research/runtime/r7e5c-a0wr-authorization-packet.md) — new package ready for explicit authorization; not authorized or executed.
+- [R7E5C milestone report](step-reports/43t1-r7e5c-legacy-adb-mode-closure.md) and `tests/tools/test_r7e5c_a0wr_collector.py` — implementation and host-only fixtures.
+
 ## Latest evidence — R7E5A A0-R review and A0-W package
 
 | Evidence item | Source | Result / scope |

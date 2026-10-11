@@ -1,3 +1,7 @@
+## R7E5C — legacy ADB mode-semantics closure (offline, 2026-10-11)
+
+Reviewed exact Android 4.2.2_r1.2 AOSP sync semantics and the sanitized prior A0-W result. The observed remote 0666 matches the transform from host 0644; prior stop decision and raw evidence remain unchanged; MD5 remains unproven. A revised 0444 marker package with deterministic mode validation, required MD5, exact cleanup/absence, tests, and a separate authorization packet is prepared. Decision `R7E_A0WR_LEGACY_MODE_PACKAGE_READY`; A0-WR is not authorized. Test A remains unauthorized; future staging policy is an ignored byte-identical artifact copy at mode 0555. No Honda/ADB action. See [R7E5C report](step-reports/43t1-r7e5c-legacy-adb-mode-closure.md).
+
 ## Current roadmap — R7E5A A0-R review and A0-W package
 
 1. A0-R is complete as `A0R_PASS_FOR_REVIEW`; sanitized summary is tracked and private evidence remains local.

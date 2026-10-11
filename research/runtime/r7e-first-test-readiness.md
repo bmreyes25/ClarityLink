@@ -1,3 +1,8 @@
+
+## R7E5C update — legacy ADB mode closure (offline)
+
+The previous A0-W outcome remains historically `A0W_STOP_CONDITION`: Android 4.2.2_r1.2 AOSP predicts host 0644→remote 0666; the observed Honda result agrees behaviorally, without identifying its ADB binary. Transfer and cleanup/absence were observed; MD5 remains unproven. A0-WR is now frozen as a new separate 0444 marker package with required MD5 and deterministic mode validation. Decision: `R7E_A0WR_LEGACY_MODE_PACKAGE_READY`; next `READY_FOR_EXPLICIT_USER_A0WR_AUTHORIZATION`. A0-WR is not authorized and has not run. Test A remains not authorized, and no automatic chain exists. Its future staging policy is an ignored copy of the unchanged canonical diagnostic bytes/hash at mode 0555; planning only. No Honda/ADB action occurred in R7E5C. See [mode semantics](r7e5c-legacy-adb-mode-semantics.md), [A0-W stop review](r7e5c-a0w-stop-review.md), and [authorization packet](r7e5c-a0wr-authorization-packet.md).
+
 # R7E first-test readiness
 
 **Historical decision (superseded by R7E1):** `R7E_TEST_A_PLAN_BLOCKED`

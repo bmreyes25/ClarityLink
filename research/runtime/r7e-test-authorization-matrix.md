@@ -1,3 +1,10 @@
+
+## R7E5C current authorization state — 2026-10-11
+
+The prior A0-W collector retains its historical `A0W_STOP_CONDITION`. Reviewed cause: `A0W_STOP_CAUSE_EXPECTATION_MISMATCH_LEGACY_ADB_MODE_SEMANTICS`; its observed 0644→0666 mode agrees with the pinned Android 4.2.2_r1.2 AOSP transform, but MD5 was not run. Transfer and exact cleanup/absence were observed; full acceptance was not closed. No target chmod is needed.
+
+A0-WR is a new offline-frozen package, `R7E_A0WR_LEGACY_MODE_PACKAGE_READY`, ready for **separate explicit authorization only**. It uses a unique path, an exact 0444 inert marker, a deterministic expected remote mode, required MD5, exact cleanup and absence, exclusive ADB window, no retry/fallback, and no chmod. A0-WR has not run and is not authorized. Test A remains `NOT_AUTHORIZED` and blocked pending A0-WR evidence review; its future staging plan is an ignored byte-identical canonical artifact copy at mode 0555. R7E5C used no Honda commands or ADB.
+
 # R7E test authorization matrix
 
 All tests are `NOT_AUTHORIZED`. Plan readiness never authorizes execution.
