@@ -55,4 +55,4 @@ The vehicle does not need to remain powered during this offline milestone. Do no
 - Collector dry run: `DRY_RUN_NO_ADB`, zero ADB operations; command list contains the corrected one-argument process checks.
 - Artifact checker: passed; canonical mode `0755`, staging mode `0555`, 7,904 bytes, identical bytes.
 - Pinned API17 import audit: all 25 undefined ARM imports present in API17 `libc.so`/`libdl.so`; unknown imports: zero.
-- Offline CI and CodeQL must still be verified on the final pushed HEAD.
+- Offline CI passed on exact HEAD `243ee18fbfa5dd53b64c1c414dade12740a415c8` ([run](https://github.com/bmreyes25/ClarityLink/actions/runs/38196454003)). Aggregate CodeQL and all five language jobs passed on that same exact HEAD ([run](https://github.com/bmreyes25/ClarityLink/actions/runs/38196453993)).
