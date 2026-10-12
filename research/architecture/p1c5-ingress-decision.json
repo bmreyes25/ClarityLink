@@ -1,0 +1,1054 @@
+{
+  "version": "P1C5-INGRESS-DECISION-1",
+  "milestone": "P1-C5",
+  "source_head": "dc5d045bfacfcd5bc21b83d822f71b4f4c75df9e",
+  "firmware_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+  "kind": "REVIEWED_OFFLINE",
+  "evidence": {
+    "P1C1_STOCK_OWNER": {
+      "category": "HONDA_STATIC_VERIFIED",
+      "source": "research/architecture/p1c1-stock-session-ownership.md",
+      "source_sha256": "eff11a939c6de73b87c9f12487afed45b06e095b8c9df5a96889e5b9c819424d",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "verification_method": "hash-matched static callgraph review",
+      "supported_claim": "stock session and Type110 ownership",
+      "scope": "2018 Clarity preserved jmcs only",
+      "version": "P1-C1",
+      "independent_review": "PASSED",
+      "contradictory_evidence": [],
+      "unresolved_conditions": [
+        "external session delegation not established"
+      ]
+    },
+    "P1C2_NO_EXTENSION": {
+      "category": "HONDA_STATIC_VERIFIED",
+      "source": "research/architecture/p1c2-jmcs-additive-extension-audit.md",
+      "source_sha256": "63dd65b809065d231c1be18ed40839f7bbbad076ab7e0a3fc740f2439a62a498",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "verification_method": "hash-matched jmcs/proxy ABI and callsite audit",
+      "supported_claim": "no supported Type111 seam in reviewed artifacts",
+      "scope": "reviewed firmware only",
+      "version": "P1-C2",
+      "independent_review": "PASSED",
+      "contradictory_evidence": [],
+      "unresolved_conditions": [
+        "new provenance-verified artifact could change conclusion"
+      ]
+    },
+    "P1C3_STATUS_ONLY": {
+      "category": "HONDA_STATIC_VERIFIED",
+      "source": "research/architecture/p1c3-iap2-route-guidance-ingress.md",
+      "source_sha256": "03c9807fd1a5cd5c8bdc0d00b3c18c724c2b1addfb929067e7b79e14a25a5585",
+      "artifact_sha256": null,
+      "verification_method": "decompiled Binder producer/consumer and hash-matched jmcs ingress audit",
+      "supported_claim": "reviewed CarPlay Binder callback is status-only",
+      "scope": "decompiled APK source; original APK hash unavailable; jmcs separately hash-matched",
+      "version": "P1-C3",
+      "independent_review": "PASSED",
+      "contradictory_evidence": [],
+      "unresolved_conditions": [
+        "actual route-guidance ingress and caller admission unknown"
+      ]
+    },
+    "P1C4_COEXISTENCE_UNKNOWN": {
+      "category": "HOST_SIMULATION_ONLY",
+      "source": "research/architecture/p1c4-independent-receiver-coexistence.md",
+      "source_sha256": "ff12468bda1e85bebf679fce56143b11fcf42036cb79ff346531263584557b3a",
+      "artifact_sha256": null,
+      "verification_method": "offline topology and ownership review",
+      "supported_claim": "coexistence not established",
+      "scope": "architecture model; no iPhone or Honda session",
+      "version": "P1-C4",
+      "independent_review": "PASSED",
+      "contradictory_evidence": [],
+      "unresolved_conditions": [
+        "session admission and Honda delegation unproven"
+      ]
+    },
+    "PLAYPORT_43P_LAB": {
+      "category": "REAL_IPHONE_LAB_VERIFIED",
+      "source": "research/lab/current-ios-type111-observation.md",
+      "source_sha256": "d3186da461eaec1c166a4159a4f94a0cf4cda5c89b61c1a54ea050e38b301ad9",
+      "artifact_sha256": null,
+      "verification_method": "sanitized PlayPort lab session review",
+      "supported_claim": "one experimental receiver handled two streams",
+      "scope": "PlayPort profile only; no Honda coexistence",
+      "version": "43P",
+      "independent_review": "PASSED",
+      "contradictory_evidence": [],
+      "unresolved_conditions": [
+        "ClarityLink/Honda interoperability not tested"
+      ]
+    }
+  },
+  "candidates": {
+    "A": {
+      "architecture": "Honda stock session delegates Type111 media to ClarityLink",
+      "evidence_ids": [
+        "P1C1_STOCK_OWNER",
+        "P1C2_NO_EXTENSION",
+        "P1C4_COEXISTENCE_UNKNOWN",
+        "PLAYPORT_43P_LAB"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C2_NO_EXTENSION",
+            "P1C4_COEXISTENCE_UNKNOWN",
+            "PLAYPORT_43P_LAB"
+          ]
+        }
+      },
+      "source_authenticity": "UNKNOWN_ACTIVE_IPHONE_VIDEO",
+      "stock_type110_preservation": "NOT_PROVEN",
+      "security_requirements": "Honda remains MFi/session owner; Type111 per-stream authorized context required",
+      "no_apk_compatibility": "UNKNOWN; external endpoint admission absent",
+      "remaining_dependencies": [
+        "proven stock extension",
+        "authorized security delegation",
+        "Display1 admission"
+      ],
+      "ownership_claim": {
+        "topology": "delegated-media-endpoint",
+        "secondary_owner": "ClarityLink",
+        "secondary_session": "stock",
+        "secondary_generation": 1,
+        "delegation_contract_proven": true
+      },
+      "model_consistency": "MODEL_ONLY_CONSISTENT",
+      "live_validation_status": "NOT_RUN",
+      "decision_classification": "CONDITIONAL_MISSING_INTERFACE_PROOF",
+      "blocked_reasons": [
+        "Honda /info and Type111 SETUP delegation absent",
+        "stream security and session lifecycle handoff absent"
+      ]
+    },
+    "B": {
+      "architecture": "Honda stock session exports authentic iAP2 route guidance to ClarityLink",
+      "evidence_ids": [
+        "P1C1_STOCK_OWNER",
+        "P1C3_STATUS_ONLY",
+        "P1C4_COEXISTENCE_UNKNOWN"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        }
+      },
+      "source_authenticity": "UNKNOWN_ACTIVE_IPHONE_METADATA",
+      "stock_type110_preservation": "NOT_PROVEN",
+      "security_requirements": "Honda remains MFi owner; authenticated route provenance and read-only IPC required",
+      "no_apk_compatibility": "UNKNOWN; native/Binder subscriber admission absent",
+      "remaining_dependencies": [
+        "negotiated Route Guidance",
+        "maneuver parser",
+        "external content subscriber"
+      ],
+      "ownership_claim": {
+        "topology": "metadata-subscriber",
+        "secondary_owner": "ClarityLink",
+        "secondary_session": "stock",
+        "secondary_generation": 1,
+        "external_content_contract_proven": true,
+        "no_apk_admission_proven": true
+      },
+      "model_consistency": "MODEL_ONLY_CONSISTENT",
+      "live_validation_status": "NOT_RUN",
+      "decision_classification": "CONDITIONAL_MISSING_INTERFACE_PROOF",
+      "blocked_reasons": [
+        "no decoded authenticated iAP2 maneuver ingress",
+        "no external no-APK subscriber"
+      ]
+    },
+    "C": {
+      "architecture": "Honda-native navigation service as ingress",
+      "evidence_ids": [
+        "P1C3_STATUS_ONLY"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY"
+          ]
+        }
+      },
+      "source_authenticity": "HONDA_NATIVE_ROUTE_SENDER_UNVERIFIED",
+      "stock_type110_preservation": "NOT_PROVEN",
+      "security_requirements": "Factory navigation producer/UID and permission need proof; cannot infer CarPlay auth",
+      "no_apk_compatibility": "UNKNOWN; service caller admission and route source absent",
+      "remaining_dependencies": [
+        "actual route responder UID",
+        "iPhone source provenance if goal claimed"
+      ],
+      "ownership_claim": {
+        "topology": "metadata-subscriber",
+        "secondary_owner": "ClarityLink",
+        "secondary_session": "stock",
+        "secondary_generation": 1,
+        "external_content_contract_proven": true,
+        "no_apk_admission_proven": true
+      },
+      "model_consistency": "MODEL_ONLY_CONSISTENT",
+      "live_validation_status": "NOT_RUN",
+      "decision_classification": "UNSUPPORTED_OR_NO_EVIDENCE",
+      "blocked_reasons": [
+        "Honda route response sender unverified",
+        "active iPhone route provenance absent"
+      ]
+    },
+    "D": {
+      "architecture": "two independent receivers on shared wired/session path",
+      "evidence_ids": [
+        "P1C1_STOCK_OWNER",
+        "P1C4_COEXISTENCE_UNKNOWN"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        }
+      },
+      "source_authenticity": "UNKNOWN_ACTIVE_IPHONE_VIDEO",
+      "stock_type110_preservation": "NOT_PROVEN",
+      "security_requirements": "distinct lawful authority and shared iAP2 multiplex security required",
+      "no_apk_compatibility": "UNKNOWN; independent process cannot claim USB/session",
+      "remaining_dependencies": [
+        "Apple two-session permission",
+        "iAP2 multiplex",
+        "legitimate second identity"
+      ],
+      "ownership_claim": {
+        "topology": "two-receivers-two-sessions",
+        "secondary_owner": "ClarityLink",
+        "secondary_session": "second",
+        "secondary_generation": 1,
+        "auth_owners": [
+          "Honda",
+          "ClarityLink"
+        ],
+        "control_owners": [
+          "Honda",
+          "ClarityLink"
+        ],
+        "iap2_owners": [
+          "Honda",
+          "ClarityLink"
+        ],
+        "distinct_authorized_identity": true,
+        "second_session_permission_proven": true,
+        "iap2_multiplex_contract_proven": true
+      },
+      "model_consistency": "MODEL_ONLY_CONSISTENT",
+      "live_validation_status": "NOT_RUN",
+      "decision_classification": "UNSUPPORTED_OR_NO_EVIDENCE",
+      "blocked_reasons": [
+        "two-session Apple admission and iAP2 multiplexing unproven",
+        "second lawful auth owner unavailable"
+      ]
+    },
+    "E": {
+      "architecture": "Honda wired plus independent ClarityLink wireless receiver",
+      "evidence_ids": [
+        "P1C1_STOCK_OWNER",
+        "P1C4_COEXISTENCE_UNKNOWN"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C1_STOCK_OWNER",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        }
+      },
+      "source_authenticity": "UNKNOWN_ACTIVE_IPHONE_VIDEO",
+      "stock_type110_preservation": "NOT_PROVEN",
+      "security_requirements": "distinct lawful wireless authority and simultaneous session isolation required",
+      "no_apk_compatibility": "UNKNOWN; wireless receiver not admitted",
+      "remaining_dependencies": [
+        "Apple concurrent-session permission",
+        "separate wireless identity",
+        "audio/control isolation"
+      ],
+      "ownership_claim": {
+        "topology": "two-receivers-two-sessions",
+        "secondary_owner": "ClarityLink",
+        "secondary_session": "second",
+        "secondary_generation": 1,
+        "auth_owners": [
+          "Honda",
+          "ClarityLink"
+        ],
+        "control_owners": [
+          "Honda",
+          "ClarityLink"
+        ],
+        "iap2_owners": [
+          "Honda",
+          "ClarityLink"
+        ],
+        "secondary_transport": "independent-wireless",
+        "distinct_authorized_identity": true,
+        "second_session_permission_proven": true,
+        "wireless_discovery_proven": true
+      },
+      "model_consistency": "MODEL_ONLY_CONSISTENT",
+      "live_validation_status": "NOT_RUN",
+      "decision_classification": "UNSUPPORTED_OR_NO_EVIDENCE",
+      "blocked_reasons": [
+        "simultaneous wired/wireless admission unproven",
+        "audio and controls conflict unresolved"
+      ]
+    },
+    "F": {
+      "architecture": "full ClarityLink receiver in isolated lab; PlayPort is external oracle",
+      "evidence_ids": [
+        "PLAYPORT_43P_LAB",
+        "P1C4_COEXISTENCE_UNKNOWN"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "FAILED",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "PLAYPORT_43P_LAB",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        }
+      },
+      "source_authenticity": "PLAYPORT_REAL_IPHONE_LAB_ONLY_CLARITYLINK_MODEL_ONLY",
+      "stock_type110_preservation": "NOT_APPLICABLE_LAB",
+      "security_requirements": "legitimate lab authority; PlayPort experimental identity is lab-only",
+      "no_apk_compatibility": "NOT_APPLICABLE_TO_HONDA; lab only",
+      "remaining_dependencies": [
+        "ClarityLink lawful live lab receiver proof",
+        "Honda coexistence separate"
+      ],
+      "ownership_claim": null,
+      "model_consistency": "UNASSESSED",
+      "live_validation_status": "LAB_OTHER_RECEIVER_ONLY",
+      "decision_classification": "LAB_ONLY_ORACLE",
+      "blocked_reasons": [
+        "Honda absent from lab",
+        "ClarityLink has no real-iPhone session observation"
+      ]
+    },
+    "G": {
+      "architecture": "independent iOS companion and ClarityLink navigation path",
+      "evidence_ids": [
+        "P1C3_STATUS_ONLY",
+        "P1C4_COEXISTENCE_UNKNOWN"
+      ],
+      "gates": {
+        "A": {
+          "name": "authentic iPhone data source",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "B": {
+          "name": "actual transport or IPC endpoint",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "C": {
+          "name": "authentication requirements",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "D": {
+          "name": "session identity and generation",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "E": {
+          "name": "permissioned ClarityLink access",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "F": {
+          "name": "stock Type110 preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "G": {
+          "name": "audio/call/Siri ownership preserved",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "H": {
+          "name": "secondary lifecycle and teardown",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "I": {
+          "name": "Android 4.2.2/API17 compatibility",
+          "status": "UNKNOWN",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "J": {
+          "name": "no prohibited stock modification",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "K": {
+          "name": "no APK installation",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        },
+        "L": {
+          "name": "concrete future validation method",
+          "status": "CONDITIONAL",
+          "evidence_ids": [
+            "P1C3_STATUS_ONLY",
+            "P1C4_COEXISTENCE_UNKNOWN"
+          ]
+        }
+      },
+      "source_authenticity": "INDEPENDENT_ROUTE_NOT_ACTIVE_APP",
+      "stock_type110_preservation": "NOT_PROVEN",
+      "security_requirements": "user-consented companion app authority; no reuse of Honda/MFi session",
+      "no_apk_compatibility": "Honda APK not assumed; iOS companion required",
+      "remaining_dependencies": [
+        "approved iOS data API",
+        "explicit source identity",
+        "Display1 output"
+      ],
+      "ownership_claim": {
+        "topology": "independent-companion",
+        "secondary_owner": "ClarityLink",
+        "secondary_session": "companion",
+        "secondary_generation": 1,
+        "external_content_contract_proven": true
+      },
+      "model_consistency": "MODEL_ONLY_CONSISTENT",
+      "live_validation_status": "NOT_RUN",
+      "decision_classification": "ADDITIONAL_APPROVED_DATA_PATH_REQUIRED",
+      "blocked_reasons": [
+        "additional approved iOS channel required",
+        "no active Apple Maps/Waze route feed"
+      ]
+    }
+  },
+  "selected_conditional_path": "A",
+  "currently_deployable_path": "NONE",
+  "exact_next_decisive_experiment": "Offline acquisition and hash/provenance audit of a supported 2018-Clarity-compatible Honda receiver extension contract proving session-bound /info, Type111 SETUP, endpoint/security delegation and teardown; no vehicle contact.",
+  "decision": "P1_C5_NO_GO_PENDING_NEW_INTERFACE_EVIDENCE",
+  "ranking_if_interfaces_proven": [
+    "A",
+    "B",
+    "G",
+    "D",
+    "E",
+    "C",
+    "F"
+  ],
+  "ranking_justified_today": [
+    "F",
+    "C",
+    "A",
+    "B",
+    "G",
+    "D",
+    "E"
+  ],
+  "ranking_note": "First ranking measures goal fit only after stated interfaces exist; second ranks present evidence utility, with F lab-only and no deployable candidate."
+}
