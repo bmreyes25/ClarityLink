@@ -1,0 +1,50 @@
+{
+  "authorization": "separate explicit, single-use Phase R authorization required",
+  "collector_source": "tools/r7e7g_phase_r_collector.py",
+  "collector_source_sha256": "de230c8a97aa06ea5134bc11a0902d59b86eee437bec913e273e5c2fb3edfc15",
+  "commands": [
+    [
+      "version"
+    ],
+    [
+      "devices"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "ls",
+      "-ld",
+      "/data/local/tmp"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "ls",
+      "-ld",
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/system/bin/md5",
+      "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
+    ]
+  ],
+  "exact_path": "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f",
+  "executable_launches": 0,
+  "expected_mode": "0555",
+  "expected_owner_group": "shell:shell",
+  "expected_size": 7904,
+  "host_command_timeout_seconds": 12,
+  "imported_test_a_collector_sha256": "acee02afd1eaef3aab5b4d4b24ded8044fce67e6461c1d4883b552c87465deb5",
+  "manifest_version": "R7E7G-PHASE-R-READ-ONLY-1",
+  "max_target_commands_if_absent": 2,
+  "max_target_commands_if_present": 3,
+  "retries": 0,
+  "test_a_artifact_md5": "6137a693a77646aaf9a4cf0f351731d4",
+  "test_a_artifact_sha256": "9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063",
+  "writes": 0
+}

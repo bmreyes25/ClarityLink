@@ -567,16 +567,20 @@ def main() -> int:
         run_case(remote_fault, "--test-parent-timeout", "parent watchdog exact kill/reap", 125,
                  require_reap=False, timeout=8.0)
 
-        # The production child/parent deadlines are 2 s/4 s. Test variant's
-        # normal child is bounded to 1 s and parent to 3 s. Run 100 full pairs.
+        # The production child/parent deadlines are 2 s/4 s. Keep the
+        # historical 100-pair default; R7E7G can request a smaller focused
+        # transport rehearsal without repeating the established stress run.
+        requested_cycles = int(os.environ.get("R7E7G_API17_CYCLES", "100"))
+        if not 1 <= requested_cycles <= 100:
+            raise RuntimeFailure("R7E7G_API17_CYCLES must be in [1, 100]")
         cycle_max: list[float] = []
-        for index in range(100):
+        for index in range(requested_cycles):
             v = run_case(remote_prod, "--version", f"repeat {index + 1} version", 0,
                          "CLARITYLINK_DIAG_VERSION=1.0.0")
             s = run_case(remote_prod, "--self-test", f"repeat {index + 1} self-test", 0,
                          "SELF_TEST_PASS")
             cycle_max.append(max(float(v["elapsed_seconds"]), float(s["elapsed_seconds"])))
-        evidence["repeat_cycles"] = {"requested": 100, "completed": len(cycle_max),
+        evidence["repeat_cycles"] = {"requested": requested_cycles, "completed": len(cycle_max),
                                       "version_and_self_test_each_cycle": True,
                                       "max_pair_seconds": max(cycle_max),
                                       "version_timing_seconds": {"min": min(version_samples),

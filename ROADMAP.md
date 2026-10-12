@@ -1,4 +1,8 @@
-## R7E7A — Test A identity and procfs review — 2026-10-11
+## Current roadmap — R7E7G recovery preparation
+
+See [the R7E7G milestone below](#r7e7g--offline-full-test-a-rehearsal-and-recovery-preparation). The only next physical action under consideration is a separately authorized Phase R read-only inspection. Test A remains blocked pending Honda recovery.
+
+## Historical R7E7A — Test A identity and procfs review — 2026-10-11
 
 Reconciled the prior prompt's obsolete path as an external instruction mismatch and retained the consistent R7E6A destination. Added same-shell procfs positive controls before exact process absence checks. Focused Android 4.2.2/API17 x86 procfs matrix passed; collector fixtures: 49 passed. Collector SHA-256 `083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750`; manifest `R7E7A-TEST-A-COMMAND-SET-2`, SHA-256 `e498971cf45219832827fd77ec2f7f71a0829cdc9b0307d5a564213459171c21`. Decision `R7E_TEST_A_EXECUTION_PACKAGE_READY`, pending exact-head hosted checks. Test A remains `NOT_AUTHORIZED` / `NOT_EXECUTED`. No Honda or physical Android contact. See [R7E7A review](research/runtime/r7e7a-test-a-identity-proc-review.md) and [authorization packet](research/runtime/r7e6-test-a-authorization-packet.md).
 
@@ -228,3 +232,6 @@ A0-WR is `A0WR_PASS_FOR_REVIEW`; A0 transfer and write/verify/delete are closed,
 ## R7E7F Test A failure recovery — current
 
 The prior Test A process-absence query returned empty output because the collector used nested `adb shell sh -c` without preserving the inner command boundary under legacy ADB argument joining. AOSP behavior and an isolated API17 emulator reproduced it. The corrected collector is frozen as R7E7F command-set-5; see [shell review](research/runtime/r7e7f-test-a-shell-root-cause-review.md). The previous Honda executable may still exist, and its process/file state is unknown. **Next:** separate read-only Phase R authorization and review. No cleanup or Test A retry until recovery is resolved and separately authorized. No Honda operations occurred in R7E7F.
+## R7E7G — offline full Test A rehearsal and recovery preparation
+
+The real production collector completed 50/50 stateful fake-ADB lifecycles with exact frozen command order and no modeled leaks; isolated API17 shell transport was retested. Read-only Phase R tooling and an inactive separate Phase C proposal are prepared. The previous Honda executable and process states remain unknown, and Phase R file observation cannot by itself establish process safety. See [R7E7G report](research/runtime/r7e7g-test-a-wet-rehearsal-report.md). Next physical work, only after a separate authorization, is Phase R inspection and review. Test A retry and Test B remain unauthorized.

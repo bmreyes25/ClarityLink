@@ -1,3 +1,5 @@
+Current R7E7G evidence: [wet rehearsal](research/runtime/r7e7g-test-a-wet-rehearsal-report.md), [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md), and [Phase C proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md). Historical evidence follows.
+
 ## R7E7C Test A parent metadata parser correction (2026-10-11)
 
 - [R7E7C review](research/runtime/r7e7c-test-a-directory-metadata-review.md): exact legacy Android `ls -ld` output explained the stopped pre-push failure; parser now preserves strict mode/owner/group checks while supporting the observed format.
@@ -1221,3 +1223,8 @@ Honda-specific source notes remain separately indexed below; no external project
 - [Current Test A package notice](research/runtime/r7e6-test-a-authorization-packet.md): R7E7F package identities, consumed prior authorization, recovery-first boundary. Historical R7E7D packet preserved separately.
 - Private source evidence: `build/r7e6a/test-a/evidence/collector-failure-20261012T021444Z-b64f.json`; private API17 reproduction: `build/r7e6/runs/api17-shell-construction-b9ec6acc460d.json`. These ignored mode-0600 records are not committed.
 - R7E7F Honda ADB commands/writes/pushes/executions/cleanup: zero. Test A remains not ready to retry; Test B unauthorized.
+# R7E7G offline wet rehearsal and recovery preparation
+
+- [R7E7G report](research/runtime/r7e7g-test-a-wet-rehearsal-report.md): stateful 50-cycle full Test A simulation, API17 transport evidence and limits, recovery preparation, and final offline decision. Private emulator and simulated collector evidence remains ignored under `build/`.
+- [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md) and [manifest](research/runtime/r7e7g-phase-r-manifest.json): draft read-only exact-path inspection package, default disabled and bound to both Phase R source and imported Test A helper source. No authorization has been submitted.
+- [Phase C conditional proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md): current process-safety basis and separate authorization required; no cleanup executed.

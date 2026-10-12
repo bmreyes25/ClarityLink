@@ -1,4 +1,10 @@
-# Current next action — R7E7F read-only recovery authorization
+# Current next action — R7E7G separate Phase R authorization
+
+R7E7G completed 50/50 full in-memory collector lifecycles with exact manifest command matching, one push/two diagnostic invocations/one cleanup per cycle, and zero modeled leaks or unexpected commands. The isolated API17 shell-construction probe passed. A separate x86 diagnostic lifecycle rehearsal and exact-head hosted checks are recorded in [the R7E7G report](research/runtime/r7e7g-test-a-wet-rehearsal-report.md). The production R7E7F collector, command manifest, and ARMv7 artifact remain unchanged.
+
+The prior Honda Test A transferred one executable and invoked `--version`, but did not confirm process absence or cleanup. **Current Honda file and process state remain unknown.** The next possible Honda action is a separately authorized, single-use, read-only Phase R inspection using [the R7E7G packet](research/runtime/r7e7g-phase-r-authorization-packet.md). Review its private result before considering [conditional Phase C](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md). Phase R alone cannot establish current process safety. No Test A retry or Test B is authorized. The car can remain off until a separate recovery authorization is reviewed.
+
+## Historical R7E7F next action — superseded by R7E7G
 
 R7E7F reproduced the Test A process-check failure as a legacy ADB nested-shell construction defect. The collector now passes the full fixed process-check expression as one `adb shell` argument, with remote `$$` expansion, procfs positive controls, bounded PID validation, exact sentinel parsing, and fail-closed cleanup behavior. API17 x86 reproduction: old command host rc 0 with empty output; corrected command produced the exact sentinel; live-PID and missing-positive-control cases blocked it.
 
