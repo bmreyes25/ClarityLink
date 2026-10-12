@@ -1208,3 +1208,8 @@ Honda-specific source notes remain separately indexed below; no external project
 - [Sanitized A0-WR evidence review](research/runtime/r7e5e-a0wr-result.md): pass reviewed against metadata and all eight command records; A0 transfer/write/delete closed; no additional marker required; Test A remains unauthorized and process-rollback blocked.
 - [Process-lifecycle review](research/runtime/r7e5e-process-lifecycle-review.md): pinned AOSP `ps`/`kill` behavior researched; Honda toolbox identity/output and race-bounded exact-PID recovery remain unproven.
 - Ignored Test A staging copy under `build/r7e5e/test-a/` is byte-identical to the canonical ELF and mode 0555. No Test A collector/authorization package is frozen because exact process recovery and diagnostic deadline remain unproven.
+# Current evidence — R7E7D
+
+- [R7E7D Test A legacy compatibility and package review](research/runtime/r7e7d-test-a-legacy-compatibility-review.md): historical Honda output comparison, collector parser findings, artifact and identity review, and manual ECC status. No Honda commands were issued in R7E7D.
+- [Current Test A authorization packet](research/runtime/r7e6-test-a-authorization-packet.md): frozen R7E7D identities and the separate authorization boundary. This packet is not authorization.
+- [Current readiness decision](research/runtime/r7e6-test-a-readiness-decision.md) and [collector verification](research/runtime/r7e6-test-a-collector-verification.md).

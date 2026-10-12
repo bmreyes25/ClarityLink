@@ -1,4 +1,16 @@
-# R7E7C Test A readiness decision
+# R7E7D Test A readiness decision
+
+**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY` after final exact-head verification. The R7E7C directory parser fix was verified against the preserved Honda output. Review of historical A0-WR output found and corrected two more compatibility mismatches: two-space MD5 formatting and the manifest-relative push source differing from the executed source. The inventory and ENOENT parsers were also tightened to evidence-backed formats. See [R7E7D compatibility review](r7e7d-test-a-legacy-compatibility-review.md).
+
+**Next:** request a fresh, explicit Test A authorization bound to the final repository HEAD and identities below. Previous R7E7B and R7E7C authorizations are consumed. Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`; Test B remains unauthorized.
+
+Current package: collector SHA-256 `7cae443313ebe0d27d67bb08b32b140897c3b4d33f7e312d3323d70f37b8f129`; manifest version `R7E7D-TEST-A-COMMAND-SET-4`, SHA-256 `553f3dcf44e51bf91433838fccbcdfe6ec2b5af84608de61c6228daa96eb6b5e`; artifact SHA-256 `9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063`, MD5 `6137a693a77646aaf9a4cf0f351731d4`, size 7,904 bytes, staging mode `0555`; exact target `/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f`.
+
+R7E7D issued zero Honda commands and caused zero Honda writes. The prior Test A attempt remained pre-push and pre-execution. Independent ECC review was unavailable; manual ECC-guided security, compatibility, process-lifecycle, and authorization review was recorded. Exact-head checks are documented in the R7E7D result after they complete.
+
+---
+
+# Historical R7E7C Test A readiness decision
 
 **Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY`. Exact-head Offline CI and aggregate CodeQL passed on `84a3819f2ed9cc1f7b614c1e9548671e4ce693d5`; all five CodeQL language jobs passed. The final documentation-only commit must also retain passing checks.
 

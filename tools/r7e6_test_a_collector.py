@@ -75,7 +75,7 @@ def command_plan() -> list[list[str]]:
 
 def manifest_template() -> dict[str, object]:
     return {
-        "manifest_version": "R7E7C-TEST-A-COMMAND-SET-3",
+        "manifest_version": "R7E7D-TEST-A-COMMAND-SET-4",
         "collector_source": "tools/r7e6_test_a_collector.py",
         "collector_source_sha256": "FROZEN_AFTER_SOURCE",
         "artifact_path": "build/r7e6/test-a/claritylink-target-diag",
@@ -91,9 +91,11 @@ def manifest_template() -> dict[str, object]:
             "mode": EXPECTED_PARENT_MODE,
             "owner": "shell",
             "group": "shell",
-            "basename": "tmp",
+            "accepted_final_tokens": ["tmp", PARENT],
             "format": "one ls -ld line; Android legacy output may omit size and print basename only",
         },
+        "remote_md5_format": "one exact 32-hex digest, one or two ASCII spaces, then exact remote path",
+        "inventory_format": "exact ADB header and tab-delimited device rows; nonblank malformed rows fail closed",
         "child_deadline_seconds": PARENT_DEADLINE - 2,
         "parent_deadline_seconds": PARENT_DEADLINE,
         "host_command_timeout_seconds": TIMEOUT,
@@ -127,11 +129,20 @@ def manifest_template() -> dict[str, object]:
 
 
 def _devices(output: str) -> list[tuple[str, str]]:
-    rows = []
-    for line in output.splitlines():
-        fields = line.split()
-        if len(fields) >= 2 and fields[0] != "List" and "\t" in line:
-            rows.append((fields[0], fields[1]))
+    lines = output.replace("\r", "").splitlines()
+    if not lines or lines[0] != "List of devices attached":
+        return [("", "INVALID_INVENTORY_HEADER")]
+    rows: list[tuple[str, str]] = []
+    for line in lines[1:]:
+        if not line:
+            continue
+        if line.count("\t") != 1:
+            return [("", "INVALID_INVENTORY_RECORD")]
+        serial, state_and_details = line.split("\t", 1)
+        state_fields = state_and_details.split()
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", serial) or not state_fields:
+            return [("", "INVALID_INVENTORY_RECORD")]
+        rows.append((serial, state_fields[0]))
     return rows
 
 
@@ -180,10 +191,22 @@ def _digest(output: str) -> str | None:
     lines = output.splitlines()
     if len(lines) != 1:
         return None
-    match = re.fullmatch(r"([0-9a-fA-F]{32}) (\S+)", lines[0])
+    match = re.fullmatch(r"([0-9a-fA-F]{32}) {1,2}(\S+)", lines[0])
     if not match or match.group(2) != REMOTE:
         return None
     return match.group(1).lower()
+
+
+def _push_succeeded(stdout: str, stderr: str, source: str, size: int) -> bool:
+    lines = [line.strip() for line in (stdout + "\n" + stderr).replace("\r", "").splitlines()
+             if line.strip()]
+    expected = re.compile(
+        re.escape(source) + r": 1 file pushed, 0 skipped\. "
+        r"[0-9.]+ [KMG]?B/s \([0-9]+ bytes in [0-9.]+s\)"
+    )
+    if len(lines) != 1 or not expected.fullmatch(lines[0]):
+        return False
+    return re.search(r"\(([0-9]+) bytes in [0-9.]+s\)$", lines[0]).group(1) == str(size)
 
 
 def _is_exact_enoent(output: str, path: str = REMOTE,
@@ -198,10 +221,7 @@ def _is_exact_enoent(output: str, path: str = REMOTE,
         line = line[:-1]
     if not line or "\n" in line or "\r" in line:
         return False
-    prefixes = ("", "ls: ", "/system/bin/ls: ", "/system/bin/sh: ",
-                "/system/bin/sh: ls: ", "/system/bin/sh: /system/bin/ls: ")
-    return any(line == f"{prefix}{path}: No such file or directory"
-               for prefix in prefixes)
+    return line == f"{path}: No such file or directory"
 
 
 def _absence_gate(runner: Callable[..., subprocess.CompletedProcess[str]],
@@ -372,15 +392,10 @@ def execute(args: argparse.Namespace,
 
         push_attempted = True
         state["push_attempted"] = True
-        push_result = _run(recorded_runner, [adb, "-s", args.serial, "push", str(ARTIFACT), REMOTE],
+        artifact_source = str(ARTIFACT.relative_to(ROOT))
+        push_result = _run(recorded_runner, [adb, "-s", args.serial, "push", artifact_source, REMOTE],
                            "single artifact push", 30, allow_stderr=True)
-        transfer_lines = [line.strip() for line in (push_result.stdout + "\n" + push_result.stderr).splitlines()
-                          if line.strip()]
-        expected_transfer = re.compile(
-            re.escape(str(ARTIFACT)) + r": 1 file pushed, 0 skipped\. "
-            r"[0-9.]+ [KMG]?B/s \([0-9]+ bytes in [0-9.]+s\)"
-        )
-        if len(transfer_lines) != 1 or not expected_transfer.fullmatch(transfer_lines[0]):
+        if not _push_succeeded(push_result.stdout, push_result.stderr, artifact_source, SIZE):
             raise Blocked("single push returned an unrecognized transfer result")
         metadata = _shell(recorded_runner, adb, args.serial, "ls", "-l", REMOTE,
                           label="remote artifact metadata")

@@ -31,8 +31,9 @@ class FakeADB:
                 code = 1
             else:
                 self.existing = True
+                artifact_source = str(collector.ARTIFACT.relative_to(collector.ROOT))
                 return subprocess.CompletedProcess(
-                    argv, 0, "", f"{collector.ARTIFACT}: 1 file pushed, 0 skipped. "
+                    argv, 0, "", f"{artifact_source}: 1 file pushed, 0 skipped. "
                     f"1 MB/s ({collector.SIZE} bytes in 0.01s)\n")
         elif argv[-3:] == ["ls", "-ld", collector.PARENT]:
             out = ("drwxrwx--x shell    shell             2026-10-11 09:20 tmp\r\n"
@@ -53,6 +54,8 @@ class FakeADB:
                     out += "warning: extra response\n"
                 elif self.failure == "absence_other_path":
                     out = "/data/local/tmp/other: No such file or directory\n"
+                elif self.failure == "absence_prefixed":
+                    out = f"ls: {collector.REMOTE}: No such file or directory\n"
                 elif self.failure == "absence_stderr":
                     return subprocess.CompletedProcess(argv, 0, "", "permission denied\n")
                 elif self.failure == "absence_extra_blank":
@@ -77,7 +80,7 @@ class FakeADB:
                 out += "warning: unexpected output\n"
         elif argv[-2:] == ["/system/bin/md5", collector.REMOTE]:
             out = ("00000000000000000000000000000000\n" if self.failure == "md5"
-                   else f"{collector.MD5} {collector.REMOTE}\n")
+                   else f"{collector.MD5}  {collector.REMOTE}\n")
         elif argv[-1:] == ["/system/bin/rm"] or argv[-2:] == ["/system/bin/rm", collector.REMOTE]:
             if self.failure == "rm":
                 code = 1
@@ -178,6 +181,46 @@ def test_parent_metadata_accepts_legacy_android_format_without_weakening_identit
     assert collector._valid_parent_metadata(output.replace("\\r", "").replace("\\n", "\n")) is expected
 
 
+def test_remote_regular_file_parser_accepts_captured_a0wr_toolbox_spacing_and_crlf():
+    observed = ("-r--r--r-- shell    shell          59 2026-10-11 08:48 "
+                "claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe\\r\\n")
+    parsed = collector._mode(observed.replace("\\r", "").replace("\\n", "\n"))
+    assert parsed == ("-r--r--r--", "shell", "shell", 59,
+                      "claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe")
+
+
+@pytest.mark.parametrize("output", [
+    "lrwxrwxrwx shell shell 59 2026-10-11 08:48 marker -> target\\n",
+    "drwxr-xr-x shell shell 59 2026-10-11 08:48 marker\\n",
+    "-r-sr-xr-x shell shell 59 2026-10-11 08:48 marker\\n",
+    "-r--r--r-- shell shell 2026-10-11 08:48 marker\\n",
+    "-r--r--r-- shell shell 59 2026-10-11 08:48 marker\\nextra\\n",
+    "",
+])
+def test_remote_regular_file_parser_rejects_ambiguous_or_unrecognized_metadata(output):
+    assert collector._mode(output.replace("\\n", "\n")) is None
+
+
+def test_push_parser_accepts_historical_a0wr_stderr_transfer_format():
+    stderr = ("build/r7e5c/a0wr/claritylink-a0wr-marker.txt: 1 file pushed, "
+              "0 skipped. 0.6 MB/s (59 bytes in 0.000s)\\n")
+    assert collector._push_succeeded(
+        "", stderr.replace("\\n", "\n"),
+        "build/r7e5c/a0wr/claritylink-a0wr-marker.txt", 59)
+
+
+@pytest.mark.parametrize("stdout,stderr", [
+    ("", "build/r7e5c/a0wr/marker: 1 file pushed, 1 skipped. 0.6 MB/s (59 bytes in 0.1s)\\n"),
+    ("", "build/r7e5c/a0wr/other: 1 file pushed, 0 skipped. 0.6 MB/s (59 bytes in 0.1s)\\n"),
+    ("", "build/r7e5c/a0wr/marker: 1 file pushed, 0 skipped. 0.6 MB/s (58 bytes in 0.1s)\\n"),
+    ("unexpected\\n", "build/r7e5c/a0wr/marker: 1 file pushed, 0 skipped. 0.6 MB/s (59 bytes in 0.1s)\\n"),
+])
+def test_push_parser_rejects_skips_wrong_source_size_or_extra_output(stdout, stderr):
+    assert not collector._push_succeeded(
+        stdout.replace("\\n", "\n"), stderr.replace("\\n", "\n"),
+        "build/r7e5c/a0wr/marker.txt", 59)
+
+
 def test_complete_fake_lifecycle_is_exact_and_no_retry_or_fallback(package, capsys):
     fake = FakeADB()
     assert collector.execute(package, runner=fake, confirm_stock_state=lambda: True) == 0
@@ -194,6 +237,8 @@ def test_complete_fake_lifecycle_is_exact_and_no_retry_or_fallback(package, caps
     "List of devices attached\n",
     "List of devices attached\nTESTSER\tdevice\nOTHER\tdevice\n",
     "List of devices attached\nOTHER\tdevice\n",
+    "List of devices attached\nTESTSER\tdevice\nwarning: extra row\n",
+    "TESTSER\tdevice\n",
 ])
 def test_target_zero_multiple_or_mismatch_fails_closed(package, devices):
     fake = FakeADB(devices=devices)
@@ -226,7 +271,7 @@ def test_fault_fixture_stops_or_cleans_exactly_once(package, failure):
 @pytest.mark.parametrize("failure", ["absence_empty", "absence_permission", "absence_command_missing",
                                       "absence_ambiguous", "absence_other_path", "absence_stderr",
                                       "absence_extra_blank", "absence_whitespace", "existing",
-                                      "existing_symlink", "existing_directory"])
+                                      "absence_prefixed", "existing_symlink", "existing_directory"])
 def test_legacy_absence_gate_requires_exact_enoent_before_push(package, failure):
     fake = FakeADB(failure=failure)
     with pytest.raises(collector.Blocked, match="TEST_A_REMOTE_PATH_STATE_UNCERTAIN"):
@@ -254,6 +299,24 @@ def test_host_zero_and_empty_remote_failure_is_not_absence():
 ])
 def test_md5_requires_one_exact_digest_and_remote_path(output):
     assert collector._digest(output) is None
+
+
+def test_md5_accepts_historical_android_two_space_separator():
+    observed = f"{collector.MD5}  {collector.REMOTE}\r\n"
+    assert collector._digest(observed) == collector.MD5
+
+
+def test_frozen_push_plan_matches_actual_relative_source_argument(package, capsys):
+    fake = FakeADB()
+    assert collector.execute(package, runner=fake, confirm_stock_state=lambda: True) == 0
+    capsys.readouterr()
+    push_call = next(call for call in fake.calls if "push" in call)
+    assert push_call[1:] == ["-s", "TESTSER", "push",
+                             str(collector.ARTIFACT.relative_to(collector.ROOT)), collector.REMOTE]
+    assert collector.command_plan()[3:5] == [
+        ["-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", collector.REMOTE],
+        ["-s", "<EXACT_SERIAL>", "push", str(collector.ARTIFACT.relative_to(collector.ROOT)), collector.REMOTE],
+    ]
 
 
 def test_stock_state_mismatch_fails_after_cleanup(package):

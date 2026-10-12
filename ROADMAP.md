@@ -56,6 +56,10 @@ Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Complete Android/JNI runtime coverage, i
 
 # ClarityLink roadmap
 
+## Current R7E7D Test A readiness
+
+R7E7D reviewed the stopped pre-push Test A attempt and compared remaining output parsing against preserved Honda A0-R/A0-WR evidence. The legacy `/data/local/tmp` parser correction is retained; a real two-space MD5 format and manifest-versus-executed push source mismatch were also corrected, and malformed inventory/unobserved ENOENT variants now fail closed. Current package identities and the outstanding exact-head verification are in the [R7E7D review](research/runtime/r7e7d-test-a-legacy-compatibility-review.md). Test A remains unauthorized and unexecuted. **Next:** complete final offline and exact-head hosted checks, then present a fresh authorization bound to the final HEAD and hashes. No Honda commands or writes occurred in R7E7D; do not auto-start Test A or Test B.
+
 ## R7C4 closure status — blocked — 2026-10-07
 
 R7C4 restored the local JDK/pytest environment and ran the updated APK on the isolated API17 Dalvik emulator. One fragmented Type110 native socket route, JNI exception probes, and a 100-cycle synthetic-ingest lifecycle run passed. Deterministic framework races and full socket/fault/resource coverage remain incomplete; the final ARMv7 audit and exact-head hosted checks are also outstanding. R7C remains blocked as `R7C_FRAMEWORK_RACE_BLOCKED`; R7D is CLOSED. Next action: complete those gates on one final revision. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md).
