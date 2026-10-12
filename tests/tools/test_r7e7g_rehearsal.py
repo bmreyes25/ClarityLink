@@ -15,7 +15,7 @@ from tests.tools.test_r7e6_test_a_collector import FakeADB as LegacyFakeADB
 from tests.tools.test_r7e6_test_a_collector import package as test_a_package
 
 
-def test_full_frozen_collector_lifecycle_and_manifest_trace():
+def test_full_frozen_collector_lifecycle_and_manifest_trace(test_a_package):
     fake, result = rehearsal.run_cycle()
     assert result["decision"] == "TEST_A_PASS_FOR_REVIEW"
     assert [fake._normalized(call) for call in fake.calls] == test_a.command_plan()
@@ -23,7 +23,7 @@ def test_full_frozen_collector_lifecycle_and_manifest_trace():
     assert not fake.file_present and not fake.running
 
 
-def test_fifty_fresh_full_collector_cycles():
+def test_fifty_fresh_full_collector_cycles(test_a_package):
     cycles = [rehearsal.run_cycle()[0] for _ in range(50)]
     assert len(cycles) == 50
     assert sum(fake.transfers for fake in cycles) == 50
@@ -45,19 +45,13 @@ def test_rehearsal_rejects_foreign_transport_or_out_of_order_command():
 
 
 @pytest.mark.parametrize("condition", ["empty_process_sentinel", "live_process", "procfs_unavailable"])
-def test_simulated_uncertain_pid_state_stops_without_self_test_or_cleanup(condition):
-    args = test_a.parser().parse_args([
-        "--execute-authorized-test-a", "--authorized-collector-sha256",
-        test_a.sha(Path(test_a.__file__).resolve()),
-        "--authorized-manifest-sha256", test_a.sha(test_a.MANIFEST),
-        "--serial", rehearsal.SERIAL, "--adb", rehearsal.FAKE_ADB,
-        "--stationary", "--parked", "--display-booted", "--cluster-normal",
-        "--no-warnings", "--exclusive-adb-window", "--power-state", "SIMULATED",
-        "--audio-state", "SIMULATED",
-    ])
+def test_simulated_uncertain_pid_state_stops_without_self_test_or_cleanup(
+        test_a_package, condition):
+    test_a_package.serial = rehearsal.SERIAL
+    test_a_package.adb = rehearsal.FAKE_ADB
     fake = rehearsal.FakeADB(failure=condition)
     with pytest.raises(test_a.Blocked, match="TEST_A_PROCESS_STATE_UNCERTAIN"):
-        test_a.execute(args, runner=fake, confirm_stock_state=lambda: True)
+        test_a.execute(test_a_package, runner=fake, confirm_stock_state=lambda: True)
     assert len(fake.calls) == 9
     assert fake.transfers == 1 and fake.executions == 1 and fake.cleanups == 0
     assert fake.file_present

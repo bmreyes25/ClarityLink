@@ -50,6 +50,6 @@ API17 x86 lifecycle: the 100-pair default run timed out at repeat 52 `--self-tes
 
 Final configured offline suite: 1,136 passed, 15 skipped; 3 self-locator smoke tests; all configured simulator checks; repository health (827 Markdown files, zero broken curated links); artifact audit; and `git diff --check` passed.
 
-Exact final HEAD and hosted CI/CodeQL: pending commit and exact-head checks.
+Hosted verification: the first pushed implementation head `847633f663826acf9082d9f5558144c18f1af2e8` failed Offline CI because the new success tests expected the intentionally ignored ARM staging binary in GitHub's clean checkout. The tests now use the existing temporary package fixture in CI while the standalone local rehearsal remains bound to the real staged binary. The corrected head's exact Offline CI and CodeQL results remain to be verified after push; no earlier-head result is counted as final.
 
 Current real Honda file state: **unknown**. Current real Honda process state: **unknown**. No Honda recovery occurred. The next physical session, if separately authorized later, is limited to Phase R inspection and review. The user does not need to return to the car for this offline milestone. Test A retry and Test B are not authorized.
