@@ -1,6 +1,6 @@
 # R7E7D Test A readiness decision
 
-**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY` after final exact-head verification. The R7E7C directory parser fix was verified against the preserved Honda output. Review of historical A0-WR output found and corrected two more compatibility mismatches: two-space MD5 formatting and the manifest-relative push source differing from the executed source. The inventory and ENOENT parsers were also tightened to evidence-backed formats. See [R7E7D compatibility review](r7e7d-test-a-legacy-compatibility-review.md).
+**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY`. Offline CI and aggregate CodeQL passed on exact HEAD `75c1fb332fd2a187a62a9ab29274484667c1c2d2`; all five CodeQL language jobs passed. The R7E7C directory parser fix was verified against preserved Honda output. Review of historical A0-WR output found and corrected two more compatibility mismatches: two-space MD5 formatting and the manifest-relative push source differing from the executed source. Inventory and ENOENT parsers were also tightened to evidence-backed formats. See [R7E7D compatibility review](r7e7d-test-a-legacy-compatibility-review.md).
 
 **Next:** request a fresh, explicit Test A authorization bound to the final repository HEAD and identities below. Previous R7E7B and R7E7C authorizations are consumed. Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`; Test B remains unauthorized.
 

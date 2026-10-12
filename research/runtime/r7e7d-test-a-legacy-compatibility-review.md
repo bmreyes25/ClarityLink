@@ -48,7 +48,7 @@ Raw evidence remains ignored/private and unchanged. The R7E7C metadata file is m
 - Repository health: passed locally. Artifact audit: passed; canonical/staged bytes match, staging mode is `0555`, size and both hashes match.
 - Collector dry-run: `DRY_RUN_NO_ADB`, zero ADB operations; sequence matches the manifest including relative push source.
 - `git diff --check`: passed.
-- Exact-head Offline CI and CodeQL remain required after committing and pushing this candidate.
+- Exact-head Offline CI and aggregate CodeQL passed on `75c1fb332fd2a187a62a9ab29274484667c1c2d2`; all five configured CodeQL languages passed. The detailed run links are in the current authorization packet.
 - No R7E7D Honda command was run. No push or diagnostic launch occurred.
 - Independent ECC reviewer was not available in the current capabilities. Manual ECC security-review, Python-testing, and safety-guided reviews were performed; no independent approval is claimed.
 
