@@ -1,0 +1,50 @@
+{
+  "authorization": "separate explicit single-use Phase S authorization required",
+  "cleanup": 0,
+  "collector_source": "tools/r7e7i_phase_s_collector.py",
+  "collector_source_sha256": "9bec4ecd58b49e50b1d27cc0807c14ee7407397cb078918c129d8783291c0464",
+  "commands": [
+    [
+      "version"
+    ],
+    [
+      "devices"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/system/bin/cat",
+      "/proc/sys/kernel/random/boot_id"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/system/bin/cat",
+      "/proc/uptime"
+    ],
+    [
+      "-s",
+      "<EXACT_SERIAL>",
+      "shell",
+      "/system/bin/cat",
+      "/proc/sys/kernel/random/boot_id"
+    ]
+  ],
+  "exact_prior_path": "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f",
+  "executable_launches": 0,
+  "expected_artifact_sha256": "9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063",
+  "fallbacks": 0,
+  "historical_upper_bound_reference": "GitHub Actions run 38196454003 created 2026-10-12T02:36:36Z on R7E7F review head 243ee18fbfa5dd53b64c1c414dade12740a415c8",
+  "host_command_timeout_seconds": 12,
+  "manifest_version": "R7E7I-PHASE-S-READ-ONLY-1",
+  "max_clock_error_seconds_per_bound": 86400,
+  "minimum_historical_error_seconds": 1800,
+  "observed_remote_md5": "6137a693a77646aaf9a4cf0f351731d4",
+  "old_failure_evidence_sha256": "21e6551fde4498603dbfc9129aa4f32a61b0f0c7e89f3a70ba5035cfccee430e",
+  "old_failure_finished_utc": "2026-10-12T02:14:44.929697+00:00",
+  "phase_r_reviewed_evidence_sha256": "001e13ba7c5911a5d03e10114d6d8925cb3e3fa4c619b2ce2ba396bd1cae3ddd",
+  "retries": 0,
+  "writes": 0
+}

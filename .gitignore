@@ -70,6 +70,7 @@
 !/tools/r7e5c_a0wr_collector.py
 !/tools/r7e7g_test_a_wet_rehearsal.py
 !/tools/r7e7g_phase_r_collector.py
+!/tools/r7e7i_phase_s_collector.py
 !/tools/r7e7g_recovery_decision_sim.py
 !/tools/honda-readonly-preflight/
 !/tools/honda-readonly-preflight/**

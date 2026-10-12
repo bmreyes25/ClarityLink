@@ -1,6 +1,6 @@
 # R7E7G Phase C conditional cleanup proposal — draft, inactive
 
-No Phase C cleanup is authorized. The offline simulation has no Honda effect. The current Honda file and process states remain unknown.
+No Phase C cleanup is authorized. The real R7E7H Phase R inspection found the exact expected regular file with matching metadata and MD5; current process state remains unknown. See the [R7E7I Phase C preparation](r7e7i-phase-c-authorization-preparation.md) for the current gates and exact proposed cleanup scope.
 
 ## Eligibility after a separate Phase R review
 

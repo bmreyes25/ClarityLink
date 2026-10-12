@@ -72,7 +72,7 @@ def test_simulated_uncertain_pid_state_stops_without_self_test_or_cleanup(
     (7, "missing_version"), (7, "wrong_api"), (7, "wrong_abi"),
     (7, "missing_supervisor_reap"), (7, "duplicate_status"),
     (8, "empty_process_sentinel"), (8, "host_timeout"),
-    (9, "missing_self_test_pass"), (9, "nonzero_guest"),
+    (9, "missing_self_test_pass"), (9, "nonzero_guest"), (9, "host_timeout"),
     (10, "duplicate_sentinel"), (11, "cleanup_failure"), (11, "host_timeout"),
     (12, "final_path_present"), (12, "host_timeout"),
 ])
