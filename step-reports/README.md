@@ -1,3 +1,7 @@
+## P1 — receiver-ingress feasibility closeout (2026-10-12)
+
+See [P1 closeout](p1-receiver-ingress-feasibility-closeout.md): P1-C1 through P1-C5 support an evidence-complete, bounded NO-GO for stock-session ingress under current constraints. The next step is offline acquisition of a provenance-verified OEM extension contract. P2 Display 1 research is separate; no Honda or iPhone operation is authorized.
+
 ## 43T1 R7E6A — Test A collector safety closure (2026-10-11)
 
 See [R7E6A report](43t1-r7e6a-test-a-collector-safety-closure.md): corrected strict legacy ADB absence verification, MD5 path binding, and fail-closed process-aware cleanup. API17 x86 absence regression and focused collector fixtures passed. New package is ready for separate explicit authorization; Test A remains unauthorized and was not executed. No Honda or physical Android contact occurred.
