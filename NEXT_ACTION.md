@@ -1,6 +1,7 @@
-## Current next action — separate Test A authorization required — 2026-10-11
+# Current next action — R7E7C parser correction verification — 2026-10-11
 
-R7E7A reconciled the obsolete path in the prior external prompt (`...r7e6_7f1a3c9d2b6e40a8`) with the consistent current frozen path (`...r7e6a_4b91c27e6d3a508f`). It added a same-shell procfs positive control before exact PID-absence checks; the isolated Android 4.2.2/API17 x86 focused matrix passed. Focused collector coverage is 49 passing cases. Decision: `R7E_TEST_A_EXECUTION_PACKAGE_READY`, pending final exact-head hosted checks. **NEXT:** `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`, requiring separate authorization bound to collector SHA-256 `083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750`, manifest version `R7E7A-TEST-A-COMMAND-SET-2`, manifest SHA-256 `e498971cf45219832827fd77ec2f7f71a0829cdc9b0307d5a564213459171c21`, artifact hashes, exact command sequence, and operator gates. Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`; Test B cannot auto-start. No Honda or physical Android contact occurred. See [authorization packet](research/runtime/r7e6-test-a-authorization-packet.md), [manifest](research/runtime/r7e6-test-a-plan-manifest.json), [R7E7A review](research/runtime/r7e7a-test-a-identity-proc-review.md), and [R7E7A decision](research/runtime/r7e6-test-a-readiness-decision.md).
+R7E7C used exactly two separately authorized read-only Honda ADB commands. The parent directory retained expected mode and `shell:shell` ownership; Android's legacy `ls -ld` output omitted size and used basename `tmp`, causing the prior parser's false rejection. The parser and manifest now accept that exact legacy form while preserving strict mode, owner/group, and path/basename identity. Focused collector fixtures: 58 passed. **NEXT:** run full offline verification, review hashes/artifact identity and diff, then push the scoped correction to PR #19 and confirm exact-head Offline CI and CodeQL. After successful checks, request a new explicit Test A authorization bound to collector SHA-256 `3ab879b59bb5f56a742381e5429e2b469f9ae2f1aa11535e74cac107394ebfdc`, manifest version `R7E7C-TEST-A-COMMAND-SET-3`, SHA-256 `299f4423f716a9fc5c4d11d921e2c38fe3f75134a30db517762ef3daec7a339a`, and unchanged artifact hashes. Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`; R7E7C authorization is exhausted. Honda ADB commands: two read-only; Honda writes: zero; push attempts and diagnostic launches: zero. See [R7E7C review](research/runtime/r7e7c-test-a-directory-metadata-review.md), [authorization packet](research/runtime/r7e6-test-a-authorization-packet.md), and [readiness decision](research/runtime/r7e6-test-a-readiness-decision.md).
+
 
 ## Historical R7E6 next action — superseded by R7E6A — 2026-10-11
 
@@ -32,7 +33,7 @@ R7E5A reviewed the completed A0-R private evidence and committed only its saniti
 
 At the R7E3 snapshot, its former packet and manifest were superseded before authorization by R7E4. This historical next-action state predates A0-R execution and R7E5A.
 
-# Historical next-action index
+## Historical next-action index
 
 ## Original R7E state — superseded by R7E1
 

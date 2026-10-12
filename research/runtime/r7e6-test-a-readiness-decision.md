@@ -1,15 +1,13 @@
-# R7E7A Test A readiness decision
+# R7E7C Test A readiness decision
 
-**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY`, subject to confirmation of exact-head hosted checks after the final review record.
+**Decision:** `R7E_TEST_A_EXECUTION_PACKAGE_READY` is **pending exact-head offline and hosted verification** of the R7E7C parser correction.
 
-**Next:** `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`.
+**Next:** complete the requested offline verification, then request a new hash-bound Test A authorization.
 
-R7E7A reconciled the previous prompt's obsolete destination as an external instruction mismatch; the current frozen package path is consistently `/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f`. It also added a positive procfs control before exact process-absence checks. The invoking shell's `/proc/$$` directory and readable stat and `/proc/self/stat` must be accessible before both diagnostic PIDs can be declared absent. Empty or malformed sentinel output still fails closed. Cleanup after diagnostic start is allowed only after the exact lifecycle records and both exact PIDs absent are verified; otherwise the collector stops without removing a possibly executing file and writes a private, identifier-redacted failure record.
+The R7E7C read-only observation established that `/data/local/tmp` still has the expected `drwxrwx--x` mode and `shell:shell` owner/group. Android emitted the legacy one-line `ls -ld` form with date/time and basename `tmp`; it omitted the size and full path required by the previous parser. The correction accepts this observed format while retaining strict mode, owner, group, and final-name checks. See [R7E7C review](r7e7c-test-a-directory-metadata-review.md).
 
-The focused API17 Android 4.2.2 x86 emulator probe observed: missing-path `test -e` returned host status 0 with empty output; exact `ls -ld` emitted the frozen path's ENOENT line; regular file, symlink, and directory states did not match absence; exact removal and final ENOENT passed. No diagnostic was run in this probe. The production ARMv7 artifact and staging bytes/modes remain unchanged.
+Current package: collector SHA-256 `3ab879b59bb5f56a742381e5429e2b469f9ae2f1aa11535e74cac107394ebfdc`; manifest version `R7E7C-TEST-A-COMMAND-SET-3`, SHA-256 `299f4423f716a9fc5c4d11d921e2c38fe3f75134a30db517762ef3daec7a339a`; artifact remains unchanged at 7,904 bytes. The current [authorization packet](r7e6-test-a-authorization-packet.md) is not authorization to execute.
 
-The focused API17 x86 procfs review passed same-shell `/proc` controls, detected a visible live PID, rejected absent positive-control paths, and detected a reaped PID as absent. The revised collector has 49 passing fake-ADB fixtures covering procfs-control failure, PID-present/uncertain state, exact sentinel formats, cleanup policy, timeout handling, authorization gates, and no retry/fallback. Full repository tests and exact-head hosted checks are required on the R7E7A head.
+R7E7C used exactly two read-only Honda ADB commands. Honda writes: zero. Test A push attempts: zero. Diagnostic executions: zero. Test A retries: zero. R7E7C authorization is exhausted. Test A remains **NOT_AUTHORIZED** and **NOT_EXECUTED** under this new package. Test B remains unauthorized.
 
-Test A remains **NOT_EXECUTED** and **NOT_AUTHORIZED**. This readiness decision is not permission to run it. A separate explicit user authorization must bind the new collector and manifest hashes and all operator gates. Test B remains not authorized and cannot auto-start. No Honda command or physical Android contact occurred during R7E7A.
-
-See the [current authorization packet](r7e6-test-a-authorization-packet.md), [current manifest](r7e6-test-a-plan-manifest.json), [procfs review](r7e7a-test-a-identity-proc-review.md), [preserved prior package](r7e6-test-a-authorization-packet-historical.md), and [API17 absence probe](r7e6a-api17-absence-probe.md).
+Independent ECC review was unavailable; manual ECC-guided review was recorded.

@@ -35,8 +35,10 @@ class FakeADB:
                     argv, 0, "", f"{collector.ARTIFACT}: 1 file pushed, 0 skipped. "
                     f"1 MB/s ({collector.SIZE} bytes in 0.01s)\n")
         elif argv[-3:] == ["ls", "-ld", collector.PARENT]:
-            out = ("drwxrwx--x shell shell 2048 2026-10-11 /data/local/tmp\n"
-                   if self.failure != "destination" else "drwx------ root root 2048 /data/local/tmp\n")
+            out = ("drwxrwx--x shell    shell             2026-10-11 09:20 tmp\r\n"
+                   if self.failure != "destination" else "drwx------ root root 2026-10-11 09:20 tmp\n")
+            if self.failure == "destination_extra":
+                out += "unexpected extra line\n"
         elif argv[-3:] == ["ls", "-ld", collector.REMOTE]:
             if not self.existing:
                 code = 0 if self.failure != "absence_status_1" else 1
@@ -162,6 +164,20 @@ def test_default_is_not_authorized_and_dry_run_is_zero_adb(monkeypatch, capsys):
     assert dry["adb_operations"] == 0
 
 
+@pytest.mark.parametrize("output,expected", [
+    ("drwxrwx--x shell    shell             2026-10-11 09:20 tmp\\r\\n", True),
+    ("drwxrwx--x shell shell 2048 2026-10-11 /data/local/tmp\\n", True),
+    ("drwx------ shell shell 2026-10-11 09:20 tmp\\n", False),
+    ("drwxrwx--x root shell 2026-10-11 09:20 tmp\\n", False),
+    ("drwxrwx--x shell root 2026-10-11 09:20 tmp\\n", False),
+    ("drwxrwx--x shell shell 2026-10-11 09:20 other\\n", False),
+    ("drwxrwx--x shell shell 2026-10-11 09:20 tmp\\nextra\\n", False),
+    ("", False),
+])
+def test_parent_metadata_accepts_legacy_android_format_without_weakening_identity(output, expected):
+    assert collector._valid_parent_metadata(output.replace("\\r", "").replace("\\n", "\n")) is expected
+
+
 def test_complete_fake_lifecycle_is_exact_and_no_retry_or_fallback(package, capsys):
     fake = FakeADB()
     assert collector.execute(package, runner=fake, confirm_stock_state=lambda: True) == 0
@@ -186,7 +202,7 @@ def test_target_zero_multiple_or_mismatch_fails_closed(package, devices):
     assert not any("push" in call for call in fake.calls)
 
 
-@pytest.mark.parametrize("failure", ["destination", "existing", "push", "size", "mode", "writable",
+@pytest.mark.parametrize("failure", ["destination", "destination_extra", "existing", "push", "size", "mode", "writable",
                                       "nonexecutable", "metadata_warning", "md5", "--version", "--version_timeout",
                                       "--self-test", "--self-test_timeout", "process_present",
                                       "procfs_unavailable", "procfs_self_unreadable",
@@ -197,7 +213,7 @@ def test_fault_fixture_stops_or_cleans_exactly_once(package, failure):
     fake = FakeADB(failure=failure)
     with pytest.raises(collector.Blocked):
         collector.execute(package, runner=fake, confirm_stock_state=lambda: True)
-    if failure in {"destination", "existing", "existing_symlink", "existing_directory"}:
+    if failure in {"destination", "destination_extra", "existing", "existing_symlink", "existing_directory"}:
         assert not any("push" in call for call in fake.calls)
     if failure.endswith("_timeout"):
         # Host timeout anomaly must issue no rollback or subsequent target command.

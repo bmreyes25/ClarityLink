@@ -75,7 +75,7 @@ def command_plan() -> list[list[str]]:
 
 def manifest_template() -> dict[str, object]:
     return {
-        "manifest_version": "R7E7A-TEST-A-COMMAND-SET-2",
+        "manifest_version": "R7E7C-TEST-A-COMMAND-SET-3",
         "collector_source": "tools/r7e6_test_a_collector.py",
         "collector_source_sha256": "FROZEN_AFTER_SOURCE",
         "artifact_path": "build/r7e6/test-a/claritylink-target-diag",
@@ -87,6 +87,13 @@ def manifest_template() -> dict[str, object]:
         "expected_remote_owner_group": "shell:shell",
         "remote_path": REMOTE,
         "parent_path": PARENT,
+        "parent_metadata_requirement": {
+            "mode": EXPECTED_PARENT_MODE,
+            "owner": "shell",
+            "group": "shell",
+            "basename": "tmp",
+            "format": "one ls -ld line; Android legacy output may omit size and print basename only",
+        },
         "child_deadline_seconds": PARENT_DEADLINE - 2,
         "parent_deadline_seconds": PARENT_DEADLINE,
         "host_command_timeout_seconds": TIMEOUT,
@@ -156,6 +163,17 @@ def _mode(output: str) -> tuple[str, str, str, int, str] | None:
     if not match:
         return None
     return (match.group(1), match.group(2), match.group(3), int(match.group(4)), match.group(5))
+
+
+def _valid_parent_metadata(output: str) -> bool:
+    """Accept one shell-owned /data/local/tmp ls line across Android formats."""
+    lines = output.replace("\r", "").splitlines()
+    if len(lines) != 1:
+        return False
+    fields = lines[0].split()
+    return (len(fields) >= 5 and fields[0] == EXPECTED_PARENT_MODE
+            and fields[1] == "shell" and fields[2] == "shell"
+            and fields[-1] in {"tmp", PARENT})
 
 
 def _digest(output: str) -> str | None:
@@ -348,7 +366,7 @@ def execute(args: argparse.Namespace,
             raise Blocked("target inventory is absent, ambiguous, or differs from the supplied exact serial")
         parent = _shell(recorded_runner, adb, args.serial, "ls", "-ld", PARENT,
                         label="destination metadata")
-        if not re.search(r"(?m)^drwxrwx--x\s+shell\s+shell\s+\d+\s+.*\s+/data/local/tmp\s*$", parent):
+        if not _valid_parent_metadata(parent):
             raise Blocked("destination metadata differs from the frozen shell-owned directory")
         _absence_gate(recorded_runner, adb, args.serial, "exact destination absence")
 

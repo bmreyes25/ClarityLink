@@ -6,7 +6,7 @@
   "authorization": "separate explicit user authorization required; Test A remains NOT_AUTHORIZED",
   "child_deadline_seconds": 2,
   "collector_source": "tools/r7e6_test_a_collector.py",
-  "collector_source_sha256": "083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750",
+  "collector_source_sha256": "3ab879b59bb5f56a742381e5429e2b469f9ae2f1aa11535e74cac107394ebfdc",
   "commands": [
     [
       "version"
@@ -103,7 +103,7 @@
   "external_ps": false,
   "fallbacks": [],
   "host_command_timeout_seconds": 12,
-  "manifest_version": "R7E7A-TEST-A-COMMAND-SET-2",
+  "manifest_version": "R7E7C-TEST-A-COMMAND-SET-3",
   "maximum_target_command_wall_seconds": 174,
   "operator_gates": [
     "stationary",
@@ -116,6 +116,13 @@
     "exclusive ADB window"
   ],
   "parent_deadline_seconds": 4,
+  "parent_metadata_requirement": {
+    "basename": "tmp",
+    "format": "one ls -ld line; Android legacy output may omit size and print basename only",
+    "group": "shell",
+    "mode": "drwxrwx--x",
+    "owner": "shell"
+  },
   "parent_path": "/data/local/tmp",
   "post_test_gate": "direct observation STOCK_STATE_UNCHANGED",
   "push_timeout_seconds": 30,
