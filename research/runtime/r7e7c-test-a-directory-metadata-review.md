@@ -31,4 +31,4 @@ Regression coverage includes the observed CRLF legacy output, the prior numeric-
 
 These new identities supersede the prior R7E7A package identities for any future Test A authorization. Test A remains **NOT_AUTHORIZED** and **NOT_EXECUTED** under this package. R7E7C authorization is exhausted. Honda operations are complete: two read-only ADB commands, zero writes, zero push attempts, zero diagnostic executions, and no Test A retry.
 
-ECC: independent reviewer unavailable; manual ECC-guided safety and package review performed. Exact-head full validation and hosted checks remain pending.
+ECC: independent reviewer unavailable; manual ECC-guided safety and package review performed. Full offline validation passed (1,040 passed, 15 skipped); self-locator, simulator checks, repository health, diff check, and zero-ADB dry run passed. On exact head `84a3819f2ed9cc1f7b614c1e9548671e4ce693d5`, [Offline CI passed](https://github.com/bmreyes25/ClarityLink/actions/runs/38191726609) and [aggregate CodeQL with all five language jobs passed](https://github.com/bmreyes25/ClarityLink/actions/runs/38191726604).

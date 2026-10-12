@@ -2,7 +2,7 @@
 
 - [R7E7C review](research/runtime/r7e7c-test-a-directory-metadata-review.md): exact legacy Android `ls -ld` output explained the stopped pre-push failure; parser now preserves strict mode/owner/group checks while supporting the observed format.
 - [Current authorization packet](research/runtime/r7e6-test-a-authorization-packet.md) and [manifest](research/runtime/r7e6-test-a-plan-manifest.json): `R7E7C-TEST-A-COMMAND-SET-3`; collector SHA-256 `3ab879b59bb5f56a742381e5429e2b469f9ae2f1aa11535e74cac107394ebfdc`; manifest SHA-256 `299f4423f716a9fc5c4d11d921e2c38fe3f75134a30db517762ef3daec7a339a`.
-- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): pending full offline and exact-head hosted checks; new explicit Test A authorization required. Honda commands: two read-only; writes, pushes, and diagnostic executions: zero.
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): full offline validation passed; exact-head Offline CI and aggregate CodeQL/all five languages passed on the parser correction commit. Final documentation follow-up requires exact-head hosted checks; new explicit Test A authorization required. Honda commands: two read-only; writes, pushes, and diagnostic executions: zero.
 
 ## R7E7A Test A identity and procfs review (2026-10-11)
 

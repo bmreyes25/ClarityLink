@@ -4,6 +4,6 @@ The current collector is bound to manifest `R7E7C-TEST-A-COMMAND-SET-3`. Collect
 
 R7E7C corrected the parent-directory metadata parser after a separately authorized read-only Honda observation showed Android 4.2.2 output in legacy form: mode, owner, group, date/time, basename `tmp`; no size or absolute path. The check still requires one line, exact mode `drwxrwx--x`, exact `shell:shell` ownership, and exact last token `tmp` or `/data/local/tmp`.
 
-Focused fake-ADB fixtures: 58 passed, including current legacy CRLF output, the prior size/full-path form, mode/owner/group/name mismatch, empty output, and extra lines. The full offline suite and exact-head hosted checks remain pending. The default path remains `NOT_AUTHORIZED`; dry run must still report zero ADB operations.
+Focused fake-ADB fixtures: 58 passed, including current legacy CRLF output, the prior size/full-path form, mode/owner/group/name mismatch, empty output, and extra lines. The full offline suite passed: 1,040 passed, 15 skipped; self-locator, simulator, repository-health, and whitespace checks passed. Exact-head Offline CI and aggregate CodeQL, including all five languages, passed on the parser correction commit; this documentation follow-up will be checked on its own final head. The default path remains `NOT_AUTHORIZED`; dry run must still report zero ADB operations.
 
 Artifact SHA-256 remains `9e20d1ad715be6c9974f9a89e1aa310283bc128f87350fb05cb224b8e247c063`; MD5 remains `6137a693a77646aaf9a4cf0f351731d4`; size 7,904 bytes; staging mode `0555`. No artifact rebuild was made.
