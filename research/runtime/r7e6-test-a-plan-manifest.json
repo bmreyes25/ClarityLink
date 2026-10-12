@@ -6,7 +6,7 @@
   "authorization": "separate explicit user authorization required; Test A remains NOT_AUTHORIZED",
   "child_deadline_seconds": 2,
   "collector_source": "tools/r7e6_test_a_collector.py",
-  "collector_source_sha256": "7cae443313ebe0d27d67bb08b32b140897c3b4d33f7e312d3323d70f37b8f129",
+  "collector_source_sha256": "acee02afd1eaef3aab5b4d4b24ded8044fce67e6461c1d4883b552c87465deb5",
   "commands": [
     [
       "version"
@@ -62,8 +62,6 @@
       "-s",
       "<EXACT_SERIAL>",
       "shell",
-      "sh",
-      "-c",
       "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
     ],
     [
@@ -76,8 +74,6 @@
       "-s",
       "<EXACT_SERIAL>",
       "shell",
-      "sh",
-      "-c",
       "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"
     ],
     [
@@ -96,15 +92,16 @@
       "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"
     ]
   ],
-  "exceptional_recovery": "Host timeout is TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY: stop, preserve local evidence, and issue no more target commands. Post-push failures permit one exact rm and exact ENOENT verification only while no diagnostic was started or after its exact supervisor lifecycle and PID absence were confirmed. If process state is uncertain, do not remove the executable; preserve evidence and require separate recovery review.",
+  "exceptional_recovery": "Host timeout is TEST_A_WATCHDOG_OR_TRANSPORT_ANOMALY: stop, preserve local evidence, and issue no more target commands. Post-push failures permit one exact rm and exact ENOENT verification only while no diagnostic was started or after its exact supervisor lifecycle and PID absence were confirmed. If process state is uncertain, do not remove the executable; preserve evidence and require separately authorized read-only recovery review.",
   "expected_remote_mode": "0555",
   "expected_remote_owner_group": "shell:shell",
   "external_kill": false,
   "external_ps": false,
+  "failure_evidence": "private mode-0600 JSON; redacted argv, bounded raw stdout/stderr, guest status and parsed lifecycle/procfs classifications",
   "fallbacks": [],
   "host_command_timeout_seconds": 12,
   "inventory_format": "exact ADB header and tab-delimited device rows; nonblank malformed rows fail closed",
-  "manifest_version": "R7E7D-TEST-A-COMMAND-SET-4",
+  "manifest_version": "R7E7F-TEST-A-COMMAND-SET-5",
   "maximum_target_command_wall_seconds": 174,
   "operator_gates": [
     "stationary",
@@ -129,6 +126,16 @@
   },
   "parent_path": "/data/local/tmp",
   "post_test_gate": "direct observation STOCK_STATE_UNCHANGED",
+  "process_absence_controls": [
+    "test -d /proc/$$",
+    "test -r /proc/$$/stat",
+    "test -r /proc/self/stat",
+    "exact child PID absent",
+    "exact parent PID absent",
+    "exact PID sentinel required"
+  ],
+  "process_absence_shell": "one complete remote expression passed as the only adb shell command argument; no nested sh -c",
+  "process_pid_format": "decimal PID in [2, 2147483647], no leading zeros, parent and child distinct",
   "push_timeout_seconds": 30,
   "remote_md5_format": "one exact 32-hex digest, one or two ASCII spaces, then exact remote path",
   "remote_path": "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f",

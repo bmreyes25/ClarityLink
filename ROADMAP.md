@@ -224,3 +224,7 @@ R7E3 A0-R host collection package is ready for review. No Honda action has been 
 ## R7E5E — A0-WR evidence reviewed; Test A process rollback blocked — 2026-10-11
 
 A0-WR is `A0WR_PASS_FOR_REVIEW`; A0 transfer and write/verify/delete are closed, and no additional marker test is required. A0 is complete. Test A remains unauthorized because exact process discovery/recovery on the preserved Android 4.2.2 target is not proven and the current diagnostic has no enforced self-test deadline. Next: offline-only bound and recovery proof, then rebuild/audit and a separate package review. No Honda/ADB action. See [R7E5E evidence review](research/runtime/r7e5e-a0wr-result.md).
+
+## R7E7F Test A failure recovery — current
+
+The prior Test A process-absence query returned empty output because the collector used nested `adb shell sh -c` without preserving the inner command boundary under legacy ADB argument joining. AOSP behavior and an isolated API17 emulator reproduced it. The corrected collector is frozen as R7E7F command-set-5; see [shell review](research/runtime/r7e7f-test-a-shell-root-cause-review.md). The previous Honda executable may still exist, and its process/file state is unknown. **Next:** separate read-only Phase R authorization and review. No cleanup or Test A retry until recovery is resolved and separately authorized. No Honda operations occurred in R7E7F.

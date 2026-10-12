@@ -88,10 +88,11 @@ class FakeADB:
                 pass
             else:
                 self.existing = False
-        elif len(argv) >= 4 and argv[-3] == "sh" and argv[-2] == "-c":
+        elif argv[-1:] and "R7E6_PIDS_ABSENT" in argv[-1] and "test -d /proc/$$" in argv[-1]:
+            assert argv[-2] == "shell"
+            assert "sh" not in argv[-3:]
             match = re.search(r"R7E6_PIDS_ABSENT:(\d+):(\d+)", argv[-1])
             assert match
-            assert "test -d /proc/$$" in argv[-1]
             assert "test -r /proc/$$/stat" in argv[-1]
             assert "test -r /proc/self/stat" in argv[-1]
             if self.failure in {"process_present", "procfs_unavailable",
@@ -108,6 +109,8 @@ class FakeADB:
                 out = f"R7E6_PIDS_ABSENT:{match.group(1)}:999\n"
             else:
                 out = f"R7E6_PIDS_ABSENT:{match.group(1)}:{match.group(2)}\n"
+            if self.failure == "process_stderr":
+                return subprocess.CompletedProcess(argv, 0, "", "remote shell warning\n")
         elif argv[-1:] and collector.REMOTE in argv[-1]:
             mode = "--version" if "--version" in argv[-1] else "--self-test"
             if self.failure == f"{mode}_timeout":
@@ -252,6 +255,7 @@ def test_target_zero_multiple_or_mismatch_fails_closed(package, devices):
                                       "--self-test", "--self-test_timeout", "process_present",
                                       "procfs_unavailable", "procfs_self_unreadable",
                                       "procfs_shell_stat_unreadable", "process_empty",
+                                      "process_stderr",
                                       "process_bad_sentinel", "process_duplicate", "process_extra",
                                       "ambiguous_process", "rm", "final_absent"])
 def test_fault_fixture_stops_or_cleans_exactly_once(package, failure):
@@ -332,3 +336,70 @@ def test_hash_binding_mismatch_makes_zero_adb_calls(package):
     with pytest.raises(collector.Blocked):
         collector.execute(package, runner=fake, confirm_stock_state=lambda: True)
     assert fake.calls == []
+
+
+@pytest.mark.parametrize("child,parent", [("0", "42"), ("1", "42"), ("42", "42"),
+                                           ("2147483648", "42"), ("+42", "43"),
+                                           ("42;echo BAD", "43"), ("00042", "43")])
+def test_process_absence_rejects_invalid_or_unbounded_pid_input(child, parent):
+    with pytest.raises(collector.Blocked):
+        collector.process_absence_command(child, parent)
+
+
+def test_process_absence_builds_one_remote_command_argument_and_keeps_remote_dollar_expansion():
+    command = collector.process_absence_command(42, 41)
+    assert command == (
+        "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
+        "test ! -e /proc/42 && test ! -e /proc/41 && echo R7E6_PIDS_ABSENT:42:41")
+    argv = ["adb", "-s", "SERIAL", "shell", command]
+    assert argv[-2:] == ["shell", command]
+    assert "sh" not in argv[-2:]
+    assert "$$" in argv[-1]
+
+
+def test_posix_reproduction_of_adb_argument_joining_shows_nested_c_shell_short_circuit():
+    expression = collector.process_absence_command(2000000001, 2000000002)
+    malformed_remote_command = " ".join(("sh", "-c", expression))
+    result = subprocess.run(["/bin/sh", "-c", malformed_remote_command],
+                            capture_output=True, text=True, check=False)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+def test_process_absence_manifest_plan_has_no_nested_shell():
+    plan = collector.command_plan()
+    absence = plan[8]
+    assert absence[:3] == ["-s", "<EXACT_SERIAL>", "shell"]
+    assert len(absence) == 4
+    assert "$$" in absence[3]
+    assert "sh" not in absence
+    assert "<CHILD_PID>" in absence[3] and "<PARENT_PID>" in absence[3]
+
+
+def test_process_absence_uncertain_after_version_does_not_run_self_test_or_cleanup(package, tmp_path):
+    fake = FakeADB(failure="process_empty")
+    with pytest.raises(collector.Blocked, match="TEST_A_PROCESS_STATE_UNCERTAIN"):
+        collector.execute(package, runner=fake, confirm_stock_state=lambda: True)
+    diagnostic_calls = [call for call in fake.calls if call[-1:]
+                        and collector.REMOTE in call[-1]
+                        and ("--version" in call[-1] or "--self-test" in call[-1])]
+    assert len(diagnostic_calls) == 1
+    assert "--version" in diagnostic_calls[0][-1]
+    assert not any("/system/bin/rm" in call for call in fake.calls)
+    evidence_files = list((tmp_path / "build/r7e6a/test-a/evidence").glob("collector-failure-*.json"))
+    assert len(evidence_files) == 1
+    evidence = json.loads(evidence_files[0].read_text())
+    assert evidence["decision"] == "TEST_A_PROCESS_STATE_UNCERTAIN"
+    diagnostic = next(row for row in evidence["command_results"]
+                      if row["operation"] == "DIAGNOSTIC_VERSION")
+    assert "SUPERVISOR_CHILD_STARTED" in diagnostic["stdout_raw_bounded"]
+    assert diagnostic["guest_status_reported"] == "0"
+    assert diagnostic["guest_exit_zero_confirmed"] is False
+    assert diagnostic["process_absence_confirmed"] is False
+    assert diagnostic["parent_pid"] == 41 and diagnostic["child_pid"] == 42
+    absent = next(row for row in evidence["command_results"]
+                  if row["operation"] == "EXACT_PROCESS_ABSENCE")
+    assert absent["stdout_raw_bounded"] == ""
+    assert absent["parent_child_absence"] == "NOT_CONFIRMED"
+    assert absent["argv_redacted"][2] == "<REDACTED_SERIAL>"

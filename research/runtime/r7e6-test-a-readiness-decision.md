@@ -23,3 +23,9 @@ Current package: collector SHA-256 `3ab879b59bb5f56a742381e5429e2b469f9ae2f1aa11
 R7E7C used exactly two read-only Honda ADB commands. Honda writes: zero. Test A push attempts: zero. Diagnostic executions: zero. Test A retries: zero. R7E7C authorization is exhausted. Test A remains **NOT_AUTHORIZED** and **NOT_EXECUTED** under this new package. Test B remains unauthorized.
 
 Independent ECC review was unavailable; manual ECC-guided review was recorded. Hosted checks for `84a3819f2ed9cc1f7b614c1e9548671e4ce693d5`: [Offline CI passed](https://github.com/bmreyes25/ClarityLink/actions/runs/38191726609); [aggregate CodeQL and all five language jobs passed](https://github.com/bmreyes25/ClarityLink/actions/runs/38191726604).
+
+# R7E7F superseding decision — 2026-10-11
+
+**Decision:** `R7E_TEST_A_RECOVERY_PACKAGE_READY`. This means only that the shell defect is reproduced/corrected offline and a separately authorized read-only recovery package is prepared. **Test A is not ready to retry.** The previous authorized attempt transferred the executable and invoked `--version` once, but process absence was not confirmed and cleanup/final absence were not attempted. Current Honda state is unknown.
+
+Current corrected collector: `acee02afd1eaef3aab5b4d4b24ded8044fce67e6461c1d4883b552c87465deb5`; manifest `R7E7F-TEST-A-COMMAND-SET-5`, SHA-256 `20e93f4692e423851b1195d7c52db1c42e5088126faee2db8c993622611ab6c9`. Artifact unchanged. **Next:** separately authorize Phase R read-only inspection and stop for review; Phase C cleanup requires its own later authorization. No Test A retry/Test B is authorized. R7E7F Honda commands and writes: zero.

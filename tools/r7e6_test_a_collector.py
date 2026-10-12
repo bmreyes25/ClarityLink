@@ -26,6 +26,8 @@ TIMEOUT = 12
 PARENT_DEADLINE = 4
 ADB_VERSION = "37.0.1-15733141"
 EXPECTED_PARENT_MODE = "drwxrwx--x"
+MAX_PID = 2_147_483_647
+MAX_EVIDENCE_TEXT = 8192
 
 
 class Blocked(RuntimeError):
@@ -49,7 +51,35 @@ def md5(path: Path) -> str:
     return hashlib.md5(path.read_bytes(), usedforsecurity=False).hexdigest()
 
 
+def process_absence_command(child_pid: int | str, parent_pid: int | str) -> str:
+    """Build one complete remote expression; never add a nested `sh -c` layer."""
+    pids: list[int] = []
+    for label, value in (("child", child_pid), ("parent", parent_pid)):
+        text = str(value)
+        if not re.fullmatch(r"[1-9][0-9]{0,9}", text):
+            raise Blocked(f"reported {label} PID is not a bounded decimal integer")
+        pid = int(text)
+        if pid <= 1:
+            raise Blocked(f"reported {label} PID is outside the valid process range")
+        if pid > MAX_PID:
+            raise Blocked(f"reported {label} PID exceeds the supported pid_t range")
+        pids.append(pid)
+    child, parent = pids
+    if child == parent:
+        raise Blocked("reported parent and child PIDs are identical")
+    return _process_absence_expression(str(child), str(parent))
+
+
+def _process_absence_expression(child: str, parent: str) -> str:
+    return (
+        "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
+        f"test ! -e /proc/{child} && test ! -e /proc/{parent} && "
+        f"echo R7E6_PIDS_ABSENT:{child}:{parent}"
+    )
+
+
 def command_plan() -> list[list[str]]:
+    absence = _process_absence_expression("<CHILD_PID>", "<PARENT_PID>")
     return [
         ["version"],
         ["devices"],
@@ -59,15 +89,9 @@ def command_plan() -> list[list[str]]:
         ["-s", "<EXACT_SERIAL>", "shell", "ls", "-l", REMOTE],
         ["-s", "<EXACT_SERIAL>", "shell", "/system/bin/md5", REMOTE],
         ["-s", "<EXACT_SERIAL>", "shell", f"{REMOTE} --version; echo __R7E6_STATUS:$?"],
-        ["-s", "<EXACT_SERIAL>", "shell", "sh", "-c",
-         "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
-         "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && "
-         "echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"],
+        ["-s", "<EXACT_SERIAL>", "shell", absence],
         ["-s", "<EXACT_SERIAL>", "shell", f"{REMOTE} --self-test; echo __R7E6_STATUS:$?"],
-        ["-s", "<EXACT_SERIAL>", "shell", "sh", "-c",
-         "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
-         "test ! -e /proc/<CHILD_PID> && test ! -e /proc/<PARENT_PID> && "
-         "echo R7E6_PIDS_ABSENT:<CHILD_PID>:<PARENT_PID>"],
+        ["-s", "<EXACT_SERIAL>", "shell", absence],
         ["-s", "<EXACT_SERIAL>", "shell", "/system/bin/rm", REMOTE],
         ["-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", REMOTE],
     ]
@@ -75,7 +99,7 @@ def command_plan() -> list[list[str]]:
 
 def manifest_template() -> dict[str, object]:
     return {
-        "manifest_version": "R7E7D-TEST-A-COMMAND-SET-4",
+        "manifest_version": "R7E7F-TEST-A-COMMAND-SET-5",
         "collector_source": "tools/r7e6_test_a_collector.py",
         "collector_source_sha256": "FROZEN_AFTER_SOURCE",
         "artifact_path": "build/r7e6/test-a/claritylink-target-diag",
@@ -96,6 +120,12 @@ def manifest_template() -> dict[str, object]:
         },
         "remote_md5_format": "one exact 32-hex digest, one or two ASCII spaces, then exact remote path",
         "inventory_format": "exact ADB header and tab-delimited device rows; nonblank malformed rows fail closed",
+        "process_absence_shell": "one complete remote expression passed as the only adb shell command argument; no nested sh -c",
+        "process_absence_controls": ["test -d /proc/$$", "test -r /proc/$$/stat",
+                                     "test -r /proc/self/stat", "exact child PID absent",
+                                     "exact parent PID absent", "exact PID sentinel required"],
+        "process_pid_format": "decimal PID in [2, 2147483647], no leading zeros, parent and child distinct",
+        "failure_evidence": "private mode-0600 JSON; redacted argv, bounded raw stdout/stderr, guest status and parsed lifecycle/procfs classifications",
         "child_deadline_seconds": PARENT_DEADLINE - 2,
         "parent_deadline_seconds": PARENT_DEADLINE,
         "host_command_timeout_seconds": TIMEOUT,
@@ -113,7 +143,7 @@ def manifest_template() -> dict[str, object]:
             "and issue no more target commands. Post-push failures permit one exact rm and exact "
             "ENOENT verification only while no diagnostic was started or after its exact supervisor "
             "lifecycle and PID absence were confirmed. If process state is uncertain, do not remove "
-            "the executable; preserve evidence and require separate recovery review."
+            "the executable; preserve evidence and require separately authorized read-only recovery review."
         ),
         "operator_gates": ["stationary", "safely parked", "center display fully booted",
                            "cluster normal", "no unexpected warnings", "exact power-state observation",
@@ -237,25 +267,55 @@ def _absence_gate(runner: Callable[..., subprocess.CompletedProcess[str]],
 
 
 def _invocation(runner: Callable[..., subprocess.CompletedProcess[str]], adb: str,
-                serial: str, mode: str) -> tuple[str, list[int]]:
+                serial: str, mode: str,
+                evidence_records: list[dict[str, object]] | None = None) -> tuple[str, list[int]]:
     command = _shell(runner, adb, serial, f"{REMOTE} {mode}; echo __R7E6_STATUS:$?",
                      label=f"diagnostic {mode}")
     statuses = re.findall(r"(?m)^__R7E6_STATUS:(\d+)\s*$", command)
     started = re.findall(r"SUPERVISOR_CHILD_STARTED parent_pid=(\d+) child_pid=(\d+)", command)
     reaped = re.findall(r"SUPERVISOR_CHILD_REAPED parent_pid=(\d+) child_pid=(\d+)", command)
-    if len(started) != 1 or len(reaped) != 1 or started[0] != reaped[0]:
+    if (len(started) != 1 or len(reaped) != 1 or started[0] != reaped[0]
+            or command.count("SUPERVISOR_CHILD_STARTED") != 1
+            or command.count("SUPERVISOR_CHILD_REAPED") != 1):
         raise Blocked(f"diagnostic {mode}: exact supervisor lifecycle not proven")
     parent, child = map(int, started[0])
-    if parent <= 1 or child <= 1 or parent == child:
-        raise Blocked(f"diagnostic {mode}: invalid reported process identity")
-    absent = _shell(runner, adb, serial, "sh", "-c",
-                    "test -d /proc/$$ && test -r /proc/$$/stat && test -r /proc/self/stat && "
-                    f"test ! -e /proc/{child} && test ! -e /proc/{parent} && "
-                    f"echo R7E6_PIDS_ABSENT:{child}:{parent}", label=f"{mode} exact process absence")
-    if absent.strip() != f"R7E6_PIDS_ABSENT:{child}:{parent}":
+    diagnostic_record = evidence_records[-1] if evidence_records is not None else None
+    if diagnostic_record is not None:
+        diagnostic_record.update({
+            "supervisor_start_count": len(started),
+            "supervisor_reap_count": len(reaped),
+            "supervisor_identity_match": started[0] == reaped[0],
+            "parent_pid": parent,
+            "child_pid": child,
+            "guest_status_marker_count": len(statuses),
+            "guest_status_reported": statuses[0] if len(statuses) == 1 else None,
+            "guest_exit_zero_confirmed": False,
+            "process_absence_confirmed": False,
+            "procfs_positive_controls": "NOT_CONFIRMED",
+        })
+    process_check = process_absence_command(child, parent)
+    absent = _shell(runner, adb, serial, process_check,
+                    label=f"{mode} exact process absence")
+    expected_absence = f"R7E6_PIDS_ABSENT:{child}:{parent}\n"
+    if absent != expected_absence:
         raise Blocked(f"diagnostic {mode}: process state remains or is uncertain")
+    absence_record = evidence_records[-1] if evidence_records is not None else None
+    if absence_record is not None:
+        absence_record.update({
+            "expected_sentinel": expected_absence.rstrip("\n"),
+            "sentinel_exact_match": True,
+            "procfs_positive_controls": "PASSED_IN_SAME_REMOTE_SHELL",
+            "parent_child_absence": "CONFIRMED",
+        })
+    if diagnostic_record is not None:
+        diagnostic_record["process_absence_confirmed"] = True
+        diagnostic_record["procfs_positive_controls"] = "PASSED_IN_FOLLOWING_SAME_USER_SHELL"
+    # Legacy adbd may return host status 0 for a completed transport. The
+    # exact in-band guest marker is therefore checked independently.
     if statuses != ["0"]:
         raise ProcessExitedFailure(f"diagnostic {mode}: nonzero or missing exact guest status")
+    if diagnostic_record is not None:
+        diagnostic_record["guest_exit_zero_confirmed"] = True
     return command, [parent, child]
 
 
@@ -322,18 +382,30 @@ def execute(args: argparse.Namespace,
 
     def recorded_runner(argv, **kwargs):
         operation = classify_operation(argv)
+        safe_argv = list(argv)
+        if "-s" in safe_argv:
+            serial_index = safe_argv.index("-s") + 1
+            if serial_index < len(safe_argv):
+                safe_argv[serial_index] = "<REDACTED_SERIAL>"
         record: dict[str, object] = {
-            "command_id": f"R7E6A-{len(command_results) + 1:02d}",
+            "command_id": f"R7E7F-{len(command_results) + 1:02d}",
             "operation": operation,
+            "argv_redacted": safe_argv,
             "push_attempted": bool(state["push_attempted"]),
             "diagnostic_started": bool(state["diagnostic_started"]),
             "process_state": state["process_state"],
         }
+        if operation == "EXACT_PROCESS_ABSENCE":
+            record.update({"parent_child_absence": "NOT_CONFIRMED",
+                           "procfs_positive_controls": "NOT_CONFIRMED",
+                           "sentinel_exact_match": False})
         try:
             result = runner(argv, **kwargs)
         except subprocess.TimeoutExpired as exc:
             record.update({"exit_status": "TIMEOUT", "output_classification": "INCOMPLETE",
-                           "stderr_classification": "UNKNOWN"})
+                           "stderr_classification": "UNKNOWN",
+                           "stdout_raw_bounded": str(exc.output or "")[:MAX_EVIDENCE_TEXT],
+                           "stderr_raw_bounded": str(exc.stderr or "")[:MAX_EVIDENCE_TEXT]})
             command_results.append(record)
             raise
         except OSError:
@@ -352,7 +424,11 @@ def execute(args: argparse.Namespace,
             output_classification = "EMPTY" if not stdout else "NONEMPTY"
         record.update({"exit_status": result.returncode,
                        "output_classification": output_classification,
-                       "stderr_classification": "EMPTY" if not stderr else "NONEMPTY"})
+                       "stderr_classification": "EMPTY" if not stderr else "NONEMPTY",
+                       "stdout_raw_bounded": stdout[:MAX_EVIDENCE_TEXT],
+                       "stderr_raw_bounded": stderr[:MAX_EVIDENCE_TEXT],
+                       "stdout_truncated": len(stdout) > MAX_EVIDENCE_TEXT,
+                       "stderr_truncated": len(stderr) > MAX_EVIDENCE_TEXT})
         command_results.append(record)
         return result
 
@@ -410,7 +486,8 @@ def execute(args: argparse.Namespace,
         state["diagnostic_started"] = True
         state["process_state"] = "UNCERTAIN"
         try:
-            version, version_pids = _invocation(recorded_runner, adb, args.serial, "--version")
+            version, version_pids = _invocation(recorded_runner, adb, args.serial, "--version",
+                                                evidence_records=command_results)
         except ProcessExitedFailure:
             process_state_uncertain = False
             state["process_state"] = "PROCESS_CONFIRMED_EXITED"
@@ -423,7 +500,8 @@ def execute(args: argparse.Namespace,
         process_state_uncertain = True
         state["process_state"] = "UNCERTAIN"
         try:
-            self_test, test_pids = _invocation(recorded_runner, adb, args.serial, "--self-test")
+            self_test, test_pids = _invocation(recorded_runner, adb, args.serial, "--self-test",
+                                               evidence_records=command_results)
         except ProcessExitedFailure:
             process_state_uncertain = False
             state["process_state"] = "PROCESS_CONFIRMED_EXITED"

@@ -1213,3 +1213,11 @@ Honda-specific source notes remain separately indexed below; no external project
 - [R7E7D Test A legacy compatibility and package review](research/runtime/r7e7d-test-a-legacy-compatibility-review.md): historical Honda output comparison, collector parser findings, artifact and identity review, and manual ECC status. No Honda commands were issued in R7E7D.
 - [Current Test A authorization packet](research/runtime/r7e6-test-a-authorization-packet.md): frozen R7E7D identities and the separate authorization boundary. This packet is not authorization.
 - [Current readiness decision](research/runtime/r7e6-test-a-readiness-decision.md) and [collector verification](research/runtime/r7e6-test-a-collector-verification.md).
+
+# R7E7F Test A process-state failure and recovery preparation
+
+- [R7E7F shell root-cause review](research/runtime/r7e7f-test-a-shell-root-cause-review.md): AOSP-backed nested-shell root cause, local/API17 reproduction, correction, package identities, limits, and manual ECC review status.
+- [R7E7F prior Test A recovery plan](research/runtime/r7e7f-test-a-recovery-plan.md): separate Phase R read-only authorization template and conditional Phase C cleanup criteria; neither is authorized by the document itself.
+- [Current Test A package notice](research/runtime/r7e6-test-a-authorization-packet.md): R7E7F package identities, consumed prior authorization, recovery-first boundary. Historical R7E7D packet preserved separately.
+- Private source evidence: `build/r7e6a/test-a/evidence/collector-failure-20261012T021444Z-b64f.json`; private API17 reproduction: `build/r7e6/runs/api17-shell-construction-b9ec6acc460d.json`. These ignored mode-0600 records are not committed.
+- R7E7F Honda ADB commands/writes/pushes/executions/cleanup: zero. Test A remains not ready to retry; Test B unauthorized.
