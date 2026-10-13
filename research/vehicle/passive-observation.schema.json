@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ClarityLink parked passive vehicle baseline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "observation_id", "observer", "observed_at_local", "vehicle_stationary", "parking_brake", "center_display", "instrument_cluster", "navigation_page", "carplay_session", "observations", "media", "stop_events"],
+  "properties": {
+    "schema": {"const": "CLARITYLINK-PASSIVE-BASELINE-1"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "observer": {"type": "string", "minLength": 1},
+    "observed_at_local": {"type": "string", "format": "date-time"},
+    "vehicle_stationary": {"const": true},
+    "parking_brake": {"enum": ["engaged", "not_applicable", "not_observed"]},
+    "center_display": {"enum": ["normal", "not_normal", "not_observed"]},
+    "instrument_cluster": {"enum": ["normal", "not_normal", "not_observed"]},
+    "navigation_page": {"enum": ["available", "unavailable", "not_observed"]},
+    "carplay_session": {"enum": ["already_active", "not_active", "not_observed"]},
+    "observations": {"type": "array", "items": {"$ref": "#/definitions/observation"}},
+    "media": {"type": "array", "items": {"$ref": "#/definitions/media"}},
+    "stop_events": {"type": "array", "items": {"type": "string"}}
+  },
+  "definitions": {
+    "observation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["feature", "value", "evidence_kind", "measurement_method", "uncertainty", "notes"],
+      "properties": {
+        "feature": {"type": "string", "minLength": 1},
+        "value": {"type": ["string", "number", "boolean", "null"]},
+        "evidence_kind": {"enum": ["DIRECTLY_MEASURED", "VISUALLY_ESTIMATED", "OPERATOR_REPORTED", "NOT_OBSERVED"]},
+        "measurement_method": {"type": "string"},
+        "uncertainty": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    },
+    "media": {
+      "type": "object", "additionalProperties": false,
+      "required": ["file_name", "sha256", "capture_method", "edited", "location_private"],
+      "properties": {
+        "file_name": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "capture_method": {"enum": ["camera_photo", "camera_video", "none"]},
+        "edited": {"const": false},
+        "location_private": {"const": true}
+      }
+    }
+  }
+}
