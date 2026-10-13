@@ -127,6 +127,7 @@ owned_target
 adb_local -s "$serial" logcat -c
 owned_target
 adb_local -s "$serial" shell am start -n "$component" >/dev/null
+await_marker 'P2C2_HOST_SIMULATOR_PASS layers=bottom,navigation,warning stale_generation=reject navigation_exit=clear close=idempotent evidence=synthetic'
 await_marker 'P2C2_INVALID_DISPLAY_PASS'
 await_marker 'P2C2_PERMISSION_DENIED_PASS'
 await_marker 'P2C2_PRESENTATION_PASS cycles=3 activeSurface=1'

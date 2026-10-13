@@ -16,7 +16,9 @@ mkdir -p "$out/classes" "$out/dex"
   -d "$out/classes" \
   "$repo/android/src/main/java/org/claritylink/android/DisplayDiscovery.java" \
   "$repo/android/src/main/java/org/claritylink/android/DisplayPolicy.java" \
+  "$repo/android/src/main/java/org/claritylink/android/HondaStyleHostModel.java" \
   "$repo/android/src/main/java/org/claritylink/android/SecondaryDisplayHost.java" \
+  "$repo/android/src/main/java/org/claritylink/android/HondaStyleDisplayHostSimulator.java" \
   "$repo/android/p2c2-probe/java/org/claritylink/android/P2C2AdmissionProbeActivity.java"
 "$build_tools/aapt" package -f -M "$repo/android/p2c2-probe/AndroidManifest.xml" \
   -I "$platform/android.jar" -F "$out/unsigned.apk"

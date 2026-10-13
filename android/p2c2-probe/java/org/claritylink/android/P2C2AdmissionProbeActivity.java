@@ -26,16 +26,49 @@ public final class P2C2AdmissionProbeActivity extends Activity {
     private boolean surfaceActive;
     private boolean cyclesFinished;
     private boolean removed;
+    private HondaStyleDisplayHostSimulator simulatedHost;
 
     private void event(String value) { Log.i(TAG, "P2C2_" + value); }
     private void fail(String value) { event("FAIL case=" + value); }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        setContentView(new FrameLayout(this));
+        simulatedHost = new HondaStyleDisplayHostSimulator(this);
+        setContentView(simulatedHost.getDisplayRoot());
+        if (!verifyHostSimulator()) { fail("host_simulator"); return; }
         event("READY api=" + android.os.Build.VERSION.SDK_INT);
         if (android.os.Build.VERSION.SDK_INT != 17) { fail("wrong_api"); return; }
         awaitDisplay(0);
+    }
+
+    private boolean verifyHostSimulator() {
+        if (!(simulatedHost.priorityRank(HondaStyleHostModel.Priority.BOTTOM_CONTENT) <
+                simulatedHost.priorityRank(HondaStyleHostModel.Priority.NAVIGATION_CONTENT) &&
+                simulatedHost.priorityRank(HondaStyleHostModel.Priority.NAVIGATION_CONTENT) <
+                simulatedHost.priorityRank(HondaStyleHostModel.Priority.WARNING_INTERRUPT))) return false;
+        android.widget.TextView content = new android.widget.TextView(this);
+        content.setText("SYNTHETIC CLARITYLINK CONTENT");
+        if (!simulatedHost.attachClarityContent(content, 41)) return false;
+        if (!simulatedHost.hasClarityContent() || simulatedHost.contentGeneration() != 41) return false;
+        if (simulatedHost.detachClarityContent(40) || !simulatedHost.hasClarityContent()) return false;
+        simulatedHost.setSimulatedStockWarningVisible(true);
+        if (simulatedHost.getWarningInterruptRoot().getVisibility() != android.view.View.VISIBLE ||
+                simulatedHost.getNavigationRoot().getVisibility() != android.view.View.GONE ||
+                simulatedHost.attachClarityContent(new android.view.View(this), 42)) return false;
+        simulatedHost.setSimulatedStockWarningVisible(false);
+        if (!simulatedHost.detachClarityContent(41)) return false;
+        android.widget.TextView stale = new android.widget.TextView(this);
+        if (!simulatedHost.attachClarityContent(stale, 43)) return false;
+        simulatedHost.setNavigationActive(false);
+        if (simulatedHost.hasClarityContent() || simulatedHost.contentGeneration() != 0) return false;
+        simulatedHost.setNavigationActive(true);
+        if (simulatedHost.hasClarityContent()) return false;
+        simulatedHost.setSimulatedStockWarningVisible(true);
+        simulatedHost.close();
+        simulatedHost.close();
+        if (!simulatedHost.isClosed()) return false;
+        event("HOST_SIMULATOR_PASS layers=bottom,navigation,warning stale_generation=reject navigation_exit=clear close=idempotent evidence=synthetic");
+        return true;
     }
 
     private void awaitDisplay(final int attempt) {
@@ -172,6 +205,7 @@ public final class P2C2AdmissionProbeActivity extends Activity {
 
     @Override protected void onDestroy() {
         if (host != null) host.close();
+        if (simulatedHost != null) simulatedHost.close();
         super.onDestroy();
     }
 }
