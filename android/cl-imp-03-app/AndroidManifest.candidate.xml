@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylink.independentdisplay.candidate">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:name="org.claritylink.android.ClarityLinkDisplayApplication"
+        android:label="ClarityLink Disabled Candidate" android:allowBackup="false"
+        android:enabled="false" android:debuggable="false">
+        <activity android:name="org.claritylink.android.ClarityLinkDisplayActivity"
+            android:enabled="false" android:exported="false" />
+    </application>
+</manifest>

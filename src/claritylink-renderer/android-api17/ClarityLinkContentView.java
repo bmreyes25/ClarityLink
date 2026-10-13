@@ -39,6 +39,8 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     private long latestSubmittedTimestampNs = -1L;
     private long displayedGeneration;
     private long displayedTimestampNs = -1L;
+    private long drawnGeneration;
+    private long drawnTimestampNs = -1L;
     private boolean hostSuspended = true;
     private boolean sessionStarted;
     private boolean closed;
@@ -68,6 +70,8 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             latestSubmittedTimestampNs = -1L;
             displayedGeneration = 0L;
             displayedTimestampNs = -1L;
+            drawnGeneration = 0L;
+            drawnTimestampNs = -1L;
             hostSuspended = false;
         }
         clearDisplayedBitmap();
@@ -180,10 +184,14 @@ public final class ClarityLinkContentView extends View implements HostedContentL
         super.onDraw(canvas);
         Bitmap bitmap;
         Rect crop;
+        long generation;
+        long timestampNs;
         synchronized (stateLock) {
             if (closed || hostSuspended) return;
             bitmap = displayedBitmap;
             crop = displayedCrop;
+            generation = displayedGeneration;
+            timestampNs = displayedTimestampNs;
         }
         if (bitmap == null || bitmap.isRecycled() || crop == null || getWidth() <= 0 || getHeight() <= 0)
             return;
@@ -193,6 +201,13 @@ public final class ClarityLinkContentView extends View implements HostedContentL
         float left = (getWidth() - outWidth) / 2.0f;
         float top = (getHeight() - outHeight) / 2.0f;
         canvas.drawBitmap(bitmap, crop, new RectF(left, top, left + outWidth, top + outHeight), paint);
+        synchronized (stateLock) {
+            if (!closed && !hostSuspended && displayedBitmap == bitmap && !bitmap.isRecycled()
+                    && displayedGeneration == generation && displayedTimestampNs == timestampNs) {
+                drawnGeneration = generation;
+                drawnTimestampNs = timestampNs;
+            }
+        }
     }
 
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
@@ -248,6 +263,9 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     }
     public long displayedGeneration() { synchronized (stateLock) { return displayedGeneration; } }
     public long displayedTimestampNs() { synchronized (stateLock) { return displayedTimestampNs; } }
+    /** Frame last drawn successfully by this View's Canvas; does not imply display scanout. */
+    public long drawnGeneration() { synchronized (stateLock) { return drawnGeneration; } }
+    public long drawnTimestampNs() { synchronized (stateLock) { return drawnTimestampNs; } }
     public boolean isClosed() { synchronized (stateLock) { return closed; } }
 
     private void clearQueuedLocked() {
@@ -271,6 +289,8 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             displayedCrop = null;
             displayedGeneration = 0L;
             displayedTimestampNs = -1L;
+            drawnGeneration = 0L;
+            drawnTimestampNs = -1L;
             if (previous != null && !previous.isRecycled()) previous.recycle();
         }
         invalidate();

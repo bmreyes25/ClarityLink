@@ -15,6 +15,8 @@ import android.widget.FrameLayout;
 /** Admission candidate only. Each state means only that specific step succeeded. */
 public final class SecondaryDisplayHost {
     public interface Listener { void state(DisplayPolicy.Admission state); void surface(Surface surface); void error(String operation, String exceptionType); }
+    /** Optional hook for a host-owned content View that uses the Presentation display context. */
+    public interface HostedContentListener extends Listener { void presentationRoot(FrameLayout root); }
     private Candidate presentation;
     private long generation;
     private boolean surfaceAttached;
@@ -106,6 +108,10 @@ public final class SecondaryDisplayHost {
             root = new FrameLayout(getContext());
             attachLabSurface();
             setContentView(root);
+            if (listener instanceof HostedContentListener && generation == candidateGeneration &&
+                    presentation == Candidate.this) {
+                ((HostedContentListener) listener).presentationRoot(root);
+            }
         }
         private void attachLabSurface() {
             SurfaceView view = new SurfaceView(getContext());
