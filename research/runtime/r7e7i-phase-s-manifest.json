@@ -2,7 +2,7 @@
   "authorization": "separate explicit single-use Phase S authorization required",
   "cleanup": 0,
   "collector_source": "tools/r7e7i_phase_s_collector.py",
-  "collector_source_sha256": "9bec4ecd58b49e50b1d27cc0807c14ee7407397cb078918c129d8783291c0464",
+  "collector_source_sha256": "272c7de0222315bbd5909c7d79061f1477c177996be55b926978dbca2d693098",
   "commands": [
     [
       "version"
@@ -46,5 +46,7 @@
   "old_failure_finished_utc": "2026-10-12T02:14:44.929697+00:00",
   "phase_r_reviewed_evidence_sha256": "001e13ba7c5911a5d03e10114d6d8925cb3e3fa4c619b2ce2ba396bd1cae3ddd",
   "retries": 0,
-  "writes": 0
+  "writes": 0,
+  "clock_validation_tool_sha256": "bae7647663c01d52b2e4eecee1616dd88e2e5286ca448115093777a62a324e77",
+  "clock_validation_tool": "tools/r7e7i_clock_attestation.py"
 }

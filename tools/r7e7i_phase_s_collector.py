@@ -19,12 +19,18 @@ import sys
 import time
 from typing import Callable
 
+if __package__:
+    from . import r7e7i_clock_attestation as clock_attestation
+else:  # Direct host invocation: tools/ is sys.path[0].
+    import r7e7i_clock_attestation as clock_attestation
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "research/runtime/r7e7i-phase-s-manifest.json"
 OLD_EVIDENCE = ROOT / "build/r7e6a/test-a/evidence/collector-failure-20261012T021444Z-b64f.json"
 PHASE_R_EVIDENCE = ROOT / "build/r7e7g/phase-r/evidence/phase-r-20261012T143126461753Z-reviewed.json"
 CLOCK_ATTESTATION = ROOT / "build/r7e7i/phase-s/clock-bound-attestation.json"
+CLOCK_SIGNATURE = ROOT / "build/r7e7i/phase-s/clock-bound-attestation.json.asc"
 OLD_EVIDENCE_SHA256 = "21e6551fde4498603dbfc9129aa4f32a61b0f0c7e89f3a70ba5035cfccee430e"
 PHASE_R_EVIDENCE_SHA256 = "001e13ba7c5911a5d03e10114d6d8925cb3e3fa4c619b2ce2ba396bd1cae3ddd"
 OLD_FINISHED_UTC = "2026-10-12T02:14:44.929697+00:00"
@@ -64,6 +70,8 @@ def manifest_template() -> dict[str, object]:
         "manifest_version": "R7E7I-PHASE-S-READ-ONLY-1",
         "collector_source": "tools/r7e7i_phase_s_collector.py",
         "collector_source_sha256": "FROZEN_AFTER_SOURCE",
+        "clock_validation_tool": "tools/r7e7i_clock_attestation.py",
+        "clock_validation_tool_sha256": sha(ROOT / "tools/r7e7i_clock_attestation.py"),
         "old_failure_evidence_sha256": OLD_EVIDENCE_SHA256,
         "phase_r_reviewed_evidence_sha256": PHASE_R_EVIDENCE_SHA256,
         "old_failure_finished_utc": OLD_FINISHED_UTC,
@@ -128,26 +136,20 @@ def _preflight(args: argparse.Namespace) -> tuple[int, int, dt.datetime]:
         raise PhaseSStop("CLOCK_ATTESTATION_UNSAFE")
     if sha(CLOCK_ATTESTATION) != args.authorized_clock_attestation_sha256:
         raise PhaseSStop("CLOCK_ATTESTATION_IDENTITY_MISMATCH")
-    attestation = json.loads(CLOCK_ATTESTATION.read_text(encoding="utf-8"))
-    if (set(attestation) != {"version", "old_evidence_sha256", "historical_clock_error_seconds",
-                             "current_clock_error_seconds", "historical_basis", "current_basis",
-                             "independent_reviewer", "valid_until_utc"}
-            or attestation["version"] != "R7E7I-CLOCK-BOUND-1"
-            or attestation["old_evidence_sha256"] != OLD_EVIDENCE_SHA256
-            or any(not isinstance(attestation[key], str) or not attestation[key].strip()
-                   for key in ("historical_basis", "current_basis", "independent_reviewer"))):
-        raise PhaseSStop("CLOCK_ATTESTATION_CONTENT_MISMATCH")
-    bounds = (attestation["historical_clock_error_seconds"],
-              attestation["current_clock_error_seconds"])
-    if any(type(bound) is not int or not (0 <= bound <= MAX_CLOCK_ERROR_SECONDS)
-           for bound in bounds):
-        raise PhaseSStop("REVIEWED_CLOCK_BOUNDS_REQUIRED")
-    if bounds[0] < MIN_HISTORICAL_ERROR_SECONDS:
-        raise PhaseSStop("HISTORICAL_CLOCK_BOUND_TOO_NARROW")
-    valid_until = dt.datetime.fromisoformat(attestation["valid_until_utc"])
-    if valid_until.tzinfo is None:
-        raise PhaseSStop("CLOCK_ATTESTATION_CONTENT_MISMATCH")
-    return bounds[0], bounds[1], valid_until
+    if (not args.clock_reviewer_keyring or not args.clock_reviewer_fingerprint
+            or not re.fullmatch(r"[A-Fa-f0-9]{40,64}", args.clock_reviewer_fingerprint)):
+        raise PhaseSStop("TRUSTED_CLOCK_REVIEWER_REQUIRED")
+    try:
+        validated_clock = clock_attestation.validate(
+            CLOCK_ATTESTATION, CLOCK_SIGNATURE, args.clock_reviewer_keyring,
+            args.clock_reviewer_fingerprint,
+        )
+    except (clock_attestation.AttestationError, OSError, ValueError,
+            KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise PhaseSStop("CLOCK_ATTESTATION_VALIDATION_FAILED") from exc
+    return (validated_clock["historical_error_seconds"],
+            validated_clock["current_error_seconds"],
+            dt.datetime.fromisoformat(validated_clock["expires_utc"]))
 
 
 def _redact(argv: list[str]) -> list[str]:
@@ -311,6 +313,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--serial")
     p.add_argument("--adb", default="adb")
     p.add_argument("--authorized-clock-attestation-sha256")
+    p.add_argument("--clock-reviewer-keyring", type=Path)
+    p.add_argument("--clock-reviewer-fingerprint")
     for name in ("stationary", "parked", "display-booted", "cluster-normal",
                  "no-warnings", "head-unit-confirmed", "adb-stable",
                  "no-other-adb-issuer", "operator-no-manual-adb",

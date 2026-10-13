@@ -61,6 +61,8 @@ class FakeADB:
 @pytest.fixture
 def package(tmp_path, monkeypatch):
     monkeypatch.setattr(s, "ROOT", tmp_path)
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/r7e7i_clock_attestation.py").write_text("synthetic test validator\n")
     old = tmp_path / "old.json"
     old.write_text(json.dumps({"decision": "TEST_A_PROCESS_STATE_UNCERTAIN",
                                "finished_utc": s.OLD_FINISHED_UTC,
@@ -87,21 +89,31 @@ def package(tmp_path, monkeypatch):
     monkeypatch.setattr(s, "MANIFEST", manifest)
     clock = tmp_path / "clock.json"
     clock.write_text(json.dumps({
-        "version": "R7E7I-CLOCK-BOUND-1",
-        "old_evidence_sha256": s.OLD_EVIDENCE_SHA256,
-        "historical_clock_error_seconds": 3600,
-        "current_clock_error_seconds": 60,
-        "historical_basis": "Synthetic reviewed host time record fixture",
-        "current_basis": "Synthetic current reference time fixture",
-        "independent_reviewer": "offline-test-fixture",
-        "valid_until_utc": "2026-10-16T00:00:00+00:00",
+        "schema_version": "R7E7I-CLOCK-ATTESTATION-2",
+        "attestation_id": "TEST-ONLY-SYNTHETIC-FIXTURE",
+        "issued_utc": "2026-10-12T00:00:00+00:00",
+        "expires_utc": "2026-10-16T00:00:00+00:00",
+        "historical": {"conservative_error_seconds": 3600},
+        "current": {"conservative_error_seconds": 60},
     }))
     clock.chmod(0o600)
     monkeypatch.setattr(s, "CLOCK_ATTESTATION", clock)
+    monkeypatch.setattr(s, "CLOCK_SIGNATURE", tmp_path / "clock.json.asc")
+    def validate_test_fixture(*_args, **_kwargs):
+        data = json.loads(clock.read_text())
+        if data["historical"]["conservative_error_seconds"] < s.MIN_HISTORICAL_ERROR_SECONDS:
+            raise s.clock_attestation.AttestationError("synthetic narrow-bound fixture")
+        return {"decision": "TEST_FIXTURE_ONLY",
+                "historical_error_seconds": data["historical"]["conservative_error_seconds"],
+                "current_error_seconds": data["current"]["conservative_error_seconds"],
+                "expires_utc": data["expires_utc"]}
+    monkeypatch.setattr(s.clock_attestation, "validate", validate_test_fixture)
     return s.parser().parse_args([
         "--execute-authorized-phase-s", "--authorized-collector-sha256",
         s.sha(Path(s.__file__)), "--authorized-manifest-sha256", s.sha(manifest),
         "--authorized-clock-attestation-sha256", s.sha(clock),
+        "--clock-reviewer-keyring", str(tmp_path / "reviewers.gpg"),
+        "--clock-reviewer-fingerprint", "A" * 40,
         "--serial", "TESTSER", "--stationary", "--parked", "--display-booted",
         "--cluster-normal", "--no-warnings", "--head-unit-confirmed",
         "--adb-stable", "--no-other-adb-issuer", "--operator-no-manual-adb",
@@ -182,8 +194,10 @@ def test_every_other_command_timeout_stops_without_retry(package, stage):
 
 @pytest.mark.parametrize("mutation", ["collector_hash", "manifest_hash", "clock_hash",
                                       "wrong_serial", "missing_parked", "adb_override",
-                                      "prior_evidence", "clock_expired", "narrow_clock_bound"])
-def test_preflight_failure_never_calls_adb(package, mutation):
+                                      "prior_evidence", "phase_r_evidence", "manifest_content",
+                                      "missing_reviewer", "bad_attestation_signature",
+                                      "clock_expired", "narrow_clock_bound"])
+def test_preflight_failure_never_calls_adb(package, mutation, monkeypatch):
     if mutation == "collector_hash": package.authorized_collector_sha256 = "0" * 64
     if mutation == "manifest_hash": package.authorized_manifest_sha256 = "0" * 64
     if mutation == "clock_hash": package.authorized_clock_attestation_sha256 = "0" * 64
@@ -191,9 +205,20 @@ def test_preflight_failure_never_calls_adb(package, mutation):
     if mutation == "missing_parked": package.parked = False
     if mutation == "adb_override": package.adb = "/bin/true"
     if mutation == "prior_evidence": s.OLD_EVIDENCE.write_text("{}")
+    if mutation == "phase_r_evidence": s.PHASE_R_EVIDENCE.write_text("{}")
+    if mutation == "manifest_content":
+        manifest = json.loads(s.MANIFEST.read_text())
+        manifest["commands"] = [["version"]]
+        s.MANIFEST.write_text(json.dumps(manifest))
+        package.authorized_manifest_sha256 = s.sha(s.MANIFEST)
+    if mutation == "missing_reviewer": package.clock_reviewer_fingerprint = None
+    if mutation == "bad_attestation_signature":
+        def reject_signature(*_args, **_kwargs):
+            raise s.clock_attestation.AttestationError("synthetic invalid signature")
+        monkeypatch.setattr(s.clock_attestation, "validate", reject_signature)
     if mutation == "narrow_clock_bound":
         attestation = json.loads(s.CLOCK_ATTESTATION.read_text())
-        attestation["historical_clock_error_seconds"] = 0
+        attestation["historical"]["conservative_error_seconds"] = 0
         s.CLOCK_ATTESTATION.write_text(json.dumps(attestation))
         package.authorized_clock_attestation_sha256 = s.sha(s.CLOCK_ATTESTATION)
     fake = FakeADB()
