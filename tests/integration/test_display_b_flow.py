@@ -16,7 +16,8 @@ def msg(kind,body,ts=55):
     h=bytearray(HEADER_SIZE); h[:4]=len(body).to_bytes(4,'little'); h[4]=kind; h[8:16]=ts.to_bytes(8,'little'); return bytes(h)+body
 
 def test_host_only_display_b_end_to_end_video_and_teardown():
-    profile=ClarityLinkCapabilityProfile(descriptor=ClarityLinkSecondaryDisplayDescriptor(uuid=SourcedValue("cluster",Provenance.CONFIGURABLE)))
+    profile=ClarityLinkCapabilityProfile(enabled=True,mode=CapabilityProfileMode.SYNTHETIC_LAB,
+        descriptor=ClarityLinkSecondaryDisplayDescriptor(uuid=SourcedValue("cluster",Provenance.CONFIGURABLE)))
     info=ClarityLinkServerInfoAugmentor(profile).augment({"displays":[{"uuid":"main"}],"features":3})
     assert [d["uuid"] for d in info["displays"]]==["main","cluster"]
     request={"streams":[{"type":100,"dataPort":1},{"type":110,"streamConnectionID":20},{"type":111,"streamConnectionID":777,"unknownPeerField":"preserve-me"}]}

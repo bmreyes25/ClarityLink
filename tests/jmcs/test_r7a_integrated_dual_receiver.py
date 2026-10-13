@@ -28,7 +28,7 @@ def _info_profile() -> InfoProfile:
         hid_devices=({"uuid": "lab-hid", "name": "Lab Input", "displayUUID":
                       "b7e6c5a0-1111-4000-8000-000000000001", "hidDescriptor": b"\x00",
                       "hidProductID": 1, "hidVendorID": 1, "hidCountryCode": 0},),
-        displays=SecondaryDisplayCapability(width=800, height=480),
+        displays=SecondaryDisplayCapability.synthetic_lab(width=800, height=480),
     )
 
 

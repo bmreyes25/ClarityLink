@@ -287,7 +287,7 @@ def test_100_cycle_reconnect_no_resource_leak() -> None:
 
 
 def test_capability_profile_explicitly_synthetic() -> None:
-    info = lab_info(SecondaryDisplayCapability())
+    info = lab_info(SecondaryDisplayCapability.synthetic_lab())
     assert [x["streamType"] for x in info["displays"]] == [110, 111]
     assert "SYNTHETIC" in info["evidence"]
 

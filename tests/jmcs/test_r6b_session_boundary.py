@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "src" / "claritylink-jmcs"))
 sys.path.insert(0, str(ROOT / "tools"))
 from claritylink_jmcs.authentication import (AuthenticationError, HondaAuthenticationProviderStub,
     LabAuthenticationProvider, ReplayAuthenticationProvider, SessionHandoff, SessionOrigin, AuthorityType)
+from claritylink_jmcs.capabilities import SecondaryDisplayCapability
 from claritylink_jmcs.identity import IdentityError, load_or_create_identity
 from claritylink_jmcs.info import InfoError, InfoProfile, build_info, validate_info_shape
 from claritylink_jmcs.receiver import Receiver
@@ -27,7 +28,8 @@ def profile(tmp_path: Path) -> InfoProfile:
         ({"type": 100, "audioType": "default", "audioOutputFormats": 1024},),
         ({"type": 100, "inputLatencyMicros": 0, "outputLatencyMicros": 0},),
         ({"uuid": "synthetic-touch", "name": "Synthetic Touch", "displayUUID": identity.main_uuid,
-          "hidDescriptor": b"\x05\x0D", "hidProductID": 1, "hidVendorID": 2, "hidCountryCode": 0},))
+          "hidDescriptor": b"\x05\x0D", "hidProductID": 1, "hidVendorID": 2, "hidCountryCode": 0},),
+        SecondaryDisplayCapability.synthetic_lab())
 
 
 def replay_handoff(generation: int, identifier: str = "fixture-session") -> SessionHandoff:
@@ -66,6 +68,36 @@ def test_complete_shape_info_requires_injected_audio_hid(tmp_path: Path):
         build_info(replace(profile(tmp_path), hid_devices=()))
     with pytest.raises(InfoError, match="invalid_hid_capability"):
         build_info(replace(profile(tmp_path), hid_devices=({"uuid": "stub"},)))
+
+
+def test_info_without_explicit_lab_profile_advertises_primary_only(tmp_path: Path):
+    from dataclasses import replace
+    disabled = replace(profile(tmp_path), displays=SecondaryDisplayCapability())
+    info = build_info(disabled)
+    assert validate_info_shape(info) == ()
+    assert [display["type"] for display in info["displays"]] == [110]
+
+
+def test_session_rejects_type111_when_secondary_capability_is_disabled(tmp_path: Path):
+    from dataclasses import replace
+    disabled_profile = replace(profile(tmp_path), displays=SecondaryDisplayCapability())
+    handoff = replay_handoff(1)
+    transport = ReplaySessionTransport(handoff, [
+        ControlRequest("GET", "/info", {}, 1),
+        ControlRequest("SETUP", "/session", {"streams": [
+            {"type": 110, "streamConnectionID": 1100},
+            {"type": 111, "streamConnectionID": 1110},
+        ]}, 1),
+    ])
+    receiver = Receiver(clear_lab=True)
+    session = ReceiverSession(ReplayAuthenticationProvider(handoff), receiver,
+                              disabled_profile, allow_replay=True)
+    session.open(transport)
+    session.handle_one()
+    with pytest.raises(SessionError, match="secondary_capability_disabled"):
+        session.handle_one()
+    assert receiver.snapshot().sessions == 0
+    assert receiver.snapshot().secondary_listeners == 0
 
 
 def test_info_diff_never_emits_identity_values(tmp_path: Path):

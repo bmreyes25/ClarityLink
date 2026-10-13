@@ -12,8 +12,13 @@ from claritylink_jmcs.security import SecurityProfile, SessionSecurityContext, S
 from claritylink_jmcs.setup import SetupRequest, SetupError
 
 
-def test_info_profile_has_two_distinct_complete_display_structures():
+def test_secondary_display_advertisement_is_off_by_default():
     displays = host_info(SecondaryDisplayCapability())["displays"]
+    assert [d["type"] for d in displays] == [110]
+
+
+def test_synthetic_info_profile_has_two_distinct_complete_display_structures():
+    displays = host_info(SecondaryDisplayCapability.synthetic_lab())["displays"]
     assert [d["type"] for d in displays] == [110, 111]
     assert displays[0]["uuid"] != displays[1]["uuid"]
     assert displays[1]["initialURL"] == "maps:/car/instrumentcluster/map"
@@ -180,7 +185,7 @@ def test_shared_sanitized_protocol_fixture():
     import json
     fixture = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "r6" / "protocol-vectors.json").read_text())
     assert fixture["provenance"].startswith("SYNTHETIC_SANITIZED")
-    displays = host_info(SecondaryDisplayCapability())["displays"]
+    displays = host_info(SecondaryDisplayCapability.synthetic_lab())["displays"]
     assert [x["type"] for x in displays] == fixture["info"]["display_types"]
     for index, request in enumerate(fixture["setup"], 1):
         parsed = SetupRequest.parse(request, index)

@@ -11,6 +11,11 @@ class Provenance(str, Enum):
     CONFIGURABLE = "configurable"
     UNKNOWN = "unknown"
 
+class CapabilityProfileMode(str, Enum):
+    DISABLED = "disabled"
+    SYNTHETIC_LAB = "synthetic_lab"
+    PRODUCTION = "production"
+
 @dataclass(frozen=True)
 class SourcedValue:
     value: Any = None
@@ -42,10 +47,15 @@ class ClarityLinkSecondaryDisplayDescriptor:
 
 @dataclass(frozen=True)
 class ClarityLinkCapabilityProfile:
-    enabled: bool = True
+    enabled: bool = False
     descriptor: ClarityLinkSecondaryDisplayDescriptor = ClarityLinkSecondaryDisplayDescriptor()
     experimental_tokens: tuple[str, ...] = ()
     evidence_label: str = "configurable"
+    mode: CapabilityProfileMode = CapabilityProfileMode.DISABLED
+
+    def __post_init__(self) -> None:
+        if self.enabled and self.mode is not CapabilityProfileMode.SYNTHETIC_LAB:
+            raise ValueError("secondary_profile_requires_explicit_synthetic_lab_mode")
 
 class ResponseStrategy(str, Enum):
     MINIMAL = "minimal"
