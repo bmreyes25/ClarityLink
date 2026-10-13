@@ -4,6 +4,8 @@
     <application android:name="org.claritylink.android.ClarityLinkDisplayApplication"
         android:label="ClarityLink Disabled Candidate" android:allowBackup="false"
         android:enabled="false" android:debuggable="false">
+        <service android:name="org.claritylink.android.CompositorService"
+            android:process=":compositor" android:enabled="false" android:exported="false" />
         <activity android:name="org.claritylink.android.ClarityLinkDisplayActivity"
             android:enabled="false" android:exported="false" />
     </application>

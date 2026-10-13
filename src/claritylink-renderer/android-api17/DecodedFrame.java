@@ -3,6 +3,8 @@ package org.claritylink.renderer;
 import java.nio.ByteBuffer;
 import android.graphics.Rect;
 import java.nio.ByteOrder;
+import java.io.IOException;
+import java.io.OutputStream;
 
 /** API 17 CPU-backed RGBA frame. Surface-backed frames are contract-only. */
 public final class DecodedFrame {
@@ -59,6 +61,18 @@ public final class DecodedFrame {
     }
 
     public int byteSize() { return rowStride * height; }
+
+    /** Streams the owned RGBA snapshot without allocating a second frame-sized array. */
+    public void writeRgbaTo(OutputStream output) throws IOException {
+        if (output == null) throw new IllegalArgumentException("output required");
+        ByteBuffer source = rgba.duplicate();
+        byte[] chunk = new byte[8192];
+        while (source.hasRemaining()) {
+            int count = Math.min(source.remaining(), chunk.length);
+            source.get(chunk, 0, count);
+            output.write(chunk, 0, count);
+        }
+    }
 
     public Rect cropRect() { return new Rect(cropLeft, cropTop, cropRight, cropBottom); }
 

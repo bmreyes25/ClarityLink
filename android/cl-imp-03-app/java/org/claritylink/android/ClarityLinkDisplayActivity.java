@@ -2,6 +2,9 @@ package org.claritylink.android;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
@@ -45,12 +48,45 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean closing;
     private boolean recreation;
     private boolean crashAfterFirstFrame;
+    private boolean compositorBound;
+    private boolean ipcSessionReady;
+    private boolean ipcSubmitted;
+    private boolean canvasDrawLogged;
+    private FrameIpcClient frameIpcClient;
+    private final ServiceConnection compositorConnection = new ServiceConnection() {
+        public void onServiceConnected(ComponentName name, android.os.IBinder service) {
+            if (!active || closing || activeGeneration <= 0) return;
+            FrameIpcClient client = new FrameIpcClient(service);
+            try {
+                int remotePid = client.begin(activeGeneration);
+                if (remotePid <= 0 || remotePid == android.os.Process.myPid()) {
+                    log("IPC_SESSION_REJECTED separate_process_required=true");
+                    stopOwnedDisplay("ipc-session-start-failed");
+                    return;
+                }
+                frameIpcClient = client;
+                ipcSessionReady = true;
+                log("IPC_SESSION_STARTED generation=" + activeGeneration + " remote_pid=" + remotePid
+                        + " transport=private_binder_pipe max_frame_bytes=4194304");
+            } catch (Exception failure) {
+                log("IPC_SESSION_REJECTED type=" + failure.getClass().getSimpleName());
+                stopOwnedDisplay("ipc-session-start-failed");
+            }
+        }
+        public void onServiceDisconnected(ComponentName name) {
+            frameIpcClient = null;
+            ipcSessionReady = false;
+            log("IPC_REMOTE_DISCONNECTED");
+            if (active && !closing) stopOwnedDisplay("ipc-remote-disconnected");
+        }
+    };
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         recreation = state != null;
         showStatus("ClarityLink disabled candidate. No display is selected automatically.");
-        log("ACTIVITY_READY api=" + Build.VERSION.SDK_INT + " permissions_requested=none");
+        log("ACTIVITY_READY api=" + Build.VERSION.SDK_INT + " pid=" + android.os.Process.myPid()
+                + " permissions_requested=none");
         if (!recreation && isExplicitLabRequest(getIntent().getExtras())) startEmulatorLab();
         else log("STATUS_ONLY feature_disabled=true recovered_state=discarded");
     }
@@ -138,6 +174,15 @@ public final class ClarityLinkDisplayActivity extends Activity
         activeGeneration = ((ClarityLinkDisplayApplication) getApplication()).nextGeneration();
         active = true;
         closing = false;
+        ipcSessionReady = false;
+        ipcSubmitted = false;
+        canvasDrawLogged = false;
+        compositorBound = bindService(new Intent(this, CompositorService.class),
+                compositorConnection, Context.BIND_AUTO_CREATE);
+        if (!compositorBound) {
+            stopOwnedDisplay("ipc-bind-failed");
+            return;
+        }
         displayHost = new SecondaryDisplayHost(this);
         DisplayPolicy.Layout layout;
         try {
@@ -160,6 +205,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (state == DisplayPolicy.Admission.FAILED && !closing) {
             releaseRenderer();
             active = false;
+            closeIpcSession();
         }
     }
 
@@ -233,11 +279,12 @@ public final class ClarityLinkDisplayActivity extends Activity
                 ClarityLinkContentView view = renderer.contentView();
                 if (view != null && view.drawnGeneration() == generation &&
                         view.drawnTimestampNs() == 1L) {
-                    log("SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS generation=" + generation + " timestamp=1");
-                    if (crashAfterFirstFrame) {
-                        crashAfterFirstFrame = false;
-                        throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
+                    if (!canvasDrawLogged) {
+                        canvasDrawLogged = true;
+                        log("SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS generation=" + generation + " timestamp=1");
                     }
+                    if (ipcSessionReady && !ipcSubmitted) submitSyntheticFrame(generation);
+                    else if (!ipcSessionReady) awaitFrame(attempt + 1, generation);
                     return;
                 }
                 if (attempt >= 40) {
@@ -248,6 +295,33 @@ public final class ClarityLinkDisplayActivity extends Activity
                 awaitFrame(attempt + 1, generation);
             }
         }, 50L);
+    }
+
+    private void submitSyntheticFrame(final long generation) {
+        FrameIpcClient client = frameIpcClient;
+        if (client == null || ipcSubmitted) return;
+        ipcSubmitted = true;
+        boolean started = client.submit(syntheticFrame(), generation, new FrameIpcClient.Callback() {
+            public void complete(final boolean accepted, final String reason) {
+                main.post(new Runnable() {
+                    public void run() {
+                        if (!active || closing || activeGeneration != generation) return;
+                        if (!accepted) {
+                            log("IPC_SYNTHETIC_FRAME_REJECTED generation=" + generation + " reason=" + reason);
+                            stopOwnedDisplay("ipc-frame-rejected");
+                            return;
+                        }
+                        log("IPC_SYNTHETIC_FRAME_ACCEPTED generation=" + generation
+                                + " timestamp=1 bytes=16 backpressure=single_in_flight");
+                        if (crashAfterFirstFrame) {
+                            crashAfterFirstFrame = false;
+                            throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
+                        }
+                    }
+                });
+            }
+        });
+        if (!started) log("IPC_FRAME_BACKPRESSURE_REJECT generation=" + generation);
     }
 
     private DecodedFrame syntheticFrame() {
@@ -282,8 +356,21 @@ public final class ClarityLinkDisplayActivity extends Activity
             catch (RuntimeException failure) { log("PRESENTATION_CLOSE_FAILED type=" + failure.getClass().getSimpleName()); }
         }
         borrowedPresentationSurface = null;
+        closeIpcSession();
         activeGeneration = 0L;
         closing = false;
+    }
+
+    private void closeIpcSession() {
+        FrameIpcClient client = frameIpcClient;
+        frameIpcClient = null;
+        ipcSessionReady = false;
+        if (client != null) client.end(activeGeneration);
+        if (compositorBound) {
+            try { unbindService(compositorConnection); }
+            catch (IllegalArgumentException ignored) { }
+            compositorBound = false;
+        }
     }
 
     @Override protected void onPause() {

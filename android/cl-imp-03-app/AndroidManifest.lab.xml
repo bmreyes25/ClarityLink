@@ -4,6 +4,8 @@
     <application android:name="org.claritylink.android.ClarityLinkDisplayApplication"
         android:label="ClarityLink Display Lab" android:allowBackup="false"
         android:debuggable="false">
+        <service android:name="org.claritylink.android.CompositorService"
+            android:process=":compositor" android:exported="false" />
         <activity android:name="org.claritylink.android.ClarityLinkDisplayActivity"
             android:exported="true" android:configChanges="orientation|screenSize" />
     </application>

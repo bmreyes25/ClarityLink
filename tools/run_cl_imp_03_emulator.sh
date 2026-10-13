@@ -119,6 +119,17 @@ wait_for() {
 wait_for 'ADMISSION_STATE=PRESENTATION_SHOWN'
 wait_for 'SURFACE_BORROWED_READY valid=true owner=Presentation_SurfaceHolder released_by_app=false'
 wait_for 'SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS'
+wait_for 'IPC_SESSION_STARTED'
+wait_for 'IPC_SYNTHETIC_FRAME_ACCEPTED'
+logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+remote_pid=$(printf '%s\n' "$logs" | sed -n 's/.*IPC_SESSION_STARTED .*remote_pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+app_pid=$(printf '%s\n' "$logs" | sed -n 's/.*ACTIVITY_READY .*pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+[ -n "$remote_pid" ] && [ -n "$app_pid" ] && [ "$remote_pid" != "$app_pid" ] || {
+  echo "IPC endpoint did not run in a separate project-owned process (app=$app_pid remote=$remote_pid)." >&2
+  printf '%s\n' "$logs" >&2
+  adb_local -s "$serial" shell ps >&2
+  exit 9
+}
 active_windows=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r')
 printf '%s\n' "$active_windows" | grep -F "mOwnerUid=$app_uid" >/dev/null || {
   echo 'Cannot prove an app-owned window existed before display removal.' >&2; exit 9;
@@ -128,6 +139,8 @@ adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
 wait_for 'SURFACE_BORROWED_LOST owner=Presentation_SurfaceHolder released_by_app=false'
 wait_for 'ADMISSION_STATE=FAILED'
 wait_for 'RENDERER_RELEASED'
+wait_for 'IPC_REMOTE_END'
+wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true'
 owned || exit 7
 adb_local -s "$serial" shell am force-stop "$package"
 owned || exit 7
@@ -139,6 +152,10 @@ adb_local -s "$serial" shell am start -n "$package/$component" \
   --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY \
   --ez crash_after_first_frame true >/dev/null
 wait_for 'SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS'
+wait_for 'IPC_SYNTHETIC_FRAME_ACCEPTED'
+logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+crash_remote_pid=$(printf '%s\n' "$logs" | sed -n 's/.*IPC_SESSION_STARTED .*remote_pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+[ -n "$crash_remote_pid" ] || { echo 'Missing remote compositor PID in crash-recovery run.' >&2; exit 9; }
 crash_logged=0
 for attempt in $(seq 1 30); do
   crash_log=$(adb_local -s "$serial" logcat -d -s AndroidRuntime:E '*:S' | tr -d '\r')
@@ -160,13 +177,15 @@ for attempt in $(seq 1 30); do
   windows=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r')
   crash_log=$(adb_local -s "$serial" logcat -d -s AndroidRuntime:E '*:S' | tr -d '\r')
   app_windows=$(printf '%s\n' "$windows" | grep -F "mOwnerUid=$app_uid" || true)
+  compositor_process=$(printf '%s\n' "$ps" | awk -v pid="$crash_remote_pid" '$2==pid {print; found=1} END {if (!found) exit 1}' || true)
   if ! printf '%s\n' "$ps" | awk -v name="$package" '$NF==name {found=1} END {exit !found}' &&
-     [ -z "$app_windows" ]; then crashed=1; break; fi
+     [ -z "$app_windows" ] && [ -z "$compositor_process" ]; then crashed=1; break; fi
   sleep 1
 done
 [ "$crashed" -eq 1 ] || {
   echo 'Crash recovery did not reclaim process and app-owned windows.' >&2
   printf '%s\n' "$ps" | grep -F "$package" >&2 || true
+  printf '%s\n' "$compositor_process" >&2
   printf '%s\n' "$windows" | grep -F "mOwnerUid=$app_uid" >&2 || true
   printf '%s\n' "$crash_log" >&2
   exit 9
@@ -184,4 +203,4 @@ adb_local -s "$serial" uninstall "$package" >/dev/null
 remaining=$(adb_local -s "$serial" shell pm path "$package" | tr -d '\r')
 [ -z "$remaining" ] || { echo 'Emulator app package remains after uninstall.' >&2; exit 11; }
 adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
-echo "CL_IMP_03_API17_EMULATOR_PASS api=$api release=$release install=pass admission=pass synthetic_frame=pass crash_recovery=status_only uninstall=pass"
+echo "CL_IMP_03_04_API17_EMULATOR_PASS api=$api release=$release install=pass admission=pass canvas_draw=pass separate_process_ipc=pass bounded_frame=pass crash_recovery=status_only uninstall=pass"

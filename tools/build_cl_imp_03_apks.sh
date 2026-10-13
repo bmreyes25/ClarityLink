@@ -12,6 +12,7 @@ for tool in aapt d8 zipalign apksigner; do
   [ -x "$build_tools/$tool" ] || { echo "Missing Android build tool: $tool" >&2; exit 2; }
 done
 export JAVA_HOME="$java_home" PATH="$java_home/bin:$PATH"
+rm -rf "$out/classes" "$out/dex"
 mkdir -p "$out/classes" "$out/dex"
 "${JAVAC:-javac}" -source 1.7 -target 1.7 -Xlint:all -bootclasspath "$platform/android.jar" \
   -d "$out/classes" \
@@ -22,8 +23,13 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/src/main/java/org/claritylink/android/ProcessLifecycleAdapter.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayApplication.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcClient.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java" \
   "$repo/src/claritylink-renderer/android-api17/DecodedFrame.java" \
   "$repo/src/claritylink-renderer/android-api17/ClarityLinkContentView.java" \
+  "$repo/src/claritylink-renderer/android-api17/FrameBackpressureGate.java" \
+  "$repo/src/claritylink-renderer/android-api17/SimulatedExternalDisplayCompositor.java" \
   "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java"
 "$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$out/dex" \
   $(find "$out/classes" -name '*.class' -print)
