@@ -134,11 +134,33 @@ def run_client(argv: list[str], env: dict[str, str], timeout: float,
     try:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as exc:
+        cleanup_errors = []
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        stdout, stderr = process.communicate()
+        try:
+            stdout, stderr = process.communicate(timeout=3.0)
+        except subprocess.TimeoutExpired as cleanup_exc:
+            # A descendant can inherit the capture pipes and keep them open
+            # after the direct adb client exits. Never make the supervisor's
+            # timeout path unbounded while draining those pipes.
+            stdout = cleanup_exc.output or b""
+            stderr = cleanup_exc.stderr or b""
+            cleanup_errors.append("capture pipes remained open after process-group SIGKILL")
+            for stream in (process.stdout, process.stderr):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except OSError as close_exc:
+                        cleanup_errors.append(f"pipe close failed: {close_exc}")
+            try:
+                process.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                cleanup_errors.append("direct adb client did not reap within cleanup bound")
+        except OSError as cleanup_exc:
+            stdout, stderr = b"", b""
+            cleanup_errors.append(f"capture drain failed: {cleanup_exc}")
         markers = {
             "child_started": b"SUPERVISOR_CHILD_STARTED" in stdout,
             "self_test_pass": b"SELF_TEST_PASS" in stdout,
@@ -148,6 +170,7 @@ def run_client(argv: list[str], env: dict[str, str], timeout: float,
         raise RuntimeFailure(
             f"host command timeout ({label}); host_elapsed_seconds={time.monotonic() - started:.4f}; "
             f"stdout_bytes={len(stdout)} stderr_bytes={len(stderr)} markers={markers}; "
+            f"cleanup={cleanup_errors or ['process group stopped and direct child reaped']}; "
             "adb client was stopped; emulator cleanup required; "
             f"stdout={stdout[-4096:]!r} stderr={stderr[-4096:]!r}"
         ) from exc
