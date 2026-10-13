@@ -128,6 +128,7 @@ def run_client(argv: list[str], env: dict[str, str], timeout: float,
                server: subprocess.Popen[bytes], label: str) -> subprocess.CompletedProcess[bytes]:
     if server.poll() is not None:
         raise RuntimeFailure("isolated, one-device ADB server exited; refusing implicit restart")
+    started = time.monotonic()
     process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                env=env, start_new_session=True)
     try:
@@ -138,8 +139,16 @@ def run_client(argv: list[str], env: dict[str, str], timeout: float,
         except ProcessLookupError:
             pass
         stdout, stderr = process.communicate()
+        markers = {
+            "child_started": b"SUPERVISOR_CHILD_STARTED" in stdout,
+            "self_test_pass": b"SELF_TEST_PASS" in stdout,
+            "child_reaped": b"SUPERVISOR_CHILD_REAPED" in stdout,
+            "guest_status": b"__R7E6_STATUS:" in stdout,
+        }
         raise RuntimeFailure(
-            f"host command timeout ({label}); adb client was stopped; emulator cleanup required; "
+            f"host command timeout ({label}); host_elapsed_seconds={time.monotonic() - started:.4f}; "
+            f"stdout_bytes={len(stdout)} stderr_bytes={len(stderr)} markers={markers}; "
+            "adb client was stopped; emulator cleanup required; "
             f"stdout={stdout[-4096:]!r} stderr={stderr[-4096:]!r}"
         ) from exc
     if len(stdout) + len(stderr) > MAX_CAPTURE:
