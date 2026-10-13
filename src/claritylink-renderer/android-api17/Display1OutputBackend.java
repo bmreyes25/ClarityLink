@@ -1,15 +1,12 @@
 package org.claritylink.renderer;
 
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.Rect;
 import android.view.Gravity;
 import android.view.View;
+import android.os.Looper;
 import android.widget.FrameLayout;
 
 /**
- * API 17 renderer skeleton for a host supplied from Honda ExternalDisplay.
+ * API 17 renderer adapter for a host explicitly supplied by its caller.
  *
  * Root acquisition is intentionally not implemented: HondaHack obtains it
  * through Xposed/private InterfaceWindow hooks. No direct framebuffer access.
@@ -18,6 +15,8 @@ public final class Display1OutputBackend {
     public interface Host {
         FrameLayout getMainLayer();
         boolean isNavigationPageActive();
+        boolean attachContent(View content, long generation);
+        boolean detachContent(View content, long generation);
     }
 
     public static final class Viewport {
@@ -28,7 +27,7 @@ public final class Display1OutputBackend {
 
         public Viewport(int left, int top, int width, int height) {
             if (left < 0 || top < 0 || width <= 0 || height <= 0
-                    || left + width > 800 || top + height > 480) {
+                    || (long) left + width > 800L || (long) top + height > 480L) {
                 throw new IllegalArgumentException("viewport must fit Display 1 800x480");
             }
             this.left = left;
@@ -40,97 +39,80 @@ public final class Display1OutputBackend {
 
     private final Host host;
     private final Viewport viewport;
-    private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final long generation;
     private FrameLayout root;
-    private RenderView view;
+    private ClarityLinkContentView view;
 
     public Display1OutputBackend(Host host, Viewport viewport) {
+        this(host, viewport, 1L);
+    }
+
+    public Display1OutputBackend(Host host, Viewport viewport, long generation) {
         if (host == null || viewport == null) throw new IllegalArgumentException("host/viewport required");
+        if (generation <= 0) throw new IllegalArgumentException("positive generation required");
         this.host = host;
         this.viewport = viewport;
+        this.generation = generation;
     }
 
     public void attach() {
+        requireUiThread();
         if (view != null) throw new IllegalStateException("already attached");
         if (!host.isNavigationPageActive()) throw new IllegalStateException("Navigation host inactive");
         root = host.getMainLayer();
         if (root == null) throw new IllegalStateException("ExternalDisplay main layer unavailable");
-        view = new RenderView();
+        view = new ClarityLinkContentView(root.getContext());
+        view.beginSession(generation);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 viewport.width, viewport.height, Gravity.TOP | Gravity.LEFT);
         params.leftMargin = viewport.left;
         params.topMargin = viewport.top;
-        root.addView(view, 0, params);
+        view.setLayoutParams(params);
+        try {
+            if (!host.attachContent(view, generation))
+                throw new IllegalStateException("host rejected content View");
+        } catch (RuntimeException failure) {
+            view.close();
+            view = null;
+            root = null;
+            throw failure;
+        }
     }
 
     public void submit(final DecodedFrame frame) {
         if (view == null) throw new IllegalStateException("not attached");
-        if (frame.rotationDegrees != 0) {
-            throw new UnsupportedOperationException("rotation is not implemented");
-        }
-        final Bitmap bitmap = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888);
-        bitmap.setPixels(frame.toArgbPixels(), 0, frame.width, 0, 0, frame.width, frame.height);
-        view.post(new Runnable() {
-            public void run() {
-                if (view == null) {
-                    bitmap.recycle();
-                    return;
-                }
-                view.replaceFrame(bitmap, frame.cropLeft, frame.cropTop,
-                        frame.cropRight, frame.cropBottom);
-            }
-        });
+        if (!host.isNavigationPageActive()) throw new IllegalStateException("Navigation host inactive");
+        if (!view.submitFrame(frame, generation))
+            throw new IllegalArgumentException("frame rejected by generation, timestamp, or format policy");
     }
 
     public void clear() {
-        final RenderView current = view;
-        if (current != null) current.post(new Runnable() {
-            public void run() { current.clearFrame(); }
-        });
+        requireUiThread();
+        ClarityLinkContentView current = view;
+        if (current != null) current.clearFrame();
     }
 
     public void close() {
-        final RenderView oldView = view;
-        final FrameLayout oldRoot = root;
+        requireUiThread();
+        ClarityLinkContentView oldView = view;
+        long oldGeneration = generation;
         view = null;
         root = null;
-        if (oldView != null && oldRoot != null) {
-            oldView.post(new Runnable() {
-                public void run() {
-                    oldRoot.removeView(oldView);
-                    oldView.clearFrame();
-                }
-            });
+        if (oldView != null) {
+            try {
+                if (!host.detachContent(oldView, oldGeneration)) oldView.close();
+            } catch (RuntimeException failure) {
+                oldView.close();
+                throw failure;
+            }
         }
     }
 
-    private final class RenderView extends View {
-        private Bitmap frame;
-        private Rect crop;
+    /** Exposes the currently owned View for host diagnostics and offline tests. */
+    public ClarityLinkContentView contentView() { return view; }
 
-        RenderView() { super(root.getContext()); setWillNotDraw(false); }
-
-        void replaceFrame(Bitmap next, int left, int top, int right, int bottom) {
-            Bitmap previous = frame;
-            frame = next;
-            crop = new Rect(left, top, right, bottom);
-            if (previous != null && previous != next) previous.recycle();
-            invalidate();
-        }
-
-        void clearFrame() {
-            Bitmap previous = frame;
-            frame = null;
-            crop = null;
-            if (previous != null) previous.recycle();
-            invalidate();
-        }
-
-        @Override protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            if (frame != null && crop != null) {
-                canvas.drawBitmap(frame, crop, new Rect(0, 0, getWidth(), getHeight()), paint);
-            }
-        }
+    private static void requireUiThread() {
+        if (Looper.myLooper() != Looper.getMainLooper())
+            throw new IllegalStateException("renderer host lifecycle must run on the UI thread");
     }
 }

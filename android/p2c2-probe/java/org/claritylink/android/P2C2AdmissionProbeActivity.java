@@ -7,11 +7,20 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.view.Display;
 import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+
+import org.claritylink.renderer.ClarityLinkContentView;
+import org.claritylink.renderer.DecodedFrame;
+import org.claritylink.renderer.Display1OutputBackend;
+import org.claritylink.renderer.HondaStyleSimulatorRendererHost;
+
+import java.nio.ByteBuffer;
 
 /** Emulator-only probe. Its synthetic overlay display is never Honda evidence. */
 public final class P2C2AdmissionProbeActivity extends Activity {
@@ -27,6 +36,9 @@ public final class P2C2AdmissionProbeActivity extends Activity {
     private boolean cyclesFinished;
     private boolean removed;
     private HondaStyleDisplayHostSimulator simulatedHost;
+    private HondaStyleDisplayHostSimulator contentHost;
+    private ClarityLinkContentView contentView;
+    private Display1OutputBackend contentBackend;
 
     private void event(String value) { Log.i(TAG, "P2C2_" + value); }
     private void fail(String value) { event("FAIL case=" + value); }
@@ -38,7 +50,7 @@ public final class P2C2AdmissionProbeActivity extends Activity {
         if (!verifyHostSimulator()) { fail("host_simulator"); return; }
         event("READY api=" + android.os.Build.VERSION.SDK_INT);
         if (android.os.Build.VERSION.SDK_INT != 17) { fail("wrong_api"); return; }
-        awaitDisplay(0);
+        verifyClarityContentView(0);
     }
 
     private boolean verifyHostSimulator() {
@@ -69,6 +81,90 @@ public final class P2C2AdmissionProbeActivity extends Activity {
         if (!simulatedHost.isClosed()) return false;
         event("HOST_SIMULATOR_PASS layers=bottom,navigation,warning stale_generation=reject navigation_exit=clear close=idempotent evidence=synthetic");
         return true;
+    }
+
+    private void verifyClarityContentView(final int attempt) {
+        if (attempt == 0) {
+            contentHost = new HondaStyleDisplayHostSimulator(this);
+            contentBackend = new Display1OutputBackend(
+                    new HondaStyleSimulatorRendererHost(contentHost),
+                    new Display1OutputBackend.Viewport(0, 0, 800, 480), 77);
+            contentBackend.attach();
+            contentView = contentBackend.contentView();
+            boolean sessionChangeRejected = false;
+            try { contentView.beginSession(78); }
+            catch (IllegalStateException expected) { sessionChangeRejected = true; }
+            if (!sessionChangeRejected) { fail("content_session_mutable"); return; }
+            contentBackend.submit(solidFrame(1, 255, 0, 0));
+            contentBackend.clear();
+            contentBackend.submit(solidFrame(1, 255, 0, 0));
+        }
+        if (contentView == null || contentView.displayedTimestampNs() != 1L) {
+            if (attempt >= 60) { fail("content_initial_timeout"); return; }
+            main.postDelayed(new Runnable() { public void run() {
+                verifyClarityContentView(attempt + 1);
+            } }, 50);
+            return;
+        }
+        contentView.measure(View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY));
+        contentView.layout(0, 0, 100, 100);
+        if (drawCenterColor(contentView, 100, 100) != 0xffff0000) {
+            fail("content_initial_pixels"); return;
+        }
+        contentView.layout(0, 0, 120, 60);
+        if (drawCenterColor(contentView, 120, 60) != 0xffff0000) {
+            fail("content_resize"); return;
+        }
+        contentHost.setSimulatedStockWarningVisible(true);
+        if (contentView.hasDisplayedFrame() || contentView.submitFrame(solidFrame(2, 0, 0, 255), 77)) {
+            fail("content_warning_preemption"); return;
+        }
+        contentHost.setSimulatedStockWarningVisible(false);
+        try { contentBackend.submit(solidFrame(2, 0, 255, 0)); }
+        catch (RuntimeException failure) { fail("content_resume"); return; }
+        awaitSecondContentFrame(0);
+    }
+
+    private void awaitSecondContentFrame(final int attempt) {
+        if (contentView.displayedTimestampNs() != 2L) {
+            if (attempt >= 60) { fail("content_second_timeout"); return; }
+            main.postDelayed(new Runnable() { public void run() {
+                awaitSecondContentFrame(attempt + 1);
+            } }, 50);
+            return;
+        }
+        if (drawCenterColor(contentView, 120, 60) != 0xff00ff00) {
+            fail("content_second_pixels"); return;
+        }
+        contentHost.setNavigationActive(false);
+        if (!contentView.isClosed() || contentView.hasDisplayedFrame() || contentHost.hasClarityContent()) {
+            fail("content_navigation_exit"); return;
+        }
+        contentHost.close();
+        contentBackend.close();
+        event("CONTENT_VIEW_PASS frames=2 session=immutable clear=before_install warning=clears resize=fit generation=77 evidence=synthetic");
+        awaitDisplay(0);
+    }
+
+    private DecodedFrame solidFrame(long timestamp, int red, int green, int blue) {
+        byte[] rgba = new byte[16];
+        for (int pixel = 0; pixel < 4; pixel++) {
+            int offset = pixel * 4;
+            rgba[offset] = (byte) red;
+            rgba[offset + 1] = (byte) green;
+            rgba[offset + 2] = (byte) blue;
+            rgba[offset + 3] = (byte) 255;
+        }
+        return new DecodedFrame(2, 2, 8, timestamp, 0, 0, 0, 2, 2, ByteBuffer.wrap(rgba));
+    }
+
+    private int drawCenterColor(View view, int width, int height) {
+        Bitmap target = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        view.draw(new Canvas(target));
+        int color = target.getPixel(width / 2, height / 2);
+        target.recycle();
+        return color;
     }
 
     private void awaitDisplay(final int attempt) {
@@ -205,6 +301,8 @@ public final class P2C2AdmissionProbeActivity extends Activity {
 
     @Override protected void onDestroy() {
         if (host != null) host.close();
+        if (contentBackend != null) contentBackend.close();
+        if (contentHost != null) contentHost.close();
         if (simulatedHost != null) simulatedHost.close();
         super.onDestroy();
     }

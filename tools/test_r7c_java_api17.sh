@@ -8,6 +8,8 @@ mkdir -p "$out/test"
 "${JAVAC:-javac}" -source 1.7 -target 1.7 -Xlint:all -bootclasspath "$jar" -classpath "$out" \
   -d "$out/test" \
   "$repo/android/src/test/java/org/claritylink/android/OfflinePolicyTest.java" \
-  "$repo/android/src/test/java/org/claritylink/android/HondaStyleHostModelTest.java"
+  "$repo/android/src/test/java/org/claritylink/android/HondaStyleHostModelTest.java" \
+  "$repo/android/src/test/java/org/claritylink/renderer/DecodedFrameTest.java"
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.android.OfflinePolicyTest
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.android.HondaStyleHostModelTest
+"${JAVA:-java}" -cp "$out/test:$out" org.claritylink.renderer.DecodedFrameTest

@@ -17,8 +17,13 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/src/main/java/org/claritylink/android/DisplayDiscovery.java" \
   "$repo/android/src/main/java/org/claritylink/android/DisplayPolicy.java" \
   "$repo/android/src/main/java/org/claritylink/android/HondaStyleHostModel.java" \
+  "$repo/android/src/main/java/org/claritylink/android/HostedContentLifecycle.java" \
   "$repo/android/src/main/java/org/claritylink/android/SecondaryDisplayHost.java" \
   "$repo/android/src/main/java/org/claritylink/android/HondaStyleDisplayHostSimulator.java" \
+  "$repo/src/claritylink-renderer/android-api17/DecodedFrame.java" \
+  "$repo/src/claritylink-renderer/android-api17/ClarityLinkContentView.java" \
+  "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java" \
+  "$repo/src/claritylink-renderer/android-api17/HondaStyleSimulatorRendererHost.java" \
   "$repo/android/p2c2-probe/java/org/claritylink/android/P2C2AdmissionProbeActivity.java"
 "$build_tools/aapt" package -f -M "$repo/android/p2c2-probe/AndroidManifest.xml" \
   -I "$platform/android.jar" -F "$out/unsigned.apk"

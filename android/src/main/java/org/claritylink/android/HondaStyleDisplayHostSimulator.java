@@ -69,10 +69,24 @@ public final class HondaStyleDisplayHostSimulator {
                 !model.attach(generation, content.getParent() == null)) return false;
         clarityContent = content;
         try {
-            customContentContainer.addView(content, matchParent());
+            ViewGroup.LayoutParams supplied = content.getLayoutParams();
+            FrameLayout.LayoutParams params = supplied instanceof FrameLayout.LayoutParams
+                    ? (FrameLayout.LayoutParams) supplied : matchParent();
+            if (params.leftMargin < 0 || params.topMargin < 0
+                    || (params.width <= 0 && params.width != ViewGroup.LayoutParams.MATCH_PARENT
+                        && params.width != ViewGroup.LayoutParams.WRAP_CONTENT)
+                    || (params.height <= 0 && params.height != ViewGroup.LayoutParams.MATCH_PARENT
+                        && params.height != ViewGroup.LayoutParams.WRAP_CONTENT)) {
+                throw new IllegalArgumentException("invalid hosted content bounds");
+            }
+            customContentContainer.addView(content, params);
             customContentContainer.setVisibility(View.VISIBLE);
+            resumeClarityContent(generation);
             return true;
         } catch (RuntimeException failure) {
+            suspendClarityContent(HostedContentLifecycle.CONTENT_DETACHED, generation);
+            if (content.getParent() == customContentContainer)
+                customContentContainer.removeView(content);
             clarityContent = null;
             model.detach(generation);
             return false;
@@ -82,7 +96,9 @@ public final class HondaStyleDisplayHostSimulator {
     /** A stale generation cannot detach the active content. */
     public boolean detachClarityContent(long generation) {
         requireUiThread();
-        if (clarityContent == null || !model.detach(generation)) return false;
+        if (clarityContent == null || generation != model.contentGeneration()) return false;
+        suspendClarityContent(HostedContentLifecycle.CONTENT_DETACHED, generation);
+        if (!model.detach(generation)) return false;
         removeViewOnly();
         return true;
     }
@@ -90,21 +106,31 @@ public final class HondaStyleDisplayHostSimulator {
     /** Leaving Navigation removes project content so re-entry cannot resurrect stale frames. */
     public void setNavigationActive(boolean active) {
         requireOpen();
+        if (!active && clarityContent != null)
+            suspendClarityContent(HostedContentLifecycle.NAVIGATION_EXIT, model.contentGeneration());
         model.setNavigationActive(active);
         if (!active) removeClarityContent();
+        else resumeClarityContent(model.contentGeneration());
         updateLayerVisibility();
     }
 
     /** Independent simulated factory warning source; never calls vehicle APIs. */
     public void setSimulatedStockWarningVisible(boolean visible) {
         requireOpen();
+        if (visible && clarityContent != null)
+            suspendClarityContent(HostedContentLifecycle.WARNING_PREEMPTION,
+                    model.contentGeneration());
         model.setWarningVisible(visible);
+        if (!visible) resumeClarityContent(model.contentGeneration());
         updateLayerVisibility();
     }
 
     public boolean isWarningVisible() { return model.isWarningVisible(); }
     public boolean isNavigationActive() { return model.isNavigationActive(); }
     public boolean hasClarityContent() { return clarityContent != null; }
+    public boolean ownsClarityContent(View content, long generation) {
+        return clarityContent == content && model.contentGeneration() == generation;
+    }
     public long contentGeneration() { return model.contentGeneration(); }
     public boolean isClosed() { return model.isClosed(); }
 
@@ -126,10 +152,22 @@ public final class HondaStyleDisplayHostSimulator {
         customContentContainer.setVisibility(View.GONE);
     }
 
+    private void suspendClarityContent(int reason, long generation) {
+        if (clarityContent instanceof HostedContentLifecycle)
+            ((HostedContentLifecycle) clarityContent).onHostSuspended(reason, generation);
+    }
+
+    private void resumeClarityContent(long generation) {
+        if (clarityContent instanceof HostedContentLifecycle && generation > 0)
+            ((HostedContentLifecycle) clarityContent).onHostResumed(generation);
+    }
+
     /** Idempotently remove only simulator-owned content and roots. */
     public void close() {
         if (model.isClosed()) return;
         requireUiThread();
+        if (clarityContent != null)
+            suspendClarityContent(HostedContentLifecycle.HOST_CLOSED, model.contentGeneration());
         removeClarityContent();
         model.close();
         warningInterruptRoot.removeAllViews();
