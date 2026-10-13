@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "P2-C5 private read-only display observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "authorization_ref", "serial", "timestamp_unix", "classification", "window_admission", "visible_rendering", "display_dump_sha256", "results", "commands_executed", "target_writes", "display_operations", "retries", "contract_sha256"],
+  "properties": {
+    "schema": {"const": "P2C5-DISPLAY-OBSERVATION-1"},
+    "authorization_ref": {"type": "string", "minLength": 1},
+    "serial": {"type": "string", "minLength": 1},
+    "timestamp_unix": {"type": "integer", "minimum": 0},
+    "classification": {"const": "DISPLAY_ENUMERATION_RAW_ONLY"},
+    "window_admission": {"const": "NOT_TESTED"},
+    "visible_rendering": {"const": "NOT_TESTED"},
+    "display_dump_sha256": {"$ref": "#/definitions/sha256"},
+    "contract_sha256": {"$ref": "#/definitions/sha256"},
+    "commands_executed": {"const": 4},
+    "target_writes": {"const": 0},
+    "display_operations": {"const": 0},
+    "retries": {"const": 0},
+    "results": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command_index", "return_code", "stdout", "stderr"],
+        "properties": {
+          "command_index": {"type": "integer", "minimum": 1, "maximum": 4},
+          "return_code": {"const": 0},
+          "stdout": {"type": "string"},
+          "stderr": {"const": ""}
+        }
+      }
+    }
+  },
+  "definitions": {"sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+}
