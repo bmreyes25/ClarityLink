@@ -1,3 +1,9 @@
+## CL-IMP-13 reliability and security (2026-10-13)
+
+- [Validation report](research/implementation/cl-imp-13-reliability-security.md): 512 malformed-header fuzz cases, 32 connected start/stop cycles, 24 concurrent retained-frame checks, full regressions, and sanitizer results.
+- Full configured offline suite: 1,428 passed, 14 skipped. Native AddressSanitizer/UndefinedBehaviorSanitizer and ThreadSanitizer integrated tests passed. API17 emulator evidence remains from CL-IMP-12; this milestone changed no Android/native source.
+- ECC checklist review found no blockers and is not represented as an independent reviewer attestation. Honda and genuine iPhone compatibility remain unproven.
+
 ## CL-IMP-12 ARMv7/API17 build package (2026-10-13)
 
 - [Implementation and compatibility report](research/implementation/cl-imp-12-armv7-api17-artifacts.md): ARMv7 JNI/native build, API17 symbol audit, Java JAR, lab/candidate APKs, repeat-build hashes, dependency/permission inventory, and explicit limits.

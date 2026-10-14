@@ -1,4 +1,6 @@
-# Current next action — CL-IMP-13 reliability and security validation — 2026-10-13
+# Current next action — CL-IMP-14 final implementation closeout — 2026-10-13
+
+CL-IMP-13 is locally implemented and validated. Review and commit its milestone-scoped changes under the standing ECC authorization if all applicable review gates permit; push only to PR #19 and verify exact-HEAD Offline CI and CodeQL. Then complete CL-IMP-14: audit every component and acceptance requirement, assemble the coding-completeness matrix and laboratory artifact links, distinguish host/emulator/build evidence from Honda/iPhone proof, and list exact future authorization/deployment prerequisites. No Honda or live-iPhone operation is in scope. See [CL-IMP-13 report](research/implementation/cl-imp-13-reliability-security.md).
 
 CL-IMP-12 is locally implemented and validated. Review and commit its milestone-scoped changes under the standing ECC authorization if all applicable review gates permit; push only to the existing PR #19 branch and verify exact-HEAD Offline CI and CodeQL. Then proceed to CL-IMP-13 for stress/fault/security validation. Artifacts are local under ignored `build/cl-imp-12/artifacts/`; they are not Honda deployment authorization. Keep the candidate disabled and production integration off. See [CL-IMP-12 report](research/implementation/cl-imp-12-armv7-api17-artifacts.md).
 
