@@ -31,6 +31,11 @@ class ReceiverError(RuntimeError):
         super().__init__(code)
 
 
+def _valid_generation(generation: object) -> bool:
+    return (isinstance(generation, int) and not isinstance(generation, bool)
+            and 1 <= generation <= (1 << 64) - 1)
+
+
 def _synchronized(method: Callable[..., Any]) -> Callable[..., Any]:
     """Serialize owner state transitions; callbacks and reads share one lock."""
     @wraps(method)
@@ -195,7 +200,8 @@ class Receiver:
         return wire
 
     def _require_generation(self, generation: int) -> None:
-        if generation != self.generation or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
+        if (not _valid_generation(generation) or generation != self.generation
+                or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED)):
             raise ReceiverError("stale_or_closed_session")
 
     def _sync_state(self) -> None:
@@ -266,6 +272,8 @@ class Receiver:
                             ClearLabSecurity() if self.clear_lab else EvidenceRequiredSecurity())
                 assert secondary_requested.stream_connection_id is not None
                 self.faults.check("security")
+                if security is primary_security or security is self.primary_security:
+                    raise ReceiverError("security_context_alias")
                 security.open(generation, secondary_requested.stream_connection_id)
                 self.faults.check("decoder")
                 decoder = FFmpegDecoder()
@@ -286,7 +294,7 @@ class Receiver:
                 primary_security.close()
             if decoder:
                 decoder.close()
-            if security:
+            if security and security is not primary_security and security is not self.primary_security:
                 security.close()
             if new_secondary:
                 new_secondary.close()
@@ -378,7 +386,7 @@ class Receiver:
 
     @_synchronized
     def teardown_primary(self, generation: int) -> None:
-        if generation != self.generation:
+        if not _valid_generation(generation) or generation != self.generation:
             return
         try:
             self.primary_display.clear()
@@ -440,7 +448,7 @@ class Receiver:
 
     @_synchronized
     def teardown_secondary(self, generation: int) -> None:
-        if generation != self.generation:
+        if not _valid_generation(generation) or generation != self.generation:
             return
         try:
             self.faults.check("teardown")
@@ -483,7 +491,8 @@ class Receiver:
 
     @_synchronized
     def teardown(self, generation: int) -> None:
-        if generation != self.generation or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED):
+        if (not _valid_generation(generation) or generation != self.generation
+                or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED)):
             return
         self.teardown_secondary(generation)
         if self.primary:

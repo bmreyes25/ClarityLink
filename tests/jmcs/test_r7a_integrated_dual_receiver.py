@@ -159,6 +159,21 @@ def test_duplicate_stream_ids_and_wrong_generation_rejected_before_media():
     receiver.teardown(next_generation)
 
 
+def test_receiver_rejects_boolean_generation_alias():
+    receiver = Receiver(clear_lab=True)
+    generation = _session(receiver)
+    assert generation == 1
+    with pytest.raises(ReceiverError, match="stale_or_closed_session"):
+        receiver.setup({"streams": [{"type": 111, "streamConnectionID": 8}]}, True)
+    receiver.setup({"streams": [{"type": 110, "streamConnectionID": 9},
+                                 {"type": 111, "streamConnectionID": 10}]}, generation)
+    for teardown in (receiver.teardown_primary, receiver.teardown_secondary, receiver.teardown):
+        teardown(True)
+        assert receiver.generation == generation
+        assert receiver.primary is not None and receiver.secondary is not None
+    receiver.teardown(generation)
+
+
 def test_type111_media_failure_isolated_from_primary_and_repeated_cleanup_is_safe():
     from claritylink_jmcs.media import encode_lab_message
 
