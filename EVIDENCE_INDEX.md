@@ -1,3 +1,11 @@
+# CL-IMP-10 unified runtime evidence — 2026-10-13
+
+- [Implementation report](research/implementation/cl-imp-10-unified-runtime.md): runtime ownership, independent stream workers, listener serialization, identity-safe cleanup, test/review results, and explicit synthetic-only compatibility limits.
+- Local configured offline suite: 1,418 passed, 14 skipped; self-locator smoke passed; simulator JavaScript checks passed; `git diff --check` passed.
+- Independent ECC review: CLEAR after listener accept serialization, conditional resource identity cleanup, and concurrency regression coverage.
+- PR #19 baseline HEAD `8a8fb2cb5346d16279464d1ea59fac0553266df1`: Offline CI and all applicable CodeQL jobs passed. CL-IMP-10 is uncommitted and has no exact-head hosted result.
+- Evidence scope: `HOST_TESTED` / `MODEL_ONLY`; no Honda integration, authentic iPhone authentication, vehicle, or physical scanout claim.
+
 Current CL-IMP-09 offline renderer evidence: [implementation report](research/implementation/cl-imp-09-cluster-navigation-renderer.md) records API17 Canvas validation, synthetic viewport/crop/rotation behavior, artifact hashes, tests, independent ECC review, and explicit Honda/iPhone/physical-scanout limits. This is not Honda compatibility evidence. Production integration remains disabled.
 
 Historical R7E7G evidence: [wet rehearsal](research/runtime/r7e7g-test-a-wet-rehearsal-report.md), [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md), and [Phase C proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md). Historical evidence follows.

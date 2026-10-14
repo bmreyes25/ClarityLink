@@ -1,9 +1,10 @@
 """One-connection, generation-owned loopback media listener for offline labs."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import ipaddress
 import socket
+import threading
 
 
 class ListenerError(RuntimeError):
@@ -20,6 +21,7 @@ class HostListener:
     port: int
     accepted: socket.socket | None = None
     closed: bool = False
+    accept_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @classmethod
     def create(cls, generation: int, *, host: str = "127.0.0.1", port: int = 0) -> "HostListener":
@@ -43,28 +45,30 @@ class HostListener:
             raise ListenerError("listener_prepare_failed") from exc
 
     def accept(self, generation: int, timeout: float = 1.0) -> socket.socket:
-        if self.closed or generation != self.generation:
-            raise ListenerError("stale_listener")
-        if self.accepted is not None:
-            raise ListenerError("connection_limit")
-        self.sock.settimeout(min(max(timeout, 0.001), 5.0))
-        conn: socket.socket | None = None
-        try:
-            conn, _ = self.sock.accept()
-            conn.set_inheritable(False)
-            conn.settimeout(1.0)
-            self.accepted = conn
-            return conn
-        except OSError as exc:
-            if conn is not None:
-                conn.close()
-            raise ListenerError("accept_failed") from exc
+        with self.accept_lock:
+            if self.closed or generation != self.generation:
+                raise ListenerError("stale_listener")
+            if self.accepted is not None:
+                raise ListenerError("connection_limit")
+            self.sock.settimeout(min(max(timeout, 0.001), 5.0))
+            conn: socket.socket | None = None
+            try:
+                conn, _ = self.sock.accept()
+                conn.set_inheritable(False)
+                conn.settimeout(1.0)
+                self.accepted = conn
+                return conn
+            except OSError as exc:
+                if conn is not None:
+                    conn.close()
+                raise ListenerError("accept_failed") from exc
 
     def close(self) -> None:
-        if self.closed:
-            return
-        self.closed = True
-        if self.accepted is not None:
-            self.accepted.close()
-            self.accepted = None
-        self.sock.close()
+        with self.accept_lock:
+            if self.closed:
+                return
+            self.closed = True
+            if self.accepted is not None:
+                self.accepted.close()
+                self.accepted = None
+            self.sock.close()

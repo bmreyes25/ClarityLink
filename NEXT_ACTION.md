@@ -1,6 +1,6 @@
-# Current next action — CL-IMP-10 unified ClarityLink runtime — 2026-10-13
+# Current next action — CL-IMP-10 ECC commit gate — 2026-10-13
 
-CL-IMP-09 renderer implementation and local validation are complete; the independent ECC review is clear. Finish the authorized CL-IMP-09 commit/push and exact-head Offline CI/CodeQL verification, then proceed to CL-IMP-10 runtime integration. Preserve separate Type110 primary and Type111 secondary ownership, explicit resource lifetimes, safe secondary withdrawal, and disabled Honda production integration. No vehicle, Honda, or live-iPhone activity is authorized. See the [CL-IMP-09 implementation report](research/implementation/cl-imp-09-cluster-navigation-renderer.md) and [campaign plan](research/implementation/claritylink-gap-closure-plan.md).
+CL-IMP-10 implementation, focused concurrency regressions, independent ECC review, and the configured full offline suite are complete. Final documentation/repository-health/diff verification passed. The worktree contains only CL-IMP-10 source, tests, and its milestone records; no commit has been made. Baseline PR #19 is open on `architecture/r7e-parked-car-compatibility-preparation` at `8a8fb2cb5346d16279464d1ea59fac0553266df1`, where Offline CI and all applicable CodeQL jobs pass. Follow the required ECC commit gate before any commit, then exact-head CI/CodeQL. Next milestone after successful hosted checks: CL-IMP-11 end-to-end laboratory demonstration. Honda production integration remains disabled; no Honda or live-iPhone operations occurred. See [CL-IMP-10 report](research/implementation/cl-imp-10-unified-runtime.md) and [campaign plan](research/implementation/claritylink-gap-closure-plan.md).
 
 ## Historical next action — R7E7G separate Phase R authorization
 

@@ -337,157 +337,198 @@ class Receiver:
         assert prior_primary_id == self.primary_id or prior_primary_id is None
         return candidate
 
-    @_synchronized
     def accept_secondary(self, generation: int, timeout: float = 1.0) -> socket.socket:
-        self._require_generation(generation)
-        if not self.secondary:
+        with self._lock:
+            self._require_generation(generation)
+            listener = self.secondary
+        if not listener:
             raise ReceiverError("secondary_not_active")
         try:
-            connection = self.secondary.accept(generation, timeout)
+            connection = listener.accept(generation, timeout)
         except ListenerError as exc:
             raise ReceiverError(exc.code) from exc
-        self.events.append("SECONDARY_CONNECTED")
+        with self._lock:
+            if generation != self.generation or listener is not self.secondary:
+                connection.close()
+                raise ReceiverError("stale_or_closed_session")
+            self.events.append("SECONDARY_CONNECTED")
         return connection
 
-    @_synchronized
     def accept_primary(self, generation: int, timeout: float = 1.0) -> socket.socket:
-        self._require_generation(generation)
-        if not self.primary:
+        with self._lock:
+            self._require_generation(generation)
+            listener = self.primary
+        if not listener:
             raise ReceiverError("primary_not_active")
         try:
-            connection = self.primary.accept(generation, timeout)
+            connection = listener.accept(generation, timeout)
         except ListenerError as exc:
             raise ReceiverError(exc.code) from exc
-        self.events.append("PRIMARY_CONNECTED")
+        with self._lock:
+            if generation != self.generation or listener is not self.primary:
+                connection.close()
+                raise ReceiverError("stale_or_closed_session")
+            self.events.append("PRIMARY_CONNECTED")
         return connection
 
-    @_synchronized
     def receive_primary_frame(self, generation: int) -> bytes:
-        self._require_generation(generation)
-        if not self.primary or not self.primary.accepted or not self.primary_security or not self.primary_decoder:
+        with self._lock:
+            self._require_generation(generation)
+            listener, security, decoder = self.primary, self.primary_security, self.primary_decoder
+            connection = listener.accepted if listener else None
+        if not connection or not security or not decoder:
             raise ReceiverError("primary_not_connected")
         try:
             self.faults.check("primary_media")
-            message = read_profile_message(self.primary.accepted, generation, self.framing_profile)
+            message = read_profile_message(connection, generation, self.framing_profile)
             if message.opcode != 0:
                 raise ReceiverError("unsupported_primary_media_opcode")
-            clear = self.primary_security.unprotect(generation, message.body, message.header)
-            decoded = self.primary_decoder.decode(clear, message.timestamp, generation,
-                                                   self.primary_dimensions)
-            self.primary_display.show(decoded)
-            self.frames += 1
-            self.events.append("PRIMARY_FRAME_DISPLAYED")
+            clear = security.unprotect(generation, message.body, message.header)
+            decoded = decoder.decode(clear, message.timestamp, generation, self.primary_dimensions)
+            with self._lock:
+                self._require_generation(generation)
+                if (listener is not self.primary or security is not self.primary_security or
+                        decoder is not self.primary_decoder):
+                    raise ReceiverError("stale_primary_frame")
+                self.primary_display.show(decoded)
+                self.frames += 1
+                self.events.append("PRIMARY_FRAME_DISPLAYED")
             return decoded.png
-        except (MediaError, SecurityError, DecodeError, ReceiverError, OSError) as exc:
-            self.events.append("PRIMARY_MEDIA_FAILED")
-            self.teardown_primary(generation)
+        except Exception as exc:
+            with self._lock:
+                self.events.append("PRIMARY_MEDIA_FAILED")
+            self.teardown_primary(generation, expected=(listener, security, decoder))
             code = exc.code if hasattr(exc, "code") else "display_failed"
             raise ReceiverError(code) from exc
 
-    @_synchronized
-    def teardown_primary(self, generation: int) -> None:
-        if not _valid_generation(generation) or generation != self.generation:
-            return
-        try:
-            self.primary_display.clear()
-        except Exception:
-            self.primary_display_uncleared = True
-            self.events.append("PRIMARY_DISPLAY_CLEAR_FAILED")
-        else:
-            self.primary_display_uncleared = False
-        for attr, label in (("primary_decoder", "PRIMARY_DECODER"),
-                            ("primary_security", "PRIMARY_SECURITY"),
-                            ("primary", "PRIMARY_LISTENER")):
-            resource = getattr(self, attr)
-            if resource is None:
-                continue
+    def teardown_primary(self, generation: int, *,
+                         expected: tuple[HostListener | None, ScreenSecurityProvider | None,
+                                         FFmpegDecoder | None] | None = None) -> None:
+        with self._lock:
+            if not _valid_generation(generation) or generation != self.generation:
+                return
+            if expected is not None and any(captured is not current for captured, current in zip(
+                    expected, (self.primary, self.primary_security, self.primary_decoder))):
+                self.events.append("STALE_PRIMARY_CLEANUP_IGNORED")
+                return
             try:
-                resource.close()
+                self.primary_display.clear()
             except Exception:
-                self.events.append(f"{label}_CLOSE_FAILED")
+                self.primary_display_uncleared = True
+                self.events.append("PRIMARY_DISPLAY_CLEAR_FAILED")
             else:
-                setattr(self, attr, None)
-        if self.primary is None:
-            self.primary_id = None
-        if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
-            self._sync_state()
-        self.events.append("PRIMARY_CLOSED")
+                self.primary_display_uncleared = False
+            for attr, label in (("primary_decoder", "PRIMARY_DECODER"),
+                                ("primary_security", "PRIMARY_SECURITY"),
+                                ("primary", "PRIMARY_LISTENER")):
+                resource = getattr(self, attr)
+                if resource is None:
+                    continue
+                try:
+                    resource.close()
+                except Exception:
+                    self.events.append(f"{label}_CLOSE_FAILED")
+                else:
+                    setattr(self, attr, None)
+            if self.primary is None:
+                self.primary_id = None
+            if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
+                self._sync_state()
+            self.events.append("PRIMARY_CLOSED")
 
-    @_synchronized
     def receive_secondary_frame(self, generation: int) -> bytes:
-        self._require_generation(generation)
-        if not self.secondary or not self.secondary.accepted or not self.security or not self.decoder:
+        with self._lock:
+            self._require_generation(generation)
+            listener, security, decoder = self.secondary, self.security, self.decoder
+            connection = listener.accepted if listener else None
+            codec_prefix = self.codec_prefix
+        if not connection or not security or not decoder:
             raise ReceiverError("secondary_not_connected")
         try:
             self.faults.check("media")
-            message = read_profile_message(self.secondary.accepted, generation, self.framing_profile)
+            message = read_profile_message(connection, generation, self.framing_profile)
             if message.opcode == 1:
                 if self.framing_profile != FramingProfile.CURRENT_IOS_TYPE111:
                     raise ReceiverError("video_config_not_implemented")
                 from .decoder import parse_avcc_config
-                self.codec_prefix = parse_avcc_config(message.body)
-                self.events.append("VIDEO_CONFIG_RECEIVED")
+                parsed_prefix = parse_avcc_config(message.body)
+                with self._lock:
+                    self._require_generation(generation)
+                    if listener is not self.secondary:
+                        raise ReceiverError("stale_secondary_config")
+                    self.codec_prefix = parsed_prefix
+                    self.events.append("VIDEO_CONFIG_RECEIVED")
                 return b""
-            clear = self.security.unprotect(generation, message.body, message.header)
+            clear = security.unprotect(generation, message.body, message.header)
             if self.framing_profile == FramingProfile.CURRENT_IOS_TYPE111:
-                clear = self.codec_prefix + (clear if clear.startswith(b"\x00\x00\x00\x01") else
+                clear = codec_prefix + (clear if clear.startswith(b"\x00\x00\x00\x01") else
                                              avcc_to_annexb(clear))
             self.faults.check("decode")
-            decoded = self.decoder.decode(clear, message.timestamp, generation,
-                                          self.secondary_dimensions)
+            decoded = decoder.decode(clear, message.timestamp, generation, self.secondary_dimensions)
             self.faults.check("display")
-            self.display.show(decoded)
-            self.frames += 1
-            self.events.append("FRAME_DISPLAYED")
+            with self._lock:
+                self._require_generation(generation)
+                if listener is not self.secondary or security is not self.security or decoder is not self.decoder:
+                    raise ReceiverError("stale_secondary_frame")
+                self.display.show(decoded)
+                self.frames += 1
+                self.events.append("FRAME_DISPLAYED")
             return decoded.png
-        except (MediaError, SecurityError, DecodeError, ReceiverError, OSError) as exc:
-            self.events.append("SECONDARY_MEDIA_FAILED")
-            self.teardown_secondary(generation)
+        except Exception as exc:
+            with self._lock:
+                self.events.append("SECONDARY_MEDIA_FAILED")
+            self.teardown_secondary(generation, expected=(listener, security, decoder))
             code = exc.code if hasattr(exc, "code") else "display_failed"
             raise ReceiverError(code) from exc
 
-    @_synchronized
-    def teardown_secondary(self, generation: int) -> None:
-        if not _valid_generation(generation) or generation != self.generation:
-            return
-        try:
-            self.faults.check("teardown")
-        except ReceiverError:
-            self.events.append("TEARDOWN_FAULT_CONTAINED")
-        try:
-            self.display.clear()
-        except Exception:
-            self.display_uncleared = True
-            self.events.append("DISPLAY_CLEAR_FAILED")
-        else:
-            self.display_uncleared = False
-        if self.decoder:
+    def teardown_secondary(self, generation: int, *,
+                           expected: tuple[HostListener | None, ScreenSecurityProvider | None,
+                                           FFmpegDecoder | None] | None = None) -> None:
+        with self._lock:
+            if not _valid_generation(generation) or generation != self.generation:
+                return
+            if expected is not None and any(captured is not current for captured, current in zip(
+                    expected, (self.secondary, self.security, self.decoder))):
+                self.events.append("STALE_SECONDARY_CLEANUP_IGNORED")
+                return
             try:
-                self.decoder.close()
-            except Exception:
-                self.events.append("DECODER_CLOSE_FAILED")
-            else:
-                self.decoder = None
-        if self.security:
+                self.faults.check("teardown")
+            except ReceiverError:
+                self.events.append("TEARDOWN_FAULT_CONTAINED")
             try:
-                self.security.close()
+                self.display.clear()
             except Exception:
-                self.events.append("SECURITY_CLOSE_FAILED")
+                self.display_uncleared = True
+                self.events.append("DISPLAY_CLEAR_FAILED")
             else:
-                self.security = None
-        if self.secondary:
-            try:
-                self.secondary.close()
-            except Exception:
-                self.events.append("LISTENER_CLOSE_FAILED")
-            else:
-                self.secondary = None
-        if self.secondary is None and self.security is None and self.decoder is None:
-            self.secondary_id = None
-            self.codec_prefix = b""
-        if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
-            self._sync_state()
-        self.events.append("SECONDARY_CLOSED")
+                self.display_uncleared = False
+            if self.decoder:
+                try:
+                    self.decoder.close()
+                except Exception:
+                    self.events.append("DECODER_CLOSE_FAILED")
+                else:
+                    self.decoder = None
+            if self.security:
+                try:
+                    self.security.close()
+                except Exception:
+                    self.events.append("SECURITY_CLOSE_FAILED")
+                else:
+                    self.security = None
+            if self.secondary:
+                try:
+                    self.secondary.close()
+                except Exception:
+                    self.events.append("LISTENER_CLOSE_FAILED")
+                else:
+                    self.secondary = None
+            if self.secondary is None and self.security is None and self.decoder is None:
+                self.secondary_id = None
+                self.codec_prefix = b""
+            if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
+                self._sync_state()
+            self.events.append("SECONDARY_CLOSED")
 
     @_synchronized
     def teardown(self, generation: int) -> None:
