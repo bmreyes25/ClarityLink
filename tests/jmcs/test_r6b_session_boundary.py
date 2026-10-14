@@ -146,7 +146,9 @@ def test_replay_session_info_type110_type111_and_teardown(tmp_path: Path):
     session.close()
     assert session.receiver.snapshot().sessions == 0
     assert "SETUP_TYPE111" in [event["event"] for event in session.trace.events]
-    assert "1111" not in json.dumps(session.trace.events)
+    trace_payload = [{key: value for key, value in event.items() if key != "timestamp"}
+                     for event in session.trace.events]
+    assert "1111" not in json.dumps(trace_payload)
 
 
 def test_replay_never_promoted_to_live(tmp_path: Path):
