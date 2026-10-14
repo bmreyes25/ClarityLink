@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
@@ -23,6 +25,7 @@ import android.widget.TextView;
 import org.claritylink.renderer.ClarityLinkContentView;
 import org.claritylink.renderer.DecodedFrame;
 import org.claritylink.renderer.Display1OutputBackend;
+import org.claritylink.renderer.RendererViewport;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -52,6 +55,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean ipcSessionReady;
     private boolean ipcSubmitted;
     private boolean canvasDrawLogged;
+    private boolean rendererScenarioValidated;
+    private boolean warningResumeValidated;
     private FrameIpcClient frameIpcClient;
     private final ServiceConnection compositorConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, android.os.IBinder service) {
@@ -171,12 +176,17 @@ public final class ClarityLinkDisplayActivity extends Activity
             setStatus("No unique synthetic 800x480 emulator display; admission refused.");
             return;
         }
-        activeGeneration = ((ClarityLinkDisplayApplication) getApplication()).nextGeneration();
+        ClarityLinkDisplayApplication application = (ClarityLinkDisplayApplication) getApplication();
+        activeGeneration = application.nextGeneration();
+        // Reserve generation 1 so the first lab run can exercise a positive stale generation.
+        if (activeGeneration == 1L) activeGeneration = application.nextGeneration();
         active = true;
         closing = false;
         ipcSessionReady = false;
         ipcSubmitted = false;
         canvasDrawLogged = false;
+        rendererScenarioValidated = false;
+        warningResumeValidated = false;
         compositorBound = bindService(new Intent(this, CompositorService.class),
                 compositorConnection, Context.BIND_AUTO_CREATE);
         if (!compositorBound) {
@@ -252,8 +262,12 @@ public final class ClarityLinkDisplayActivity extends Activity
             }
         };
         try {
+            RendererViewport geometry = new RendererViewport(
+                    new RendererViewport.Bounds(100, 60, 700, 420),
+                    java.util.Collections.singletonList(new RendererViewport.Bounds(300, 170, 500, 270)),
+                    RendererViewport.SYNTHETIC_TEST_ONLY);
             renderer = new Display1OutputBackend(contentHost,
-                    new Display1OutputBackend.Viewport(0, 0, 800, 480), generation);
+                    new Display1OutputBackend.Viewport(0, 0, 800, 480), generation, geometry);
             renderer.attach();
             TextView label = new TextView(root.getContext());
             label.setText("SYNTHETIC FRAME · API17 LAB ONLY");
@@ -262,8 +276,8 @@ public final class ClarityLinkDisplayActivity extends Activity
             FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
             root.addView(label, labelParams);
-            renderer.submit(syntheticFrame());
-            awaitFrame(0, generation);
+            renderer.submit(syntheticFrame(1L));
+            awaitFrame(0, generation, 1L);
         } catch (RuntimeException failure) {
             log("RENDERER_ATTACH_FAILED type=" + failure.getClass().getSimpleName());
             releaseRenderer();
@@ -272,29 +286,105 @@ public final class ClarityLinkDisplayActivity extends Activity
         }
     }
 
-    private void awaitFrame(final int attempt, final long generation) {
+    private void awaitFrame(final int attempt, final long generation, final long expectedTimestampNs) {
         main.postDelayed(new Runnable() {
             public void run() {
                 if (!active || closing || renderer == null || generation != activeGeneration) return;
                 ClarityLinkContentView view = renderer.contentView();
                 if (view != null && view.drawnGeneration() == generation &&
-                        view.drawnTimestampNs() == 1L) {
-                    if (!canvasDrawLogged) {
+                        view.drawnTimestampNs() == expectedTimestampNs) {
+                    if (expectedTimestampNs == 1L && !canvasDrawLogged) {
                         canvasDrawLogged = true;
                         log("SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS generation=" + generation + " timestamp=1");
                     }
+                    if (expectedTimestampNs == 1L && !rendererScenarioValidated) {
+                        verifySyntheticGeometry(view);
+                        if (generation <= 1L || view.submitFrame(syntheticFrame(2L), generation - 1L))
+                            throw new IllegalStateException("stale_generation_accepted");
+                        view.onHostSuspended(HostedContentLifecycle.WARNING_PREEMPTION, generation);
+                        if (view.hasDisplayedFrame() || view.submitFrame(syntheticFrame(2L), generation))
+                            throw new IllegalStateException("warning_preemption_did_not_clear_or_block");
+                        if (hasVisiblePixels(view)) throw new IllegalStateException("warning_pixels_not_cleared");
+                        view.onHostResumed(generation);
+                        if (!view.submitFrame(syntheticFrame(2L), generation))
+                            throw new IllegalStateException("matching_warning_resume_rejected");
+                        rendererScenarioValidated = true;
+                        log("CLIMP09_RENDER_GEOMETRY_PASS crop=top-row rotation=90 fit=portrait safeAreaAndProtectedMask=synthetic warning=preempt staleGeneration=rejected");
+                        awaitFrame(0, generation, 2L);
+                        return;
+                    }
+                    if (expectedTimestampNs == 2L && !warningResumeValidated) {
+                        warningResumeValidated = true;
+                        log("CLIMP09_WARNING_RESUME_PASS generation=" + generation + " timestamp=2");
+                    }
                     if (ipcSessionReady && !ipcSubmitted) submitSyntheticFrame(generation);
-                    else if (!ipcSessionReady) awaitFrame(attempt + 1, generation);
+                    else if (!ipcSessionReady) awaitFrame(attempt + 1, generation, expectedTimestampNs);
                     return;
                 }
                 if (attempt >= 40) {
-                    log("SYNTHETIC_FRAME_TIMEOUT");
+                    log("SYNTHETIC_FRAME_TIMEOUT timestamp=" + expectedTimestampNs);
                     stopOwnedDisplay("frame-timeout");
                     return;
                 }
-                awaitFrame(attempt + 1, generation);
+                awaitFrame(attempt + 1, generation, expectedTimestampNs);
             }
         }, 50L);
+    }
+
+    private void verifySyntheticGeometry(ClarityLinkContentView view) {
+        RendererViewport fractional = new RendererViewport(
+                new RendererViewport.Bounds(101, 61, 699, 419),
+                java.util.Collections.singletonList(new RendererViewport.Bounds(300, 170, 500, 270)),
+                RendererViewport.SYNTHETIC_TEST_ONLY);
+        android.graphics.Rect safe = fractional.scaledSafeArea(401, 241);
+        android.graphics.Rect protectedRect = fractional.scaled(
+                new RendererViewport.Bounds(300, 170, 500, 270), 401, 241);
+        if (safe.left != 51 || safe.top != 31 || safe.right != 350 || safe.bottom != 210 ||
+                protectedRect.left != 150 || protectedRect.top != 85 ||
+                protectedRect.right != 251 || protectedRect.bottom != 136)
+            throw new IllegalStateException("fractional_viewport_rounding_failed");
+        Bitmap snapshot = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        try {
+            view.draw(new Canvas(snapshot));
+            int minX = view.getWidth(), minY = view.getHeight(), maxX = -1, maxY = -1;
+            int red = 0, green = 0, blue = 0, yellow = 0;
+            for (int y = 0; y < snapshot.getHeight(); y++) {
+                for (int x = 0; x < snapshot.getWidth(); x++) {
+                    int pixel = snapshot.getPixel(x, y);
+                    int alpha = Color.alpha(pixel);
+                    if (alpha == 0) continue;
+                    if (x < 100 || x >= 700 || y < 60 || y >= 420 ||
+                            (x >= 300 && x < 500 && y >= 170 && y < 270))
+                        throw new IllegalStateException("synthetic_viewport_clip_failed");
+                    minX = Math.min(minX, x); minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+                    int r = Color.red(pixel), g = Color.green(pixel), b = Color.blue(pixel);
+                    if (r > 200 && g < 40 && b < 40) red++;
+                    if (g > 200 && r < 40 && b < 40) green++;
+                    if (b > 200 && r < 40 && g < 40) blue++;
+                    if (r > 200 && g > 200 && b < 40) yellow++;
+                }
+            }
+            if (maxX < minX || maxY < minY || maxX - minX + 1 < 170 || maxX - minX + 1 > 190 ||
+                    maxY - minY + 1 < 350 || maxY - minY + 1 > 370 || red < 100 || green < 100 ||
+                    blue != 0 || yellow != 0)
+                throw new IllegalStateException("synthetic_crop_rotation_aspect_ratio_failed");
+        } finally {
+            snapshot.recycle();
+        }
+    }
+
+    private boolean hasVisiblePixels(ClarityLinkContentView view) {
+        Bitmap snapshot = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        try {
+            view.draw(new Canvas(snapshot));
+            for (int y = 0; y < snapshot.getHeight(); y++)
+                for (int x = 0; x < snapshot.getWidth(); x++)
+                    if (Color.alpha(snapshot.getPixel(x, y)) != 0) return true;
+            return false;
+        } finally {
+            snapshot.recycle();
+        }
     }
 
     private void submitSyntheticFrame(final long generation) {
@@ -324,12 +414,14 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (!started) log("IPC_FRAME_BACKPRESSURE_REJECT generation=" + generation);
     }
 
-    private DecodedFrame syntheticFrame() {
+    private DecodedFrame syntheticFrame() { return syntheticFrame(1L); }
+
+    private DecodedFrame syntheticFrame(long timestampNs) {
         byte[] rgba = new byte[] {
-                (byte) 255, (byte) 40, 0, (byte) 255, 0, (byte) 80, (byte) 255, (byte) 255,
-                0, (byte) 180, (byte) 80, (byte) 255, (byte) 255, (byte) 180, 0, (byte) 255
+                (byte) 255, 0, 0, (byte) 255, 0, (byte) 255, 0, (byte) 255,
+                0, 0, (byte) 255, (byte) 255, (byte) 255, (byte) 255, 0, (byte) 255
         };
-        return new DecodedFrame(2, 2, 8, 1L, 0, 0, 0, 2, 2, ByteBuffer.wrap(rgba));
+        return new DecodedFrame(2, 2, 8, timestampNs, 90, 0, 0, 2, 1, ByteBuffer.wrap(rgba));
     }
 
     private void releaseRenderer() {

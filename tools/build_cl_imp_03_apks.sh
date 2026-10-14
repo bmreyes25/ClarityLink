@@ -30,6 +30,7 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java" \
   "$repo/src/claritylink-renderer/android-api17/DecodedFrame.java" \
   "$repo/src/claritylink-renderer/android-api17/ClarityLinkContentView.java" \
+  "$repo/src/claritylink-renderer/android-api17/RendererViewport.java" \
   "$repo/src/claritylink-renderer/android-api17/FrameBackpressureGate.java" \
   "$repo/src/claritylink-renderer/android-api17/SimulatedExternalDisplayCompositor.java" \
   "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java"

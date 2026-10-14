@@ -71,6 +71,42 @@ def test_frame_evidence_is_canvas_draw_not_native_presentation_or_scanout():
     assert renderer.index("canvas.drawBitmap(bitmap") < renderer.index("drawnGeneration = generation")
     assert "view.drawnGeneration() == generation" in activity
     assert "SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS" in activity
+    assert "CLIMP09_RENDER_GEOMETRY_PASS" in activity
+    assert "CLIMP09_WARNING_RESUME_PASS" in activity
     assert "firstFramePresented(generation)" not in activity
     assert "SYNTHETIC_FRAME_DISPLAYED" not in runner
     assert "FIRST_FRAME_PRESENTED" not in runner
+
+
+def test_renderer_viewport_is_synthetic_bounded_and_clips_protected_regions():
+    viewport = (REPO / "src/claritylink-renderer/android-api17/RendererViewport.java").read_text()
+    renderer = (REPO / "src/claritylink-renderer/android-api17/ClarityLinkContentView.java").read_text()
+    assert "LOGICAL_WIDTH = 800" in viewport and "LOGICAL_HEIGHT = 480" in viewport
+    assert "SYNTHETIC_TEST_ONLY" in viewport
+    assert "MAX_PROTECTED_REGIONS = 32" in viewport
+    assert "protectedRegions.size() > MAX_PROTECTED_REGIONS" in viewport
+    assert "Region.Op.DIFFERENCE" in viewport
+    assert "scaledSafeArea" in viewport and "scaledSafeArea" in renderer
+    assert "right > LOGICAL_WIDTH" in viewport
+    assert "bottom > LOGICAL_HEIGHT" in viewport
+    assert "quarterTurn = rotation == 90 || rotation == 270" in renderer
+    assert "canvas.rotate(rotation, centerX, centerY)" in renderer
+    assert "viewport.clip(canvas, viewWidth, viewHeight)" in renderer
+    assert "MAX_RGBA_BYTES" in renderer
+
+
+def test_cl_imp_09_probe_checks_crop_geometry_warning_and_fresh_resume():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "syntheticFrame(1L)" in activity
+    assert "rotationDegrees" in (REPO / "src/claritylink-renderer/android-api17/DecodedFrame.java").read_text()
+    assert "synthetic_viewport_clip_failed" in activity
+    assert "synthetic_crop_rotation_aspect_ratio_failed" in activity
+    assert "warning_preemption_did_not_clear_or_block" in activity
+    assert "warning_pixels_not_cleared" in activity
+    assert "matching_warning_resume_rejected" in activity
+    assert "stale_generation_accepted" in activity
+    assert "generation <= 1L || view.submitFrame(syntheticFrame(2L), generation - 1L)" in activity
+    assert "fractional_viewport_rounding_failed" in activity
+    assert "wait_for 'CLIMP09_RENDER_GEOMETRY_PASS'" in runner
+    assert "wait_for 'CLIMP09_WARNING_RESUME_PASS'" in runner

@@ -1,4 +1,8 @@
-# Current project state — R7E7G offline rehearsal
+# Current ClarityLink implementation campaign — CL-IMP-09 complete — 2026-10-13
+
+CL-IMP-09 adds crop/rotation-aware API17 Canvas rendering and an immutable synthetic-only safe/protected viewport. Isolated Android 4.2.2/API17 emulator validation passed for fractional safe-bound rounding, protected clipping, positive stale-generation rejection, warning preemption/resume, frame IPC, display removal, crash cleanup, and emulator-only install/removal. Focused display contracts: 8 passed; full offline suite: 1,411 passed, 14 skipped; repository health and diff check passed. Independent ECC review is clear after two corrected probe/rounding findings. The lab APK and disabled candidate are hashed in the [CL-IMP-09 report](research/implementation/cl-imp-09-cluster-navigation-renderer.md). This proves only synthetic API17 Canvas behavior; Honda admission, physical scanout/geometry, authentic iPhone Type111 content, and real warning behavior remain unproven. Production Honda integration remains disabled. PR #19 branch: `architecture/r7e-parked-car-compatibility-preparation`; CL-IMP-09 commit and exact-head hosted checks are pending.
+
+# Historical project state — R7E7G offline rehearsal
 
 See the [R7E7G current-state section](#r7e7g-offline-wet-rehearsal--current) below and the [wet rehearsal report](research/runtime/r7e7g-test-a-wet-rehearsal-report.md). Real Honda recovery is still required; Test A retry is not authorized.
 

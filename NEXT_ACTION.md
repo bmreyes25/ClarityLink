@@ -1,4 +1,8 @@
-# Current next action — R7E7G separate Phase R authorization
+# Current next action — CL-IMP-10 unified ClarityLink runtime — 2026-10-13
+
+CL-IMP-09 renderer implementation and local validation are complete; the independent ECC review is clear. Finish the authorized CL-IMP-09 commit/push and exact-head Offline CI/CodeQL verification, then proceed to CL-IMP-10 runtime integration. Preserve separate Type110 primary and Type111 secondary ownership, explicit resource lifetimes, safe secondary withdrawal, and disabled Honda production integration. No vehicle, Honda, or live-iPhone activity is authorized. See the [CL-IMP-09 implementation report](research/implementation/cl-imp-09-cluster-navigation-renderer.md) and [campaign plan](research/implementation/claritylink-gap-closure-plan.md).
+
+## Historical next action — R7E7G separate Phase R authorization
 
 R7E7G completed 50/50 full in-memory collector lifecycles with exact manifest command matching, one push/two diagnostic invocations/one cleanup per cycle, and zero modeled leaks or unexpected commands. The isolated API17 shell-construction probe passed. A separate x86 diagnostic lifecycle rehearsal and exact-head hosted checks are recorded in [the R7E7G report](research/runtime/r7e7g-test-a-wet-rehearsal-report.md). The production R7E7F collector, command manifest, and ARMv7 artifact remain unchanged.
 

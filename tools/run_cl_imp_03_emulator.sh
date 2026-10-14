@@ -141,6 +141,8 @@ fi
 wait_for 'ADMISSION_STATE=PRESENTATION_SHOWN'
 wait_for 'SURFACE_BORROWED_READY valid=true owner=Presentation_SurfaceHolder released_by_app=false'
 wait_for 'SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS'
+wait_for 'CLIMP09_RENDER_GEOMETRY_PASS'
+wait_for 'CLIMP09_WARNING_RESUME_PASS'
 wait_for 'IPC_SESSION_STARTED'
 wait_for 'IPC_SYNTHETIC_FRAME_ACCEPTED'
 logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
@@ -174,6 +176,8 @@ adb_local -s "$serial" shell am start -n "$package/$component" \
   --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY \
   --ez crash_after_first_frame true >/dev/null
 wait_for 'SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS'
+wait_for 'CLIMP09_RENDER_GEOMETRY_PASS'
+wait_for 'CLIMP09_WARNING_RESUME_PASS'
 wait_for 'IPC_SYNTHETIC_FRAME_ACCEPTED'
 logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
 crash_remote_pid=$(printf '%s\n' "$logs" | sed -n 's/.*IPC_SESSION_STARTED .*remote_pid=\([0-9][0-9]*\).*/\1/p' | head -1)

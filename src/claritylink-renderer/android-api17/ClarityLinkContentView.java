@@ -26,12 +26,14 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     private HandlerThread converterThread;
     private Handler converterHandler;
     private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
+    private RendererViewport rendererViewport = RendererViewport.fullCanvasTestOnly();
 
     private FrameEnvelope pendingFrame;
     private Bitmap pendingBitmap;
     private long pendingBitmapGeneration;
     private long pendingBitmapTimestampNs;
     private Rect pendingBitmapCrop;
+    private int pendingBitmapRotation;
     private boolean conversionScheduled;
     private boolean installScheduled;
     private long activeGeneration;
@@ -46,6 +48,7 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     private boolean closed;
     private Bitmap displayedBitmap;
     private Rect displayedCrop;
+    private int displayedRotation;
 
     public ClarityLinkContentView(Context context) {
         super(context);
@@ -82,8 +85,7 @@ public final class ClarityLinkContentView extends View implements HostedContentL
      * call from decoder threads. Newer frames replace the one pending frame.
      */
     public boolean submitFrame(final DecodedFrame frame, final long generation) {
-        if (frame == null || frame.rotationDegrees != 0 || frame.byteSize() > DecodedFrame.MAX_RGBA_BYTES)
-            return false;
+        if (frame == null || frame.byteSize() > DecodedFrame.MAX_RGBA_BYTES) return false;
         synchronized (stateLock) {
             if (closed || hostSuspended || generation <= 0 || generation != activeGeneration
                     || frame.presentationTimeNs <= latestSubmittedTimestampNs) return false;
@@ -139,6 +141,7 @@ public final class ClarityLinkContentView extends View implements HostedContentL
                     pendingBitmapGeneration = envelope.generation;
                     pendingBitmapTimestampNs = envelope.frame.presentationTimeNs;
                     pendingBitmapCrop = envelope.frame.cropRect();
+                    pendingBitmapRotation = envelope.frame.rotationDegrees;
                     if (!installScheduled) {
                         installScheduled = true;
                         if (!mainHandler.post(new Runnable() { public void run() { installPendingBitmap(); } })) {
@@ -173,6 +176,7 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             Bitmap previous = displayedBitmap;
             displayedBitmap = next;
             displayedCrop = crop;
+            displayedRotation = pendingBitmapRotation;
             displayedGeneration = generation;
             displayedTimestampNs = timestampNs;
             if (previous != null && previous != next && !previous.isRecycled()) previous.recycle();
@@ -184,23 +188,48 @@ public final class ClarityLinkContentView extends View implements HostedContentL
         super.onDraw(canvas);
         Bitmap bitmap;
         Rect crop;
+        RendererViewport viewport;
         long generation;
         long timestampNs;
+        int rotation;
         synchronized (stateLock) {
             if (closed || hostSuspended) return;
             bitmap = displayedBitmap;
             crop = displayedCrop;
+            rotation = displayedRotation;
+            viewport = rendererViewport;
             generation = displayedGeneration;
             timestampNs = displayedTimestampNs;
         }
-        if (bitmap == null || bitmap.isRecycled() || crop == null || getWidth() <= 0 || getHeight() <= 0)
+        int viewWidth = getWidth();
+        int viewHeight = getHeight();
+        if (bitmap == null || bitmap.isRecycled() || crop == null || viewWidth <= 0 || viewHeight <= 0)
             return;
-        float scale = Math.min((float) getWidth() / crop.width(), (float) getHeight() / crop.height());
+        Rect safe = viewport.scaledSafeArea(viewWidth, viewHeight);
+        if (safe.isEmpty()) return;
+        boolean quarterTurn = rotation == 90 || rotation == 270;
+        float rotatedWidth = quarterTurn ? crop.height() : crop.width();
+        float rotatedHeight = quarterTurn ? crop.width() : crop.height();
+        float scale = Math.min((float) safe.width() / rotatedWidth,
+                (float) safe.height() / rotatedHeight);
+        float centerX = (safe.left + safe.right) / 2.0f;
+        float centerY = (safe.top + safe.bottom) / 2.0f;
         float outWidth = crop.width() * scale;
         float outHeight = crop.height() * scale;
-        float left = (getWidth() - outWidth) / 2.0f;
-        float top = (getHeight() - outHeight) / 2.0f;
-        canvas.drawBitmap(bitmap, crop, new RectF(left, top, left + outWidth, top + outHeight), paint);
+        RectF destination = new RectF(centerX - outWidth / 2.0f, centerY - outHeight / 2.0f,
+                centerX + outWidth / 2.0f, centerY + outHeight / 2.0f);
+        int save = canvas.save();
+        boolean rendered = false;
+        try {
+            if (viewport.clip(canvas, viewWidth, viewHeight)) {
+                if (rotation != 0) canvas.rotate(rotation, centerX, centerY);
+                canvas.drawBitmap(bitmap, crop, destination, paint);
+                rendered = true;
+            }
+        } finally {
+            canvas.restoreToCount(save);
+        }
+        if (!rendered) return;
         synchronized (stateLock) {
             if (!closed && !hostSuspended && displayedBitmap == bitmap && !bitmap.isRecycled()
                     && displayedGeneration == generation && displayedTimestampNs == timestampNs) {
@@ -231,6 +260,17 @@ public final class ClarityLinkContentView extends View implements HostedContentL
         synchronized (stateLock) {
             if (!closed && generation > 0 && generation == activeGeneration) hostSuspended = false;
         }
+    }
+
+    /** Changes to a bounded synthetic logical viewport. No Honda geometry is represented. */
+    public void setRendererViewport(RendererViewport viewport) {
+        requireUiThread();
+        if (viewport == null) throw new IllegalArgumentException("viewport required");
+        synchronized (stateLock) {
+            if (closed) throw new IllegalStateException("content view is closed");
+            rendererViewport = viewport;
+        }
+        invalidate();
     }
 
     /** Clears pixels immediately and rejects frames until a matching resume. */
@@ -287,6 +327,7 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             Bitmap previous = displayedBitmap;
             displayedBitmap = null;
             displayedCrop = null;
+            displayedRotation = 0;
             displayedGeneration = 0L;
             displayedTimestampNs = -1L;
             drawnGeneration = 0L;

@@ -1,4 +1,6 @@
-Current R7E7G evidence: [wet rehearsal](research/runtime/r7e7g-test-a-wet-rehearsal-report.md), [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md), and [Phase C proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md). Historical evidence follows.
+Current CL-IMP-09 offline renderer evidence: [implementation report](research/implementation/cl-imp-09-cluster-navigation-renderer.md) records API17 Canvas validation, synthetic viewport/crop/rotation behavior, artifact hashes, tests, independent ECC review, and explicit Honda/iPhone/physical-scanout limits. This is not Honda compatibility evidence. Production integration remains disabled.
+
+Historical R7E7G evidence: [wet rehearsal](research/runtime/r7e7g-test-a-wet-rehearsal-report.md), [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md), and [Phase C proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md). Historical evidence follows.
 
 ## R7E7C Test A parent metadata parser correction (2026-10-11)
 

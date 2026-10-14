@@ -40,19 +40,27 @@ public final class Display1OutputBackend {
     private final Host host;
     private final Viewport viewport;
     private final long generation;
+    private final RendererViewport rendererViewport;
     private FrameLayout root;
     private ClarityLinkContentView view;
 
     public Display1OutputBackend(Host host, Viewport viewport) {
-        this(host, viewport, 1L);
+        this(host, viewport, 1L, RendererViewport.fullCanvasTestOnly());
     }
 
     public Display1OutputBackend(Host host, Viewport viewport, long generation) {
-        if (host == null || viewport == null) throw new IllegalArgumentException("host/viewport required");
+        this(host, viewport, generation, RendererViewport.fullCanvasTestOnly());
+    }
+
+    public Display1OutputBackend(Host host, Viewport viewport, long generation,
+                                 RendererViewport rendererViewport) {
+        if (host == null || viewport == null || rendererViewport == null)
+            throw new IllegalArgumentException("host, viewport, and renderer geometry required");
         if (generation <= 0) throw new IllegalArgumentException("positive generation required");
         this.host = host;
         this.viewport = viewport;
         this.generation = generation;
+        this.rendererViewport = rendererViewport;
     }
 
     public void attach() {
@@ -62,6 +70,7 @@ public final class Display1OutputBackend {
         root = host.getMainLayer();
         if (root == null) throw new IllegalStateException("ExternalDisplay main layer unavailable");
         view = new ClarityLinkContentView(root.getContext());
+        view.setRendererViewport(rendererViewport);
         view.beginSession(generation);
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 viewport.width, viewport.height, Gravity.TOP | Gravity.LEFT);
