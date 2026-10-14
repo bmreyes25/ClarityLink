@@ -1,3 +1,10 @@
+## CL-IMP-11 dual-display lab (2026-10-13)
+
+- [Implementation and validation report](research/implementation/cl-imp-11-dual-display-lab.md): two independent synthetic streams, mock stock-first delegation, H.264 decode/render, warning behavior, secondary failure isolation, reconnect, cleanup, hashes, and explicit compatibility limits.
+- Reproduce the host demo with `./.venv/bin/python demo/cl_imp_11/dual_display_lab.py`; artifacts are generated under ignored `build/cl-imp-11/`.
+- Focused acceptance: 3 passed; full offline suite: 1,421 passed, 14 skipped; repository health and diff check pass. API17 APK build passes; emulator execution was blocked before startup because no Java runtime is installed.
+- ECC checklist review: no blocking findings; not an independent reviewer attestation. Honda and genuine iPhone compatibility remain unproven, and production integration remains disabled.
+
 # CL-IMP-10 unified runtime evidence — 2026-10-13
 
 - [Implementation report](research/implementation/cl-imp-10-unified-runtime.md): runtime ownership, independent stream workers, listener serialization, identity-safe cleanup, test/review results, and explicit synthetic-only compatibility limits.
