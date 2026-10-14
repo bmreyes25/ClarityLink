@@ -1,3 +1,10 @@
+## CL-IMP-12 ARMv7/API17 build package (2026-10-13)
+
+- [Implementation and compatibility report](research/implementation/cl-imp-12-armv7-api17-artifacts.md): ARMv7 JNI/native build, API17 symbol audit, Java JAR, lab/candidate APKs, repeat-build hashes, dependency/permission inventory, and explicit limits.
+- Reproduce with `tools/build_cl_imp_12_artifacts.sh`; ignored output is `build/cl-imp-12/artifacts/`. Five artifact hashes match across repeated complete builds.
+- API17 decoder and Presentation/content emulator checks passed on the isolated x86 emulator; they do not prove physical scanout or Honda compatibility.
+- Focused packaging tests: 3 passed; full offline regression: 1,425 passed, 14 skipped; repository health and `git diff --check` pass. Production Honda integration remains disabled.
+
 ## CL-IMP-11 dual-display lab (2026-10-13)
 
 - [Implementation and validation report](research/implementation/cl-imp-11-dual-display-lab.md): two independent synthetic streams, mock stock-first delegation, H.264 decode/render, warning behavior, secondary failure isolation, reconnect, cleanup, hashes, and explicit compatibility limits.

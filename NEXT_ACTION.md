@@ -1,4 +1,6 @@
-# Current next action — CL-IMP-12 ARMv7/API17 reproducible build preparation — 2026-10-13
+# Current next action — CL-IMP-13 reliability and security validation — 2026-10-13
+
+CL-IMP-12 is locally implemented and validated. Review and commit its milestone-scoped changes under the standing ECC authorization if all applicable review gates permit; push only to the existing PR #19 branch and verify exact-HEAD Offline CI and CodeQL. Then proceed to CL-IMP-13 for stress/fault/security validation. Artifacts are local under ignored `build/cl-imp-12/artifacts/`; they are not Honda deployment authorization. Keep the candidate disabled and production integration off. See [CL-IMP-12 report](research/implementation/cl-imp-12-armv7-api17-artifacts.md).
 
 CL-IMP-11 is locally implemented and validated. Review and commit its milestone-scoped changes under the standing ECC authorization if all applicable ECC gates permit; then push to the existing PR #19 branch and verify exact-HEAD Offline CI and CodeQL. Proceed to CL-IMP-12 only after those checks pass. The API17 emulator could not start on this host because a Java runtime is unavailable; do not report emulator validation. Preserve model-only evidence, disabled Honda integration, and all vehicle/iPhone restrictions. See [CL-IMP-11 report](research/implementation/cl-imp-11-dual-display-lab.md).
 
