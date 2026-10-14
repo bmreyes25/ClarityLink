@@ -1,3 +1,9 @@
+# CL-IMP-14 final implementation closeout (2026-10-13)
+
+- [Final closeout](research/implementation/cl-imp-14-final-closeout.md): 20-component completeness matrix; host, API17 emulator, and ARMv7 evidence; artifact hashes; exact external iPhone/Honda prerequisites and installation/rollback boundary.
+- The lab demo is synthetic and host-only; the API17 app/decoder results and ARMv7 compile are separate bounded evidence. No genuine iPhone or Honda compatibility is established. Production integration remains disabled.
+- CL-IMP-14 documentation-closeout validation and exact-head CI/CodeQL will be recorded with the final commit SHA after checks complete.
+
 ## CL-IMP-13 reliability and security (2026-10-13)
 
 - [Validation report](research/implementation/cl-imp-13-reliability-security.md): 512 malformed-header fuzz cases, 32 connected start/stop cycles, 24 concurrent retained-frame checks, full regressions, and sanitizer results.
@@ -9,7 +15,7 @@
 - [Implementation and compatibility report](research/implementation/cl-imp-12-armv7-api17-artifacts.md): ARMv7 JNI/native build, API17 symbol audit, Java JAR, lab/candidate APKs, repeat-build hashes, dependency/permission inventory, and explicit limits.
 - Reproduce with `tools/build_cl_imp_12_artifacts.sh`; ignored output is `build/cl-imp-12/artifacts/`. Five artifact hashes match across repeated complete builds.
 - API17 decoder and Presentation/content emulator checks passed on the isolated x86 emulator; they do not prove physical scanout or Honda compatibility.
-- Focused packaging tests: 3 passed; full offline regression: 1,425 passed, 14 skipped; repository health and `git diff --check` pass. Production Honda integration remains disabled.
+- Focused packaging tests: 4 passed; full offline regression: 1,425 passed, 14 skipped; repository health and `git diff --check` pass. Production Honda integration remains disabled.
 
 ## CL-IMP-11 dual-display lab (2026-10-13)
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "audit_date": "2026-10-13",
-  "repository_head": "3d46a5e0ae95125f37cbdaa38c64ebf801b48c28",
+  "repository_head": "ef6b42245ebbcadecda646eff676105dda5eef94",
   "production_feature_enabled": false,
   "fixed_goal": {
     "display0": "Factory Honda CarPlay primary Type110, video, USB/iAP2, authentication, audio, microphone, Siri, calls, and controls remain Honda-owned.",

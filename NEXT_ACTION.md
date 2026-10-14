@@ -1,3 +1,7 @@
+## Campaign closeout — CL-IMP-14 complete — 2026-10-13
+
+The CL-IMP-00–14 software campaign is complete at the offline/mock/API17-build boundary. No further CL-IMP milestone is pending. Keep Honda production integration disabled. Any authentic iPhone session, Honda diagnostics, physical vehicle evidence, installation, or rollback test requires a separate exact-scope authorization. The final component matrix, artifact hashes, validation, and prerequisites are in [CL-IMP-14 closeout](research/implementation/cl-imp-14-final-closeout.md).
+
 # Current next action — CL-IMP-14 final implementation closeout — 2026-10-13
 
 CL-IMP-13 is locally implemented and validated. Review and commit its milestone-scoped changes under the standing ECC authorization if all applicable review gates permit; push only to PR #19 and verify exact-HEAD Offline CI and CodeQL. Then complete CL-IMP-14: audit every component and acceptance requirement, assemble the coding-completeness matrix and laboratory artifact links, distinguish host/emulator/build evidence from Honda/iPhone proof, and list exact future authorization/deployment prerequisites. No Honda or live-iPhone operation is in scope. See [CL-IMP-13 report](research/implementation/cl-imp-13-reliability-security.md).
