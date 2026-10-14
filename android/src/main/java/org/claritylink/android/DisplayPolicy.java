@@ -13,8 +13,12 @@ public final class DisplayPolicy {
             this.evidence = evidence; warningsVisible = visible; downstreamComposited = downstream;
             protectedRegionKnown = protectedKnown; blankOnInterrupt = blank;
         }
-        public boolean safeForHonda() { return evidence == Evidence.APPROVED &&
-            (warningsVisible || downstreamComposited) && protectedRegionKnown; }
+        /**
+         * Caller-supplied flags are not proof of Honda warning arbitration.
+         * Keep production admission closed until a trusted evidence source is
+         * connected and validated against the real vehicle warning path.
+         */
+        public boolean safeForHonda() { return false; }
         public static WarningVisibilityPolicy unknown() {
             return new WarningVisibilityPolicy(Evidence.UNKNOWN, false, false, false, true);
         }

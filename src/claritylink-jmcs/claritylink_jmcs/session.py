@@ -109,6 +109,9 @@ class ReceiverSession:
             self.trace.emit(TraceEvent.SETUP_REQUEST, generation=self.generation)
             streams = request.body.get("streams")
             if isinstance(streams, (list, tuple)):
+                if (not self.info_profile.displays.enabled and
+                        any(isinstance(entry, dict) and entry.get("type") == 111 for entry in streams)):
+                    raise SessionError("secondary_capability_disabled")
                 for entry in streams[:16]:
                     if isinstance(entry, dict) and entry.get("type") in (110, 111):
                         event = TraceEvent.SETUP_TYPE110 if entry["type"] == 110 else TraceEvent.SETUP_TYPE111

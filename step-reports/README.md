@@ -1,8 +1,42 @@
+## P1 — receiver-ingress feasibility closeout (2026-10-12)
+
+See [P1 closeout](p1-receiver-ingress-feasibility-closeout.md): P1-C1 through P1-C5 support an evidence-complete, bounded NO-GO for stock-session ingress under current constraints. The next step is offline acquisition of a provenance-verified OEM extension contract. P2 Display 1 research is separate; no Honda or iPhone operation is authorized.
+
+## P2 — Display 1 feasibility closeout (2026-10-12)
+
+See [P2 closeout](p2-display1-feasibility-closeout.md): P2-C5 prepares a hash-bound, default-disabled read-only logical-display inventory package; P2-C6 concludes visible rendering remains conditional and recommends a separately approved temporary app only as an admission experiment. No Honda operation or installation occurred.
+
+## 43T1 R7E6A — Test A collector safety closure (2026-10-11)
+
+See [R7E6A report](43t1-r7e6a-test-a-collector-safety-closure.md): corrected strict legacy ADB absence verification, MD5 path binding, and fail-closed process-aware cleanup. API17 x86 absence regression and focused collector fixtures passed. New package is ready for separate explicit authorization; Test A remains unauthorized and was not executed. No Honda or physical Android contact occurred.
+
+## 43T1 R7E6 — API17 runtime and Test A package readiness (2026-10-11)
+
+See [R7E6 report](43t1-r7e6-test-a-readiness-closure.md): API17 x86 watchdog and 100-cycle runtime proof passed; ARMv7/API17 artifact audit, default-disabled collector, fixture matrix, manifest, and authorization packet are ready for separate review. Test A remains unauthorized; no Honda or physical Android target was contacted.
+
+## 43T1 R7E6 — initial runtime attempt (superseded) — 2026-10-11
+
+Historical initial attempt: a shared ADB server attached to the emulator before guest commands. The later isolated runtime pass and frozen package are recorded in the [R7E6 report](43t1-r7e6-test-a-readiness-closure.md).
+
+## 43T1 R7E5A — A0-R evidence review and A0-W package (2026-10-10)
+
+See [R7E5A report](43t1-r7e5a-a0r-review-a0w-package.md): private A0-R evidence reviewed without modification; sanitized result committed; one default-disabled A0-W collector and exact marker lifecycle frozen. A0-W remains unauthorized, Test A remains unauthorized, and no Honda operation occurred.
+
+## 43T1 R7E1 — target diagnostic artifact closure (2026-10-08)
+
+Decision: `R7E_ARTIFACT_COMPLETE_TEST_A_EVIDENCE_BLOCKED`. Split API17/ARMv7 native Test A CLI and separate API17 emulator-only display APK built and audited offline; exact target destination/power/privilege/command/rollback evidence remains blocked. No Honda, vehicle, physical Android device, real iPhone, MFi, or live CarPlay execution occurred. See [R7E1 report](43t1-r7e1-target-diagnostic-artifact-closure.md) and `../research/runtime/r7e1-*`.
+
 ## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
 
 See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI native-socket/exception seams and native builds added; APK/Dalvik, complete races/faults, final 100-cycle run, and exact-head hosted checks remain open.
 
 ## Current / latest milestones
+
+- [43T1-R7E5C — legacy Android 4.2.2 ADB mode-semantics closure](43t1-r7e5c-legacy-adb-mode-closure.md) — offline source review explains prior A0-W mode mismatch; revised 0444 A0-WR package ready for separate authorization; no Honda/ADB action.
+
+- [43T1-R7E4A — A0-R authorization packet reconciliation](43t1-r7e4a-a0r-authorization-packet-reconciliation.md) — recomputed collector source hash at implementation/current PR refs; corrected packet hash; manifest bytes and hash unchanged; no Honda action.
+
+- [43T1-R7E4 — A0-R research-backed hardening](43t1-r7e4-a0r-research-hardening.md) — exact Android 4.2.2 / legacy ADB research, six read-only tool metadata checks, SELinux-unavailable policy refinement, host artifact mode gate, and ADB-sync marker plan; all Honda actions remain separately unauthorized.
 
 - [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.
 
@@ -50,6 +84,14 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 - [43T1-R3 non-inline mediation seam study](43t1-r3-non-inline-mediation-seam-study.md) — preserved historical draft; R3C controls
 
 # Step reports
+
+## 43T1 R7E3 — A0-R execution package ready
+
+See [R7E3 report](43t1-r7e3-a0r-execution-package.md): host-only A0-R collector/manifest and authorization packet prepared and fixture-tested. The tool is disabled by default; no Honda operation occurred. First separately authorizable step is A0-R only, requiring new explicit user authorization.
+
+## 43t1 R7E — Parked-car compatibility preparation (blocked)
+
+R7E1 supersedes the original artifact blocker: see [R7E1 milestone report](43t1-r7e1-target-diagnostic-artifact-closure.md). The original [R7E preparation report](43t1-r7e-parked-car-compatibility-preparation.md) records its historical starting state. Test A remains evidence-blocked and unauthorized; no Honda or vehicle action occurred.
 
 - [43T1 staged prototype discipline rules v2](43t1-rules-v2-staged-prototype-discipline.md) — governance update; no car experiment authorized
 
@@ -272,3 +314,13 @@ Status: `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES`. The cumulative API17 Activ
 ## 43t1 R7D — Integrated target simulation (active)
 
 Local R7D acceptance passed on `architecture/r7d-integrated-target-simulation`; starting head is R7C merge `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`. The 30-minute run measured 14.405 FPS against the 30-FPS target; the gap is documented. PR #18's exact-head Offline CI and CodeQL passed. R7E entry is open for preparation only. Next action: `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. See [`43t1-r7d-integrated-target-simulation.md`](43t1-r7d-integrated-target-simulation.md) and `research/runtime/r7d-*`.
+## 43T1 R7E2 — Test A evidence closure and A0 preparation
+
+R7E2 review/report: [43t1-r7e2-test-a-evidence-closure.md](43t1-r7e2-test-a-evidence-closure.md). Preparation only; no Honda action.
+
+## 43T1 R7E5F — self-contained Test A process-bound closure
+
+Status: `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; host lifecycle tests and ARMv7 audit pass, while API17 x86 runtime proof remains unobserved because ADB was prohibited. Test A remains unauthorized. See [R7E5F report](43t1-r7e5f-test-a-process-bound-closure.md).
+## 43T1 R7E6 — Test A readiness closure attempt (2026-10-11)
+
+The initial API17 runtime attempt stopped before guest commands because a shared ADB server attached to the emulator. The later isolated run passed; see the [R7E6 report](43t1-r7e6-test-a-readiness-closure.md).

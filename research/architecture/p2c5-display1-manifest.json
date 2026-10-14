@@ -1,0 +1,38 @@
+{
+  "version": "P2C5-DISPLAY1-READONLY-1",
+  "collector": "tools/p2c5_display1_collector.py",
+  "collector_sha256": "39278b643a58b7f32bf624a6fa04ea90da26f7dedbb91518ed05c24a4576383b",
+  "commands": [
+    ["adb", "-s", "<EXACT_SERIAL>", "get-state"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "id"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "getprop", "ro.build.version.sdk"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "dumpsys", "display"]
+  ],
+  "purpose": "read logical display service inventory only; never establish window admission or visible rendering",
+  "timeout_seconds_per_command": 12,
+  "retries": 0,
+  "fallbacks": 0,
+  "target_writes": 0,
+  "display_operations": 0,
+  "target_discovery": false,
+  "target_transport_reconfiguration": false,
+  "package_installation": false,
+  "required_shell_identity": "uid=2000(shell)",
+  "required_android_api_level": 17,
+  "permission_basis": "DUMP permission is assigned to shell in AOSP API17 Shell manifest/platform permission mapping; exact Honda shell grants remain unverified until future authorized collection",
+  "raw_evidence_policy": "private mode 0600 file in mode 0700 directory; no commit",
+  "future_confirmations": [
+    "exact Honda serial",
+    "stationary and safely parked",
+    "center display booted",
+    "instrument cluster normal",
+    "no unexpected warnings",
+    "exclusive ADB window",
+    "no manual ADB during collection"
+  ],
+  "classifications": [
+    "DISPLAY_ENUMERATION_RAW_ONLY",
+    "WINDOW_ADMISSION_NOT_TESTED",
+    "VISIBLE_RENDERING_NOT_TESTED"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:claritylink:r7e7i:clock-attestation:2",
+  "title": "R7E7I independent clock-error attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "attestation_id", "issued_utc", "expires_utc", "bindings", "historical", "current", "monotonic_uptime_policy", "inequality_policy", "reviewer"],
+  "properties": {
+    "schema_version": {"const": "R7E7I-CLOCK-ATTESTATION-2"},
+    "attestation_id": {"type": "string", "minLength": 1},
+    "issued_utc": {"type": "string", "format": "date-time"},
+    "expires_utc": {"type": "string", "format": "date-time"},
+    "bindings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["historical_evidence_sha256", "phase_r_evidence_sha256", "collector_sha256", "clock_validation_tool_sha256", "manifest_sha256"],
+      "properties": {
+        "historical_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "phase_r_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "collector_sha256": {"$ref": "#/$defs/sha256"},
+        "clock_validation_tool_sha256": {"$ref": "#/$defs/sha256"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "historical": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_finished_utc", "conservative_error_seconds", "independent_source", "source_uri", "source_timestamp_utc", "source_max_clock_error_seconds", "source_evidence_file", "source_evidence_sha256", "rationale"],
+      "properties": {
+        "event_finished_utc": {"type": "string", "format": "date-time"},
+        "conservative_error_seconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+        "independent_source": {"type": "string", "minLength": 1},
+        "source_uri": {"type": "string", "format": "uri"},
+        "source_timestamp_utc": {"type": "string", "format": "date-time"},
+        "source_max_clock_error_seconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+        "source_evidence_file": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "source_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "rationale": {"type": "string", "minLength": 20}
+      }
+    },
+    "current": {
+      "type": "object", "additionalProperties": false,
+      "required": ["measured_utc", "conservative_error_seconds", "independent_source", "method", "source_uri", "source_max_clock_error_seconds", "source_evidence_file", "source_evidence_sha256"],
+      "properties": {
+        "measured_utc": {"type": "string", "format": "date-time"},
+        "conservative_error_seconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+        "independent_source": {"type": "string", "minLength": 1},
+        "method": {"type": "string", "minLength": 20},
+        "source_uri": {"type": "string", "format": "uri"},
+        "source_max_clock_error_seconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+        "source_evidence_file": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+        "source_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "monotonic_uptime_policy": {"const": "Host UTC is compared against host monotonic elapsed time only to detect a clock step during inspection; monotonic uptime is not wall time. Target /proc/uptime is elapsed time since kernel boot and includes suspend."},
+    "inequality_policy": {"const": "latest_prior = failure_finished_utc + historical_error; earliest_boot = host_start_utc - current_error - (observed_uptime + 0.01s); termination is established only when earliest_boot - latest_prior > 1.0s."},
+    "reviewer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "organization", "fingerprint", "reviewed_utc", "provenance_reference"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "organization": {"type": "string", "minLength": 1},
+        "fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{40,64}$"},
+        "reviewed_utc": {"type": "string", "format": "date-time"},
+        "provenance_reference": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

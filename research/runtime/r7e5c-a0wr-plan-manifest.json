@@ -1,0 +1,136 @@
+{
+  "authorization_separation": {
+    "a0wr": "requires separate explicit authorization bound to this collector and manifest",
+    "test_a": "NOT_AUTHORIZED; no automatic continuation"
+  },
+  "collector_source": "tools/r7e5c_a0wr_collector.py",
+  "collector_source_sha256": "3ef1808354a78e183a1d4803d10fb0409aa61df2ba0e9d27e3bd97cbf77f3adc",
+  "commands": [
+    {
+      "argv": [
+        "devices"
+      ],
+      "id": "A0WR-00",
+      "scope": "host adb inventory"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-ld",
+        "/data/local/tmp"
+      ],
+      "id": "A0WR-01",
+      "scope": "target read; destination revalidation"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-l",
+        "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe"
+      ],
+      "id": "A0WR-02",
+      "scope": "target read; exact-path pre-existence gate"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "push",
+        "build/r7e5c/a0wr/claritylink-a0wr-marker.txt",
+        "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe"
+      ],
+      "id": "A0WR-03",
+      "scope": "single target write; one inert data file"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-l",
+        "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe"
+      ],
+      "id": "A0WR-04",
+      "scope": "target read; exact marker metadata"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "/system/bin/md5",
+        "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe"
+      ],
+      "id": "A0WR-05",
+      "scope": "target read; required marker transport consistency, attempted after every push attempt"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "/system/bin/rm",
+        "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe"
+      ],
+      "id": "A0WR-06",
+      "scope": "single exact-path cleanup mutation"
+    },
+    {
+      "argv": [
+        "-s",
+        "TARGET",
+        "shell",
+        "ls",
+        "-l",
+        "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe"
+      ],
+      "id": "A0WR-07",
+      "scope": "target read; exact absence verification"
+    }
+  ],
+  "exclusive_adb_window_required": true,
+  "expected_remote_mode": "0444",
+  "fallbacks": [],
+  "host_marker_path": "build/r7e5c/a0wr/claritylink-a0wr-marker.txt",
+  "host_staging_mode": "0444",
+  "manifest_version": "R7E5C-A0WR-COMMAND-SET-1",
+  "marker_content_ascii": "ClarityLink A0-WR inert transfer marker\nR7E5C\nNO EXECUTION\n",
+  "marker_md5": "6cac328b32dad06f736d6a7ab78a20c8",
+  "marker_sha256": "3f84d1ff7d301409d5bebfba84b242ff8f0df20e2928a9fdc91687b40c573b9d",
+  "marker_size_bytes": 59,
+  "md5_required_after_push_attempt": true,
+  "mode_transform": "legacy_adb_v1_remote_mode(mode): mode &= 0777; mode |= ((mode >> 3) & 0070); mode |= ((mode >> 3) & 0007)",
+  "push_semantics_note": "AOSP android-4.2.2_r1.2 adb sync unlinks the exact destination before sending; the absence precheck is not atomic, so a unique path and operator-confirmed exclusive ADB window are required. The legacy mode transform is modeled exactly.",
+  "remote_path": "/data/local/tmp/claritylink_a0wr_r7e5c_5d73b2c42a7e19f0.probe",
+  "required_operator_gate": "--exclusive-adb-window-confirmed",
+  "retries": 0,
+  "success_does_not_prove": [
+    "executable mapping or launch",
+    "ClarityLink operation",
+    "Display1 or Presentation",
+    "CarPlay",
+    "USB/iAP2",
+    "MFi",
+    "any Test A result"
+  ],
+  "success_proves": [
+    "one exact ADB sync transfer succeeded",
+    "the exact regular marker matched expected bytes, owner, group, size, mode, and non-executable status",
+    "the exact marker MD5 matched",
+    "the exact marker path was removed and verified absent"
+  ],
+  "target_cleanup": [
+    "A0WR-06: /system/bin/rm of the exact marker path"
+  ],
+  "target_writes": [
+    "A0WR-03: one adb push of the exact inert marker"
+  ],
+  "timeout_seconds": 15
+}

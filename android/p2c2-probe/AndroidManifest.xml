@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylink.p2c2.probe">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:label="ClarityLink P2-C2 Emulator Probe">
+        <activity android:name="org.claritylink.android.P2C2AdmissionProbeActivity"
+            android:exported="true" />
+    </application>
+</manifest>

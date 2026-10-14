@@ -1,0 +1,32 @@
+# P2-C3 — native Display 1 alternatives
+
+**Starting HEAD:** `839c84bb15626fd13e3dea4d689db701bab7a306`. Offline static/decompiled review only. The [P2-C1 owner map](p2c1-display1-ownership.md) and [P2-C2 API17 probe](p2c2-api17-presentation-contract.md) are the baseline. AOSP emulator admission does not establish Honda admission. No Honda operation, APK install, framebuffer access, or renderer launch occurred.
+
+## Ranked alternatives
+
+The [machine-readable matrix](p2c3-native-display-matrix.json) records caller permission, data format, surface/layer ownership, z-order, warning precedence, crash restoration, and the decisive missing evidence for each boundary. Ranking means research priority, not permission to invoke an interface.
+
+| Rank | Boundary | Bounded result |
+|---|---|---|
+| 1 | Existing `ExternalDisplayApService` Binder | Real cross-process control/status IPC; decompiled `IExternalDisplayApService` methods have primitive, string, Honda parcelable, or callback arguments. No reviewed `Surface`, `View`, FD, bitmap, frame, or window-token transaction. Caller admission and method checks remain unknown. It cannot currently carry ClarityLink pixels. |
+| 2 | Honda Navigation / TBT Binder | Real semantic route/guidance IPC, with Honda-native provenance in reviewed code. It can cause Honda-owned content changes, but no independent window, Surface, arbitrary frame, or safe navigation region handoff was found. Invoking it could alter stock guidance; no trial is authorized. |
+| 3 | Vendor `ExternalDisplayOutService` window host | Owns three full-frame type-2006 View roots on Display 1. `InterfaceWindow.addView(int, View, boolean)` is same-process; exported service `onBind()` returns `null`. A documented external View/Surface handoff is missing. |
+| 4 | SurfaceFlinger / generic Surface passing | Android can compose app-owned surfaces, but direct layer transactions require framework/internal access and a valid producer/consumer contract. No Honda service accepts a foreign Surface or provides safe warning priority. No-APK caller admission remains unproved. |
+| 5 | `disp_com_meter` / Tegra graphics | Saved strings/scripts show meter command/I2C and `tegradc.1`/`fb1` correspondence. No supported pixel ABI, authenticated caller, z-order, or crash restoration contract. Raw framebuffer takeover is prohibited. |
+
+The first two are useful *control/semantic* interfaces but are not credible arbitrary-pixel admission candidates in the reviewed contracts. Therefore no production native adapter was built. The [host-only contract stub](../../tests/display/test_p2c3_native_admission.py) models a denied caller and an admitted control caller: neither can submit a Surface or frame. It intentionally does not invoke Binder, infer Honda permission grants, or change a stock service. A newly found endpoint with a real Surface/FD transaction would justify a separate adapter and tests.
+
+## Interface details and provenance
+
+- `ExternalDisplayApService`: saved manifest marks the AP service exported without a component-level bind permission. That does **not** establish method-level access, signature admission, or an arbitrary content API. The reviewed `IExternalDisplayApService.java` SHA256 is `8121b4964b017a9bdedd76792db8df13a868b066c8f17338733e5a666666260c`; its method list at lines 16–64 and Binder proxy at 287–863 carry LVDS/channel/meter/interrupt data and callback interfaces. The AP UID is 10055 in saved `packages.xml`; do not transfer grants from the separate render-host UID 10056. [API surface](../display/externaldisplay-api-surface.md), [package grants](../runtime/43t1-r4d-package-grants-permission-resolution.md).
+- `ExternalDisplayOutService`: reviewed decompiled service SHA256 `ae3eb38879558a176c6093915d90a9d1b9d4baf3443efcf19abbcd29788d709b`; `onBind` returns `null` at lines 740–743. `InterfaceWindow.java` SHA256 `8597ff539ababeeda4e7bf3358e275db410c394e8e048734e845f957ac791e73`; lines 109, 116 and 133 add bottom/main/interrupt roots; line 225 exposes only a static process-local `addView`. Saved captures place full-frame 800×480 windows on layer stack 1. [Owner audit](../runtime/43t1-r4c-honda-display1-ownership-audit.md), [warning order](../runtime/43t1-r4d-warning-zorder-static-evidence.md).
+- Navigation/TBT: `NavigationLib`, `HondaNavigationLib`, and `HondaNavigationNaviLib` provide semantic guide objects, not a `Surface`/frame endpoint. The saved factory-navigation safe-area inventory found no actual physical navigation rectangle. [Navigation safe-area evidence](../navigation-safe-area.md), [P1 navigation provenance](p1c3-navigation-dataflow.md).
+- Framework/native graphics: `SurfaceFlinger` composes existing windows; a direct transaction is not an app content entitlement. Tegra `fb1` similarity does not establish usable format or safety. [P2-C1 seams](p2c1-display-seams.json), [cluster diagnostics](../cluster-display-diagnostics.md).
+
+## Admission and failure boundaries
+
+For every path, a valid caller identity, data schema, display/window ownership, non-overlapping geometry, warning preemption, surface-loss handling and crash removal would be required. None of the reviewed Honda native interfaces supplies all of them. The emulator host stub checks that an unknown/denied caller cannot acquire a content interface; it is not evidence about Honda's runtime grants. A real Surface handoff would additionally need explicit buffer lifecycle, fence/FD ownership and revocation on client death. Honda's interrupt root priority against another process, and the physical protected region, remain unknown.
+
+**P2-C3 result:** no supported native arbitrary-content interface is identified in the reviewed artifacts. The public API17 app route remains a separately scoped candidate with a no-APK blocker. The decisive next evidence is a build-matched OEM Binder/AIDL or native service contract that explicitly accepts an external `Surface`/buffer/FD, states caller admission and teardown, and preserves Honda warning roots; otherwise an authorized revised deployment constraint would be needed. P2-C4 may build a synthetic fail-closed geometry model without asserting Honda admission.
+
+**Manual ECC-guided review:** checked cross-process reachability against method signatures and `onBind`, kept manifest request separate from effective permission, rejected semantic navigation/control calls as pixel sinks, and kept warning priority and crash behavior unknown. No independent ECC reviewer was invoked for this chunk.

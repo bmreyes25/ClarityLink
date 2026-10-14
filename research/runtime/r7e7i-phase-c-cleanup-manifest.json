@@ -1,0 +1,31 @@
+{
+  "manifest_version": "R7E7I-PHASE-C-CONDITIONAL-1",
+  "collector_source": "tools/r7e7i_phase_c_cleanup.py",
+  "collector_source_sha256": "730c23edd95038bfe4be50e67bef9a58e36d128f92f26dd7649b05aa827c98a0",
+  "exact_path": "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f",
+  "expected": {
+    "type": "regular-file",
+    "size_bytes": 7904,
+    "mode": "0555",
+    "owner_group": "shell:shell",
+    "md5": "6137a693a77646aaf9a4cf0f351731d4"
+  },
+  "commands": [
+    ["adb", "version"],
+    ["adb", "devices"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "/system/bin/md5", "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "/system/bin/rm", "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"],
+    ["adb", "-s", "<EXACT_SERIAL>", "shell", "ls", "-ld", "/data/local/tmp/claritylink_target_diag_r7e6a_4b91c27e6d3a508f"]
+  ],
+  "timeout_seconds_per_command": 12,
+  "retries": 0,
+  "fallbacks": 0,
+  "delete_attempts": 1,
+  "allowed_delete": "one exact-path /system/bin/rm only after fresh identity, current process-safety and no-relaunch reviews, and new single-use authorization",
+  "post_delete_success": "one exact-path legacy ENOENT response only",
+  "stop_conditions": ["identity mismatch", "unexpected metadata", "MD5 mismatch", "permission failure", "timeout", "ambiguous response", "process/relaunch uncertainty", "post-delete verification failure"],
+  "authorization": "NOT PRESENT; the host executable remains fail-closed until an independent authorization verifier and package-bound authorization schema are reviewed",
+  "writes_in_this_milestone": 0,
+  "hardware_operations_in_this_milestone": 0
+}

@@ -1,5 +1,8 @@
+import base64
 import importlib.util
 from pathlib import Path
+import shutil
+import subprocess
 import unittest
 
 
@@ -11,6 +14,27 @@ SPEC.loader.exec_module(MODULE)
 
 
 class OfflineDualDecodeTests(unittest.TestCase):
+    def test_cl_imp_08_dual_stream_and_resolution_fixtures_are_decodable(self):
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            self.skipTest("FFmpeg is required to validate the H.264 fixture")
+        fixtures = (("type110-red-32x32.h264.b64", (32, 32)),
+                    ("type111-blue-32x32.h264.b64", (32, 32)),
+                    ("type111-green-64x64.h264.b64", (64, 64)))
+        for name, dimensions in fixtures:
+            with self.subTest(fixture=name):
+                fixture = ROOT / "tests/fixtures/cl-imp-08" / name
+                access_unit = base64.b64decode(fixture.read_bytes().strip(), validate=True)
+                result = subprocess.run(
+                    [ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "h264", "-i", "pipe:0",
+                     "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"],
+                    input=access_unit, capture_output=True, timeout=5, check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", "replace"))
+                self.assertTrue(result.stdout.startswith(b"\x89PNG\r\n\x1a\n"))
+                self.assertEqual((int.from_bytes(result.stdout[16:20], "big"),
+                                  int.from_bytes(result.stdout[20:24], "big")), dimensions)
+
     def test_two_independent_decoders_replay_entire_fixture(self):
         if not MODULE.DEFAULT_FFMPEG.is_file() or not MODULE.DEFAULT_FIXTURE.is_file():
             self.skipTest(

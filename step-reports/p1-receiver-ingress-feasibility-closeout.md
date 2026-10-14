@@ -1,0 +1,38 @@
+# Phase 1 closeout — receiver ingress feasibility
+
+**Decision: `P1_NO_GO_PENDING_NEW_INTERFACE_EVIDENCE`.** At starting HEAD `b813dc8968c6ec5c8be13df612425e3e521455f9`, PR #19, the reviewed 2018 Clarity artifacts establish stock CarPlay ownership but no permitted content boundary from that authenticated session to a separate ClarityLink process. This closes Phase 1 under the current constraints. It does not rule out a future OEM interface, a revised separately approved design, or an independent navigation product. No Honda or iPhone session was used for this closeout.
+
+## Reviewed baseline and exact decision replay
+
+| Investigation | Bounded finding | Primary record |
+|---|---|---|
+| P1-C1 | `jmcs` owns USB/iAP2, authentication, session and Type110; the external status Binder is not a content feed. | [Ownership](../research/architecture/p1c1-stock-session-ownership.md), [seams](../research/architecture/p1c1-session-seams.json) |
+| P1-C2 | Type111 is skipped in reviewed SETUP; no additive extension or stream/security handoff found in the hash-matched `jmcs`/proxy artifacts. | [Audit](../research/architecture/p1c2-jmcs-additive-extension-audit.md), [matrix](../research/architecture/p1c2-type111-extension-matrix.json) |
+| P1-C3 | Reviewed navigation Binder callbacks carry status booleans; no authentic active-app maneuver payload plus admitted external subscriber was proved. | [Ingress](../research/architecture/p1c3-iap2-route-guidance-ingress.md), [matrix](../research/architecture/p1c3-route-guidance-interface-matrix.json) |
+| P1-C4 | Separate wired/wireless receivers and Honda coexistence remain unproved; one-receiver PlayPort lab behavior is a different scope. | [Coexistence](../research/architecture/p1c4-independent-receiver-coexistence.md), [topologies](../research/architecture/p1c4-receiver-topologies.json) |
+| P1-C5 | A–G ranked, A–L gates recorded, all current positive proof catalogs empty. | [Decision](../research/architecture/p1c5-ingress-decision.md), [manifest](../research/architecture/p1c5-ingress-decision.json), [gate rules](../research/architecture/p1c5-evidence-gates.md) |
+
+The exact P1-C5 manifest (`P1C5-INGRESS-DECISION-1`, source HEAD `dc5d045bfacfcd5bc21b83d822f71b4f4c75df9e`) was evaluated without modifying it by [the engine](../src/carplay-session-model/ingress_decision.py), which rehashes its reviewed source reports. Seven of seven candidates have `interface_evidence_sufficient=false`, `supported_for_implementation=false`, `deployment_eligible=false`, and `original_goal_validated=false`. A–E and G are model-consistent only; F is unassessed and remains a lab oracle. There is no Honda-live validation in this manifest. The engine's code-pinned source HEAD is historical provenance, not a demand that the current Git HEAD remain at P1-C5. Its result is an advisory offline gate, never operational authorization.
+
+## Frozen requirements and three distinct branches
+
+The [receiver ingress contract](../research/architecture/receiver-ingress-contract.md) freezes the required `/info` secondary descriptor, Type111 SETUP request and response, exact stream endpoint, session/generation association, authorized authentication and per-stream security, separately admitted caller, teardown and independent Type110/audio/call/Siri behavior. A mutable plist, exported process-local symbol, generic socket, status Binder or zero-error ownership model supplies none of those missing cross-process contracts.
+
+1. **Supported stock-session delegation (preferred A; maneuver-only B separately).** Reopen only with a provenance-verified, build-compatible OEM contract and a producer-to-consumer trace for the actual data. A Type111 video path could address the full-map goal; a route-guidance path would deliver maneuvers only. Neither is supported for production implementation today.
+2. **Explicitly approved revised integration constraints (D/E or another evidenced path).** If product constraints change, write the changed ownership, installation, transport, authentication and audio rules first and obtain a separate safety/security review. Re-run all twelve gates with newly scoped evidence. A revised constraint cannot make the current Honda session shareable by assertion. No stock modification or credential extraction is accepted by this closeout.
+3. **Independent navigation source (G fallback).** A user-authorized companion and separate data channel might feed ClarityLink-owned route information. It must be labeled as that source; it is not the active Apple Maps/Waze route or Type111 video without app-origin proof. Display 1 admission remains a separate gate.
+
+The two P1-C5 rankings remain in force: **if all missing interfaces were proved**, A, B, G, D, E, C, F; **research utility of evidence today**, F, C, A, B, G, D, E. The second list does not contain a deployable option. [Machine-readable reopening gates](../research/architecture/p1c6-architecture-reopening-gates.json) make each transition explicit.
+
+## Prioritized new-evidence acquisition
+
+1. **Highest information gain, offline:** obtain a lawful, provenance-verified OEM Honda extension contract or matching source/build artifact for this receiver lineage. It must identify `/info` contribution, Type111 SETUP/response, endpoint/security delegation, caller admission and teardown while Honda keeps Type110. Compare artifact identity and ABI by the contract's provenance procedure. A complete positive contract could move A to a *reviewable candidate*; its absence leaves the present NO-GO unchanged.
+2. **Only if step 1 yields a credible entry:** trace the actual producer, registration, session generation, callback or FD handoff, permissions, failure path and unregister operation in a matching artifact. Verify that another consumer is added without replacing Honda's singleton delegates or proxy callback.
+3. **Separate alternative:** seek authoritative, build-compatible iAP2 route-guidance ingress and an external no-APK content subscriber for B. Verify active-app provenance and payload fields rather than extrapolating from status booleans or Honda-native navigation objects.
+4. **Later, only after an admitted offline contract and fresh authorization:** design a bounded live validation for session identity, stock Type110/audio continuity, secondary teardown and Display 1 safety. No live observation, APK installation or Honda command is authorized here.
+
+A related Honda/Acura image is comparative evidence only until its model/build lineage, original bytes, hashes, ELF architecture, library/dependency versions, symbols and callsite differences are documented. Never merge addresses or callgraphs from different hashes. A newer Type111 handler does not establish that the 2018 Clarity can load or call it. Do not transplant binaries or proprietary credentials.
+
+## Work boundaries after Phase 1
+
+P2 may independently map Android Display 1 ownership, public API17 admission, safe window ordering and physical warning priority using preserved evidence. P3 runtime recovery may proceed only under its own separate review and authorization; this closeout grants no Honda operation. Existing Type111 parsers, transport, lifecycle, native decode and synthetic receiver tests remain useful offline. P4 stock-facing production ingress, a stock security bridge, production Type111 activation and Test A/B remain blocked. The next phase decision requires new source evidence and independent ECC review, then explicit authorization for any live experiment. P2-C1 is a separate Display 1 audit; it cannot reverse this ingress NO-GO by proving a pixel output path alone.

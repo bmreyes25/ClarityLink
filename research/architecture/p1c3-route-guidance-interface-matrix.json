@@ -1,0 +1,257 @@
+{
+  "milestone": "P1-C3",
+  "starting_head": "90e0d38671d9c7dfcd14e4d94ca5115c2963f329",
+  "scope": "offline, original artifacts read-only, no Honda or iPhone contact",
+  "decision": "P1_C3_STATUS_ONLY_NO_AUTHENTIC_GUIDANCE",
+  "candidates": [
+    {
+      "component": "iAP2 Identification",
+      "artifact": "../clarity-analysis/extracted/system/system/bin/jmcs",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "producer": "iap2_acc_id_start 0x20f390; iap2_acc_id_update 0x17b334",
+      "consumer": "iap2_acc_id_accepted 0x20f418",
+      "source_type": "UNKNOWN_PROVENANCE",
+      "message_type": "Identification state messages",
+      "payload_fields": [],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "iAP2 attach/auth state; exact route feature unproven",
+      "transport": "iAP2 control",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "no read-only route subscription demonstrated",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/iap2-identification.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Negotiated Route Guidance feature values and message IDs.",
+      "decisive_experiment": "Trace hash-matched Identification serializer and accepted feature set offline.",
+      "classification": "UNKNOWN_SPECIFIC_EVIDENCE_REQUIRED"
+    },
+    {
+      "component": "iAP2 control dispatcher",
+      "artifact": "../clarity-analysis/extracted/system/system/bin/jmcs",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "producer": "iap2_core_rcvd_control 0x2092bc and iap2_session_handler 0x200090 are generic internal functions; their call direction is untraced",
+      "consumer": "route-specific downstream consumer not identified",
+      "source_type": "UNKNOWN_PROVENANCE",
+      "message_type": "generic control dispatch",
+      "payload_fields": [],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "stock session ownership unless otherwise stated",
+      "transport": "iAP2 control channel",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "no read-only route subscription demonstrated",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/iap2-identification.md",
+        "research/architecture/p1c3-iap2-route-guidance-ingress.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Route Guidance case, parser, payload and caller.",
+      "decisive_experiment": "Complete bounded dispatch case/callgraph trace in matching jmcs.",
+      "classification": "UNKNOWN_SPECIFIC_EVIDENCE_REQUIRED"
+    },
+    {
+      "component": "iAP2 EA and location-information paths",
+      "artifact": "../clarity-analysis/extracted/system/system/bin/jmcs",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "producer": "iap2_core_rcvd_ea 0x20b79c; iap2_location_info_send_info 0x186da0",
+      "consumer": "internal iAP2 callbacks",
+      "source_type": "UNKNOWN_PROVENANCE",
+      "message_type": "EA receive and location info send",
+      "payload_fields": [],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "stock session ownership unless otherwise stated",
+      "transport": "iAP2 EA / location channel",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "no read-only route subscription demonstrated",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/architecture/p1c3-iap2-route-guidance-ingress.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Any route-linked EA protocol and direction-specific payload.",
+      "decisive_experiment": "Trace registered EA protocol IDs and callbacks without inferring RGI from send-info names.",
+      "classification": "UNKNOWN_SPECIFIC_EVIDENCE_REQUIRED"
+    },
+    {
+      "component": "CarPlayApService navigation callback",
+      "artifact": "../clarity-analysis/research/extracted/CarPlayService.dex",
+      "artifact_sha256": "f1eeacc35f6bf568b6470a178f2c6f80682f2e07d0e3d13364b62900f542eee4",
+      "producer": "OwnershipControl.java:520-530; PhoneControl.java:719-732",
+      "consumer": "ICarPlayApServiceCallbackForNavi; stock NavigationApService",
+      "source_type": "GENERIC_NAVIGATION_STATUS",
+      "message_type": "onAbortCarPlayNavigation; onCarPlayCallEnable",
+      "payload_fields": [
+        "boolean abort",
+        "boolean call-enabled"
+      ],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "stock session ownership unless otherwise stated",
+      "transport": "Android Binder RemoteCallbackList",
+      "cross_process_access": "declared exported service; stock Binder client proven, no-APK admission unverified",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "registerCallbackForNavi transaction 64; unregister 65",
+      "lifecycle": "RemoteCallbackList Binder death/unregister; route generation absent",
+      "type110_interaction": "passive status callback could preserve Type110 if admitted; no guidance",
+      "no_apk_compatibility": "unknown; Java service binding and UID requirements unresolved",
+      "evidence": [
+        "research/carplay/carplayservice-api-surface.md",
+        "research/architecture/p1c3-navigation-dataflow.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Effective caller admission and any separate maneuver callback.",
+      "decisive_experiment": "Offline Binder permission and complete callback producer audit.",
+      "classification": "STATUS_ONLY"
+    },
+    {
+      "component": "Honda factory route-info JSON",
+      "artifact": "../clarity-analysis/research/extracted/Navigation.dex",
+      "artifact_sha256": "7363fa96566308da7bb9c57f53a90423701b7ff18d22aa7f12013fff09f5fa32",
+      "producer": "RouteInfo.java sends GET_ROUTE_INFO and receives RES_ROUTE_INFO under Honda navigation action names; actual response sender package/UID unverified",
+      "consumer": "ISetRouteInfoListener; CarPlay NavigationControl",
+      "source_type": "HONDA_NATIVE_NAVIGATION_CONTRACT; actual response sender unverified",
+      "message_type": "GET_ROUTE_INFO / RES_ROUTE_INFO",
+      "payload_fields": [
+        "String JSON of native route response; status parsed by CarPlay service"
+      ],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "mNaviFlag and Honda navigation broadcast contract; sender authentication unverified; no CarPlay auth dependency shown",
+      "transport": "broadcast + Android Binder",
+      "cross_process_access": "stock Navigation-to-CarPlay Binder proven; no-APK caller unverified",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "requestGetRouteInfoCallback; serialized request queue",
+      "lifecycle": "one-shot callback queue and 20-second timeout",
+      "type110_interaction": "request triggers factory navigation work; not passive",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/architecture/p1c3-navigation-dataflow.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Actual response sender package/UID, full JSON schema and any iPhone source edge.",
+      "decisive_experiment": "Verify factory navigation producer artifact and call chain offline.",
+      "classification": "HONDA_NATIVE_NAVIGATION_ONLY"
+    },
+    {
+      "component": "Honda TBT meter service",
+      "artifact": "../clarity-analysis/research/extracted/HondaNavigationLib.dex",
+      "artifact_sha256": "e74631b1f2f6d50d4fab4db754855467108f03cd6747f088778985cdfd80c732",
+      "producer": "Honda Navigation / NavigationApService TBTInformation",
+      "consumer": "meter/cluster callbacks",
+      "source_type": "HONDA_NATIVE_NAVIGATION",
+      "message_type": "ITBTInformation",
+      "payload_fields": [
+        "native guide and current packets; not iPhone decoded fields"
+      ],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "Honda native navigation, not stock CarPlay",
+      "transport": "Android Binder and vehicle/meter path",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "setters may affect vehicle output; not a passive route source",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/architecture/p1c3-navigation-dataflow.md",
+        "research/runtime/43t1-r4c-display-permission-signing-audit.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Exact factory TBT packet source and display permissions.",
+      "decisive_experiment": "Trace only read-only factory producer and existing consumers; avoid setters.",
+      "classification": "HONDA_NATIVE_NAVIGATION_ONLY"
+    },
+    {
+      "component": "Android Auto TBT path",
+      "artifact": "../clarity-analysis/research/extracted/Navigation.dex",
+      "artifact_sha256": "7363fa96566308da7bb9c57f53a90423701b7ff18d22aa7f12013fff09f5fa32",
+      "producer": "NavigationApService Android Auto callback setup around 0x source line 1331",
+      "consumer": "TBTInformation / meter",
+      "source_type": "ANDROID_AUTO_NAVIGATION",
+      "message_type": "AndroidAutoInfoCallback",
+      "payload_fields": [
+        "status/TBT values not decoded here"
+      ],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "Android Auto, not CarPlay",
+      "transport": "Android Binder",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "no read-only route subscription demonstrated",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/architecture/p1c3-navigation-dataflow.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Full AA payload and consumer chain irrelevant to iPhone objective.",
+      "decisive_experiment": "Keep AA provenance separate from iAP2 route audit.",
+      "classification": "ANDROID_AUTO_ONLY"
+    },
+    {
+      "component": "JMediaCore native IPC",
+      "artifact": "../clarity-analysis/extracted/system/system/bin/jmcs",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "producer": "JMediaCore channel producer unknown",
+      "consumer": "handle_data_received 0x264c90; context callback at 0x264cf2",
+      "source_type": "UNKNOWN_PROVENANCE",
+      "message_type": "generic createChannel/sendData/setListener",
+      "payload_fields": [
+        "opaque Parcel"
+      ],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "stock session ownership unless otherwise stated",
+      "transport": "native Binder channel",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "no read-only route subscription demonstrated",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/architecture/p1c3-navigation-dataflow.md",
+        "research/runtime/r6c-jmcs-auth-dependency-graph.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Channel IDs, parcel schema, route producer, external service admission and lifetime.",
+      "decisive_experiment": "Trace channel creation registrations and callback destinations on hash-matched ELF.",
+      "classification": "UNKNOWN_SPECIFIC_EVIDENCE_REQUIRED"
+    },
+    {
+      "component": "Type111 navigation video",
+      "artifact": "../clarity-analysis/extracted/system/system/bin/jmcs",
+      "artifact_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+      "producer": "iPhone secondary video unobserved",
+      "consumer": "AirPlayReceiverSessionSetup Type111 skipped",
+      "source_type": "CARPLAY_NAVIGATION_VIDEO",
+      "message_type": "SETUP Type111",
+      "payload_fields": [],
+      "session_identity": "not established for external ClarityLink consumer",
+      "authentication_dependency": "stock session ownership unless otherwise stated",
+      "transport": "CarPlay screen stream",
+      "cross_process_access": "not demonstrated for authentic iPhone guidance",
+      "caller_permissions": "unverified for no-APK ClarityLink process",
+      "registration_method": "none demonstrated for authentic iPhone guidance",
+      "lifecycle": "unverified route/session cleanup",
+      "type110_interaction": "stock Type110 continues; adding Type111 has no supported extension",
+      "no_apk_compatibility": "unverified",
+      "evidence": [
+        "research/architecture/p1c2-jmcs-additive-extension-audit.md"
+      ],
+      "confidence": "bounded static evidence; no live route capture",
+      "missing_evidence": "Accepted Type111 negotiation and stream handoff.",
+      "decisive_experiment": "Retain P1-C2 bounded conclusion; inspect only new proven artifact in later chunk.",
+      "classification": "NOT_PRESENT_IN_REVIEWED_EVIDENCE"
+    }
+  ]
+}

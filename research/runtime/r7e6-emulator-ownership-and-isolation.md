@@ -1,0 +1,9 @@
+# R7E6 emulator ownership and ADB isolation
+
+The runtime runner creates a unique project AVD under ignored `build/r7e6/avd`, owns the emulator process group and a foreground ADB server on a per-run port, clears inherited device selectors, and sets `ADB_USB=0`. It sets `ANDROID_ADB_SERVER_PORT` to the private server and extends only that server's emulator discovery range. Every runner client uses explicit `-P <private-port>` and `-s emulator-<exact-console-port>`. Before every boot inventory, host `lsof` checks ownership of the exact emulator ADB TCP port and refuses guest commands if any process other than the runner-owned emulator/private server is attached.
+
+Initial attempts demonstrated the failure mode: the shared host ADB server independently attached to the emulator loopback port. Those runs were stopped before a guest command. The final passing run used dedicated server port 5038 and emulator console/ADB ports 5580/5581; host socket checks showed only the exact owned emulator and private server. It ran the API17 matrix and 100 cycles, then stopped its owned processes and removed its unique AVD. The pre-existing shared server was neither stopped nor reconfigured.
+
+`--one-device` is a USB-device constraint, not an emulator isolation mechanism. The safety boundary here instead uses disabled USB discovery on the private server, explicit ADB server/serial selection, and a host-side exact-port ownership guard. All executed ADB commands targeted the project-owned API17 x86 emulator. No physical Android or Honda target was contacted.
+
+This proves command routing and process ownership for the recorded host run. It does not prove the future Honda ADB selector, target identity, or Honda-side behavior; those remain separately gated by Test A authorization and operator checks.

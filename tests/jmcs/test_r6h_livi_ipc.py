@@ -229,8 +229,8 @@ def test_synthetic_livi_info_and_setup_reach_receiver_session_once(tmp_path: Pat
         if os.path.exists(path):
             break
         threading.Event().wait(0.01)
-    peer = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    peer.connect(path)
+    # Like the other bridge tests, tolerate path creation immediately before listen().
+    peer = _connect_local(path)
     peer.sendall((json.dumps([1, "authenticated", str(uuid.uuid4()), AUTH_STATE_PROOF]) + "\n").encode())
     assert _frame(peer) == [1, "session_ready", 1]
     opener.join(4)

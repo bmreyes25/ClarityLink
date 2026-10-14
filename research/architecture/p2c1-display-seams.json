@@ -1,0 +1,428 @@
+{
+  "version": "P2C1-DISPLAY-SEAMS-1",
+  "milestone": "P2-C1",
+  "source_head": "7989f7c11e7dd87231a85a017ee06ba7c26a5594",
+  "scope": "offline preserved Honda static/decompiled and saved observations plus Android 4.2.2/API17 source",
+  "classification_vocabulary": [
+    "SUPPORTED",
+    "PRIVILEGED",
+    "PROCESS_LOCAL",
+    "PROHIBITED",
+    "UNKNOWN"
+  ],
+  "decision": "DISPLAY1_RENDER_OWNER_IDENTIFIED_INDEPENDENT_WINDOW_ADMISSION_UNKNOWN",
+  "supported_safe_separate_content_window": false,
+  "p1_ingress_decision": "P1_NO_GO_PENDING_NEW_INTERFACE_EVIDENCE",
+  "evidence": {
+    "P1_CLOSEOUT": {
+      "path": "step-reports/p1-receiver-ingress-feasibility-closeout.md",
+      "sha256": "407f4f4b8054ae25fab54e0fa7201dccde7774201fa841972c3ac0f1b5cc2f72",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "R4C_OWNER": {
+      "path": "research/runtime/43t1-r4c-honda-display1-ownership-audit.md",
+      "sha256": "501c8b157704568bb0985dbd7d5233406e4fdbf473740038aea47f15613256db",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "R4C_API17": {
+      "path": "research/runtime/43t1-r4c-api17-external-display-static-review.md",
+      "sha256": "824832e1c4838722c528387fc9e5cf3e55c89cc984272d684b661f59bab740bb",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "R4C_PERMISSIONS": {
+      "path": "research/runtime/43t1-r4c-display-permission-signing-audit.md",
+      "sha256": "621d3cd231afba68d3231c236ab5dc06459fc94db2a5b0d5072baae82931264d",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "R4D_POLICY": {
+      "path": "research/runtime/43t1-r4d-framework-window-policy-audit.md",
+      "sha256": "46546216de9012e9baa4ee9bb17a535cef46e3cd90471996e01f134715bc068d",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "R4D_GRANTS": {
+      "path": "research/runtime/43t1-r4d-package-grants-permission-resolution.md",
+      "sha256": "91b95023cc16da27c5d78b78e54bb2f22146f8bf7d59702d66efe939a06e2551",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "R4D_WARNINGS": {
+      "path": "research/runtime/43t1-r4d-warning-zorder-static-evidence.md",
+      "sha256": "a285d5ddae572a56317af6bd2b552df0ae41e5ea7c8422d40484405a4da9d3d4",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "DISPLAY_API": {
+      "path": "research/display/externaldisplay-api-surface.md",
+      "sha256": "fa45d1d97991ef19a2adeb5d558e4e86d2d815003ac410a1e9362db0c688a101",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "HOST_FLOW": {
+      "path": "research/display/externaldisplay-host-flow.md",
+      "sha256": "1c2f05fce70ffbb712759a292d8e6b41ae4a07f24bfdb3b9b38411340c7f76dc",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "DISPLAY_DIAGNOSTICS": {
+      "path": "research/cluster-display-diagnostics.md",
+      "sha256": "42725706ebda8bc4910d926857bb20d8f16d36a5aa843f0331c50647056d125f",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "SAFE_AREA": {
+      "path": "research/navigation-safe-area.md",
+      "sha256": "4ce6822013bd8c4adb54b31d3c0dcc9da396ee8fcaaa77ded2852af96cbf26f8",
+      "provenance": "tracked_report",
+      "scope": "bounded static analysis or saved observation as specified in source"
+    },
+    "OUTSERVICE_JAVA": {
+      "path": "research/decompiled/ExternalDisplayOutService/sources/com/mitsubishielectric/ada/app/externaldisplay/ExternalDisplayOutService.java",
+      "sha256": "ae3eb38879558a176c6093915d90a9d1b9d4baf3443efcf19abbcd29788d709b",
+      "provenance": "private_sibling_checkout_decompiled_or_saved_state",
+      "scope": "hash of local derived file, not original APK identity"
+    },
+    "INTERFACEWINDOW_JAVA": {
+      "path": "research/decompiled/ExternalDisplayOutService/sources/com/mitsubishielectric/ada/app/externaldisplay/interfaces/InterfaceWindow.java",
+      "sha256": "8597ff539ababeeda4e7bf3358e275db410c394e8e048734e845f957ac791e73",
+      "provenance": "private_sibling_checkout_decompiled_or_saved_state",
+      "scope": "hash of local derived file, not original APK identity"
+    },
+    "EXTERNALDISPLAY_AIDL_DECOMPILED": {
+      "path": "research/decompiled/ExternalDisplayLib/sources/com/mitsubishielectric/ada/appservice/externaldisplay/IExternalDisplayApService.java",
+      "sha256": "8121b4964b017a9bdedd76792db8df13a868b066c8f17338733e5a666666260c",
+      "provenance": "private_sibling_checkout_decompiled_or_saved_state",
+      "scope": "hash of local derived file, not original APK identity"
+    },
+    "OUTSERVICE_MANIFEST": {
+      "path": "research/resources/ExternalDisplayOutService/AndroidManifest.xml",
+      "sha256": "4ca72b5daa2c3f681b6d82e28e47d83b4a909f4c9eff737b8ecf8fde30977ab9",
+      "provenance": "private_sibling_checkout_decompiled_or_saved_state",
+      "scope": "hash of local derived file, not original APK identity"
+    },
+    "APSERVICE_MANIFEST": {
+      "path": "research/resources/ExternalDisplayApService/AndroidManifest.xml",
+      "sha256": "7a12729de5a37c2218ec28f58821d13dee95be151159ffe0027a9f6c3be8354f",
+      "provenance": "private_sibling_checkout_decompiled_or_saved_state",
+      "scope": "hash of local derived file, not original APK identity"
+    },
+    "PACKAGES_SNAPSHOT": {
+      "path": "research/extracted/config/data/system/packages.xml",
+      "sha256": "7f15df7071b43f9502e54ba4047ada0618daa636d568f92bfa8d7c8b9d0d696f",
+      "provenance": "private_sibling_checkout_decompiled_or_saved_state",
+      "scope": "hash of local derived file, not original APK identity"
+    }
+  },
+  "candidates": [
+    {
+      "id": "DM_ENUM",
+      "name": "Public DisplayManager enumeration",
+      "owning_process": "Android framework / Honda display host",
+      "producer": "DisplayManagerService",
+      "consumer": "calling app or Honda service",
+      "abi_or_ipc": "framework display-service IPC",
+      "classification": "SUPPORTED",
+      "content_capability": "DISPLAY_DISCOVERY_ONLY",
+      "cross_process_access": "Generic API17 public; Honda own service uses it",
+      "caller_uid_or_signature_requirement": "No generic API17 display-enumeration signature gate established; Honda ordinary-app result unknown",
+      "exported_api": "DisplayManager.getDisplays() / getDisplays(category)",
+      "window_creation_path": "Does not create a window",
+      "surface_ownership": "No caller surface from enumeration",
+      "layer_ownership": "No new layer",
+      "stock_warning_priority": "Not addressed",
+      "lifecycle_cleanup": "Display listeners can track changes; Honda service registers/unregisters listener",
+      "evidence_ids": [
+        "R4C_API17",
+        "OUTSERVICE_JAVA"
+      ],
+      "confidence": "HIGH_FOR_BOUNDED_CLAIM",
+      "missing_evidence": "Ordinary app visibility of Display 1 and window admission",
+      "next_decisive_experiment": "Find build-matched Honda policy or preserved normal-app enumeration/admission record",
+      "no_apk_compatibility": "NO_FOR_UNINSTALLED_NATIVE_PROCESS_PUBLIC_JAVA_API_REQUIRES_APP_CONTEXT"
+    },
+    {
+      "id": "PRESENTATION",
+      "name": "Ordinary app Presentation",
+      "owning_process": "Separately running app; framework WindowManager",
+      "producer": "App Presentation",
+      "consumer": "WindowManager/SurfaceFlinger",
+      "abi_or_ipc": "public API17 display-bound Dialog/WindowManager",
+      "classification": "UNKNOWN",
+      "content_capability": "APP_OWNED_WINDOW_IF_ADMITTED",
+      "cross_process_access": "Generic Android cross-process framework path; Honda result not observed",
+      "caller_uid_or_signature_requirement": "No special Honda privilege shown by AOSP API; Honda UID/token policy unknown",
+      "exported_api": "android.app.Presentation",
+      "window_creation_path": "Presentation on identified HDMI Display 1",
+      "surface_ownership": "App would own its window surface after admission",
+      "layer_ownership": "Framework would compose into Display 1 stack if admitted",
+      "stock_warning_priority": "Unproved versus Honda main/interrupt/bottom roots and physical warning layers",
+      "lifecycle_cleanup": "Display removal/config change cancellation in AOSP; app teardown on Honda untested",
+      "evidence_ids": [
+        "R4C_API17",
+        "R4C_OWNER",
+        "R4D_POLICY",
+        "R4D_WARNINGS",
+        "DISPLAY_DIAGNOSTICS"
+      ],
+      "confidence": "MEDIUM_GENERIC_API_LOW_HONDA_ADMISSION",
+      "missing_evidence": "Ordinary-app admission, visibility, window order, safe viewport and warning priority",
+      "next_decisive_experiment": "Obtain build-matched Honda WindowManager policy or saved normal-app window-admission record",
+      "no_apk_compatibility": "NO_FOR_UNINSTALLED_NATIVE_PROCESS_FUTURE_ANDROID_APP_CONTEXT_REQUIRED"
+    },
+    {
+      "id": "APP_WINDOW",
+      "name": "Separate display-context WindowManager window",
+      "owning_process": "Separately running app; framework WindowManager",
+      "producer": "App display context",
+      "consumer": "WindowManagerService",
+      "abi_or_ipc": "public API17 Context.createDisplayContext + addView; window type dependent",
+      "classification": "UNKNOWN",
+      "content_capability": "APP_OWNED_WINDOW_IF_ADMITTED",
+      "cross_process_access": "Framework IPC exists; Honda ordinary-app result unknown",
+      "caller_uid_or_signature_requirement": "Type 2006 needs SYSTEM_ALERT_WINDOW in AOSP; other system types may require INTERNAL_SYSTEM_WINDOW; effective Honda grant unknown",
+      "exported_api": "Context.createDisplayContext / WindowManager.addView",
+      "window_creation_path": "App constructs its own window, not Honda root",
+      "surface_ownership": "App-owned surface if admitted",
+      "layer_ownership": "Potential competing full-screen layer",
+      "stock_warning_priority": "High overlap risk; no safe ordering proof",
+      "lifecycle_cleanup": "App must remove own View; no Honda callback contract",
+      "evidence_ids": [
+        "R4C_API17",
+        "R4C_PERMISSIONS",
+        "R4D_POLICY",
+        "R4D_GRANTS",
+        "R4D_WARNINGS"
+      ],
+      "confidence": "MEDIUM_GENERIC_API_LOW_HONDA_ADMISSION",
+      "missing_evidence": "Exact type/token/UID admission and warning-preserving z-order",
+      "next_decisive_experiment": "Resolve OEM policy and grants offline; do not attempt a competing overlay",
+      "no_apk_compatibility": "NO_FOR_UNINSTALLED_NATIVE_PROCESS_FUTURE_ANDROID_APP_CONTEXT_REQUIRED"
+    },
+    {
+      "id": "OUT_ROOT",
+      "name": "Honda ExternalDisplayOutService root insertion",
+      "owning_process": "com.mitsubishielectric.ada.app.externaldisplay UID 10056",
+      "producer": "InterfaceWindow.createInitScreen",
+      "consumer": "InterfaceWindow.addView",
+      "abi_or_ipc": "in-process Java static methods; service onBind returns null",
+      "classification": "PROCESS_LOCAL",
+      "content_capability": "HONDA_VIEW_CONTENT",
+      "cross_process_access": "No cross-process arbitrary View/Surface endpoint",
+      "caller_uid_or_signature_requirement": "Honda package requests system permissions; effective grant not inferred",
+      "exported_api": "No external arbitrary-content API",
+      "window_creation_path": "Honda creates three full-frame type-2006 roots",
+      "surface_ownership": "Honda host owns View-root surfaces",
+      "layer_ownership": "Honda host owns bottom/main/interrupt layers",
+      "stock_warning_priority": "Relative priority to independent window unknown",
+      "lifecycle_cleanup": "Host removes roots on own lifecycle; no external unregister",
+      "evidence_ids": [
+        "R4C_OWNER",
+        "HOST_FLOW",
+        "OUTSERVICE_JAVA",
+        "INTERFACEWINDOW_JAVA",
+        "OUTSERVICE_MANIFEST"
+      ],
+      "confidence": "HIGH_FOR_BOUNDED_CLAIM",
+      "missing_evidence": "Supported additive IPC for separate ClarityLink process absent",
+      "next_decisive_experiment": "Only new OEM extension contract could reopen; do not inject into host",
+      "no_apk_compatibility": "NO_PROCESS_LOCAL_HONDA_HOST"
+    },
+    {
+      "id": "AP_BINDER",
+      "name": "ExternalDisplayApService Binder control",
+      "owning_process": "com.mitsubishielectric.ada.appservice.externaldisplay UID 10055",
+      "producer": "ExternalDisplayApService",
+      "consumer": "registered Binder callers",
+      "abi_or_ipc": "AIDL/Binder control/status transactions",
+      "classification": "UNKNOWN",
+      "content_capability": "METER_AND_LVDS_CONTROL_STATUS_ONLY",
+      "cross_process_access": "Cross-process Binder declared; new-caller admission unknown",
+      "caller_uid_or_signature_requirement": "No component-level bind permission; method checks and Honda custom grants unknown",
+      "exported_api": "Exported AP service; content API not found",
+      "window_creation_path": "No arbitrary window creation transaction",
+      "surface_ownership": "No View/Surface/Bitmap/frame input in reviewed interface",
+      "layer_ownership": "Cannot own stock render layer via this Binder",
+      "stock_warning_priority": "Control calls could affect stock; safety not proven",
+      "lifecycle_cleanup": "Binder callback lifetime/unregister requires separate review",
+      "evidence_ids": [
+        "DISPLAY_API",
+        "EXTERNALDISPLAY_AIDL_DECOMPILED",
+        "APSERVICE_MANIFEST",
+        "R4D_GRANTS"
+      ],
+      "confidence": "HIGH_NO_PIXEL_ABI_LOW_CALLER_ADMISSION",
+      "missing_evidence": "Caller admission and any unseen content-producing method; no frame parameter in reviewed interface",
+      "next_decisive_experiment": "Trace actual server-side transactions and permissions in build-matched artifact; never test control calls now",
+      "no_apk_compatibility": "UNKNOWN_NATIVE_CALLER_ADMISSION_CONTROL_STATUS_ONLY"
+    },
+    {
+      "id": "NAV_BINDER",
+      "name": "Honda Navigation/TBT service semantics",
+      "owning_process": "Honda Navigation and AP service processes",
+      "producer": "Honda navigation data producer",
+      "consumer": "Honda display host/Binder clients",
+      "abi_or_ipc": "Honda AIDL parcelables and callbacks",
+      "classification": "UNKNOWN",
+      "content_capability": "HONDA_NATIVE_SEMANTIC_GUIDANCE_NOT_PIXEL_WINDOW",
+      "cross_process_access": "Binder possible; no safe ClarityLink subscriber established",
+      "caller_uid_or_signature_requirement": "VEHICLE_RW/ACCESS_MAP definitions and grants unresolved",
+      "exported_api": "Semantic guidance APIs only",
+      "window_creation_path": "Honda host creates roots, not Navigation Binder",
+      "surface_ownership": "No arbitrary app Surface handoff",
+      "layer_ownership": "Honda host owns resulting content layer",
+      "stock_warning_priority": "May alter factory navigation/interrupt state",
+      "lifecycle_cleanup": "Callback/resource lifetime for new caller unresolved",
+      "evidence_ids": [
+        "R4C_OWNER",
+        "R4C_PERMISSIONS",
+        "SAFE_AREA"
+      ],
+      "confidence": "HIGH_SEMANTIC_ONLY_LOW_CALLER_ADMISSION",
+      "missing_evidence": "Actual producer/source and caller permissions; no independent renderer endpoint",
+      "next_decisive_experiment": "Trace producer and server-side caller checks offline",
+      "no_apk_compatibility": "UNKNOWN_NATIVE_CALLER_ADMISSION_SEMANTIC_ONLY"
+    },
+    {
+      "id": "DISP_COM_METER",
+      "name": "disp_com_meter and cluster command path",
+      "owning_process": "disp_com_meter / meter controller",
+      "producer": "Native meter command producer",
+      "consumer": "meter control endpoint",
+      "abi_or_ipc": "local message/I2C command evidence; external ABI unproved",
+      "classification": "UNKNOWN",
+      "content_capability": "CONTROL_MESSAGES_NOT_PROVEN_PIXELS",
+      "cross_process_access": "No externally admitted renderer IPC established",
+      "caller_uid_or_signature_requirement": "Native endpoint and UID/device permissions unknown",
+      "exported_api": "No supported ClarityLink content interface",
+      "window_creation_path": "No Android window creation",
+      "surface_ownership": "No proven Surface or decoded-frame sink",
+      "layer_ownership": "Downstream physical composition unknown",
+      "stock_warning_priority": "Physical warning priority unknown",
+      "lifecycle_cleanup": "Command lifecycle/cleanup unknown",
+      "evidence_ids": [
+        "SAFE_AREA",
+        "DISPLAY_DIAGNOSTICS"
+      ],
+      "confidence": "MEDIUM_CONTROL_LOW_RENDER",
+      "missing_evidence": "Message schema, caller admission, pixel capability and safe viewport",
+      "next_decisive_experiment": "Obtain OEM command/interface specification before considering this path",
+      "no_apk_compatibility": "UNKNOWN_NO_SUPPORTED_CALLER_ABI"
+    },
+    {
+      "id": "SURFACEFLINGER_DIRECT",
+      "name": "Direct SurfaceFlinger/layer ownership",
+      "owning_process": "SurfaceFlinger / system services",
+      "producer": "Direct layer transaction",
+      "consumer": "Display 1 compositor",
+      "abi_or_ipc": "system compositor IPC, not an app content handoff",
+      "classification": "PRIVILEGED",
+      "content_capability": "DIRECT_LAYER_CONTROL_NOT_ACCEPTED",
+      "cross_process_access": "System IPC exists; app authority for direct layer control not established",
+      "caller_uid_or_signature_requirement": "Privileged/system layer authority and token unknown",
+      "exported_api": "No supported ClarityLink layer contract",
+      "window_creation_path": "Would bypass normal app-window path",
+      "surface_ownership": "Layer surface ownership not granted",
+      "layer_ownership": "Could compete with Honda roots",
+      "stock_warning_priority": "Warning preservation unproved",
+      "lifecycle_cleanup": "Layer lifecycle and crash cleanup unproved",
+      "evidence_ids": [
+        "DISPLAY_DIAGNOSTICS",
+        "R4D_POLICY",
+        "R4D_WARNINGS"
+      ],
+      "confidence": "HIGH_BOUNDARY_LOW_ADMISSION",
+      "missing_evidence": "Build-matched policy and safe composition contract absent",
+      "next_decisive_experiment": "Do not pursue direct composition under current constraints",
+      "no_apk_compatibility": "NO_PRIVILEGED_LAYER_TOKEN_UNPROVEN"
+    },
+    {
+      "id": "FRAMEBUFFER",
+      "name": "Direct Tegra fb1 takeover",
+      "owning_process": "kernel framebuffer / display controller",
+      "producer": "Raw framebuffer writer",
+      "consumer": "tegradc.1",
+      "abi_or_ipc": "device node read/write",
+      "classification": "PROHIBITED",
+      "content_capability": "RAW_PIXEL_WRITE",
+      "cross_process_access": "No permitted app interface",
+      "caller_uid_or_signature_requirement": "Device-node privilege unknown and irrelevant to prohibition",
+      "exported_api": "No supported API",
+      "window_creation_path": "Bypasses WindowManager",
+      "surface_ownership": "Direct device memory",
+      "layer_ownership": "Bypasses Android layer ownership",
+      "stock_warning_priority": "Could obscure safety content; format and physical mapping unknown",
+      "lifecycle_cleanup": "No safe rollback/cleanup contract",
+      "evidence_ids": [
+        "DISPLAY_DIAGNOSTICS",
+        "SAFE_AREA"
+      ],
+      "confidence": "HIGH_FOR_BOUNDED_CLAIM",
+      "missing_evidence": "Pixel format, allocation and safety boundary unknown",
+      "next_decisive_experiment": "No experiment; framebuffer takeover prohibited",
+      "no_apk_compatibility": "PROHIBITED"
+    },
+    {
+      "id": "XPOSED",
+      "name": "HondaHack in-host View injection",
+      "owning_process": "Honda externaldisplay host via Xposed",
+      "producer": "Injected module",
+      "consumer": "Honda InterfaceWindow",
+      "abi_or_ipc": "in-process hook/injection",
+      "classification": "PROHIBITED",
+      "content_capability": "HISTORICAL_VIEW_PRECEDENT_ONLY",
+      "cross_process_access": "Requires process injection, not separate IPC",
+      "caller_uid_or_signature_requirement": "Host execution requires prohibited modification",
+      "exported_api": "No supported external API",
+      "window_creation_path": "Uses Honda roots",
+      "surface_ownership": "Honda host-owned",
+      "layer_ownership": "Can alter stock composition",
+      "stock_warning_priority": "Warning priority still unproved",
+      "lifecycle_cleanup": "Module lifecycle not acceptable",
+      "evidence_ids": [
+        "R4C_OWNER",
+        "HOST_FLOW",
+        "R4D_WARNINGS"
+      ],
+      "confidence": "HIGH_FOR_BOUNDED_CLAIM",
+      "missing_evidence": "None can make injection permissible under current constraints",
+      "next_decisive_experiment": "Do not reproduce; use only as historical composition evidence",
+      "no_apk_compatibility": "PROHIBITED"
+    },
+    {
+      "id": "PROJECT_SURFACE",
+      "name": "ClarityLink Display1OutputBackend and JNI Surface",
+      "owning_process": "ClarityLink process in host/emulator model",
+      "producer": "Project adapter",
+      "consumer": "project decoder/render model",
+      "abi_or_ipc": "process-local Java/JNI Surface binding",
+      "classification": "PROCESS_LOCAL",
+      "content_capability": "RENDERER_ONLY_WITHOUT_HONDA_ADMISSION",
+      "cross_process_access": "No stock Honda Display 1 admission conferred",
+      "caller_uid_or_signature_requirement": "App UID/window permission would still be required",
+      "exported_api": "Project code only",
+      "window_creation_path": "Requires separately admitted Presentation/window",
+      "surface_ownership": "Project Surface exists only after window creation",
+      "layer_ownership": "No Honda layer ownership",
+      "stock_warning_priority": "Safety unknown",
+      "lifecycle_cleanup": "Project lifecycle model closes its own resources",
+      "evidence_ids": [
+        "P1_CLOSEOUT",
+        "R4C_API17",
+        "R4D_WARNINGS"
+      ],
+      "confidence": "HIGH_PROJECT_CODE_LOW_HONDA_ADMISSION",
+      "missing_evidence": "Real Honda app-window admission and warning-safe teardown",
+      "next_decisive_experiment": "Continue offline adapter tests; seek admission evidence first",
+      "no_apk_compatibility": "NO_WITHOUT_ADMITTED_ANDROID_WINDOW"
+    }
+  ],
+  "next": "P2-C2; obtain build-matched ordinary-app window admission and warning-priority evidence before any separately authorized live experiment",
+  "honda_adb_commands": 0,
+  "honda_writes": 0,
+  "honda_execution": 0,
+  "apk_installs": 0
+}

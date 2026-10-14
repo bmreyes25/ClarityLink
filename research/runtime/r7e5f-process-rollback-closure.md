@@ -1,0 +1,11 @@
+# R7E5F process rollback closure review
+
+**Decision:** `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED` (narrowed: API17 x86 runtime proof not observed under the no-ADB constraint). Test A remains `NOT_AUTHORIZED`.
+
+R7E5E's findings remain valid: Honda `ps` output grammar and toolbox identity were not observed, external name matching cannot establish a unique process, and external `ps` then `kill` has a PID reuse race. The self-contained supervisor removes external `/system/bin/ps` and `/system/bin/kill` from the proposed normal Test A lifecycle. Exact `kill(pid, SIGKILL)` is used only by the parent that received `pid` directly from `fork()`.
+
+ECC review: the child remains the parent's unreaped child until `waitpid` reaps it, so the PID cannot be assigned to an unrelated process during timeout recovery. Normal completion blocks the parent alarm while it reaps, cancels/consumes pending alarm state, and clears the PID before unblocking; the timeout handler therefore cannot act on a re-used PID after successful reaping. This does not generalize to unrelated processes. The child watchdog is armed before the operation and exits immediately with `_exit(124)`. The parent has a longer four-second alarm; its handler kills and reaps only the exact child and exits 125. Host fault injection observed deterministic child timeout, parent timeout, crash mapping, exact-child cleanup, and no inherited pipe holder; five timeout cycles and 100 successful version cycles passed.
+
+API17 source/header evidence supports the imported primitives, and ARMv7 imports resolve against the pinned NDK r23c API17 stubs. However, the required API17 x86 runtime test was not run because it requires ADB, explicitly prohibited in R7E5F. Thus full internal containment on the target runtime is not yet proven. No runnable Test A collector, plan manifest, or authorization packet is frozen. There is no automatic recovery after a host timeout beyond stopping target activity, preserving evidence, and requiring separate recovery review; no retry, fallback, external process search/kill, or automatic Test B.
+
+`TEST_A_EXTERNAL_PS_NOT_REQUIRED` and `TEST_A_EXTERNAL_KILL_NOT_REQUIRED` apply to the proposed normal command sequence, conditional on closing the remaining runtime proof gate. Honda commands and ADB operations in R7E5F: zero. Test A executed: no. Test A authorized: no.

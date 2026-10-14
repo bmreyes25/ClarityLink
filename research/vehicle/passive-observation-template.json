@@ -1,0 +1,15 @@
+{
+  "schema": "CLARITYLINK-PASSIVE-BASELINE-1",
+  "observation_id": "REPLACE_WITH_LOCAL_ID",
+  "observer": "REPLACE_WITH_OPERATOR",
+  "observed_at_local": "REPLACE_WITH_LOCAL_OFFSET_TIMESTAMP",
+  "vehicle_stationary": true,
+  "parking_brake": "not_observed",
+  "center_display": "not_observed",
+  "instrument_cluster": "not_observed",
+  "navigation_page": "not_observed",
+  "carplay_session": "not_observed",
+  "observations": [],
+  "media": [],
+  "stop_events": []
+}

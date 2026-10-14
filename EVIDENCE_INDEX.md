@@ -1,3 +1,106 @@
+# CL-IMP-14 final implementation closeout (2026-10-13)
+
+- [Final closeout](research/implementation/cl-imp-14-final-closeout.md): 20-component completeness matrix; host, API17 emulator, and ARMv7 evidence; artifact hashes; exact external iPhone/Honda prerequisites and installation/rollback boundary.
+- The lab demo is synthetic and host-only; the API17 app/decoder results and ARMv7 compile are separate bounded evidence. No genuine iPhone or Honda compatibility is established. Production integration remains disabled.
+- CL-IMP-14 closeout commit `69e90052bdd32541b22098da5947f33a3b09ebe2`: Offline CI `38504041467` and CodeQL `38504041448` passed at that SHA. The report-only follow-up records the results and receives its own exact-head checks.
+
+## CL-IMP-13 reliability and security (2026-10-13)
+
+- [Validation report](research/implementation/cl-imp-13-reliability-security.md): 512 malformed-header fuzz cases, 32 connected start/stop cycles, 24 concurrent retained-frame checks, full regressions, and sanitizer results.
+- Full configured offline suite: 1,428 passed, 14 skipped. Native AddressSanitizer/UndefinedBehaviorSanitizer and ThreadSanitizer integrated tests passed. API17 emulator evidence remains from CL-IMP-12; this milestone changed no Android/native source.
+- ECC checklist review found no blockers and is not represented as an independent reviewer attestation. Honda and genuine iPhone compatibility remain unproven.
+
+## CL-IMP-12 ARMv7/API17 build package (2026-10-13)
+
+- [Implementation and compatibility report](research/implementation/cl-imp-12-armv7-api17-artifacts.md): ARMv7 JNI/native build, API17 symbol audit, Java JAR, lab/candidate APKs, repeat-build hashes, dependency/permission inventory, and explicit limits.
+- Reproduce with `tools/build_cl_imp_12_artifacts.sh`; ignored output is `build/cl-imp-12/artifacts/`. Five artifact hashes match across repeated complete builds.
+- API17 decoder and Presentation/content emulator checks passed on the isolated x86 emulator; they do not prove physical scanout or Honda compatibility.
+- Focused packaging tests: 4 passed; full offline regression: 1,425 passed, 14 skipped; repository health and `git diff --check` pass. Production Honda integration remains disabled.
+
+## CL-IMP-11 dual-display lab (2026-10-13)
+
+- [Implementation and validation report](research/implementation/cl-imp-11-dual-display-lab.md): two independent synthetic streams, mock stock-first delegation, H.264 decode/render, warning behavior, secondary failure isolation, reconnect, cleanup, hashes, and explicit compatibility limits.
+- Reproduce the host demo with `./.venv/bin/python demo/cl_imp_11/dual_display_lab.py`; artifacts are generated under ignored `build/cl-imp-11/`.
+- Focused acceptance: 3 passed; full offline suite: 1,421 passed, 14 skipped; repository health and diff check pass. API17 APK build passes; emulator execution was blocked before startup because no Java runtime is installed.
+- ECC checklist review: no blocking findings; not an independent reviewer attestation. Honda and genuine iPhone compatibility remain unproven, and production integration remains disabled.
+
+# CL-IMP-10 unified runtime evidence — 2026-10-13
+
+- [Implementation report](research/implementation/cl-imp-10-unified-runtime.md): runtime ownership, independent stream workers, listener serialization, identity-safe cleanup, test/review results, and explicit synthetic-only compatibility limits.
+- Local configured offline suite: 1,418 passed, 14 skipped; self-locator smoke passed; simulator JavaScript checks passed; `git diff --check` passed.
+- Independent ECC review: CLEAR after listener accept serialization, conditional resource identity cleanup, and concurrency regression coverage.
+- PR #19 baseline HEAD `8a8fb2cb5346d16279464d1ea59fac0553266df1`: Offline CI and all applicable CodeQL jobs passed. CL-IMP-10 is uncommitted and has no exact-head hosted result.
+- Evidence scope: `HOST_TESTED` / `MODEL_ONLY`; no Honda integration, authentic iPhone authentication, vehicle, or physical scanout claim.
+
+Current CL-IMP-09 offline renderer evidence: [implementation report](research/implementation/cl-imp-09-cluster-navigation-renderer.md) records API17 Canvas validation, synthetic viewport/crop/rotation behavior, artifact hashes, tests, independent ECC review, and explicit Honda/iPhone/physical-scanout limits. This is not Honda compatibility evidence. Production integration remains disabled.
+
+Historical R7E7G evidence: [wet rehearsal](research/runtime/r7e7g-test-a-wet-rehearsal-report.md), [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md), and [Phase C proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md). Historical evidence follows.
+
+## R7E7C Test A parent metadata parser correction (2026-10-11)
+
+- [R7E7C review](research/runtime/r7e7c-test-a-directory-metadata-review.md): exact legacy Android `ls -ld` output explained the stopped pre-push failure; parser now preserves strict mode/owner/group checks while supporting the observed format.
+- [Current authorization packet](research/runtime/r7e6-test-a-authorization-packet.md) and [manifest](research/runtime/r7e6-test-a-plan-manifest.json): `R7E7C-TEST-A-COMMAND-SET-3`; collector SHA-256 `3ab879b59bb5f56a742381e5429e2b469f9ae2f1aa11535e74cac107394ebfdc`; manifest SHA-256 `299f4423f716a9fc5c4d11d921e2c38fe3f75134a30db517762ef3daec7a339a`.
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): full offline validation passed; exact-head Offline CI and aggregate CodeQL/all five languages passed on the parser correction commit. Final documentation follow-up requires exact-head hosted checks; new explicit Test A authorization required. Honda commands: two read-only; writes, pushes, and diagnostic executions: zero.
+
+## R7E7A Test A identity and procfs review (2026-10-11)
+
+- [Review](research/runtime/r7e7a-test-a-identity-proc-review.md): external prompt path mismatch reconciled; same-shell API17 procfs positive controls passed. Test A remains unauthorized.
+- [Current authorization packet](research/runtime/r7e6-test-a-authorization-packet.md) and [manifest](research/runtime/r7e6-test-a-plan-manifest.json): `R7E7A-TEST-A-COMMAND-SET-2`; collector SHA-256 `083ff20d474a84ceaa7bd2c6a9514abd51b1f8a037c1500c31ae754890f5d750`; manifest SHA-256 `e498971cf45219832827fd77ec2f7f71a0829cdc9b0307d5a564213459171c21`.
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`, pending exact-head hosted checks. No Honda commands or writes.
+
+## R7E6A Test A collector safety closure (2026-10-11)
+
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED` and `NOT_EXECUTED`.
+- [Authorization packet](research/runtime/r7e6-test-a-authorization-packet.md) and [manifest](research/runtime/r7e6-test-a-plan-manifest.json): new exact R7E6A package; prior package preserved separately as historical.
+- [Collector verification](research/runtime/r7e6-test-a-collector-verification.md): strict absence/digest/process policy and focused test results.
+- [API17 absence probe](research/runtime/r7e6a-api17-absence-probe.md): offline emulator evidence; ignored raw evidence remains local.
+- [R7E6A report](step-reports/43t1-r7e6a-test-a-collector-safety-closure.md): exact-head checks and final verification.
+
+## Historical R7E6 package snapshot, superseded by R7E6A (2026-10-11)
+
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_TEST_A_EXECUTION_PACKAGE_READY`; Test A remains `NOT_AUTHORIZED`.
+- [API17 runtime proof](research/runtime/r7e6-api17-watchdog-runtime-validation.md), [emulator isolation](research/runtime/r7e6-emulator-ownership-and-isolation.md), [fault matrix](research/runtime/r7e6-watchdog-fault-matrix.md), [containment proof](research/runtime/r7e6-process-containment-proof.md).
+- [Artifact audit](research/runtime/r7e6-target-artifact-audit.md): rebuilt ARMv7/API17 artifact and byte-identical 0555 staging copy.
+- [Collector verification](research/runtime/r7e6-test-a-collector-verification.md): default disabled; fake-ADB fixtures passed.
+- [Frozen manifest](research/runtime/r7e6-test-a-plan-manifest.json), [separate authorization packet](research/runtime/r7e6-test-a-authorization-packet.md), and [milestone report](step-reports/43t1-r7e6-test-a-readiness-closure.md).
+
+## R7E6 API17 runtime blocker (2026-10-11)
+
+- [Readiness decision](research/runtime/r7e6-test-a-readiness-decision.md): `R7E_API17_WATCHDOG_RUNTIME_BLOCKED`; Test A not authorized and no runnable package frozen.
+- [Runtime validation](research/runtime/r7e6-api17-watchdog-runtime-validation.md), [emulator isolation](research/runtime/r7e6-emulator-ownership-and-isolation.md), [fault matrix](research/runtime/r7e6-watchdog-fault-matrix.md), and [containment proof](research/runtime/r7e6-process-containment-proof.md): host coverage passes; API17 runtime was not run because the shared ADB server independently attached to the emulator.
+- [Artifact audit](research/runtime/r7e6-target-artifact-audit.md): rebuilt ARMv7/API17 artifact, updated hashes/imports, and byte-identical 0555 staging copy.
+- [Collector status](research/runtime/r7e6-test-a-collector-verification.md): collector, manifest, and authorization packet deferred pending runtime closure.
+- [Milestone report](step-reports/43t1-r7e6-test-a-readiness-closure.md).
+
+# R7E5F process-bound review — 2026-10-11
+
+- [Self-bounded diagnostic design](research/runtime/r7e5f-self-bounded-diagnostic-design.md) and [rollback closure review](research/runtime/r7e5f-process-rollback-closure.md).
+- [R7E5F report](step-reports/43t1-r7e5f-test-a-process-bound-closure.md).
+- Host watchdog tests: `tests/native/test_r7e1_target_diag_watchdog.py`; ARM artifact checker: `tools/check_r7e1_target_diag_artifact.py`.
+- API17 x86 runtime proof not run (ADB prohibited); Test A remains blocked and unauthorized; no runnable package was frozen.
+
+## R7E5C offline mode-semantics closure — 2026-10-11
+
+- [Pinned AOSP mode semantics and model](research/runtime/r7e5c-legacy-adb-mode-semantics.md) — source-backed 4.2.2_r1.2 transform; observed Honda agreement is behavioral only.
+- [Prior A0-W stop review](research/runtime/r7e5c-a0w-stop-review.md) — sanitized interpretation; raw evidence remains ignored and unmodified.
+- [A0-WR manifest](research/runtime/r7e5c-a0wr-plan-manifest.json) and [authorization packet](research/runtime/r7e5c-a0wr-authorization-packet.md) — new package ready for explicit authorization; not authorized or executed.
+- [R7E5C milestone report](step-reports/43t1-r7e5c-legacy-adb-mode-closure.md) and `tests/tools/test_r7e5c_a0wr_collector.py` — implementation and host-only fixtures.
+
+## Latest evidence — R7E5A A0-R review and A0-W package
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| A0-R result | [Sanitized result](research/runtime/r7e5-a0r-result.md) | `A0R_PASS_FOR_REVIEW`; 18 operations; zero target writes; private evidence remains local and unmodified |
+| A0-W package | [Authorization packet](research/runtime/r7e5a-a0w-authorization-packet.md); [manifest](research/runtime/r7e5a-a0w-plan-manifest.json); [collector](tools/r7e5a_a0w_collector.py) | One inert marker lifecycle; default-disabled; exact cleanup; no retries/fallbacks; A0-W not authorized |
+| Decision | [R7E5A report](step-reports/43t1-r7e5a-a0r-review-a0w-package.md) | `R7E_A0W_EXECUTION_PACKAGE_READY`; Test A remains blocked and unauthorized; exact-head checks recorded in report |
+| Prior research | [R7E4 research](research/runtime/r7e4-android42-target-path-research.md) | AOSP/legacy ADB evidence supports the non-atomic destination precheck caveat; no target capability inferred |
+
+# R7E1 current evidence — 2026-10-08
+
+- [R7E1 milestone report](step-reports/43t1-r7e1-target-diagnostic-artifact-closure.md) — split artifact closure; Test A remains evidence-blocked and unauthorized.
+- [Artifact architecture](research/runtime/r7e1-target-artifact-architecture.md), [manifest](research/runtime/r7e1-target-artifact-manifest.md), [ELF audit](research/runtime/r7e1-target-artifact-elf-audit.md), [offline tests](research/runtime/r7e1-target-artifact-offline-tests.md), [target evidence review](research/runtime/r7e1-test-a-target-evidence-review.md), [readiness](research/runtime/r7e1-test-a-readiness-decision.md).
+- [Pinned NDK provenance](research/runtime/r7e1-ndk-toolchain.md). Target execution remains unauthorized; no Honda action occurred.
+
 # R7C4 final Android integration closure — 2026-10-07
 
 - [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.
@@ -43,6 +146,20 @@
 - [Audio/input](research/runtime/r7c-audio-input-boundary.md), [process/restoration](research/runtime/r7c-process-restoration-model.md), [readiness](research/runtime/r7c-honda-adapter-readiness.md), and [next evidence](research/runtime/r7c-next-evidence-matrix.md).
 
 # Evidence index
+
+## R7E3 A0-R execution package (2026-10-08)
+
+- [R7E3 milestone report](step-reports/43t1-r7e3-a0r-execution-package.md): frozen host-side read-only collector and fixtures; A0-R not executed.
+- [Collector design](research/runtime/r7e3-a0r-collector-design.md), [command manifest](research/runtime/r7e3-a0r-command-manifest.md), and [plan manifest](research/runtime/r7e3-a0r-plan-manifest.json): allowlist, exact source/plan hashes, stop rules, ECC audit and redaction.
+- [Authorization packet](research/runtime/r7e3-a0r-authorization-packet.md), [runbook](research/runtime/r7e3-a0r-runbook.md), [test results](research/runtime/r7e3-a0r-test-results.md), and [readiness decision](research/runtime/r7e3-a0r-readiness-decision.md): separate authorization remains required; A0-W and Test A cannot auto-chain.
+
+## R7E parked-car compatibility preparation (2026-10-08)
+
+- [R7E milestone report](step-reports/43t1-r7e-parked-car-compatibility-preparation.md): historical starting state; superseded by R7E1 artifact closure and evidence-blocked readiness.
+- [Safety and authorization model](research/runtime/r7e-safety-and-authorization-model.md), [test authorization matrix](research/runtime/r7e-test-authorization-matrix.md), and [first-test readiness](research/runtime/r7e-first-test-readiness.md): tiering, authorization boundaries, ECC review, and Test A blocker.
+- [Test plans A–D](research/runtime/r7e-test-a-executable-acceptance-plan.md), [B](research/runtime/r7e-test-b-display-enumeration-plan.md), [C](research/runtime/r7e-test-c-presentation-admission-plan.md), [D](research/runtime/r7e-test-d-single-frame-render-plan.md), [E](research/runtime/r7e-test-e-warning-coexistence-plan.md), [F](research/runtime/r7e-test-f-restoration-plan.md), [G](research/runtime/r7e-test-g-performance-plan.md), [H](research/runtime/r7e-test-h-real-carplay-preflight.md): individually gated, not authorized.
+- [Target diagnostic artifact](research/runtime/r7e-target-diagnostic-artifact.md) and [dependency audit](research/runtime/r7e-target-dependency-audit.md): no artifact built; NDK r23c not configured.
+- [Sanitized evidence capture format](research/runtime/r7e-evidence-capture-package.md). No vehicle evidence was collected.
 
 ## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
 
@@ -1123,3 +1240,27 @@ Honda-specific source notes remain separately indexed below; no external project
 | Restoration, observability, Honda questions | [restoration](research/runtime/r7d-restoration-sequencing.md), [observability](research/runtime/r7d-target-observability.md), [question matrix](research/runtime/r7d-honda-unresolved-question-matrix.md) | project-owned restoration and event audit pass; target questions remain explicit |
 | Local regression and repository gates | [43T1 R7D report](step-reports/43t1-r7d-integrated-target-simulation.md) | 901 passed/15 skipped; ASan/UBSan, TSan, API17 ARMv7 import, health, and diff pass |
 | Hosted checks and R7E gate | PR #18 on the R7D branch; [R7D→R7E gate](research/runtime/r7d-r7e-entry-gate.md) | exact-head Offline CI and CodeQL PASS; R7E entry open for preparation only |
+# R7E2 Test A evidence closure and A0 plans: `research/runtime/r7e2-test-a-evidence-gap.md`, `r7e2-prerequisite-circularity-review.md`, `r7e2-honda-shell-command-evidence.md`, `r7e2-test-a0-readonly-preflight-plan.md`, `r7e2-test-a0-write-delete-preflight-plan.md`, `r7e2-test-a0-evidence-capture.md`, `r7e2-test-a-readiness-decision.md`; summary `step-reports/43t1-r7e2-test-a-evidence-closure.md`.
+# R7E5E A0-WR review — 2026-10-11
+
+- [Sanitized A0-WR evidence review](research/runtime/r7e5e-a0wr-result.md): pass reviewed against metadata and all eight command records; A0 transfer/write/delete closed; no additional marker required; Test A remains unauthorized and process-rollback blocked.
+- [Process-lifecycle review](research/runtime/r7e5e-process-lifecycle-review.md): pinned AOSP `ps`/`kill` behavior researched; Honda toolbox identity/output and race-bounded exact-PID recovery remain unproven.
+- Ignored Test A staging copy under `build/r7e5e/test-a/` is byte-identical to the canonical ELF and mode 0555. No Test A collector/authorization package is frozen because exact process recovery and diagnostic deadline remain unproven.
+# Current evidence — R7E7D
+
+- [R7E7D Test A legacy compatibility and package review](research/runtime/r7e7d-test-a-legacy-compatibility-review.md): historical Honda output comparison, collector parser findings, artifact and identity review, and manual ECC status. No Honda commands were issued in R7E7D.
+- [Current Test A authorization packet](research/runtime/r7e6-test-a-authorization-packet.md): frozen R7E7D identities and the separate authorization boundary. This packet is not authorization.
+- [Current readiness decision](research/runtime/r7e6-test-a-readiness-decision.md) and [collector verification](research/runtime/r7e6-test-a-collector-verification.md).
+
+# R7E7F Test A process-state failure and recovery preparation
+
+- [R7E7F shell root-cause review](research/runtime/r7e7f-test-a-shell-root-cause-review.md): AOSP-backed nested-shell root cause, local/API17 reproduction, correction, package identities, limits, and manual ECC review status.
+- [R7E7F prior Test A recovery plan](research/runtime/r7e7f-test-a-recovery-plan.md): separate Phase R read-only authorization template and conditional Phase C cleanup criteria; neither is authorized by the document itself.
+- [Current Test A package notice](research/runtime/r7e6-test-a-authorization-packet.md): R7E7F package identities, consumed prior authorization, recovery-first boundary. Historical R7E7D packet preserved separately.
+- Private source evidence: `build/r7e6a/test-a/evidence/collector-failure-20261012T021444Z-b64f.json`; private API17 reproduction: `build/r7e6/runs/api17-shell-construction-b9ec6acc460d.json`. These ignored mode-0600 records are not committed.
+- R7E7F Honda ADB commands/writes/pushes/executions/cleanup: zero. Test A remains not ready to retry; Test B unauthorized.
+# R7E7G offline wet rehearsal and recovery preparation
+
+- [R7E7G report](research/runtime/r7e7g-test-a-wet-rehearsal-report.md): stateful 50-cycle full Test A simulation, API17 transport evidence and limits, recovery preparation, and final offline decision. Private emulator and simulated collector evidence remains ignored under `build/`.
+- [Phase R packet](research/runtime/r7e7g-phase-r-authorization-packet.md) and [manifest](research/runtime/r7e7g-phase-r-manifest.json): draft read-only exact-path inspection package, default disabled and bound to both Phase R source and imported Test A helper source. No authorization has been submitted.
+- [Phase C conditional proposal](research/runtime/r7e7g-phase-c-conditional-cleanup-proposal.md): current process-safety basis and separate authorization required; no cleanup executed.

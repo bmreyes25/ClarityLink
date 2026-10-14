@@ -1,0 +1,201 @@
+{
+  "version": "P1C6-REOPENING-GATES-1",
+  "milestone": "P1-C6",
+  "source_head": "b813dc8968c6ec5c8be13df612425e3e521455f9",
+  "decision": "P1_NO_GO_PENDING_NEW_INTERFACE_EVIDENCE",
+  "reviewed_firmware": {
+    "jmcs_sha256": "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232",
+    "libcarplay_proxy_sha256": "dc8bc5c19cf32a8e7edcc14c1d80e78bb96ca6ccc434229349c74590136bef66"
+  },
+  "prior_evidence": [
+    {
+      "path": "research/architecture/p1c1-session-seams.json",
+      "sha256": "a709dd767a6e977448fe1881f511feecb00f0df4c87fd06eaa4e65fc0386e8f1"
+    },
+    {
+      "path": "research/architecture/p1c1-stock-session-ownership.md",
+      "sha256": "eff11a939c6de73b87c9f12487afed45b06e095b8c9df5a96889e5b9c819424d"
+    },
+    {
+      "path": "research/architecture/p1c2-jmcs-additive-extension-audit.md",
+      "sha256": "63dd65b809065d231c1be18ed40839f7bbbad076ab7e0a3fc740f2439a62a498"
+    },
+    {
+      "path": "research/architecture/p1c2-type111-extension-matrix.json",
+      "sha256": "6e83b07719305098829c4890cbbf2939bd0202b67b0b54d68e89096aad2cd3da"
+    },
+    {
+      "path": "research/architecture/p1c3-iap2-route-guidance-ingress.md",
+      "sha256": "03c9807fd1a5cd5c8bdc0d00b3c18c724c2b1addfb929067e7b79e14a25a5585"
+    },
+    {
+      "path": "research/architecture/p1c3-route-guidance-interface-matrix.json",
+      "sha256": "ee3a4773d6fdfcca1a3cd9c9cafa8d8c613f427a293fd77d9e8e027a2f7b16e6"
+    },
+    {
+      "path": "research/architecture/p1c4-independent-receiver-coexistence.md",
+      "sha256": "ff12468bda1e85bebf679fce56143b11fcf42036cb79ff346531263584557b3a"
+    },
+    {
+      "path": "research/architecture/p1c4-receiver-topologies.json",
+      "sha256": "1509ea44010ea57db7b04a05f9829ddc10369bc6ee77baba7663242fe56d73f8"
+    },
+    {
+      "path": "research/architecture/p1c5-evidence-gates.md",
+      "sha256": "85694bf5e1fa684990ad341d9db2c30c8d830f623037f69d8f15d969d64b18a6"
+    },
+    {
+      "path": "research/architecture/p1c5-ingress-decision.json",
+      "sha256": "76e679c78bb198cd2b776e8d188b4c5ec7793a87aedad06874b929ca8a6680da"
+    },
+    {
+      "path": "research/architecture/p1c5-ingress-decision.md",
+      "sha256": "e02c1b6cee020d4bd2100a311baed5c61e1aa7a8bdcfba511be82494f18b847d"
+    }
+  ],
+  "p1c5_exact_replay": {
+    "manifest_version": "P1C5-INGRESS-DECISION-1",
+    "candidates": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G"
+    ],
+    "gate_ids": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L"
+    ],
+    "interface_sufficient_count": 0,
+    "implementation_supported_count": 0,
+    "deployment_eligible_count": 0,
+    "original_goal_validated_count": 0,
+    "honda_live_validation": "NOT_RUN"
+  },
+  "known_honda_receiver_requirements": {
+    "info_contribution": "Supported secondary descriptor provider and receiver response ownership",
+    "type111_setup": "Typed SETUP request, accepted response, error and rollback path",
+    "stream_endpoint": "Bound secondary listener or permitted FD handoff with peer identity",
+    "session_association": "Opaque stock session identity, generation and stream binding",
+    "authentication_security": "Authorized per-stream security delegation without extracting Honda credentials",
+    "caller_admission": "Exact API17 UID, permission/signature and no-APK consumer admission",
+    "teardown": "Stop, disconnect, process death and unregister with project-owned resource cleanup",
+    "type110_isolation": "Honda Type110, audio, calls, Siri and controls continue through secondary failure"
+  },
+  "currently_proven_oem_external_interface": false,
+  "branches": {
+    "supported_stock_session_delegation": {
+      "candidate_ids": [
+        "A",
+        "B"
+      ],
+      "status": "BLOCKED_MISSING_INTERFACE_PROOF",
+      "target": "A can provide secondary video if proven; B provides authentic maneuvers only if proven",
+      "reopen_for_offline_candidate_review": [
+        "compatible_oem_interface",
+        "candidate_scoped_positive_evidence",
+        "independent_ecc_review"
+      ],
+      "production_eligibility_requires": [
+        "all_mandatory_gates_proven",
+        "active_app_source_proven_for_desired_capability",
+        "display1_admission_and_safety_proven",
+        "separately_authorized_live_validation"
+      ],
+      "capability_split": {
+        "A": "secondary video only if Type111 delegation and actual source are proved",
+        "B": "maneuver-only if authenticated active-app route ingress and subscriber are proved"
+      }
+    },
+    "revised_integration_constraints": {
+      "candidate_ids": [
+        "D",
+        "E"
+      ],
+      "status": "NOT_APPROVED",
+      "target": "Only a newly reviewed ownership/transport/authentication design may be evaluated",
+      "reopen_requires": [
+        "explicit_constraint_change",
+        "apple_or_oem_session_admission",
+        "distinct_lawful_authority",
+        "type110_audio_isolation",
+        "all_mandatory_gates_proven"
+      ]
+    },
+    "independent_navigation_fallback": {
+      "candidate_ids": [
+        "G"
+      ],
+      "status": "ADDITIONAL_DATA_PATH_REQUIRED",
+      "target": "Own route; not active Apple Maps/Waze or Type111 without app-origin evidence",
+      "reopen_requires": [
+        "separate_approved_phone_to_honda_path",
+        "user_consent_and_source_label",
+        "display1_admission",
+        "no_stock_session_claim"
+      ]
+    }
+  },
+  "reopening_rules": {
+    "new_evidence_must_be_candidate_scoped": true,
+    "exact_artifact_and_report_hash_required": true,
+    "new_positive_proof_requires_reviewed_catalog_code_change": true,
+    "model_consistency_alone_sufficient": false,
+    "related_firmware_portability_assumed": false,
+    "static_interface_alone_deployable": false,
+    "live_honda_test_authorized_by_this_record": false,
+    "type110_displacement_allowed": false
+  },
+  "new_evidence_priority": [
+    {
+      "rank": 1,
+      "task": "Obtain lawful provenance-verified build-compatible OEM receiver extension contract for /info, Type111 SETUP, endpoint/security delegation, caller admission and teardown",
+      "decision_change_if_positive": "A becomes reviewable, not automatically deployable",
+      "mode": "OFFLINE"
+    },
+    {
+      "rank": 2,
+      "task": "Trace matching producer-to-consumer ABI, exact permissions, additive registration and teardown in the verified artifact",
+      "decision_change_if_positive": "Candidate-scoped gates can be re-evaluated",
+      "mode": "OFFLINE_CONDITIONAL_ON_RANK_1"
+    },
+    {
+      "rank": 3,
+      "task": "Independently verify actual iAP2 active-app route payload and admitted no-APK subscriber for B",
+      "decision_change_if_positive": "Maneuver-only branch may reopen",
+      "mode": "OFFLINE_FIRST"
+    },
+    {
+      "rank": 4,
+      "task": "Draft bounded Honda validation only after accepted offline interface and separate authorization",
+      "decision_change_if_positive": "Could establish live, Type110 and Display 1 gates",
+      "mode": "NOT_AUTHORIZED_NOW"
+    }
+  ],
+  "allowed_independent_work": [
+    "P2 Display 1 ownership and safety research offline",
+    "P3 recovery only with its own authorization",
+    "existing Type111/receiver regression maintenance and synthetic lab"
+  ],
+  "blocked_work": [
+    "P4 stock-facing production ingress",
+    "Honda or iPhone live experiment in this milestone",
+    "stock binary modification",
+    "credential extraction",
+    "Test A or Test B"
+  ],
+  "acceptance_contract": "research/architecture/receiver-ingress-contract.md",
+  "closeout_report": "step-reports/p1-receiver-ingress-feasibility-closeout.md"
+}

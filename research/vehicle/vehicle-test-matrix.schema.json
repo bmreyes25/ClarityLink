@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ClarityLink vehicle evidence candidate matrix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repository", "pull_request", "branch", "starting_head", "planning_only", "authorization_in_force", "candidates"],
+  "properties": {
+    "schema_version": {"const": "CLARITYLINK-VEHICLE-TEST-MATRIX-1"},
+    "repository": {"const": "bmreyes25/ClarityLink"},
+    "pull_request": {"const": 19},
+    "branch": {"const": "architecture/r7e-parked-car-compatibility-preparation"},
+    "starting_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "planning_only": {"const": true},
+    "authorization_in_force": {"const": false},
+    "candidates": {"type": "array", "minItems": 9, "items": {"$ref": "#/definitions/candidate"}}
+  },
+  "definitions": {
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "role"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "role": {"type": "string", "minLength": 1}
+      }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["test_id", "status", "retry_count", "fallback_count", "execution_in_this_milestone", "objective", "current_unknown", "required_evidence", "expected_information_gain", "vehicle_contact_required", "adb_required", "target_write_required", "target_execution_required", "root_required", "apk_install_required", "carplay_session_required", "risk_classification", "existing_artifacts", "proposed_commands", "authorization_requirements", "stop_conditions", "success_criteria", "failure_criteria", "decision_changes_if_successful", "what_remains_unproven", "recovery_requirements", "evidence_storage"],
+      "properties": {
+        "test_id": {"type": "string", "minLength": 1},
+        "status": {"type": "string", "minLength": 1},
+        "retry_count": {"const": 0},
+        "fallback_count": {"const": 0},
+        "execution_in_this_milestone": {"const": false},
+        "objective": {"type": "string", "minLength": 1},
+        "current_unknown": {"type": "string", "minLength": 1},
+        "required_evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "expected_information_gain": {"type": "string", "minLength": 1},
+        "vehicle_contact_required": {"type": "boolean"},
+        "adb_required": {"type": "boolean"},
+        "target_write_required": {"type": "boolean"},
+        "target_execution_required": {"type": "boolean"},
+        "root_required": {"type": "boolean"},
+        "apk_install_required": {"type": "boolean"},
+        "carplay_session_required": {"type": "boolean"},
+        "risk_classification": {"type": "string", "minLength": 1},
+        "existing_artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/artifact"}},
+        "proposed_commands": {"type": "array", "items": {"type": "string"}},
+        "authorization_requirements": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "stop_conditions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "success_criteria": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "failure_criteria": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "decision_changes_if_successful": {"type": "string", "minLength": 1},
+        "what_remains_unproven": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "recovery_requirements": {"type": "string", "minLength": 1},
+        "evidence_storage": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

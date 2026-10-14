@@ -1,0 +1,58 @@
+# R7E6A Test A readiness
+
+Decision: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; next `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`. R7E6A corrected the exact-path pre-transfer and final absence checks, MD5 filename binding, and process-state cleanup policy. Isolated Android 4.2.2/API17 x86 regression reproduced the legacy empty-output/host-zero `test -e` result and proved the revised exact `ls -ld` parser distinguishes absence from regular files, symlinks, and directories. 42 focused fake-ADB tests passed. The new package is bound to collector SHA-256 `{collector_sha}` and manifest SHA-256 `{manifest_sha}`. The artifact bytes remain unchanged. Test A is `NOT_AUTHORIZED` and `NOT_EXECUTED`; no Honda or physical Android contact occurred. See [packet](r7e6-test-a-authorization-packet.md), [decision](r7e6-test-a-readiness-decision.md), [collector verification](r7e6-test-a-collector-verification.md), and [R7E6A report](../../step-reports/43t1-r7e6a-test-a-collector-safety-closure.md).
+
+---
+
+# R7E6 current readiness — 2026-10-11
+
+Decision: `R7E_TEST_A_EXECUTION_PACKAGE_READY`; next `READY_FOR_EXPLICIT_TEST_A_AUTHORIZATION`. API17 x86 watchdog runtime, fault matrix, and 100/100 repeated mode pairs passed. ARM artifact/import audit and staging integrity passed; default-disabled collector, 23 fixture cases, manifest, and authorization packet are frozen. Test A remains `NOT_AUTHORIZED` and unexecuted. No Honda or physical Android contact occurred. See [R7E6 packet](r7e6-test-a-authorization-packet.md) and [decision](r7e6-test-a-readiness-decision.md).
+
+Historical initial R7E6 attempt: runtime proof was not established because a shared ADB server attached to the emulator transport before guest commands. This was resolved by the later isolated API17 x86 run recorded in the current decision above; the initial failed attempt remains part of the audit history. No Honda or physical Android contact occurred.
+
+## R7E5F current decision — 2026-10-11
+
+The process-local supervisor is implemented and host fault-tested. Production ARMv7 rebuild and pinned NDK API17 import audit pass; staging copy is byte-identical at 0555. However, API17 x86 emulator runtime proof was not run because the required runner uses ADB and R7E5F forbids ADB. Decision remains `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`; Test A is `NOT_AUTHORIZED`. No runnable collector, execution manifest, or authorization packet is frozen. Next: separately scoped offline API17 x86 runtime proof without Honda contact, then review and freeze only if all gates pass. See [design](r7e5f-self-bounded-diagnostic-design.md), [rollback review](r7e5f-process-rollback-closure.md), and [R7E5F report](../../step-reports/43t1-r7e5f-test-a-process-bound-closure.md).
+
+
+## R7E5C update — legacy ADB mode closure (offline)
+
+The previous A0-W outcome remains historically `A0W_STOP_CONDITION`: Android 4.2.2_r1.2 AOSP predicts host 0644→remote 0666; the observed Honda result agrees behaviorally, without identifying its ADB binary. Transfer and cleanup/absence were observed; MD5 remains unproven. A0-WR is now frozen as a new separate 0444 marker package with required MD5 and deterministic mode validation. Decision: `R7E_A0WR_LEGACY_MODE_PACKAGE_READY`; next `READY_FOR_EXPLICIT_USER_A0WR_AUTHORIZATION`. A0-WR is not authorized and has not run. Test A remains not authorized, and no automatic chain exists. Its future staging policy is an ignored copy of the unchanged canonical diagnostic bytes/hash at mode 0555; planning only. No Honda/ADB action occurred in R7E5C. See [mode semantics](r7e5c-legacy-adb-mode-semantics.md), [A0-W stop review](r7e5c-a0w-stop-review.md), and [authorization packet](r7e5c-a0wr-authorization-packet.md).
+
+# R7E first-test readiness
+
+## R7E5E current decision — 2026-10-11
+
+`A0WR_PASS_FOR_REVIEW`. `A0_TRANSFER_PATH_CLOSED` and `A0_WRITE_VERIFY_DELETE_CLOSED`; `NO_ADDITIONAL_A0_MARKER_TEST_REQUIRED`. Test A moved to package review but is now `R7E_TEST_A_PROCESS_ROLLBACK_BLOCKED`, `NOT_AUTHORIZED`, because exact Android 4.2.2 `ps` grammar/PID matching and `kill` behavior are not evidenced, and the current self-test does not enforce a completion bound. The canonical diagnostic remains byte-identical to its recorded SHA-256; its current size is 5,024 bytes (the old 4,836-byte documentation is stale). An ignored 0555 staging copy is byte-identical and predicts remote mode 0555. These facts do not close the process-recovery blocker. Do not create a runnable collector or request Test A authorization until the blocker is resolved and the artifact is rebuilt/audited if source changes.
+
+See the [sanitized A0-WR review](r7e5e-a0wr-result.md). The artifact's historical audit remains at [R7E1 ELF audit](r7e1-target-artifact-elf-audit.md).
+
+**Historical decision (superseded by R7E1):** `R7E_TEST_A_PLAN_BLOCKED`
+**Test A plan readiness:** `BLOCKED_BY_EVIDENCE`  
+**Execution authorization:** `NOT_AUTHORIZED`.
+
+Test A remains the first narrow candidate because it need not touch Display1 or CarPlay. It is not ready for separate authorization: temporary destination/write semantics, exact commands, privilege requirements, and minimum head-unit power state are unresolved. Do not transfer or execute an existing full receiver library as a substitute.
+
+Tests B–H retain their individual readiness states in [authorization matrix](r7e-test-authorization-matrix.md). Test H remains `AUTHORITY_REQUIRED`. All test rows are `NOT_AUTHORIZED`.
+
+**Next action:** configure the pinned offline NDK r23c and implement/build/audit the minimal fail-closed R7E target diagnostic. This is host/offline work only. It does not authorize Test A or any Honda action.
+
+
+## R7E1 readiness correction
+
+Decision after R7E2: `R7E_TEST_A0_READONLY_PREFLIGHT_READY`. Test A remains `BLOCKED_BY_A0` and `NOT_AUTHORIZED`; separately authorize A0-R first. A0-W remains conditional on A0-R. ECC review classifies successful executable permission as Test A's measurement, and a specifically approved operator-observed safe state as sufficient without proving a theoretical minimum. See [R7E2 readiness decision](r7e2-test-a-readiness-decision.md).
+
+## R7E3 update
+
+A0-R is now represented by a frozen host-only collector and command manifest, but has not been executed. Readiness is `READY_FOR_EXPLICIT_USER_A0R_AUTHORIZATION`, subject to the exact implementation commit and plan-manifest SHA-256 in the R7E3 packet. A0-W remains `BLOCKED_BY_A0_R_RESULT`; Test A remains `BLOCKED_BY_A0` / `NOT_AUTHORIZED`. See [R7E3 readiness decision](r7e3-a0r-readiness-decision.md) and [authorization packet](r7e3-a0r-authorization-packet.md).
+
+## R7E4 research-backed refinement (offline only)
+
+The prior manifest SHA-256 `5b73badc219e87ef41eebb154ed4875c0c3ec2e3b19c61f2f2dc5209f3ff963e` is `SUPERSEDED_BEFORE_AUTHORIZATION`; no authorization was granted under it. The normalized manifest at [r7e3-a0r-plan-manifest.json](r7e3-a0r-plan-manifest.json) now carries plan version `R7E4-A0R-COMMAND-SET-1` and SHA-256 `962b25fca36dabde11f2406da1e5d898a0fe5c3a49f78f2bd00f292910442004`. Its six added A0-R commands are fixed `ls -l` metadata reads for `/system/bin/toolbox`, `rm`, `ps`, `kill`, `md5`, and `chmod`; none executes those tools. Missing tool entries are recorded as `<TOOL>_UNAVAILABLE` and remain informational for A0-R; missing `rm`, `ps`, or `kill` also records a separate future-plan review blocker, while missing optional `md5` or unnecessary-by-default `chmod` does not block A0-R. `SELINUX_STATE_UNAVAILABLE` is informational and is never interpreted as disabled or permissive. `/data` `noexec` remains a hard blocker.
+
+For future Test A, require host artifact mode `0755` before transfer, then verify the remote mode with `ls -l`; if the target executable bit is absent, stop without automatic `chmod`. SHA-256 remains the canonical identity; MD5 is optional transport consistency only. A0-W is proposed as one unique inert `0644` marker pushed through ADB sync, read-only inspected and optionally MD5-compared, then removed by exact path with a proven `rm`; it remains separately unauthorized and must not auto-run. See [R7E4 Android 4.2.2 research](r7e4-android42-target-path-research.md).
+
+
+## R7E5A current readiness
+
+A0-R completed as `A0R_PASS_FOR_REVIEW`; see the sanitized [R7E5 result](r7e5-a0r-result.md). Based on reviewed evidence, write/delete/transfer remain unproven, so A0-W is needed. The exact A0-W package is frozen in the [authorization packet](r7e5a-a0w-authorization-packet.md) and [manifest](r7e5a-a0w-plan-manifest.json). Decision: `R7E_A0W_EXECUTION_PACKAGE_READY`; next action `READY_FOR_EXPLICIT_USER_A0W_AUTHORIZATION`. A0-W is not authorized. Test A is `BLOCKED_BY_A0W` and remains not authorized. The packet requires an exclusive ADB window because Android 4.2.2 sync push unlinks an existing exact destination before sending.
