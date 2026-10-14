@@ -2,7 +2,7 @@
 
 - [Final closeout](research/implementation/cl-imp-14-final-closeout.md): 20-component completeness matrix; host, API17 emulator, and ARMv7 evidence; artifact hashes; exact external iPhone/Honda prerequisites and installation/rollback boundary.
 - The lab demo is synthetic and host-only; the API17 app/decoder results and ARMv7 compile are separate bounded evidence. No genuine iPhone or Honda compatibility is established. Production integration remains disabled.
-- CL-IMP-14 documentation-closeout validation and exact-head CI/CodeQL will be recorded with the final commit SHA after checks complete.
+- CL-IMP-14 closeout commit `69e90052bdd32541b22098da5947f33a3b09ebe2`: Offline CI `38504041467` and CodeQL `38504041448` passed at that SHA. The report-only follow-up records the results and receives its own exact-head checks.
 
 ## CL-IMP-13 reliability and security (2026-10-13)
 
