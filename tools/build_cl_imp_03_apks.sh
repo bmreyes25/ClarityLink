@@ -19,10 +19,12 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/src/main/java/org/claritylink/android/DisplayDiscovery.java" \
   "$repo/android/src/main/java/org/claritylink/android/DisplayPolicy.java" \
   "$repo/android/src/main/java/org/claritylink/android/SecondaryDisplayHost.java" \
+  "$repo/android/src/main/java/org/claritylink/android/Api17SurfaceH264Decoder.java" \
   "$repo/android/src/main/java/org/claritylink/android/HostedContentLifecycle.java" \
   "$repo/android/src/main/java/org/claritylink/android/ProcessLifecycleAdapter.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayApplication.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/Api17DecoderLabActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcClient.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java" \
@@ -31,6 +33,10 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/src/claritylink-renderer/android-api17/FrameBackpressureGate.java" \
   "$repo/src/claritylink-renderer/android-api17/SimulatedExternalDisplayCompositor.java" \
   "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java"
+mkdir -p "$out/assets"
+cp "$repo/tests/fixtures/cl-imp-08/type110-red-32x32.h264.b64" "$out/assets/type110-red-32x32.h264.b64"
+cp "$repo/tests/fixtures/cl-imp-08/type111-blue-32x32.h264.b64" "$out/assets/type111-blue-32x32.h264.b64"
+cp "$repo/tests/fixtures/cl-imp-08/type111-green-64x64.h264.b64" "$out/assets/type111-green-64x64.h264.b64"
 "$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$out/dex" \
   $(find "$out/classes" -name '*.class' -print)
 key="$out/cl-imp-03-debug.keystore"
@@ -47,8 +53,13 @@ package_variant() {
   manifest_dir="$out/$name-manifest"
   mkdir -p "$manifest_dir"
   cp "$repo/android/cl-imp-03-app/$manifest" "$manifest_dir/AndroidManifest.xml"
-  "$build_tools/aapt" package -f -M "$manifest_dir/AndroidManifest.xml" \
-    -I "$platform/android.jar" -F "$unsigned"
+  if [ "$name" = "claritylink-display-lab" ]; then
+    "$build_tools/aapt" package -f -M "$manifest_dir/AndroidManifest.xml" \
+      -I "$platform/android.jar" -A "$out/assets" -F "$unsigned"
+  else
+    "$build_tools/aapt" package -f -M "$manifest_dir/AndroidManifest.xml" \
+      -I "$platform/android.jar" -F "$unsigned"
+  fi
   (cd "$out/dex" && "$build_tools/aapt" add "$unsigned" classes.dex >/dev/null)
   "$build_tools/zipalign" -f 4 "$unsigned" "$aligned"
   "$build_tools/apksigner" sign --ks "$key" --ks-pass pass:android --key-pass pass:android \
@@ -63,6 +74,17 @@ permissions=$("$build_tools/aapt" dump permissions "$out/claritylink-display-lab
 printf '%s\n' "$permissions" | rg -q '^uses-permission:' && {
   echo "Unexpected permission declaration in lab APK: $permissions" >&2; exit 3;
 }
+python3 - "$out/claritylink-display-lab.apk" "$out/claritylink-disabled-candidate.apk" <<'PY'
+import sys
+import zipfile
+lab, candidate = map(zipfile.ZipFile, sys.argv[1:])
+fixtures = {"assets/type110-red-32x32.h264.b64", "assets/type111-blue-32x32.h264.b64",
+            "assets/type111-green-64x64.h264.b64"}
+if not fixtures.issubset(set(lab.namelist())):
+    raise SystemExit("lab APK is missing CL-IMP-08 synthetic fixtures")
+if fixtures.intersection(candidate.namelist()):
+    raise SystemExit("disabled candidate APK must not package synthetic lab fixtures")
+PY
 python3 - "$repo/android/cl-imp-03-app/AndroidManifest.candidate.xml" <<'PY'
 import sys
 import xml.etree.ElementTree as ET

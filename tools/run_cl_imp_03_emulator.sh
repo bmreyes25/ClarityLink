@@ -9,6 +9,13 @@ avdmanager="$sdk/cmdline-tools/latest/bin/avdmanager"
 apk="$out/claritylink-display-lab.apk"
 package=org.claritylink.independentdisplay.lab
 component=org.claritylink.android.ClarityLinkDisplayActivity
+decoder_only=0
+if [ "${1:-}" = "--cl-imp-08-decoder" ]; then
+  decoder_only=1
+  component=org.claritylink.android.Api17DecoderLabActivity
+  shift
+fi
+[ "$#" -eq 0 ] || { echo 'Unexpected emulator harness arguments.' >&2; exit 2; }
 [ -f "$apk" ] && [ -x "$adb" ] && [ -x "$emulator" ] && [ -x "$avdmanager" ] || {
   echo 'Build CL-IMP-03 APKs and provide the isolated API17 emulator tools first.' >&2; exit 2;
 }
@@ -116,6 +123,21 @@ wait_for() {
   printf '%s\n' "$logs" >&2
   return 1
 }
+if [ "$decoder_only" -eq 1 ]; then
+  wait_for 'CLIMP08_API17_MEDIACODEC_PASS'
+  logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  printf '%s\n' "$logs" | grep -F 'resolutionReset=64x64 independentStreams=true surfaceSubmissionOnly=true physicalScanout=UNPROVEN' >/dev/null || {
+    echo 'Decoder result did not report bounded API17 Surface submission and explicit scanout limitation.' >&2
+    printf '%s\n' "$logs" >&2
+    exit 9
+  }
+  owned || exit 7
+  adb_local -s "$serial" shell am force-stop "$package"
+  adb_local -s "$serial" uninstall "$package" >/dev/null
+  adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+  echo 'CL_IMP_08_API17_MEDIACODEC_EMULATOR_PASS dual_stream=true resolution_reset=64x64 owned_surfaces=borrowed scanout=unproven install_scope=isolated_emulator'
+  exit 0
+fi
 wait_for 'ADMISSION_STATE=PRESENTATION_SHOWN'
 wait_for 'SURFACE_BORROWED_READY valid=true owner=Presentation_SurfaceHolder released_by_app=false'
 wait_for 'SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS'

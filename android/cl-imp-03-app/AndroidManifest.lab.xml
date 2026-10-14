@@ -8,5 +8,6 @@
             android:process=":compositor" android:exported="false" />
         <activity android:name="org.claritylink.android.ClarityLinkDisplayActivity"
             android:exported="true" android:configChanges="orientation|screenSize" />
+        <activity android:name="org.claritylink.android.Api17DecoderLabActivity" android:exported="true" />
     </application>
 </manifest>
