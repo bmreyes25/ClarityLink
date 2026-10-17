@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "campaign": "clean-history public-safe publication candidate",
-  "review_status": "PENDING_TARGETED_ECC_REVIEW",
+  "review_status": "ECC_REVIEWED_STATIC_NO_ACTIONABLE_FINDINGS",
   "approval_claimed": false,
   "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
   "source_branch": "overnight/cl-race-binder-view",
@@ -55,7 +55,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "80e6d6999031901532bb2c51e279b2ea98dab7cddfa92d160fad7bd28d273482"
+      "sha256": "a875738e6ace108521fe2fd36f679d71c2fb37ca3c00ce2dc6941b3f02bf2068"
     },
     {
       "path": "docs/status/blockers.md",
@@ -71,7 +71,7 @@
     },
     {
       "path": "docs/status/cl-r0-validation.md",
-      "sha256": "339e77036995dce0680818b0ad43d534983ee337af8f11fd5cfec34456d3f829"
+      "sha256": "692bf5d4b60764441ff1f7269ca9c51ca4c2f60274e6f354edcfcde2e5eccf49"
     },
     {
       "path": "tools/check_repo_health.py",
@@ -81,5 +81,8 @@
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
       "sha256": "2c54d8d8b801e52f0f7debafe9cda754969a13dc9ef16ec1e9a0037ca57a9a20"
     }
-  ]
+  ],
+  "reviewed_head": "5b2da6213cadb9ca1e5ef93e833735207139b70a",
+  "code_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a",
+  "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a"
 }
