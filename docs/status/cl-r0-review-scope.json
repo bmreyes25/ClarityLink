@@ -6,7 +6,7 @@
   "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
   "source_branch": "overnight/cl-race-binder-view",
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
-  "remote_publication": "NOT_PERFORMED",
+  "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
   "files": [
     {
@@ -63,11 +63,11 @@
     },
     {
       "path": "docs/status/cl-r0-validation.md",
-      "sha256": "69af2972d4af4ad6de16818e241a598a9c2222a39bc5298df95b8cc42081ce7f"
+      "sha256": "9037d9a6d79dc83a127edb850b2344a3a9ae9d9a1d94ae6996a26a3173831f73"
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "a7729248991df0b7a3cc3dc12bdc1d3b7860713345f43e2229f1c8e64c92e27d"
+      "sha256": "7ea227fa8cabfdae4d3c81ecc18a3e55d48a209773bec523194df1ab730f155e"
     },
     {
       "path": "docs/status/milestones.json",
@@ -132,6 +132,10 @@
     {
       "path": "tools/verify_api17_pixel_content.swift",
       "sha256": "0718a20a0617e5cdacbbdf4fbdb4fb7999c230e79ee2c212ee065fdec8aaab45"
+    },
+    {
+      "path": "docs/status/cl-r0-main-test-receipt.md",
+      "sha256": "1c691f4c00ee5d939e1fefa85d2ff3a0ea73b4db8b352715349545c8ed809007"
     }
   ],
   "reviewed_head": "4889118bbc3a1a9257f20268330031c815e699ad",
@@ -139,5 +143,11 @@
   "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
   "code_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
   "security_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
-  "final_status_review_range": "3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128..4889118bbc3a1a9257f20268330031c815e699ad"
+  "final_status_review_range": "3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128..4889118bbc3a1a9257f20268330031c815e699ad",
+  "published_main_verification": {
+    "commit": "4c448cbd3e2775abbff5aa1bb6074a6b872d0740",
+    "configured_suite": "1197 passed, 29 skipped, 0 failed",
+    "clone": "one fresh clone; configured suite run twice",
+    "receipt": "docs/status/cl-r0-main-test-receipt.md"
+  }
 }
