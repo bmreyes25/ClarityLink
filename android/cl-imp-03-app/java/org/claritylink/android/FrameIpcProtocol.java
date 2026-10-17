@@ -29,6 +29,7 @@ final class FrameIpcProtocol {
     static final int LAB_WAIT_TRANSFER_BARRIER = 22;
     static final int LAB_RELEASE_TRANSFER_BARRIER = 23;
     static final int LAB_WAIT_TRANSFER_FINISHED = 24;
+    static final int TYPE111_REPLACE_SINK = 25;
     static final int PIXEL_FORMAT_RGBA_8888 = 1;
     static final int MAX_FRAME_BYTES = 4 * 1024 * 1024;
 

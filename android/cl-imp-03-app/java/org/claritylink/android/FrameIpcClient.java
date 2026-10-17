@@ -52,6 +52,30 @@ final class FrameIpcClient {
         return client;
     }
 
+    /** Attach a newly created Type111 View sink through the active Type110 session owner. */
+    static boolean replaceType111Sink(IBinder endpoint, FrameStreamIdentity type110Owner,
+            FrameStreamIdentity oldType111, FrameStreamIdentity newType111, IBinder newSink)
+            throws RemoteException {
+        if (endpoint == null || !endpoint.isBinderAlive() || type110Owner == null ||
+                !type110Owner.isValid() || type110Owner.streamType != FrameStreamIdentity.TYPE110 ||
+                oldType111 == null || !oldType111.isValid() ||
+                oldType111.streamType != FrameStreamIdentity.TYPE111 || newType111 == null ||
+                !newType111.isValid() || !oldType111.sameStream(newType111) || newSink == null ||
+                !newSink.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
+            data.writeInt(FrameIpcProtocol.VERSION);
+            writeIdentity(data, type110Owner);
+            writeIdentity(data, oldType111);
+            writeIdentity(data, newType111);
+            data.writeStrongBinder(newSink);
+            endpoint.transact(FrameIpcProtocol.TYPE111_REPLACE_SINK, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     int begin(long generation, IBinder viewSink) throws RemoteException {
         return begin(new FrameStreamIdentity(generation, FrameStreamIdentity.TYPE111,
                 11101L, generation, FrameStreamIdentity.OUTPUT_SECONDARY_VIEW), viewSink);
@@ -174,7 +198,17 @@ final class FrameIpcClient {
                 }
             }
         }, "ClarityLinkFrameIpc");
-        worker.start();
+        try {
+            worker.start();
+        } catch (RuntimeException startFailure) {
+            frameGate.release();
+            callback.complete(false, "worker_start_failed");
+            return false;
+        } catch (OutOfMemoryError startFailure) {
+            frameGate.release();
+            callback.complete(false, "worker_start_failed");
+            return false;
+        }
         return true;
     }
 
