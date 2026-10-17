@@ -119,7 +119,12 @@ def test_handoff_sanitizes_security_context_close_failure(transport_fails):
     assert "private" not in str(error.value)
     assert "private" not in repr(error.value.__cause__)
     import traceback
-    assert "private" not in "".join(traceback.format_exception(error.value))
+    formatted = "".join(traceback.format_exception(error.value))
+    # macOS resolves temporary directories under /private/tmp.  That host path
+    # is unrelated to the exception payload; assert the secret test values are
+    # absent instead of rejecting the platform's own directory name.
+    assert "private transport credential" not in formatted
+    assert "private key material" not in formatted
     assert context.close_attempts == 1
     assert handoff.closed and handoff.security_context is None
     handoff.close()  # One-shot cleanup remains idempotent after failure.
