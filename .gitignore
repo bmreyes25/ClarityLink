@@ -60,6 +60,8 @@
 !/tools/test_r7e1_target_diag_modes.py
 !/tools/normalize_api17_png.py
 !/tools/api17_runner_guard.py
+!/tools/verify_api17_pixel_content.swift
+!/tools/verify_api17_padded_crop_content.swift
 !/tools/run_test3_admission_probe_emulator.sh
 !/tools/test3_output_validation_v2.py
 !/tools/run_r7c2_emulator.sh
