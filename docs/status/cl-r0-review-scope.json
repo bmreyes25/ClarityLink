@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "campaign": "clean-history public-safe publication candidate",
-  "review_status": "PENDING_INDEPENDENT_ECC_REVIEW",
+  "review_status": "PENDING_TARGETED_ECC_REVIEW",
   "approval_claimed": false,
   "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
   "source_branch": "overnight/cl-race-binder-view",
@@ -71,11 +71,15 @@
     },
     {
       "path": "docs/status/cl-r0-validation.md",
-      "sha256": "9c8ff414533ffb6d478de919e2ca8dbe16e2c3bb11a8145029f35734f1bd9d72"
+      "sha256": "339e77036995dce0680818b0ad43d534983ee337af8f11fd5cfec34456d3f829"
     },
     {
       "path": "tools/check_repo_health.py",
       "sha256": "6b77b9f183a72d7fa038b606e3abf86900d1402eb3c7ccdd057d95cd81d78f18"
+    },
+    {
+      "path": "tests/display/test_cl_imp_04_ipc_contract.py",
+      "sha256": "6ad5b9216851cebb503a96440e2ea6fe4b636878ecbd337cefccfc641ff30070"
     }
   ]
 }

@@ -349,7 +349,10 @@ def test_display_probe_entrypoints_are_private_and_emulator_gated():
     assert "getInstrumentation().startActivitySync(intent)" in instrumentation
     p2c2_source = (REPO / "android/p2c2-probe/java/org/claritylink/android/"
                    "P2C2AdmissionProbeActivity.java").read_text()
-    assert p2c2_source.index("if (!isIsolatedEmulator())") < p2c2_source.index("verifyClarityContentView(0)")
+    p2c2_guard = p2c2_source.index("if (!isIsolatedEmulator())")
+    assert p2c2_guard < p2c2_source.index("new HondaStyleDisplayHostSimulator(this)")
+    assert p2c2_guard < p2c2_source.index("getSystemService(Context.DISPLAY_SERVICE)")
+    assert p2c2_guard < p2c2_source.index("verifyClarityContentView(0)")
     assert "manager.registerDisplayListener(displayListener, main)" in p2c2_source
     assert "displayManager.unregisterDisplayListener(displayListener)" in p2c2_source
     assert 'event("DISPLAY_REMOVED_PASS created=' in p2c2_source
@@ -368,7 +371,10 @@ def test_display_probe_entrypoints_are_private_and_emulator_gated():
     assert "getInstrumentation().startActivitySync(intent)" in test4_launch
     window_source = (REPO / "android/test4-window-probe/java/org/claritylink/android/"
                     "Test4WindowAdmissionActivity.java").read_text()
-    assert window_source.index("if (!isIsolatedEmulator())") < window_source.index("new ProbePresentation")
+    window_guard = window_source.index("if (!isIsolatedEmulator())")
+    assert window_guard < window_source.index("getSystemService(Context.DISPLAY_SERVICE)")
+    assert window_guard < window_source.index("createDisplayContext(target)")
+    assert window_guard < window_source.index("new ProbePresentation")
 
 
 def test_candidate_compositor_remains_disabled_and_unexported():
