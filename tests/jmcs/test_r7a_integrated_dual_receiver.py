@@ -4,7 +4,9 @@ from __future__ import annotations
 import socket
 import subprocess
 import sys
+import threading
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -28,7 +30,7 @@ def _info_profile() -> InfoProfile:
         hid_devices=({"uuid": "lab-hid", "name": "Lab Input", "displayUUID":
                       "b7e6c5a0-1111-4000-8000-000000000001", "hidDescriptor": b"\x00",
                       "hidProductID": 1, "hidVendorID": 1, "hidCountryCode": 0},),
-        displays=SecondaryDisplayCapability(width=800, height=480),
+        displays=SecondaryDisplayCapability.synthetic_lab(width=800, height=480),
     )
 
 
@@ -96,6 +98,180 @@ def test_r7a_one_session_delivers_decoded_frames_to_both_owned_outputs():
         receiver.receive_secondary_frame(generation)
 
 
+def test_r7a_concurrent_stream_dispatch_and_secondary_only_reconnect():
+    """Host model: distinct stream IDs/listeners/decoders run in parallel; B teardown leaves A live."""
+    from claritylink_jmcs.media import encode_lab_message
+
+    primary_sink, secondary_sink = NullDisplay(), NullDisplay()
+    receiver = Receiver(clear_lab=True, primary_display=primary_sink, display=secondary_sink)
+    generation = _session(receiver)
+    receiver.setup({"streams": [
+        {"type": 111, "streamConnectionID": 2111},
+        {"type": 110, "streamConnectionID": 2110},
+    ]}, generation)
+    primary_decoder, secondary_decoder = receiver.primary_decoder, receiver.decoder
+    assert receiver.primary_id == 2110 and receiver.secondary_id == 2111
+    assert receiver.primary.port != receiver.secondary.port
+    assert primary_decoder is not secondary_decoder
+
+    primary_access, secondary_access = _h264("red"), _h264("blue")
+    primary_client = socket.create_connection(("127.0.0.1", receiver.primary.port), timeout=2)
+    secondary_client = socket.create_connection(("127.0.0.1", receiver.secondary.port), timeout=2)
+    receiver.accept_primary(generation)
+    receiver.accept_secondary(generation)
+    primary_client.sendall(encode_lab_message(0, primary_access, timestamp=10))
+    secondary_client.sendall(encode_lab_message(0, secondary_access, timestamp=20))
+
+    start = threading.Barrier(3)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        primary_future = pool.submit(lambda: (start.wait(timeout=3), receiver.receive_primary_frame(generation))[1])
+        secondary_future = pool.submit(lambda: (start.wait(timeout=3), receiver.receive_secondary_frame(generation))[1])
+        start.wait(timeout=3)
+        primary_png = primary_future.result(timeout=10)
+        secondary_png = secondary_future.result(timeout=10)
+    assert primary_png != secondary_png
+    assert primary_sink.current.timestamp == 10 and secondary_sink.current.timestamp == 20
+    assert primary_sink.current.generation == secondary_sink.current.generation == generation
+
+    secondary_client.close()
+    old_secondary_decoder = receiver.decoder
+    receiver.teardown_secondary(generation)
+    assert receiver.primary is not None and receiver.primary_decoder is primary_decoder
+    assert receiver.decoder is None and old_secondary_decoder.closed
+
+    # Parent stream A continues producing after only B was removed.
+    try:
+        primary_client.sendall(encode_lab_message(0, primary_access, timestamp=30))
+        receiver.receive_primary_frame(generation)
+        assert primary_sink.current.timestamp == 30
+    finally:
+        primary_client.close()
+
+    receiver.setup({"streams": [{"type": 111, "streamConnectionID": 2112}]}, generation)
+    assert receiver.primary is not None and receiver.primary_decoder is primary_decoder
+    assert receiver.secondary_id == 2112 and receiver.decoder is not old_secondary_decoder
+    secondary_client = socket.create_connection(("127.0.0.1", receiver.secondary.port), timeout=2)
+    try:
+        receiver.accept_secondary(generation)
+        secondary_client.sendall(encode_lab_message(0, secondary_access, timestamp=40))
+        receiver.receive_secondary_frame(generation)
+        assert secondary_sink.current.timestamp == 40
+        assert receiver.generation == generation and receiver.primary_id == 2110
+    finally:
+        secondary_client.close()
+        receiver.teardown(generation)
+    snapshot = receiver.snapshot()
+    assert (snapshot.sessions, snapshot.primary_listeners, snapshot.secondary_listeners,
+            snapshot.security_contexts, snapshot.decoders, snapshot.displayed_frames,
+            snapshot.display_uncleared) == (0, 0, 0, 0, 0, 0, 0)
+
+
+def test_r7a_blocked_type111_output_does_not_starve_type110_output():
+    """A slow secondary renderer must not hold the receiver-wide state lock."""
+    import threading
+
+    from claritylink_jmcs.media import encode_lab_message
+
+    entered_secondary = threading.Event()
+    release_secondary = threading.Event()
+
+    class SlowSecondaryDisplay(NullDisplay):
+        def show(self, frame):
+            entered_secondary.set()
+            if not release_secondary.wait(timeout=5):
+                raise AssertionError("test did not release blocked secondary display")
+            super().show(frame)
+
+    primary_sink, secondary_sink = NullDisplay(), SlowSecondaryDisplay()
+    receiver = Receiver(clear_lab=True, primary_display=primary_sink, display=secondary_sink)
+    generation = _session(receiver)
+    receiver.setup({"streams": [
+        {"type": 110, "streamConnectionID": 3110},
+        {"type": 111, "streamConnectionID": 3111},
+    ]}, generation)
+    primary_client = socket.create_connection(("127.0.0.1", receiver.primary.port), timeout=2)
+    secondary_client = socket.create_connection(("127.0.0.1", receiver.secondary.port), timeout=2)
+    receiver.accept_primary(generation)
+    receiver.accept_secondary(generation)
+    primary_access, secondary_access = _h264("red"), _h264("blue")
+    primary_client.sendall(encode_lab_message(0, primary_access, timestamp=101))
+    secondary_client.sendall(encode_lab_message(0, secondary_access, timestamp=202))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        secondary_future = pool.submit(receiver.receive_secondary_frame, generation)
+        assert entered_secondary.wait(timeout=5), "secondary renderer was never entered"
+        try:
+            primary_future = pool.submit(receiver.receive_primary_frame, generation)
+            primary_png = primary_future.result(timeout=3)
+            assert primary_png.startswith(b"\x89PNG\r\n\x1a\n")
+            assert primary_sink.current.timestamp == 101
+            assert not secondary_future.done()
+        finally:
+            release_secondary.set()
+        assert secondary_future.result(timeout=5).startswith(b"\x89PNG\r\n\x1a\n")
+
+    primary_client.close()
+    secondary_client.close()
+    receiver.teardown(generation)
+    snapshot = receiver.snapshot()
+    assert (snapshot.sessions, snapshot.primary_listeners, snapshot.secondary_listeners,
+            snapshot.security_contexts, snapshot.decoders, snapshot.displayed_frames,
+            snapshot.display_uncleared) == (0, 0, 0, 0, 0, 0, 0)
+
+
+def test_receiver_stream_registry_bounds_type111_and_routes_type110_independently():
+    from claritylink_jmcs.decoder import DecodedFrame
+
+    entered = threading.Event()
+    release = threading.Event()
+
+    class BlockedSecondaryDisplay(NullDisplay):
+        def show(self, frame):
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError("Type111 dispatch barrier was not released")
+            super().show(frame)
+
+    primary, secondary = NullDisplay(), BlockedSecondaryDisplay()
+    receiver = Receiver(clear_lab=True, primary_display=primary, display=secondary)
+    generation = _session(receiver)
+    receiver.setup({"streams": [
+        {"type": 110, "streamConnectionID": 4110},
+        {"type": 111, "streamConnectionID": 4111},
+    ]}, generation)
+    type110 = receiver.stream_identity(110)
+    type111 = receiver.stream_identity(111)
+    assert type110.stream_type == 110 and type110.output_id == 1
+    assert type111.stream_type == 111 and type111.output_id == 2
+
+    frame111a = DecodedFrame(b"111-A", 201, type111.stream_generation, 2, 2)
+    frame111b = DecodedFrame(b"111-B", 202, type111.stream_generation, 2, 2)
+    frame111c = DecodedFrame(b"111-C", 203, type111.stream_generation, 2, 2)
+    blocked = receiver.enqueue_decoded_frame(type111, frame111a)
+    assert entered.wait(3), "Type111 renderer did not block"
+    queued = receiver.enqueue_decoded_frame(type111, frame111b)
+    assert receiver.dispatch_registry_snapshot()[111].outstanding_frames == 2
+    assert receiver.enqueue_decoded_frame(type111, frame111c).result(timeout=1) is False
+
+    primary_frame = DecodedFrame(b"110-A", 101, type110.stream_generation, 2, 2)
+    assert receiver.enqueue_decoded_frame(type110, primary_frame).result(timeout=3)
+    assert primary.current == primary_frame
+    assert secondary.current is None
+    snapshot = receiver.dispatch_registry_snapshot()
+    assert snapshot[111].retained_bytes == len(frame111a.png) + len(frame111b.png)
+    assert snapshot[111].rejected == 1
+    assert snapshot[110].rendered == (101,)
+    release.set()
+    assert blocked.result(timeout=3)
+    assert queued.result(timeout=3)
+
+    assert secondary.current == frame111b
+    assert receiver.dispatch_registry_snapshot()[111].rendered == (201, 202)
+    receiver.teardown(generation)
+    assert receiver.snapshot().sessions == 0
+    assert receiver.snapshot().displayed_frames == 0
+
+
 @pytest.mark.parametrize("order", [(111, 110), (110, 111), (110,), (111,)])
 def test_stream_order_and_single_stream_configurations(order: tuple[int, ...]):
     receiver = Receiver(clear_lab=True)
@@ -157,6 +333,21 @@ def test_duplicate_stream_ids_and_wrong_generation_rejected_before_media():
     with pytest.raises(ReceiverError, match="stale_or_closed_session"):
         receiver.setup({"streams": [{"type": 111, "streamConnectionID": 8}]}, generation)
     receiver.teardown(next_generation)
+
+
+def test_receiver_rejects_boolean_generation_alias():
+    receiver = Receiver(clear_lab=True)
+    generation = _session(receiver)
+    assert generation == 1
+    with pytest.raises(ReceiverError, match="stale_or_closed_session"):
+        receiver.setup({"streams": [{"type": 111, "streamConnectionID": 8}]}, True)
+    receiver.setup({"streams": [{"type": 110, "streamConnectionID": 9},
+                                 {"type": 111, "streamConnectionID": 10}]}, generation)
+    for teardown in (receiver.teardown_primary, receiver.teardown_secondary, receiver.teardown):
+        teardown(True)
+        assert receiver.generation == generation
+        assert receiver.primary is not None and receiver.secondary is not None
+    receiver.teardown(generation)
 
 
 def test_type111_media_failure_isolated_from_primary_and_repeated_cleanup_is_safe():

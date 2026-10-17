@@ -12,8 +12,13 @@ from claritylink_jmcs.security import SecurityProfile, SessionSecurityContext, S
 from claritylink_jmcs.setup import SetupRequest, SetupError
 
 
-def test_info_profile_has_two_distinct_complete_display_structures():
+def test_secondary_display_advertisement_is_off_by_default():
     displays = host_info(SecondaryDisplayCapability())["displays"]
+    assert [d["type"] for d in displays] == [110]
+
+
+def test_synthetic_info_profile_has_two_distinct_complete_display_structures():
+    displays = host_info(SecondaryDisplayCapability.synthetic_lab())["displays"]
     assert [d["type"] for d in displays] == [110, 111]
     assert displays[0]["uuid"] != displays[1]["uuid"]
     assert displays[1]["initialURL"] == "maps:/car/instrumentcluster/map"
@@ -123,6 +128,53 @@ def test_current_host_profile_header_and_authenticated_frame():
         reader.close()
 
 
+def test_modern_security_rejects_invalid_context_input_and_closed_reopen():
+    from claritylink_jmcs.security import ModernChaChaScreenSecurity
+    provider = ModernChaChaScreenSecurity(b"k" * 32, provenance="offline fixture")
+    for generation, connection_id in ((True, 1), (1, False), (0, 1), (1, 0),
+                                      ((1 << 64), 1), (1, (1 << 64))):
+        with pytest.raises(SecurityError, match="invalid_security_open"):
+            provider.open(generation, connection_id)
+    with pytest.raises(SecurityError, match="invalid_session_key_context"):
+        ModernChaChaScreenSecurity(bytearray(b"k" * 32), provenance="fixture")
+    provider.open(1, 1)
+    for body, header in ((bytearray(b"x" * 16), b"h" * 128),
+                         (b"x" * 16, bytearray(b"h" * 128)),
+                         (b"x" * (8 * 1024 * 1024 + 1), b"h" * 128),
+                         (b"x" * 15, b"h" * 128)):
+        with pytest.raises(SecurityError, match="invalid_protected_frame"):
+            provider.unprotect(1, body, header)
+    provider.close()
+    with pytest.raises(SecurityError, match="invalid_security_open"):
+        provider.open(2, 1)
+
+
+def test_clear_lab_security_rejects_boolean_generation_alias():
+    from claritylink_jmcs.security import ClearLabSecurity
+    provider = ClearLabSecurity()
+    provider.open(1, 1)
+    with pytest.raises(SecurityError, match="stale_security_context"):
+        provider.unprotect(True, b"synthetic fixture")
+    with pytest.raises(SecurityError, match="invalid_clear_fixture_frame"):
+        provider.unprotect(1, bytearray(b"synthetic fixture"))
+
+
+def test_receiver_rejects_shared_primary_secondary_security_context():
+    receiver = Receiver(clear_lab=True)
+    generation = receiver.start_session()
+    receiver.info_exchanged(generation)
+    receiver.setup({"streams": [{"type": 110, "streamConnectionID": 11}]}, generation)
+    primary_security = receiver.primary_security
+    assert primary_security is not None
+    receiver.security_factory = lambda: primary_security
+    response = receiver.setup({"streams": [{"type": 111, "streamConnectionID": 12}]}, generation)
+    assert [item["type"] for item in response.fields["streams"]] == [110]
+    assert receiver.primary_security is primary_security
+    assert primary_security.generation == generation
+    assert receiver.secondary is None
+    receiver.teardown(generation)
+
+
 def test_current_host_profile_rejects_oversize_before_body():
     import socket
     sender, reader = socket.socketpair()
@@ -180,7 +232,7 @@ def test_shared_sanitized_protocol_fixture():
     import json
     fixture = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "r6" / "protocol-vectors.json").read_text())
     assert fixture["provenance"].startswith("SYNTHETIC_SANITIZED")
-    displays = host_info(SecondaryDisplayCapability())["displays"]
+    displays = host_info(SecondaryDisplayCapability.synthetic_lab())["displays"]
     assert [x["type"] for x in displays] == fixture["info"]["display_types"]
     for index, request in enumerate(fixture["setup"], 1):
         parsed = SetupRequest.parse(request, index)

@@ -2,7 +2,8 @@ import copy
 import hashlib
 import pytest
 from models import (ClarityLinkCapabilityProfile, ClarityLinkSecondaryDisplayDescriptor as Descriptor,
-                    Provenance, SourcedValue, ResponseStrategy, Type111ResponseProfile, SecretBytes)
+                    CapabilityProfileMode, Provenance, SourcedValue, ResponseStrategy,
+                    Type111ResponseProfile, SecretBytes)
 from server_info import ClarityLinkServerInfoAugmentor, ServerInfoError
 from listener import FakeSecondaryListenerFactory
 from setup_interposer import (ClarityLinkSetupInterposer, ClarityLinkType111ResponseBuilder,
@@ -14,7 +15,8 @@ from screen_kdf import derive_honda_type110_screen_key_iv
 def test_server_info_pure_additive_and_disabled():
     main={"uuid":"main","opaque":{"a":1}}
     stock={"displays":[main],"unknownFieldA":1,"unknownFieldB":[2]}
-    prof=ClarityLinkCapabilityProfile(descriptor=Descriptor(uuid=SourcedValue("cluster",Provenance.CONFIGURABLE),pixel_width=SourcedValue(800,Provenance.CONFIGURABLE)))
+    prof=ClarityLinkCapabilityProfile(enabled=True, mode=CapabilityProfileMode.SYNTHETIC_LAB,
+        descriptor=Descriptor(uuid=SourcedValue("cluster",Provenance.CONFIGURABLE),pixel_width=SourcedValue(800,Provenance.CONFIGURABLE)))
     out=ClarityLinkServerInfoAugmentor(prof).augment(stock)
     assert out["displays"][0] == main and len(out["displays"])==2
     assert {k:v for k,v in out.items() if k!="displays"} == {k:v for k,v in stock.items() if k!="displays"}
@@ -24,8 +26,16 @@ def test_server_info_pure_additive_and_disabled():
 
 def test_server_info_rejects_bad_source_without_mutation():
     source={"displays":"bad"}
-    with pytest.raises(ServerInfoError): ClarityLinkServerInfoAugmentor(ClarityLinkCapabilityProfile()).augment(source)
+    enabled=ClarityLinkCapabilityProfile(enabled=True,mode=CapabilityProfileMode.SYNTHETIC_LAB)
+    with pytest.raises(ServerInfoError): ClarityLinkServerInfoAugmentor(enabled).augment(source)
     assert source=={"displays":"bad"}
+
+def test_secondary_capability_defaults_off_and_requires_lab_mode():
+    with pytest.raises(ValueError,match="explicit_synthetic_lab_mode"):
+        ClarityLinkCapabilityProfile(enabled=True)
+    profile=ClarityLinkCapabilityProfile()
+    stock={"displays":[{"uuid":"main"}]}
+    assert ClarityLinkServerInfoAugmentor(profile).augment(stock)==stock
 
 def test_request_view_and_profiles_preserve_opaque_data():
     peer={"type":111,"streamConnectionID":42,"opaque":{"nested":["keep"]}}
