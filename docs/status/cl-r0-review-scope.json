@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "campaign": "clean-history public-safe publication candidate",
-  "review_status": "PENDING_TARGETED_ECC_REVIEW",
+  "review_status": "PENDING_INDEPENDENT_ECC_REVIEW",
   "approval_claimed": false,
   "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
   "source_branch": "overnight/cl-race-binder-view",
@@ -15,7 +15,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "9a9d7e1dd2a1a5491d1c74d7a74ace780fcce4cce7972ccf04f06d34be57ee05"
+      "sha256": "ecb42638492edbf7a57af0caaf31f685440f0dacc046d6430dcbe121fa55097a"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -63,11 +63,11 @@
     },
     {
       "path": "docs/status/cl-r0-validation.md",
-      "sha256": "111470217c5ea78f63326f546dd7ca5c3f3a62ac66112dc7d811cbb8d2ae244f"
+      "sha256": "9d1222992b7682b647fec0329f272c9d92491b6fc2724f6a4aa58af84fcc5043"
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "d5a9c565b5a63de04f5e2a84134b64e088c5859f1d1b89e1b75a5ec603a2c51a"
+      "sha256": "7faa081ed77339fcbec058c00fe4cf06a0fb66df37177588147f332411dc237a"
     },
     {
       "path": "docs/status/milestones.json",
@@ -82,8 +82,24 @@
       "sha256": "e62d2da9b46293ad8a8a45f6358867d5e68e7b3b8ad982d4285e6dc12bfa1b0b"
     },
     {
+      "path": "tests/tools/local_tool_gate.py",
+      "sha256": "9f87fcf333b2dad35ab4b7ba3a081416386dd5645cc36923860a2a15abe16f61"
+    },
+    {
+      "path": "tests/tools/test_api17_runner_guard.py",
+      "sha256": "bdfce9888563552e6ebffe373cb17fde5ccef2df350f005c2a03d568d1547c78"
+    },
+    {
       "path": "tests/tools/test_repo_health_generated_evidence.py",
       "sha256": "f6410c1065dcd32c9c9a27810d3205cf635ed74b9d3e7d8ad976a861445802b3"
+    },
+    {
+      "path": "tools/README.md",
+      "sha256": "9175d502cdf25c09c0b09759c64aacc7e33ba74eeeb884686fbea5cf3269c796"
+    },
+    {
+      "path": "tools/api17_runner_guard.py",
+      "sha256": "4c1113c17c649924e0216624a4f714118a2361ae6a6692521ec86c8d165cb50e"
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
@@ -99,11 +115,19 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "5d0202f56464c472fcd7a2fc87888eb2e3e191298a5c89b62e35ea00b51167f5"
+      "sha256": "d4e5ca6b969043c183dc21e17541942426ce1df3c03506d4c098c55c3f518818"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
       "sha256": "51e4d621dcc4323c8e34f984493b44206c4850827adbf49b6170b86a26644e97"
+    },
+    {
+      "path": "tools/verify_api17_padded_crop_content.swift",
+      "sha256": "30a622a516cb195a0504a088b9a21e200b819d462181a907e442e2435802cea8"
+    },
+    {
+      "path": "tools/verify_api17_pixel_content.swift",
+      "sha256": "0718a20a0617e5cdacbbdf4fbdb4fb7999c230e79ee2c212ee065fdec8aaab45"
     }
   ],
   "reviewed_head": "fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
@@ -111,6 +135,6 @@
   "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a",
   "code_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
   "security_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
-  "pending_review_base": "31aada3dfa0cbbddbd1a2350ac7a232c80fb9048",
-  "pending_review_source_head": "59de157abcabbd33b20b1444b0f3b649590514ef"
+  "pending_review_base": "edea469044c1e259a43e3dd441600e95e148670a",
+  "pending_review_source_head": "15cdd08abb646da0e72ec48832c8c19ed62a59d5"
 }
