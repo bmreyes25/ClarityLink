@@ -22,7 +22,7 @@
 
 ## Review and publication
 
-The publication candidate is a clean-history selection based on `origin/main`; it excludes raw/private emulator evidence and vehicle-specific local inventories. Separate read-only ECC-guided code and security reviewers reviewed the candidate through `fc5a70b80dc517c2a8fb81ceb84f4eb3be888279`; neither reported an actionable finding. An optional reviewer suggestion for an additional checker-level assertion is documented in [CL-R0 validation](cl-r0-validation.md). The post-fix API17 runtime remains unverified. AI review is not human vehicle-safety certification.
+The publication candidate is a clean-history selection based on `origin/main`; it excludes raw/private emulator evidence and vehicle-specific local inventories. Separate read-only ECC-guided code and security reviewers reviewed the earlier candidate through `fc5a70b80dc517c2a8fb81ceb84f4eb3be888279` and found no actionable issue. The follow-up commits `9b06b02`, `276a8c0`, and `59de157` fix a clean-test path false positive and include previously ignored public test helpers; this exact new range is pending fresh ECC code and security review. The API17 runtime harness is present, but a post-fix emulator run has not been executed. AI review is not human vehicle-safety certification.
 
 ## Next action
 

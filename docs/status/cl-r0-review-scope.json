@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "campaign": "clean-history public-safe publication candidate",
-  "review_status": "ECC_REVIEWED_STATIC_NO_ACTIONABLE_FINDINGS",
+  "review_status": "PENDING_TARGETED_ECC_REVIEW",
   "approval_claimed": false,
   "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
   "source_branch": "overnight/cl-race-binder-view",
@@ -10,12 +10,12 @@
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
   "files": [
     {
-      "path": ".gitignore",
-      "sha256": "bcca123fc7704f7e2230404ecf3e6f6bcc95ca77000aeb67a1e0670c8ca519d9"
-    },
-    {
       "path": ".github/pull_request_template.md",
       "sha256": "926c2fb7b82dddc3a59a0018324fe659ceec6f3163551899354bccc7c08549ba"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "9a9d7e1dd2a1a5491d1c74d7a74ace780fcce4cce7972ccf04f06d34be57ee05"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -42,20 +42,16 @@
       "sha256": "636e6be62259e8dd1313f223b7d0cb4dee838daf6a1537dc52365460341fec98"
     },
     {
-      "path": "docs/roadmap/final-development-plan.md",
-      "sha256": "169584e19a9e5216029506adb7413bab92242d2075e2adc63601d876a9ed9ba1"
-    },
-    {
       "path": "docs/roadmap/dependency-map.md",
       "sha256": "27f85e1757ff469d8c4b0561b241f6787a151a509f20db99a3ee1f8cd721c13d"
     },
     {
-      "path": "docs/roadmap/milestone-specifications.md",
-      "sha256": "0ecef42b686b04e9ccdbb07a72600c553ef46724980686b3aae7a3ddda02bf90"
+      "path": "docs/roadmap/final-development-plan.md",
+      "sha256": "169584e19a9e5216029506adb7413bab92242d2075e2adc63601d876a9ed9ba1"
     },
     {
-      "path": "docs/status/current.md",
-      "sha256": "041ef1f66b04def353318672032ce1b2927a28b9097addd3f4d5b75359688e58"
+      "path": "docs/roadmap/milestone-specifications.md",
+      "sha256": "0ecef42b686b04e9ccdbb07a72600c553ef46724980686b3aae7a3ddda02bf90"
     },
     {
       "path": "docs/status/blockers.md",
@@ -66,29 +62,55 @@
       "sha256": "f22cee48db5468f797cf76437031f3fbcdf26fc9bf0b915ac8114b5ca0f8d6ef"
     },
     {
+      "path": "docs/status/cl-r0-validation.md",
+      "sha256": "111470217c5ea78f63326f546dd7ca5c3f3a62ac66112dc7d811cbb8d2ae244f"
+    },
+    {
+      "path": "docs/status/current.md",
+      "sha256": "d5a9c565b5a63de04f5e2a84134b64e088c5859f1d1b89e1b75a5ec603a2c51a"
+    },
+    {
       "path": "docs/status/milestones.json",
       "sha256": "5e48be468fda9a8170be8869a7ea3b697a748e5ff59d689acf944edbcf69cb42"
-    },
-    {
-      "path": "docs/status/cl-r0-validation.md",
-      "sha256": "bb3bce12aa3be23c3fb2a86618fccf424b3e37beec4112df034f3bbb3a7444e2"
-    },
-    {
-      "path": "tools/check_repo_health.py",
-      "sha256": "5843428c771c30597a4292dfe6d46945dbfb1d912aa35ddd021c7b9be0f64dc4"
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
       "sha256": "2c54d8d8b801e52f0f7debafe9cda754969a13dc9ef16ec1e9a0037ca57a9a20"
     },
     {
+      "path": "tests/jmcs/test_r6e_auth_transport.py",
+      "sha256": "e62d2da9b46293ad8a8a45f6358867d5e68e7b3b8ad982d4285e6dc12bfa1b0b"
+    },
+    {
       "path": "tests/tools/test_repo_health_generated_evidence.py",
       "sha256": "f6410c1065dcd32c9c9a27810d3205cf635ed74b9d3e7d8ad976a861445802b3"
+    },
+    {
+      "path": "tools/build_cl_imp_03_apks.sh",
+      "sha256": "63403a804acc213f2f07cb2493d4666d79b0dd74bb8483c8fa7e92a3661a50b6"
+    },
+    {
+      "path": "tools/check_repo_health.py",
+      "sha256": "5843428c771c30597a4292dfe6d46945dbfb1d912aa35ddd021c7b9be0f64dc4"
+    },
+    {
+      "path": "tools/normalize_api17_png.py",
+      "sha256": "bf92f752fbabe4b9254f6450a867b8aad74dc3a810b10766f2624ef897a66165"
+    },
+    {
+      "path": "tools/run_cl_imp_03_emulator.sh",
+      "sha256": "5d0202f56464c472fcd7a2fc87888eb2e3e191298a5c89b62e35ea00b51167f5"
+    },
+    {
+      "path": "tools/test_r7e1_target_diag_modes.py",
+      "sha256": "51e4d621dcc4323c8e34f984493b44206c4850827adbf49b6170b86a26644e97"
     }
   ],
   "reviewed_head": "fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
   "code_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a",
   "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a",
   "code_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
-  "security_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279"
+  "security_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
+  "pending_review_base": "31aada3dfa0cbbddbd1a2350ac7a232c80fb9048",
+  "pending_review_source_head": "59de157abcabbd33b20b1444b0f3b649590514ef"
 }
