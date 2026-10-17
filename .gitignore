@@ -58,6 +58,7 @@
 !/tools/build_cl_imp_03_apks.sh
 !/tools/run_cl_imp_03_emulator.sh
 !/tools/test_r7e1_target_diag_modes.py
+!/tools/normalize_api17_png.py
 !/tools/run_test3_admission_probe_emulator.sh
 !/tools/test3_output_validation_v2.py
 !/tools/run_r7c2_emulator.sh
