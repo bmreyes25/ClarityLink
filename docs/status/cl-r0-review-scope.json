@@ -8,14 +8,19 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim.",
   "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "8ac103770d4a77bcfc56f9a517c612f1e0eb998c4ad27b0300679671fd33b757"
+    },
     {
       "path": ".github/pull_request_template.md",
       "sha256": "926c2fb7b82dddc3a59a0018324fe659ceec6f3163551899354bccc7c08549ba"
     },
     {
       "path": ".gitignore",
-      "sha256": "ecb42638492edbf7a57af0caaf31f685440f0dacc046d6430dcbe121fa55097a"
+      "sha256": "600caf5bb2b69bc1cda90d33edf432f553029cd49429043286792e7979bf7522"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -138,7 +143,7 @@
       "sha256": "1c691f4c00ee5d939e1fefa85d2ff3a0ea73b4db8b352715349545c8ed809007"
     }
   ],
-  "reviewed_head": "4889118bbc3a1a9257f20268330031c815e699ad",
+  "reviewed_head": "cb6ccd0c78bd6e6f3c63988cd99185f5d8a087c4",
   "code_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
   "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
   "code_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
