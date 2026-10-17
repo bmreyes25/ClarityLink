@@ -537,7 +537,7 @@ public final class CompositorService extends Service {
             if (control != null) control.teardown(identity);
             return false;
         }
-        state.deathRecipient = createSinkDeathRecipient(state, identity);
+        state.deathRecipient = createSinkDeathRecipient(state, identity, sink, null);
         // Link before publication. If teardown wins the streamsLock race, registration rolls
         // back; if publication wins, teardown sees a state whose recipient is already linked.
         try {
@@ -586,16 +586,16 @@ public final class CompositorService extends Service {
     }
 
     private IBinder.DeathRecipient createSinkDeathRecipient(final StreamState state,
-            final FrameStreamIdentity registeredIdentity) {
-        return createSinkDeathRecipient(state, registeredIdentity, null);
-    }
-
-    private IBinder.DeathRecipient createSinkDeathRecipient(final StreamState state,
-            final FrameStreamIdentity registeredIdentity, final ReplacementDeathGate deathGate) {
+            final FrameStreamIdentity registeredIdentity, final IBinder registeredSink,
+            final ReplacementDeathGate deathGate) {
         return new IBinder.DeathRecipient() {
             public void binderDied() {
                 if (deathGate != null) synchronized (deathGate) { deathGate.dead = true; }
-                final FrameStreamIdentity deadIdentity = registeredIdentity;
+                final FrameStreamIdentity deadIdentity;
+                synchronized (state.lock) {
+                    deadIdentity = state.sink == registeredSink ? state.identity : registeredIdentity;
+                    if (state.sink != registeredSink) return;
+                }
                 Log.i(TAG, "IPC_VIEW_SINK_DEATH_CALLBACK session_id=" + deadIdentity.sessionId +
                         " stream_type=" + deadIdentity.streamType + " connection_id=" +
                         deadIdentity.connectionId + " stream_generation=" + deadIdentity.streamGeneration);
@@ -657,7 +657,8 @@ public final class CompositorService extends Service {
                     closingSessions.contains(oldIdentity.sessionId)) return false;
         }
         final ReplacementDeathGate deathGate = new ReplacementDeathGate();
-        final IBinder.DeathRecipient newRecipient = createSinkDeathRecipient(state, newIdentity, deathGate);
+        final IBinder.DeathRecipient newRecipient = createSinkDeathRecipient(
+                state, newIdentity, newSink, deathGate);
         try { newSink.linkToDeath(newRecipient, 0); }
         catch (RemoteException deadSink) { return false; }
         IBinder oldSink = null;

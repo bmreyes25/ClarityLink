@@ -26,9 +26,9 @@ def test_sink_replacement_is_version3_owner_authorized_and_identity_checked():
 def test_death_and_end_callbacks_are_fenced_to_the_registered_generation():
     service = (APP / "CompositorService.java").read_text()
 
-    assert "createSinkDeathRecipient(state, identity)" in service
-    assert "createSinkDeathRecipient(state, newIdentity, deathGate)" in service
-    assert "final FrameStreamIdentity deadIdentity = registeredIdentity;" in service
+    assert "createSinkDeathRecipient(state, identity, sink, null)" in service
+    assert "state, newIdentity, newSink, deathGate" in service
+    assert "deadIdentity = state.sink == registeredSink ? state.identity : registeredIdentity;" in service
     assert "streams.get(identity.key()) != state || !identity.equals(state.identity)" in service
     assert "detachType111SinkIfCurrent(state, deadIdentity)" in service
     assert "parent_session_preserved=true" in service

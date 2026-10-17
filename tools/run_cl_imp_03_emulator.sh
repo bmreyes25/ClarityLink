@@ -347,7 +347,7 @@ assert_type110_progress_precedes_parent_teardown() {
   death_line=$(printf '%s\n' "$source_logs" | grep -nF "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session stream_type=111" | head -1 | cut -d: -f1)
   frame_line=$(printf '%s\n' "$source_logs" | grep -nF "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$sink_pid" |
     grep -E "frame_id=$((old_frame + 1))([[:space:]]|$)" | head -1 | cut -d: -f1)
-  teardown_line=$(printf '%s\n' "$source_logs" | grep -nF "TYPE111_PARENT_TEARDOWN session_id=$session streams_closed=1 result=accepted" | tail -1 | cut -d: -f1)
+  teardown_line=$(printf '%s\n' "$source_logs" | grep -nF "TYPE111_PARENT_TEARDOWN session_id=$session streams_closed=2 result=accepted" | tail -1 | cut -d: -f1)
   [ -n "$death_line" ] && [ -n "$frame_line" ] && [ -n "$teardown_line" ] &&
     [ "$death_line" -lt "$frame_line" ] && [ "$frame_line" -lt "$teardown_line" ] || {
       echo "Type110 did not progress after Type111 sink death and before parent teardown (session=$session)." >&2
@@ -481,7 +481,7 @@ if [ "$type111_mode" -eq 1 ]; then
   printf '%s\n' "$logs" | grep -F "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$type110_sink_pid" | grep -E "frame_id=$((type110_last_frame + 1))([[:space:]]|$)" >/dev/null || {
     echo 'The independent Type110 sink did not record the next frame after Type111 sink death.' >&2; exit 9;
   }
-  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=1 result=accepted" >/dev/null || {
+  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null || {
     echo 'Parent teardown did not close the remaining Type110 child stream.' >&2; exit 9;
   }
   for stream_type in 110 111; do
