@@ -8,6 +8,8 @@ out="$repo/build/r7c/java-api17"
 rm -rf "$out"
 mkdir -p "$out"
 find "$repo/android/src/main/java" -name '*.java' -print > "$repo/build/r7c/java-sources.txt"
+find "$repo/src/claritylink-renderer/android-api17" -name '*.java' -print >> "$repo/build/r7c/java-sources.txt"
 javac -source 1.7 -target 1.7 -Xlint:all -bootclasspath "$jar" -d "$out" @"$repo/build/r7c/java-sources.txt"
-jar cf "$repo/build/r7c/claritylink-android-api17.jar" -C "$out" .
+jar --create --file "$repo/build/r7c/claritylink-android-api17.jar" \
+  --date=1980-01-01T00:00:02Z -C "$out" .
 echo "Compiled API17 adapter classes to $out"

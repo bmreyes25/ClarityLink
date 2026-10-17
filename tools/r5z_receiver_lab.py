@@ -58,7 +58,7 @@ def main() -> int:
     elif args.mode == "lab-receiver" and receiver.secondary:
         receiver.accept_secondary(generation, timeout=5)
         receiver.receive_secondary_frame(generation)
-    result = {"mode": args.mode, "info": lab_info(SecondaryDisplayCapability()),
+    result = {"mode": args.mode, "info": lab_info(SecondaryDisplayCapability.synthetic_lab()),
               "response_stream_types": [x["type"] for x in response.fields["streams"]],
               "wire_bytes": len(response.wire), "frames": receiver.frames,
               "events": receiver.events.copy()}
