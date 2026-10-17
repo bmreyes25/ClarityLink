@@ -5,6 +5,13 @@ from enum import Enum
 from typing import Mapping, Protocol
 
 
+MAX_SESSION_GENERATION = (1 << 64) - 1
+
+
+def _valid_session_generation(value: object) -> bool:
+    return type(value) is int and 1 <= value <= MAX_SESSION_GENERATION
+
+
 class AuthenticationError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
@@ -47,11 +54,15 @@ class AuthenticatedSessionHandoff:
                  auth_owner: str, transport: object, security_context: object | None = None,
                  *, authority_type: AuthorityType | None = None, authenticated: bool = False,
                  capabilities: Mapping[str, bool] | None = None) -> None:
-        if not session_identifier or not isinstance(generation, int) or generation < 1 or not auth_owner:
+        if (not isinstance(session_identifier, str) or not session_identifier or
+                not _valid_session_generation(generation) or
+                not isinstance(origin, SessionOrigin) or
+                not isinstance(auth_owner, str) or not auth_owner):
             raise AuthenticationError("invalid_session_handoff")
         if transport is None:
             raise AuthenticationError("transport_required")
-        if origin is SessionOrigin.AUTHENTICATED_LAB and (not authenticated or authority_type is None):
+        if origin is SessionOrigin.AUTHENTICATED_LAB and (
+                not authenticated or not isinstance(authority_type, AuthorityType)):
             raise AuthenticationError("authenticated_authority_required")
         if origin is SessionOrigin.SANITIZED_REPLAY and authenticated:
             raise AuthenticationError("synthetic_cannot_authenticate")
@@ -76,6 +87,8 @@ class AuthenticatedSessionHandoff:
         return self._claimed
 
     def claim(self, generation: int) -> None:
+        if not _valid_session_generation(generation):
+            raise AuthenticationError("invalid_session_generation")
         if self._closed or self._claimed:
             raise AuthenticationError("handoff_unavailable")
         if self.generation != generation:
@@ -86,19 +99,28 @@ class AuthenticatedSessionHandoff:
         if self._closed:
             return
         self._closed = True
+        transport_failed = False
+        context_failed = False
         try:
             close = getattr(self.transport, "close", None)
             if callable(close):
                 close()
         except Exception:
-            # Vendor exceptions may contain opaque session/secret details.
-            raise AuthenticationError("handoff_transport_close_failed") from None
-        finally:
-            context = self.security_context
-            self.security_context = None
+            # Provider exceptions may contain opaque session/secret details.
+            transport_failed = True
+        context = self.security_context
+        self.security_context = None
+        try:
             close_context = getattr(context, "close", None)
             if callable(close_context):
                 close_context()
+        except Exception:
+            # Security-provider exceptions may contain key/session details.
+            context_failed = True
+        if transport_failed:
+            raise AuthenticationError("handoff_transport_close_failed") from None
+        if context_failed:
+            raise AuthenticationError("handoff_security_context_close_failed") from None
 
     def __repr__(self) -> str:
         return f"AuthenticatedSessionHandoff(generation={self.generation}, origin={self.origin.value}, closed={self._closed})"
@@ -139,6 +161,8 @@ class LabAuthenticationProvider:
     def authenticate(self, generation: int = 1) -> AuthenticatedSessionHandoff:
         if not self._initialized or self._closed:
             raise AuthenticationError("provider_not_initialized")
+        if not _valid_session_generation(generation):
+            raise AuthenticationError("invalid_session_generation")
         if self._handoff is not None:
             raise AuthenticationError("session_already_active")
         authority = self._authority
@@ -215,6 +239,8 @@ class ReplayAuthenticationProvider(LabAuthenticationProvider):
     def authenticate(self, generation: int = 1) -> AuthenticatedSessionHandoff:
         if not self._initialized or self._closed:
             raise AuthenticationError("provider_not_initialized")
+        if not _valid_session_generation(generation):
+            raise AuthenticationError("invalid_session_generation")
         if self._handoff is not None or self._replay.generation != generation or self._replay.closed or self._replay.claimed:
             raise AuthenticationError("replay_unavailable")
         self._handoff = self._replay

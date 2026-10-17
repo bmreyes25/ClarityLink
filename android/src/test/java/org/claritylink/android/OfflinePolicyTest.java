@@ -6,7 +6,7 @@ public final class OfflinePolicyTest {
         require(!DisplayPolicy.WarningVisibilityPolicy.unknown().safeForHonda(),"UNKNOWN warning evidence must fail closed");
         DisplayPolicy.WarningVisibilityPolicy approved=new DisplayPolicy.WarningVisibilityPolicy(
             DisplayPolicy.Evidence.APPROVED,true,false,true,true);
-        require(approved.safeForHonda(),"explicit warning and protected-region evidence accepted");
+        require(!approved.safeForHonda(),"caller-asserted approval cannot authorize Honda warning safety");
         DisplayPolicy.WarningVisibilityPolicy incomplete=new DisplayPolicy.WarningVisibilityPolicy(
             DisplayPolicy.Evidence.APPROVED,false,false,true,true);
         require(!incomplete.safeForHonda(),"approved label alone must not promote unsafe warning policy");
