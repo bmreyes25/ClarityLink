@@ -1,6 +1,10 @@
 """Host-only decision tests; these fixtures are not target evidence."""
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e7i_process_safety.py")
+
 from tools.r7e7i_process_safety import decide
 
 

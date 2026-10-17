@@ -7,6 +7,10 @@ import subprocess
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e6_test_a_collector.py")
+
 from tools import r7e6_test_a_collector as test_a
 from tools import r7e7g_phase_r_collector as phase_r
 from tools import r7e7g_test_a_wet_rehearsal as rehearsal

@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import pytest
+
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "package_cl_imp_12_artifacts.py")
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))

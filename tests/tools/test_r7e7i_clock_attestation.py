@@ -12,6 +12,10 @@ import tempfile
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e7i_clock_attestation.py")
+
 from tools import r7e7i_clock_attestation as clock
 
 

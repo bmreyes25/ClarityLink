@@ -1,5 +1,9 @@
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "test3_remote_query.py")
+
 from tools.test3_remote_query import parse_reply
 
 

@@ -3,6 +3,10 @@ import subprocess
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e7i_phase_c_cleanup.py", "r7e6_test_a_collector.py")
+
 from tools import r7e7i_phase_c_cleanup as c
 from tools import r7e6_test_a_collector as test_a
 

@@ -6,6 +6,10 @@ import subprocess
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e5a_a0w_collector.py")
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("r7e5a_a0w", ROOT / "tools/r7e5a_a0w_collector.py")

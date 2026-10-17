@@ -6,6 +6,10 @@ import uuid
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e7i_boot_witness.py")
+
 from tools.r7e7i_boot_witness import BootWitnessError, evaluate
 from tools.r7e7i_boot_witness import main
 

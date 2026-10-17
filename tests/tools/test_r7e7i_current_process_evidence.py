@@ -3,6 +3,10 @@ from pathlib import Path
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "r7e7i_current_process_evidence.py")
+
 MODULE = Path(__file__).resolve().parents[2] / "tools" / "r7e7i_current_process_evidence.py"
 spec = importlib.util.spec_from_file_location("r7e7i_current_process_evidence", MODULE)
 mod = importlib.util.module_from_spec(spec)

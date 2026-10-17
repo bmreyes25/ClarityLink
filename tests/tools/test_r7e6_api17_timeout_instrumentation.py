@@ -3,6 +3,10 @@ import subprocess
 
 import pytest
 
+from tests.tools.local_tool_gate import require_local_tools
+
+require_local_tools(__file__, "run_r7e6_api17_runtime.py")
+
 from tools import run_r7e6_api17_runtime as runtime
 
 
