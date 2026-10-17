@@ -48,7 +48,8 @@
 
 ## Documentation updated
 
-- [ ] PROJECT_STATE.md, if status changed
+- [ ] `docs/status/current.md` and `docs/status/milestones.json`, if status changed
 - [ ] EVIDENCE_INDEX.md, if evidence changed
 - [ ] NEXT_ACTION.md, if the concrete next task changed
 - [ ] Step report, if this is a milestone
+- [ ] Link and privacy checks passed; independent review names the exact scope

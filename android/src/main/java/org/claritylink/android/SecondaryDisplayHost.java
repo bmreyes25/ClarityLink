@@ -15,6 +15,8 @@ import android.widget.FrameLayout;
 /** Admission candidate only. Each state means only that specific step succeeded. */
 public final class SecondaryDisplayHost {
     public interface Listener { void state(DisplayPolicy.Admission state); void surface(Surface surface); void error(String operation, String exceptionType); }
+    /** Optional hook for a host-owned content View that uses the Presentation display context. */
+    public interface HostedContentListener extends Listener { void presentationRoot(FrameLayout root); }
     private Candidate presentation;
     private long generation;
     private boolean surfaceAttached;
@@ -27,10 +29,20 @@ public final class SecondaryDisplayHost {
                         DisplayPolicy.Layout layout) {
         return showInternal(context, display, generation, warningPolicy, layout, false);
     }
-    /** Test-only API17 candidate path. Never represents Honda safety/admission evidence. */
+    /** Synthetic-only adapter retained for API17 emulator compatibility tests. */
     boolean showOfflineLabForRuntimeTest(Context context, Display display, long generation,
                                          DisplayPolicy.Layout layout) {
-        if (layout == null || !layout.testOnly) return false;
+        requireMainThread();
+        if (!DisplayPolicy.isIsolatedApi17EmulatorBuild()) {
+            close();
+            state(DisplayPolicy.Admission.BLOCKED_HONDA_SAFETY);
+            return false;
+        }
+        if (layout == null || !layout.testOnly) {
+            close();
+            state(DisplayPolicy.Admission.FAULTED);
+            return false;
+        }
         return showInternal(context, display, generation,
                 DisplayPolicy.WarningVisibilityPolicy.unknown(), layout, true);
     }
@@ -39,23 +51,36 @@ public final class SecondaryDisplayHost {
                         DisplayPolicy.Layout layout, boolean offlineLab) {
         requireMainThread(); close();
         if (display == null || !display.isValid() || generation <= 0 || warningPolicy == null ||
-            layout == null || (offlineLab ? !layout.testOnly :
-                (!warningPolicy.safeForHonda() || layout.testOnly))) {
-            state(DisplayPolicy.Admission.FAILED); return false;
+            layout == null) {
+            state(DisplayPolicy.Admission.FAULTED); return false;
+        }
+        // There is deliberately no lab or caller-controlled bypass in this
+        // production host. Presentation admission remains disabled until a
+        // separately reviewed Honda-safe policy exists.
+        if (offlineLab) {
+            if (!DisplayPolicy.isIsolatedApi17EmulatorBuild() || !layout.testOnly) {
+                state(DisplayPolicy.Admission.BLOCKED_HONDA_SAFETY);
+                return false;
+            }
+        } else if (!warningPolicy.safeForHonda() || layout.testOnly) {
+            state(DisplayPolicy.Admission.BLOCKED_HONDA_SAFETY);
+            return false;
         }
         this.generation = generation;
         surfaceAttached=false;
         state(DisplayPolicy.Admission.DISPLAY_ENUMERATED);
         try {
             context.createDisplayContext(display);
-            state(DisplayPolicy.Admission.DISPLAY_CONTEXT_CREATED);
+            state(DisplayPolicy.Admission.DISPLAY_CONTEXT_READY);
             presentation = new Candidate(context, display, layout, generation);
-            state(DisplayPolicy.Admission.PRESENTATION_CONSTRUCTED);
+            state(DisplayPolicy.Admission.WINDOW_CONSTRUCTED);
+            state(DisplayPolicy.Admission.WINDOW_ADMISSION_REQUESTED);
             presentation.show();
-            state(DisplayPolicy.Admission.PRESENTATION_SHOWN);
+            state(offlineLab ? DisplayPolicy.Admission.WINDOW_ADMITTED_LAB :
+                    DisplayPolicy.Admission.PRESENTATION_SHOWN);
             return true;
         } catch (RuntimeException e) {
-            close(); state(DisplayPolicy.Admission.FAILED);
+            close(); state(DisplayPolicy.Admission.WINDOW_REJECTED);
             if (listener != null) listener.error("presentation-admission", e.getClass().getName());
             return false;
         }
@@ -65,14 +90,26 @@ public final class SecondaryDisplayHost {
         if (closing) return;
         closing=true;
         Candidate old=presentation;
-        if(old!=null) old.dismiss();
-        if(surfaceAttached) {
-            surfaceAttached=false;
-            if(listener!=null) listener.surface(null);
-        }
+        boolean hadSurface=surfaceAttached;
         presentation=null;
         generation=0;
-        closing=false;
+        surfaceAttached=false;
+        try {
+            if (old != null) {
+                state(DisplayPolicy.Admission.DISMISS_REQUESTED);
+                old.dismiss();
+                // Dialog.dismiss() is a local request. Independent WMS evidence is
+                // required before reporting WINDOW_REMOVED_VERIFIED.
+            }
+        } catch (RuntimeException failure) {
+            error("presentation-dismiss", failure);
+        } finally {
+            if (hadSurface && listener != null) {
+                try { listener.surface(null); }
+                catch (RuntimeException failure) { error("surface-release-notification", failure); }
+            }
+            closing=false;
+        }
     }
     boolean destroySurfaceForRuntimeTest() {
         requireMainThread();
@@ -92,7 +129,18 @@ public final class SecondaryDisplayHost {
     private static void requireMainThread() {
         if(Looper.myLooper()!=Looper.getMainLooper()) throw new IllegalStateException("display host must be used on the UI thread");
     }
-    private void state(DisplayPolicy.Admission s) { if (listener != null) listener.state(s); }
+    private void state(DisplayPolicy.Admission s) {
+        if (listener != null) {
+            try { listener.state(s); }
+            catch (RuntimeException failure) { error("admission-state-notification", failure); }
+        }
+    }
+    private void error(String operation, RuntimeException failure) {
+        if (listener != null) {
+            try { listener.error(operation, failure.getClass().getName()); }
+            catch (RuntimeException ignored) { /* A listener cannot prevent cleanup. */ }
+        }
+    }
     private final class Candidate extends Presentation {
         private final DisplayPolicy.Layout layout;
         private final long candidateGeneration;
@@ -106,6 +154,10 @@ public final class SecondaryDisplayHost {
             root = new FrameLayout(getContext());
             attachLabSurface();
             setContentView(root);
+            if (listener instanceof HostedContentListener && generation == candidateGeneration &&
+                    presentation == Candidate.this) {
+                ((HostedContentListener) listener).presentationRoot(root);
+            }
         }
         private void attachLabSurface() {
             SurfaceView view = new SurfaceView(getContext());
@@ -140,7 +192,7 @@ public final class SecondaryDisplayHost {
             if(generation==candidateGeneration && presentation==Candidate.this) {
                 surfaceAttached=false;
                 if(listener!=null) listener.surface(null);
-                state(DisplayPolicy.Admission.FAILED);
+                state(DisplayPolicy.Admission.FAULTED);
                 if(!closing) close();
             }
         }

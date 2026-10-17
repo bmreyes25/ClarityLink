@@ -5,6 +5,7 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import threading
 
 import pytest
 
@@ -152,6 +153,129 @@ def test_listener_loopback_policy_and_generation() -> None:
     listener.close()
 
 
+def test_listener_serializes_concurrent_single_connection_accepts() -> None:
+    listener = HostListener.create(1)
+    clients: list[socket.socket] = []
+    barrier = threading.Barrier(3)
+    accepted: list[socket.socket] = []
+    errors: list[str] = []
+
+    def accept_one() -> None:
+        barrier.wait()
+        try:
+            accepted.append(listener.accept(1, timeout=1))
+        except ListenerError as exc:
+            errors.append(exc.code)
+
+    workers = [threading.Thread(target=accept_one) for _ in range(2)]
+    try:
+        for worker in workers:
+            worker.start()
+        barrier.wait()
+        for _ in range(2):
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.settimeout(1)
+            client.connect(("127.0.0.1", listener.port))
+            clients.append(client)
+        for worker in workers:
+            worker.join(timeout=2)
+        assert all(not worker.is_alive() for worker in workers)
+        assert len(accepted) == 1
+        assert errors == ["connection_limit"]
+        assert listener.accepted is accepted[0]
+    finally:
+        listener.close()
+        for client in clients:
+            client.close()
+
+
+@pytest.mark.parametrize("kind", [110, 111])
+def test_stale_inflight_frame_cannot_teardown_same_generation_replacement(kind: int) -> None:
+    from claritylink_jmcs.media import encode_lab_message
+    from claritylink_jmcs.security import ClearLabSecurity
+
+    class ValueEqualSecurity(ClearLabSecurity):
+        def __eq__(self, other: object) -> bool:
+            return isinstance(other, ValueEqualSecurity)
+
+    receiver = Receiver(clear_lab=True,
+                        security_factory=ValueEqualSecurity if kind == 111 else None)
+    gen = start(receiver)
+    receiver.setup(request(kind), gen)
+    listener_attr = "primary" if kind == 110 else "secondary"
+    decoder_attr = "primary_decoder" if kind == 110 else "decoder"
+    security_attr = "primary_security" if kind == 110 else "security"
+    old_listener = getattr(receiver, listener_attr)
+    client = socket.create_connection(("127.0.0.1", old_listener.port), timeout=1)
+    if kind == 110:
+        receiver.accept_primary(gen)
+    else:
+        receiver.accept_secondary(gen)
+
+    entered_decode = threading.Event()
+    resume_decode = threading.Event()
+    old_decoder = getattr(receiver, decoder_attr)
+    old_security = getattr(receiver, security_attr)
+
+    def blocked_decode(_data: bytes, timestamp: int, generation: int, _dimensions: tuple[int, int]):
+        from claritylink_jmcs.decoder import DecodedFrame
+        entered_decode.set()
+        if not resume_decode.wait(timeout=3):
+            raise RuntimeError("decode_test_timeout")
+        return DecodedFrame(b"synthetic decoded frame", timestamp, generation)
+
+    old_decoder.decode = blocked_decode
+    client.sendall(encode_lab_message(0, b"synthetic H264 access unit", timestamp=7))
+    failures: list[ReceiverError] = []
+
+    def receive() -> None:
+        try:
+            if kind == 110:
+                receiver.receive_primary_frame(gen)
+            else:
+                receiver.receive_secondary_frame(gen)
+        except ReceiverError as exc:
+            failures.append(exc)
+
+    worker = threading.Thread(target=receive)
+    worker.start()
+    try:
+        assert entered_decode.wait(timeout=2)
+        if kind == 110:
+            receiver.teardown_primary(gen)
+        else:
+            receiver.teardown_secondary(gen)
+        receiver.setup(request(kind), gen)
+        replacement_listener = getattr(receiver, listener_attr)
+        replacement_decoder = getattr(receiver, decoder_attr)
+        replacement_security = getattr(receiver, security_attr)
+        assert replacement_listener is not None and replacement_listener is not old_listener
+        assert replacement_decoder is not old_decoder
+        assert replacement_security is not old_security
+        if kind == 111:
+            # Isolate security-context identity: listener and decoder already
+            # match the active replacement, while the distinct contexts compare equal.
+            receiver.teardown_secondary(
+                gen, expected=(replacement_listener, old_security, replacement_decoder))
+            assert receiver.secondary is replacement_listener
+            assert receiver.security is replacement_security
+            assert receiver.decoder is replacement_decoder
+        resume_decode.set()
+        worker.join(timeout=2)
+        assert not worker.is_alive()
+        assert len(failures) == 1 and failures[0].code == f"stale_{'primary' if kind == 110 else 'secondary'}_frame"
+        assert getattr(receiver, listener_attr) is replacement_listener
+        assert getattr(receiver, decoder_attr) is replacement_decoder
+        assert not replacement_listener.closed
+        assert not replacement_decoder.closed
+        assert replacement_security.generation == gen
+    finally:
+        resume_decode.set()
+        client.close()
+        worker.join(timeout=2)
+        receiver.teardown(gen)
+
+
 def test_media_bounds() -> None:
     with pytest.raises(MediaError, match="invalid_lab_message"):
         encode_lab_message(0, b"")
@@ -287,7 +411,7 @@ def test_100_cycle_reconnect_no_resource_leak() -> None:
 
 
 def test_capability_profile_explicitly_synthetic() -> None:
-    info = lab_info(SecondaryDisplayCapability())
+    info = lab_info(SecondaryDisplayCapability.synthetic_lab())
     assert [x["streamType"] for x in info["displays"]] == [110, 111]
     assert "SYNTHETIC" in info["evidence"]
 

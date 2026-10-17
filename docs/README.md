@@ -5,14 +5,17 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 ## Start here
 
 - [Project overview and status](../README.md)
+- [Getting started](getting-started/overview.md) and [offline quickstart](getting-started/quickstart.md)
 - [Architecture and invariants](architecture/overview.md)
-- [Roadmap](../ROADMAP.md)
+- [Current status](status/current.md) and [capability matrix](status/capabilities.md)
+- [CL-R0–CL-R8 roadmap](roadmap/final-development-plan.md)
 - [Glossary](glossary.md)
 
 ## Current engineering state
 
-- [Next action](../NEXT_ACTION.md) — the single current engineering action.
-- [Project state](../PROJECT_STATE.md) — detailed rolling ledger.
+- [Next action](../NEXT_ACTION.md) — current action followed by preserved historical snapshots.
+- [Milestone blockers](status/blockers.md)
+- [Project state](../PROJECT_STATE.md) — historical rolling ledger.
 - [Evidence index](../EVIDENCE_INDEX.md) — claim provenance and evidence limits.
 - [Project records guide](project/records.md) — explains how these records fit together.
 
@@ -20,6 +23,9 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 
 - [Contributing](../CONTRIBUTING.md)
 - [Testing](development/testing.md)
+- [Blocker resolution workflow](development/blocker-resolution.md)
+- [Local ECC review roles](development/ecc-review.md)
+- [Development setup](getting-started/development-setup.md)
 - [Source tree guide](../src/README.md)
 - [Tests guide](../tests/README.md)
 - [Tools guide](../tools/README.md)
@@ -47,4 +53,6 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 
 - [Repository organization report](../step-reports/repository-organization-and-github-health.md)
 - [GitHub settings checklist](project/github-settings.md)
+- [Engineering decisions index](decisions/README.md)
+- [Public repository practices reviewed](project/public-repository-practices.md)
 - [License decision](project/license-decision.md)

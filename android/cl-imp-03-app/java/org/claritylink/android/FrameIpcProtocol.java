@@ -1,0 +1,43 @@
+package org.claritylink.android;
+
+/** Versioned private Binder protocol used only by the project-owned lab processes. */
+final class FrameIpcProtocol {
+    static final String DESCRIPTOR = "org.claritylink.android.IClarityLinkCompositor";
+    // Version 3 adds mandatory session/stream/output identity to all frame and
+    // generation transactions. Version 2 is intentionally rejected because it
+    // cannot disambiguate a multi-stream frame owner.
+    static final int VERSION = 3;
+    static final int BEGIN = 1;
+    static final int FRAME = 2;
+    static final int END = 3;
+    static final int WARNING = 4;
+    static final int CHANGE_GENERATION = 5;
+    static final int REGISTER_STREAM = 6;
+    static final int UNREGISTER_STREAM = 7;
+    static final int VIEW_FRAME = 10;
+    static final int VIEW_WARNING = 11;
+    static final int VIEW_CHANGE_GENERATION = 12;
+    static final int TYPE111_CAPABILITY = 13;
+    static final int TYPE111_SETUP = 14;
+    static final int TYPE111_NAVIGATION = 15;
+    static final int TYPE111_PRESENTATION = 16;
+    static final int TYPE111_GEOMETRY = 17;
+    static final int TYPE111_VIDEO_CONFIG = 18;
+    static final int TYPE111_PARENT_TEARDOWN = 19;
+    static final int FRAME_LAB_QUERY_STATS = 20;
+    static final int LAB_ARM_TRANSFER_BARRIER = 21;
+    static final int LAB_WAIT_TRANSFER_BARRIER = 22;
+    static final int LAB_RELEASE_TRANSFER_BARRIER = 23;
+    static final int LAB_WAIT_TRANSFER_FINISHED = 24;
+    static final int PIXEL_FORMAT_RGBA_8888 = 1;
+    static final int MAX_FRAME_BYTES = 4 * 1024 * 1024;
+
+    static int expectedRgbaBytes(int width, int height, int rowStride) {
+        if (width <= 0 || height <= 0 || width > 1920 || height > 1080 ||
+                rowStride < (long) width * 4L) return -1;
+        long bytes = (long) rowStride * (long) height;
+        return bytes > 0 && bytes <= MAX_FRAME_BYTES ? (int) bytes : -1;
+    }
+
+    private FrameIpcProtocol() { }
+}

@@ -1,0 +1,7 @@
+{
+  "classification": "Exact hash for a generated 1x1 synthetic test raster; source-health exemption only, not a privacy, licensing, provenance, or publication approval.",
+  "files": {
+    "tests/fixtures/repo-health/synthetic-1x1.png": "818ca7ad96fbdc5c6e52b19ed4c1b1e1627ac48e95353837cd3b7cd39e6ba018"
+  },
+  "schema": "claritylink-health-only-image-hashes-v1"
+}

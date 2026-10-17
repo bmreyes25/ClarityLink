@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Protocol
 
+from safe_area import SafeAreaGate
+
 
 DISPLAY_ID = 1
 DISPLAY_WIDTH = 800
@@ -78,15 +80,19 @@ class Display1OutputBackend(Protocol):
 
 
 class ClarityLinkRenderer:
-    def __init__(self, backend: Display1OutputBackend, target: DisplayTarget = DisplayTarget()):
+    def __init__(self, backend: Display1OutputBackend, target: DisplayTarget = DisplayTarget(),
+                 safe_area: Optional[SafeAreaGate] = None):
         self.backend = backend
         self.target = target
+        self.safe_area = safe_area
         self.started = False
 
     def start(self) -> None:
         if self.started:
             raise RuntimeError("renderer is already started")
         self.target.validate()
+        if self.safe_area is not None:
+            self.safe_area.start()
         self.backend.attach(self.target)
         self.started = True
 
@@ -94,7 +100,41 @@ class ClarityLinkRenderer:
         if not self.started:
             raise RuntimeError("renderer is not started")
         frame.validate()
+        if self.safe_area is not None:
+            try:
+                frame = self.safe_area.clip(frame)
+            except ValueError:
+                if self.safe_area.active:
+                    self.safe_area.geometry_valid = False
+                self.backend.clear()
+                raise
         self.backend.submit(frame)
+
+    def update_safe_area(self, config) -> None:
+        if self.safe_area is None or not self.started:
+            raise RuntimeError("safe-area renderer is not started")
+        self.backend.clear()
+        self.safe_area.update_geometry(config)
+
+    def surface_lost(self) -> None:
+        if self.safe_area is None or not self.started:
+            return
+        self.safe_area.surface_lost()
+        self.backend.clear()
+
+    def surface_restored(self) -> None:
+        if self.safe_area is not None and self.started:
+            self.safe_area.surface_restored()
+
+    def warning_preempted(self) -> None:
+        if self.safe_area is None or not self.started:
+            return
+        self.safe_area.warning_preempted()
+        self.backend.clear()
+
+    def warning_cleared(self) -> None:
+        if self.safe_area is not None and self.started:
+            self.safe_area.warning_cleared()
 
     def close(self) -> None:
         if not self.started:

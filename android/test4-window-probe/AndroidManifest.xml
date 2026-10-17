@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylink.windowprobe"
+    android:versionCode="2" android:versionName="0.2.0">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:label="ClarityLink Test 4 Window Lab"
+        android:allowBackup="false" android:debuggable="false">
+        <uses-library android:name="android.test.runner" android:required="false" />
+        <activity android:name="org.claritylink.android.Test4WindowAdmissionActivity"
+            android:exported="false" android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.Holo.Light.NoActionBar" />
+    </application>
+    <instrumentation android:name="org.claritylink.android.Test4ProbeInstrumentationRunner"
+        android:targetPackage="org.claritylink.windowprobe" android:functionalTest="true" />
+</manifest>

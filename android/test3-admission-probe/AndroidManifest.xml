@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylink.admissionprobe">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:label="ClarityLink Display Access Probe"
+        android:allowBackup="false" android:debuggable="false">
+        <activity android:name="org.claritylink.android.Test3DisplayAccessProbeActivity"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:exported="true" android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

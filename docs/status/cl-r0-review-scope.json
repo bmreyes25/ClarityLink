@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "campaign": "clean-history public-safe publication candidate",
+  "review_status": "ECC_REVIEWED_STATIC_NO_ACTIONABLE_FINDINGS",
+  "approval_claimed": false,
+  "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
+  "source_branch": "overnight/cl-race-binder-view",
+  "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
+  "remote_publication": "NOT_PERFORMED",
+  "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
+  "files": [
+    {
+      "path": ".github/pull_request_template.md",
+      "sha256": "926c2fb7b82dddc3a59a0018324fe659ceec6f3163551899354bccc7c08549ba"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "ecb42638492edbf7a57af0caaf31f685440f0dacc046d6430dcbe121fa55097a"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "sha256": "99687d9aa116c47a9652a57d61c6fbc93b02f6e499edc911ddab762275fc7bee"
+    },
+    {
+      "path": "README.md",
+      "sha256": "f73e6d0a6e9aea765390e4db96c85baf2162c1c121b928293eee2861707027eb"
+    },
+    {
+      "path": "docs/README.md",
+      "sha256": "0acc15f0489347f86592d4d49dfd74e975081c7ca89d06078818dffc705afe97"
+    },
+    {
+      "path": "docs/development/blocker-resolution.md",
+      "sha256": "7680cb636a7ae9b1bde8299bc8c53679d5338c96b6c2fb87ed9eb4d65f6d01c9"
+    },
+    {
+      "path": "docs/development/evidence-classification.md",
+      "sha256": "3209685817d89e6d3b9d8280301342825bdd954f38a2d2093d9a1e85b495890e"
+    },
+    {
+      "path": "docs/getting-started/quickstart.md",
+      "sha256": "636e6be62259e8dd1313f223b7d0cb4dee838daf6a1537dc52365460341fec98"
+    },
+    {
+      "path": "docs/roadmap/dependency-map.md",
+      "sha256": "27f85e1757ff469d8c4b0561b241f6787a151a509f20db99a3ee1f8cd721c13d"
+    },
+    {
+      "path": "docs/roadmap/final-development-plan.md",
+      "sha256": "169584e19a9e5216029506adb7413bab92242d2075e2adc63601d876a9ed9ba1"
+    },
+    {
+      "path": "docs/roadmap/milestone-specifications.md",
+      "sha256": "0ecef42b686b04e9ccdbb07a72600c553ef46724980686b3aae7a3ddda02bf90"
+    },
+    {
+      "path": "docs/status/blockers.md",
+      "sha256": "3deb89efae24ad72bd26b61c5ad65e67597a1bc2e3038293fded2768cd3be26e"
+    },
+    {
+      "path": "docs/status/capabilities.md",
+      "sha256": "f22cee48db5468f797cf76437031f3fbcdf26fc9bf0b915ac8114b5ca0f8d6ef"
+    },
+    {
+      "path": "docs/status/cl-r0-validation.md",
+      "sha256": "69af2972d4af4ad6de16818e241a598a9c2222a39bc5298df95b8cc42081ce7f"
+    },
+    {
+      "path": "docs/status/current.md",
+      "sha256": "a7729248991df0b7a3cc3dc12bdc1d3b7860713345f43e2229f1c8e64c92e27d"
+    },
+    {
+      "path": "docs/status/milestones.json",
+      "sha256": "5e48be468fda9a8170be8869a7ea3b697a748e5ff59d689acf944edbcf69cb42"
+    },
+    {
+      "path": "tests/display/test_cl_imp_04_ipc_contract.py",
+      "sha256": "2c54d8d8b801e52f0f7debafe9cda754969a13dc9ef16ec1e9a0037ca57a9a20"
+    },
+    {
+      "path": "tests/jmcs/test_r6e_auth_transport.py",
+      "sha256": "e62d2da9b46293ad8a8a45f6358867d5e68e7b3b8ad982d4285e6dc12bfa1b0b"
+    },
+    {
+      "path": "tests/tools/local_tool_gate.py",
+      "sha256": "9f87fcf333b2dad35ab4b7ba3a081416386dd5645cc36923860a2a15abe16f61"
+    },
+    {
+      "path": "tests/tools/test_api17_pixel_verifiers.py",
+      "sha256": "62a0ec134af2c4d6649130fdca73d16ec0371f4904e6a04d785ba4299c055a19"
+    },
+    {
+      "path": "tests/tools/test_api17_runner_guard.py",
+      "sha256": "bdfce9888563552e6ebffe373cb17fde5ccef2df350f005c2a03d568d1547c78"
+    },
+    {
+      "path": "tests/tools/test_repo_health_generated_evidence.py",
+      "sha256": "f6410c1065dcd32c9c9a27810d3205cf635ed74b9d3e7d8ad976a861445802b3"
+    },
+    {
+      "path": "tools/README.md",
+      "sha256": "9175d502cdf25c09c0b09759c64aacc7e33ba74eeeb884686fbea5cf3269c796"
+    },
+    {
+      "path": "tools/api17_runner_guard.py",
+      "sha256": "4c1113c17c649924e0216624a4f714118a2361ae6a6692521ec86c8d165cb50e"
+    },
+    {
+      "path": "tools/build_cl_imp_03_apks.sh",
+      "sha256": "63403a804acc213f2f07cb2493d4666d79b0dd74bb8483c8fa7e92a3661a50b6"
+    },
+    {
+      "path": "tools/check_repo_health.py",
+      "sha256": "5843428c771c30597a4292dfe6d46945dbfb1d912aa35ddd021c7b9be0f64dc4"
+    },
+    {
+      "path": "tools/normalize_api17_png.py",
+      "sha256": "bf92f752fbabe4b9254f6450a867b8aad74dc3a810b10766f2624ef897a66165"
+    },
+    {
+      "path": "tools/run_cl_imp_03_emulator.sh",
+      "sha256": "d4e5ca6b969043c183dc21e17541942426ce1df3c03506d4c098c55c3f518818"
+    },
+    {
+      "path": "tools/test_r7e1_target_diag_modes.py",
+      "sha256": "51e4d621dcc4323c8e34f984493b44206c4850827adbf49b6170b86a26644e97"
+    },
+    {
+      "path": "tools/verify_api17_padded_crop_content.swift",
+      "sha256": "5eaa5b9e9de63ec86dca1538c3e47bbfb8899b9967d570008b60718b358262ee"
+    },
+    {
+      "path": "tools/verify_api17_pixel_content.swift",
+      "sha256": "0718a20a0617e5cdacbbdf4fbdb4fb7999c230e79ee2c212ee065fdec8aaab45"
+    }
+  ],
+  "reviewed_head": "4889118bbc3a1a9257f20268330031c815e699ad",
+  "code_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
+  "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
+  "code_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
+  "security_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
+  "final_status_review_range": "3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128..4889118bbc3a1a9257f20268330031c815e699ad"
+}
