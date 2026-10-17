@@ -163,7 +163,7 @@ def test_recovery_probe_is_bound_to_the_exact_type111_death_identity():
     assert "return nonce << 16" in application
     assert "expectedType111Death.equals(expectedDeath)" in owner
     assert "identity.sessionId != expectedType111Death.sessionId" in owner
-    assert "deadIdentity = state.identity" in compositor
+    assert "deadIdentity = state.sink == registeredSink ? state.identity : registeredIdentity;" in compositor
     assert "hasPending(CompositorService.this, deadIdentity)" in compositor
     assert "putExpectedDeath(recovery, deadIdentity)" in compositor
     assert "frameIpcClient.streamIdentity()" in activity

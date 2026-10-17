@@ -59,6 +59,9 @@ public final class CompositorService extends Service {
             this.sink = sink;
         }
     }
+    private static final class ReplacementDeathGate {
+        boolean dead;
+    }
     private final IBinder endpoint = new Binder() {
         @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
                 throws RemoteException {
@@ -158,6 +161,16 @@ public final class CompositorService extends Service {
                 reply.writeInt(accepted ? 1 : 0);
                 return true;
             }
+            if (code == FrameIpcProtocol.TYPE111_REPLACE_SINK) {
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                FrameStreamIdentity oldIdentity = readIdentity(data);
+                FrameStreamIdentity newIdentity = readIdentity(data);
+                IBinder newSink = data.readStrongBinder();
+                boolean accepted = replaceType111Sink(ownerIdentity, oldIdentity, newIdentity, newSink);
+                reply.writeNoException();
+                reply.writeInt(accepted ? 1 : 0);
+                return true;
+            }
             if (code == FrameIpcProtocol.CHANGE_GENERATION) {
                 FrameStreamIdentity identity = readIdentity(data);
                 long newGeneration = data.readLong();
@@ -166,21 +179,36 @@ public final class CompositorService extends Service {
                 if (state != null) synchronized (state.lock) {
                     Type111ControlPlane plane = identity.streamType == FrameStreamIdentity.TYPE111 ?
                             controlPlane(identity.sessionId) : null;
-                    boolean eligible = identity.equals(state.identity) && newGeneration > identity.streamGeneration &&
+                    boolean registeredAndOpen;
+                    synchronized (streamsLock) {
+                        registeredAndOpen = streams.get(identity.key()) == state &&
+                                identity.equals(state.identity) &&
+                                !closingSessions.contains(identity.sessionId);
+                    }
+                    boolean eligible = registeredAndOpen && newGeneration > identity.streamGeneration &&
                             !state.transferActive.get() &&
                             (identity.streamType != FrameStreamIdentity.TYPE111 ||
                             (plane != null && plane.canTransportGeneration(identity,
                                     identity.withGeneration(newGeneration))));
                     boolean sinkAccepted = eligible && forwardGenerationChange(state.sink,
                             identity, newGeneration);
-                    accepted = sinkAccepted && state.compositor.replaceGeneration(
+                    boolean compositorAccepted = sinkAccepted && state.compositor.replaceGeneration(
                             identity.streamGeneration, newGeneration);
-                    if (accepted && identity.streamType == FrameStreamIdentity.TYPE111)
-                        accepted = plane != null && "accepted".equals(plane.transportGeneration(
-                                identity, identity.withGeneration(newGeneration)));
-                    if (accepted) {
-                        state.identity = identity.withGeneration(newGeneration);
-                        state.lastFrameId = 0L;
+                    boolean controlAccepted = compositorAccepted &&
+                            (identity.streamType != FrameStreamIdentity.TYPE111 ||
+                            (plane != null && "accepted".equals(plane.transportGeneration(
+                                    identity, identity.withGeneration(newGeneration)))));
+                    if (controlAccepted) {
+                        synchronized (streamsLock) {
+                            // If teardown closed admission while the sink was processing this
+                            // already-admitted request, publish the new identity before teardown
+                            // takes its state-locked snapshot. Teardown waits for state.lock.
+                            if (streams.get(identity.key()) == state && identity.equals(state.identity)) {
+                                state.identity = identity.withGeneration(newGeneration);
+                                state.lastFrameId = 0L;
+                                accepted = true;
+                            }
+                        }
                     }
                 }
                 Log.i(TAG, "IPC_REMOTE_GENERATION_REPLACED old=" + identity.streamGeneration +
@@ -284,6 +312,43 @@ public final class CompositorService extends Service {
                 writeControlReply(reply, reason);
                 return true;
             }
+            if (code == FrameIpcProtocol.TYPE111_QUERY_STREAM) {
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                FrameStreamIdentity childIdentity = null;
+                boolean sinkAttached = false;
+                boolean ownerValid = false;
+                synchronized (streamsLock) {
+                    StreamState owner = ownerIdentity == null ? null : streams.get(ownerIdentity.key());
+                    ownerValid = owner != null && ownerIdentity.streamType == FrameStreamIdentity.TYPE110 &&
+                            ownerIdentity.equals(owner.identity) && !closingSessions.contains(ownerIdentity.sessionId);
+                    if (ownerValid && type111Sessions.containsKey(ownerIdentity.sessionId)) {
+                        for (StreamState current : streams.values()) {
+                            if (current.identity.sessionId == ownerIdentity.sessionId &&
+                                    current.identity.streamType == FrameStreamIdentity.TYPE111) {
+                                childIdentity = current.identity;
+                                sinkAttached = current.sink != null;
+                                break;
+                            }
+                        }
+                    } else ownerValid = false;
+                }
+                reply.writeNoException();
+                reply.writeInt(ownerValid ? 1 : 0);
+                reply.writeInt(childIdentity == null ? 0 : 1);
+                reply.writeInt(sinkAttached ? 1 : 0);
+                if (childIdentity != null) writeIdentity(reply, childIdentity);
+                reply.writeInt(Process.myPid());
+                return true;
+            }
+            if (code == FrameIpcProtocol.TYPE111_DETACH_SINK) {
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                FrameStreamIdentity childIdentity = readIdentity(data);
+                boolean accepted = detachType111Sink(ownerIdentity, childIdentity);
+                reply.writeNoException();
+                reply.writeInt(accepted ? 1 : 0);
+                reply.writeString(accepted ? "type111_sink_detached" : "type111_detach_rejected");
+                return true;
+            }
             if (code == FrameIpcProtocol.FRAME) {
                 receiveFrame(readIdentity(data), data, reply);
                 return true;
@@ -358,12 +423,20 @@ public final class CompositorService extends Service {
         }
         Type111ControlPlane plane = controlPlane(sessionId);
         if (plane == null) return "session_unavailable";
-        ArrayList<FrameStreamIdentity> owned = new ArrayList<FrameStreamIdentity>();
+        ArrayList<StreamState> ownedStates = new ArrayList<StreamState>();
         synchronized (streamsLock) {
             for (StreamState state : streams.values())
-                if (state.identity.sessionId == sessionId) owned.add(state.identity);
+                if (state.identity.sessionId == sessionId) ownedStates.add(state);
         }
-        for (FrameStreamIdentity identity : owned) unregisterStream(identity);
+        ArrayList<FrameStreamIdentity> owned = new ArrayList<FrameStreamIdentity>();
+        for (StreamState state : ownedStates) {
+            FrameStreamIdentity identity;
+            synchronized (state.lock) { identity = state.identity; }
+            if (identity != null && identity.sessionId == sessionId) {
+                owned.add(identity);
+                unregisterStream(identity);
+            }
+        }
         plane.parentTeardown();
         synchronized (streamsLock) { type111Sessions.remove(sessionId); }
         Log.i(TAG, "TYPE111_PARENT_TEARDOWN session_id=" + sessionId +
@@ -524,31 +597,7 @@ public final class CompositorService extends Service {
             if (control != null) control.teardown(identity);
             return false;
         }
-        state.deathRecipient = new IBinder.DeathRecipient() {
-            public void binderDied() {
-                final FrameStreamIdentity deadIdentity;
-                synchronized (state.lock) { deadIdentity = state.identity; }
-                Log.i(TAG, "IPC_VIEW_SINK_DEATH_CALLBACK session_id=" + deadIdentity.sessionId +
-                        " stream_type=" + deadIdentity.streamType + " connection_id=" +
-                        deadIdentity.connectionId + " stream_generation=" + deadIdentity.streamGeneration);
-                unregisterStreamIfCurrent(state, deadIdentity);
-                if (deadIdentity.streamType == FrameStreamIdentity.TYPE111 &&
-                        Type110LabProbeOwnership.hasPending(CompositorService.this, deadIdentity)) {
-                    try {
-                        Intent recovery = new Intent(CompositorService.this,
-                                Type110ProgressProbeService.class);
-                        Type110LabProbeOwnership.putExpectedDeath(recovery, deadIdentity);
-                        ComponentName started = startService(recovery);
-                        Log.i(TAG, "TYPE110_POST_DEATH_PROBE_INTERNAL_START session_id=" +
-                                deadIdentity.sessionId + " started=" + (started != null) +
-                                " after_type111_binder_death=true");
-                    } catch (RuntimeException failure) {
-                        Log.e(TAG, "TYPE110_POST_DEATH_PROBE_INTERNAL_START_FAILED session_id=" +
-                                deadIdentity.sessionId + " type=" + failure.getClass().getSimpleName());
-                    }
-                }
-            }
-        };
+        state.deathRecipient = createSinkDeathRecipient(state, identity, sink, null);
         // Link before publication. If teardown wins the streamsLock race, registration rolls
         // back; if publication wins, teardown sees a state whose recipient is already linked.
         try {
@@ -593,6 +642,163 @@ public final class CompositorService extends Service {
         Log.i(TAG, "IPC_STREAM_REGISTERED session_id=" + identity.sessionId +
                 " stream_type=" + identity.streamType + " connection_id=" + identity.connectionId +
                 " stream_generation=" + identity.streamGeneration + " output_id=" + identity.outputId);
+        return true;
+    }
+
+    private IBinder.DeathRecipient createSinkDeathRecipient(final StreamState state,
+            final FrameStreamIdentity registeredIdentity, final IBinder registeredSink,
+            final ReplacementDeathGate deathGate) {
+        return new IBinder.DeathRecipient() {
+            public void binderDied() {
+                if (deathGate != null) synchronized (deathGate) { deathGate.dead = true; }
+                final FrameStreamIdentity deadIdentity;
+                synchronized (state.lock) {
+                    deadIdentity = state.sink == registeredSink ? state.identity : registeredIdentity;
+                    if (state.sink != registeredSink) return;
+                }
+                Log.i(TAG, "IPC_VIEW_SINK_DEATH_CALLBACK session_id=" + deadIdentity.sessionId +
+                        " stream_type=" + deadIdentity.streamType + " connection_id=" +
+                        deadIdentity.connectionId + " stream_generation=" + deadIdentity.streamGeneration);
+                if (deadIdentity.streamType == FrameStreamIdentity.TYPE111)
+                    detachType111SinkIfCurrent(state, deadIdentity);
+                else unregisterStreamIfCurrent(state, deadIdentity);
+                if (deadIdentity.streamType == FrameStreamIdentity.TYPE111 &&
+                        Type110LabProbeOwnership.hasPending(CompositorService.this, deadIdentity)) {
+                    try {
+                        Intent recovery = new Intent(CompositorService.this,
+                                Type110ProgressProbeService.class);
+                        Type110LabProbeOwnership.putExpectedDeath(recovery, deadIdentity);
+                        ComponentName started = startService(recovery);
+                        Log.i(TAG, "TYPE110_POST_DEATH_PROBE_INTERNAL_START session_id=" +
+                                deadIdentity.sessionId + " started=" + (started != null) +
+                                " after_type111_binder_death=true");
+                    } catch (RuntimeException failure) {
+                        Log.e(TAG, "TYPE110_POST_DEATH_PROBE_INTERNAL_START_FAILED session_id=" +
+                                deadIdentity.sessionId + " type=" + failure.getClass().getSimpleName());
+                    }
+                }
+            }
+        };
+    }
+
+    /** Preserve the Type111 stream/control identity after only its View Binder disappears. */
+    private boolean detachType111SinkIfCurrent(StreamState state, FrameStreamIdentity identity) {
+        synchronized (state.lock) {
+            synchronized (streamsLock) {
+                if (streams.get(identity.key()) != state || !identity.equals(state.identity) ||
+                        identity.streamType != FrameStreamIdentity.TYPE111) return false;
+                state.sink = null;
+                state.deathRecipient = null;
+            }
+        }
+        Log.i(TAG, "IPC_TYPE111_SINK_DETACHED session_id=" + identity.sessionId +
+                " connection_id=" + identity.connectionId + " generation=" +
+                identity.streamGeneration + " parent_session_preserved=true");
+        return true;
+    }
+
+    /** Lifecycle detach requires the live Type110 session owner and the exact current child identity. */
+    private boolean detachType111Sink(FrameStreamIdentity ownerIdentity,
+            FrameStreamIdentity childIdentity) {
+        if (ownerIdentity == null || !ownerIdentity.isValid() ||
+                ownerIdentity.streamType != FrameStreamIdentity.TYPE110 ||
+                childIdentity == null || !childIdentity.isValid() ||
+                childIdentity.streamType != FrameStreamIdentity.TYPE111 ||
+                ownerIdentity.sessionId != childIdentity.sessionId) return false;
+        final StreamState owner = findStream(ownerIdentity);
+        final StreamState child = findStream(childIdentity);
+        if (owner == null || child == null) return false;
+        synchronized (child.lock) {
+            synchronized (streamsLock) {
+                if (streams.get(ownerIdentity.key()) != owner ||
+                        !ownerIdentity.equals(owner.identity) || streams.get(childIdentity.key()) != child ||
+                        !childIdentity.equals(child.identity) || child.sink == null ||
+                        closingSessions.contains(childIdentity.sessionId) || child.transferActive.get())
+                    return false;
+                if (child.deathRecipient != null) child.sink.unlinkToDeath(child.deathRecipient, 0);
+                child.sink = null;
+                child.deathRecipient = null;
+            }
+        }
+        Log.i(TAG, "IPC_TYPE111_SINK_DETACHED session_id=" + childIdentity.sessionId +
+                " connection_id=" + childIdentity.connectionId + " generation=" +
+                childIdentity.streamGeneration + " parent_session_preserved=true " +
+                "authorized_type110_owner=true");
+        return true;
+    }
+
+    private boolean replaceType111Sink(FrameStreamIdentity ownerIdentity,
+            FrameStreamIdentity oldIdentity, FrameStreamIdentity newIdentity, IBinder newSink) {
+        if (ownerIdentity == null || !ownerIdentity.isValid() ||
+                ownerIdentity.streamType != FrameStreamIdentity.TYPE110 || oldIdentity == null ||
+                !oldIdentity.isValid() || oldIdentity.streamType != FrameStreamIdentity.TYPE111 ||
+                newIdentity == null || !newIdentity.isValid() || !oldIdentity.sameStream(newIdentity) ||
+                oldIdentity.sessionId != ownerIdentity.sessionId ||
+                newIdentity.streamGeneration != oldIdentity.streamGeneration + 1L ||
+                newIdentity.streamGeneration <= oldIdentity.streamGeneration || newSink == null ||
+                !newSink.isBinderAlive()) return false;
+        final StreamState state = findStream(oldIdentity);
+        final Type111ControlPlane plane = controlPlane(oldIdentity.sessionId);
+        if (state == null || plane == null || !plane.canTransportGeneration(oldIdentity, newIdentity))
+            return false;
+        synchronized (streamsLock) {
+            StreamState owner = streams.get(ownerIdentity.key());
+            if (owner == null || !ownerIdentity.equals(owner.identity) ||
+                    closingSessions.contains(oldIdentity.sessionId)) return false;
+        }
+        final ReplacementDeathGate deathGate = new ReplacementDeathGate();
+        final IBinder.DeathRecipient newRecipient = createSinkDeathRecipient(
+                state, newIdentity, newSink, deathGate);
+        try { newSink.linkToDeath(newRecipient, 0); }
+        catch (RemoteException deadSink) { return false; }
+        IBinder oldSink = null;
+        IBinder.DeathRecipient oldRecipient = null;
+        boolean accepted = false;
+        synchronized (state.lock) {
+            synchronized (deathGate) {
+                synchronized (streamsLock) {
+                    boolean stillCurrent = streams.get(oldIdentity.key()) == state &&
+                            oldIdentity.equals(state.identity) &&
+                            !closingSessions.contains(oldIdentity.sessionId) &&
+                            streams.get(ownerIdentity.key()) != null &&
+                            ownerIdentity.equals(streams.get(ownerIdentity.key()).identity);
+                    // Keep admission, identity publication, and the parent's teardown snapshot
+                    // atomic under streamsLock. All identity/sink reads used by QUERY_STREAM are
+                    // protected by the same lock.
+                    if (!deathGate.dead && stillCurrent && !state.transferActive.get() &&
+                            newSink.isBinderAlive() && plane.canTransportGeneration(oldIdentity, newIdentity) &&
+                            state.compositor.replaceGeneration(oldIdentity.streamGeneration,
+                                    newIdentity.streamGeneration)) {
+                        if ("accepted".equals(plane.transportGeneration(oldIdentity, newIdentity))) {
+                            oldSink = state.sink;
+                            oldRecipient = state.deathRecipient;
+                            state.identity = newIdentity;
+                            state.sink = newSink;
+                            state.deathRecipient = newRecipient;
+                            state.lastFrameId = 0L;
+                            accepted = true;
+                        } else {
+                            // Keep the registry and compositor from diverging if control-plane
+                            // publication unexpectedly fails after the compositor advanced.
+                            state.compositor.end(newIdentity.streamGeneration);
+                            streams.remove(oldIdentity.key());
+                            state.sink = null;
+                            state.deathRecipient = null;
+                        }
+                    }
+                }
+            }
+        }
+        if (!accepted) {
+            try { newSink.unlinkToDeath(newRecipient, 0); } catch (RuntimeException ignored) { }
+            return false;
+        }
+        if (oldSink != null && oldRecipient != null)
+            try { oldSink.unlinkToDeath(oldRecipient, 0); } catch (RuntimeException ignored) { }
+        Log.i(TAG, "IPC_TYPE111_SINK_REPLACED session_id=" + oldIdentity.sessionId +
+                " connection_id=" + oldIdentity.connectionId + " old_generation=" +
+                oldIdentity.streamGeneration + " new_generation=" + newIdentity.streamGeneration +
+                " type110_generation_preserved=" + ownerIdentity.streamGeneration);
         return true;
     }
 
@@ -673,7 +879,7 @@ public final class CompositorService extends Service {
         if (descriptor != null) try { descriptor.close(); } catch (IOException ignored) { }
     }
 
-    private boolean forwardToViewSink(StreamState state, FrameStreamIdentity identity, long frameId,
+    private boolean forwardToViewSink(final StreamState state, FrameStreamIdentity identity, long frameId,
             long timestampNs, int width, int height, int rowStride, int pixelFormat,
             int rotation, int cropLeft, int cropTop, int cropRight, int cropBottom,
             byte[] payload, long checksum, String[] failureReason) {
@@ -685,6 +891,7 @@ public final class CompositorService extends Service {
         }
         ParcelFileDescriptor[] pipe = null;
         Thread writer = null;
+        boolean writerStarted = false;
         try {
             pipe = ParcelFileDescriptor.createPipe();
             activePfdTransfers.incrementAndGet();
@@ -702,10 +909,13 @@ public final class CompositorService extends Service {
                     } finally {
                         if (output != null) try { output.close(); } catch (IOException ignored) { }
                         else try { writeEnd.close(); } catch (IOException ignored) { }
+                        activePfdTransfers.decrementAndGet();
+                        state.activePfdTransfers.decrementAndGet();
                     }
                 }
             }, "ClarityLinkViewSinkPipe");
             writer.start();
+            writerStarted = true;
             Parcel data = Parcel.obtain();
             Parcel reply = Parcel.obtain();
             boolean accepted;
@@ -743,14 +953,14 @@ public final class CompositorService extends Service {
         } finally {
             if (pipe != null) {
                 try { pipe[0].close(); } catch (IOException ignored) { }
-                if (writer == null) try { pipe[1].close(); } catch (IOException ignored) { }
+                if (!writerStarted) try { pipe[1].close(); } catch (IOException ignored) { }
             }
             if (writer != null && writer.isAlive()) {
                 try { writer.join(5000L); } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                 }
             }
-            if (pipe != null) {
+            if (pipe != null && !writerStarted) {
                 activePfdTransfers.decrementAndGet();
                 state.activePfdTransfers.decrementAndGet();
             }

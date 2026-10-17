@@ -29,7 +29,8 @@ public final class FrameLabSinkService extends Service {
     }
 
     private synchronized boolean ensureSink(long requestedSession) {
-        if (requestedSession <= 0L || (sink != null && sessionId != requestedSession)) return false;
+        if (sink != null) return sessionId > 0L;
+        if (requestedSession <= 0L) return false;
         if (sink == null) {
             sessionId = requestedSession;
             FrameStreamIdentity identity = new FrameStreamIdentity(sessionId,

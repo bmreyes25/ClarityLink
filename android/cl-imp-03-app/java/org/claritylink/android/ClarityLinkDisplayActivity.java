@@ -44,6 +44,21 @@ import java.util.concurrent.TimeUnit;
 /** Standalone API17 adapter. Display admission is emulator-only and opt-in per launch. */
 public final class ClarityLinkDisplayActivity extends Activity
         implements SecondaryDisplayHost.HostedContentListener {
+    private static final class FixtureRunToken {
+        private boolean cancelled;
+        private boolean teardownClaimed;
+        synchronized boolean isCancelled() { return cancelled; }
+        synchronized boolean cancelForDetach() {
+            if (teardownClaimed) return false;
+            cancelled = true;
+            return true;
+        }
+        synchronized boolean claimTeardown() {
+            if (cancelled || teardownClaimed) return false;
+            teardownClaimed = true;
+            return true;
+        }
+    }
     private static final String TAG = "ClarityLinkCLIMP03";
     private static final String EXTRA_MODE = "mode";
     private static final String EXTRA_CONFIRM = "emulator_only_confirmation";
@@ -51,6 +66,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_CONTROLLED_EXIT = "controlled_exit_after_validation";
     private static final String EXTRA_TYPE111_FIXTURE = "type111_fixture_mode";
     private static final String EXTRA_TYPE111_FIRST = "type111_first_mode";
+    private static final String EXTRA_REATTACH_SESSION_ID = "type111_reattach_session_id";
+    private static final String EXTRA_REATTACH_TEST = "type111_reattach_test";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
     private static final String LAB_CONFIRM = "CL_IMP_03_OFFLINE_EMULATOR_ONLY";
     private static final boolean PRODUCTION_HONDA_INTEGRATION_ENABLED = false;
@@ -133,7 +150,14 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean controlledExitAfterValidation;
     private boolean type111FixtureMode;
     private boolean type111FirstMode;
+    private long reattachSessionId;
+    private long reattachType110Generation;
+    private long fixtureTimestampOffsetNs;
+    private long lastType111SubmissionTimestampNs;
+    private boolean type111ReattachTest;
     private boolean type111RunStarted;
+    private volatile Thread type111FixtureWorker;
+    private volatile FixtureRunToken type111FixtureRunToken;
     private boolean compositorBound;
     private boolean ipcSessionReady;
     private boolean ipcSubmitted;
@@ -156,6 +180,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean compositorServiceStarted;
     private boolean type110SinkServiceStarted;
     private boolean ipcSessionStartAttempted;
+    private boolean parentSessionPreservedForLifecycle;
+    private boolean lifecycleReattachPending;
     private int compositorRemotePid = -1;
     private final ServiceConnection primarySinkConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -185,6 +211,9 @@ public final class ClarityLinkDisplayActivity extends Activity
         super.onCreate(state);
         type111FixtureMode = getIntent() != null && getIntent().getBooleanExtra(EXTRA_TYPE111_FIXTURE, false);
         type111FirstMode = getIntent() != null && getIntent().getBooleanExtra(EXTRA_TYPE111_FIRST, false);
+        reattachSessionId = getIntent() == null ? 0L :
+                getIntent().getLongExtra(EXTRA_REATTACH_SESSION_ID, 0L);
+        type111ReattachTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_REATTACH_TEST, false);
         recreation = state != null;
         showStatus("ClarityLink disabled candidate. No display is selected automatically.");
         log("ACTIVITY_READY api=" + Build.VERSION.SDK_INT + " pid=" + android.os.Process.myPid()
@@ -200,31 +229,83 @@ public final class ClarityLinkDisplayActivity extends Activity
         FrameIpcClient client = new FrameIpcClient(compositorEndpoint);
         FrameIpcClient primaryClient = new FrameIpcClient(compositorEndpoint);
         try {
+            FrameStreamIdentity primaryIdentity = FrameLabSink.queryIdentity(primaryLabSinkBinder);
+            if (primaryIdentity == null || primaryIdentity.streamType != FrameStreamIdentity.TYPE110 ||
+                    primaryIdentity.sessionId != activeGeneration)
+                throw new IllegalStateException("existing_type110_owner_identity_unavailable");
             FrameStreamIdentity secondaryIdentity = new FrameStreamIdentity(activeGeneration,
                     FrameStreamIdentity.TYPE111, 11101L, activeGeneration,
                     FrameStreamIdentity.OUTPUT_SECONDARY_VIEW);
-            FrameStreamIdentity primaryIdentity = new FrameStreamIdentity(activeGeneration,
-                    FrameStreamIdentity.TYPE110, 11001L, activeGeneration,
-                    FrameStreamIdentity.OUTPUT_PRIMARY_LAB);
             Type111ControlClient control = new Type111ControlClient(compositorEndpoint);
             type111ControlClient = control;
-            boolean capability = control.registerLabCapability(activeGeneration,
-                    "claritylink-api17-secondary", 800, 480, 30);
-            boolean setup = capability && control.setup(secondaryIdentity);
-            if (!setup) throw new IllegalStateException("type111_lab_setup_rejected");
-            requireType111(!control.registerLabCapability(activeGeneration,
-                    "claritylink-api17-secondary", 800, 480, 30),
-                    "duplicate_secondary_capability_rejected");
-            requireType111(!control.setup(secondaryIdentity), "duplicate_pending_setup_rejected");
-            viewSink.begin(secondaryIdentity);
             int primaryRemotePid;
             int remotePid;
-            if (type111FirstMode) {
-                remotePid = client.begin(secondaryIdentity, viewSink);
-                primaryRemotePid = primaryClient.begin(primaryIdentity, primaryLabSinkBinder);
+            Type111ControlClient.StreamQuery existing = reattachSessionId > 0L ?
+                    control.queryType111Stream(primaryIdentity) : null;
+            if (reattachSessionId > 0L && (existing == null || !existing.ownerValid))
+                throw new IllegalStateException("type111_owner_query_rejected");
+            if (existing != null && existing.identity != null && existing.sinkAttached &&
+                    lifecycleReattachPending) {
+                if (!control.detachType111Sink(primaryIdentity, existing.identity)) {
+                    ipcSessionStartAttempted = false;
+                    main.postDelayed(new Runnable() {
+                        public void run() { startIpcSessionWhenReady(); }
+                    }, 100L);
+                    log("TYPE111_LIFECYCLE_DETACH_DEFERRED transfer_in_flight=true retry_ms=100");
+                    return;
+                }
+                existing = control.queryType111Stream(primaryIdentity);
+                if (existing == null || !existing.ownerValid || existing.sinkAttached)
+                    throw new IllegalStateException("type111_lifecycle_detach_not_observed");
+            }
+            if (existing != null && existing.identity != null) {
+                if (existing.sinkAttached)
+                    throw new IllegalStateException("active_type111_stream_cannot_be_replaced");
+                FrameStreamIdentity replacement = existing.identity.withGeneration(
+                        existing.identity.streamGeneration + 1L);
+                reattachType110Generation = primaryIdentity.streamGeneration;
+                viewSink.begin(replacement);
+                if (!FrameIpcClient.replaceType111Sink(compositorEndpoint, primaryIdentity,
+                        existing.identity, replacement, viewSink))
+                    throw new IllegalStateException("type111_sink_replacement_rejected");
+                client = FrameIpcClient.attachExistingType111(compositorEndpoint, replacement, 1L);
+                String staleFrame = client == null ? "client_unavailable" :
+                        client.probeMalformed("stale_generation", existing.identity.streamGeneration,
+                                SystemClock.elapsedRealtimeNanos());
+                if (!"frame_contract_rejected".equals(staleFrame))
+                    throw new IllegalStateException("stale_type111_frame_not_rejected");
+                FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder);
+                primaryClient = stats == null ? null : FrameIpcClient.attachExistingType110(
+                        compositorEndpoint, primaryIdentity, stats.frameId + 1L);
+                if (client == null || primaryClient == null)
+                    throw new IllegalStateException("reattached_stream_client_unavailable");
+                remotePid = existing.compositorPid;
+                primaryRemotePid = remotePid;
+                log("CL_R4A_TYPE111_SINK_REPLACED session_id=" + activeGeneration +
+                        " old_generation=" + existing.identity.streamGeneration +
+                        " new_generation=" + replacement.streamGeneration +
+                        " type110_generation=" + primaryIdentity.streamGeneration +
+                        " compositor_pid=" + remotePid + " authorized_type110_owner=true " +
+                        "stale_frame_rejected=true");
             } else {
-                primaryRemotePid = primaryClient.begin(primaryIdentity, primaryLabSinkBinder);
-                remotePid = client.begin(secondaryIdentity, viewSink);
+                if (reattachSessionId > 0L)
+                    throw new IllegalStateException("type111_existing_stream_unavailable_for_reattach");
+                boolean capability = control.registerLabCapability(activeGeneration,
+                        "claritylink-api17-secondary", 800, 480, 30);
+                boolean setup = capability && control.setup(secondaryIdentity);
+                if (!setup) throw new IllegalStateException("type111_lab_setup_rejected");
+                requireType111(!control.registerLabCapability(activeGeneration,
+                        "claritylink-api17-secondary", 800, 480, 30),
+                        "duplicate_secondary_capability_rejected");
+                requireType111(!control.setup(secondaryIdentity), "duplicate_pending_setup_rejected");
+                viewSink.begin(secondaryIdentity);
+                if (type111FirstMode) {
+                    remotePid = client.begin(secondaryIdentity, viewSink);
+                    primaryRemotePid = primaryClient.begin(primaryIdentity, primaryLabSinkBinder);
+                } else {
+                    primaryRemotePid = primaryClient.begin(primaryIdentity, primaryLabSinkBinder);
+                    remotePid = client.begin(secondaryIdentity, viewSink);
+                }
             }
             if (remotePid <= 0 || remotePid == android.os.Process.myPid() || primaryRemotePid != remotePid) {
                 log("IPC_SESSION_REJECTED separate_process_required=true");
@@ -237,6 +318,10 @@ public final class ClarityLinkDisplayActivity extends Activity
             primaryLabIpcClient = primaryClient;
             compositorRemotePid = remotePid;
             ipcSessionReady = true;
+            if (lifecycleReattachPending && !type111ReattachTest) {
+                reattachSessionId = 0L;
+                lifecycleReattachPending = false;
+            }
             FrameLabSink.Stats sinkStats = FrameLabSink.queryStats(primaryLabSinkBinder);
             if (sinkStats == null || sinkStats.pid == android.os.Process.myPid())
                 throw new IllegalStateException("type110_sink_process_not_isolated");
@@ -247,9 +332,14 @@ public final class ClarityLinkDisplayActivity extends Activity
                     "setup_order=" + (type111FirstMode ? "111_first" : "110_first") + " " +
                     "transport=stream_identity_private_binder_pfd_then_reverse_binder_pfd_to_output " +
                     "pixel_format=RGBA_8888 max_frame_bytes=4194304");
-            if (renderer != null) submitSyntheticFrame(activeGeneration);
+            if (renderer != null) {
+                if (reattachSessionId > 0L && type111FixtureMode)
+                    startType111FixtureRun(activeGeneration);
+                else submitSyntheticFrame(activeGeneration);
+            }
         } catch (Exception failure) {
             log("IPC_SESSION_REJECTED type=" + failure.getClass().getSimpleName());
+            Log.e(TAG, "IPC_SESSION_REJECTED_DETAIL", failure);
             stopOwnedDisplay("ipc-session-start-failed");
         }
     }
@@ -336,11 +426,12 @@ public final class ClarityLinkDisplayActivity extends Activity
             return;
         }
         ClarityLinkDisplayApplication application = (ClarityLinkDisplayApplication) getApplication();
-        activeGeneration = application.nextGeneration();
+        activeGeneration = reattachSessionId > 0L ? reattachSessionId : application.nextGeneration();
         // Reserve generation 1 so the first lab run can exercise a positive stale generation.
-        if (activeGeneration == 1L) activeGeneration = application.nextGeneration();
+        if (reattachSessionId <= 0L && activeGeneration == 1L) activeGeneration = application.nextGeneration();
         active = true;
         closing = false;
+        parentSessionPreservedForLifecycle = false;
         ipcSessionReady = false;
         ipcSessionStartAttempted = false;
         compositorEndpoint = null;
@@ -450,7 +541,11 @@ public final class ClarityLinkDisplayActivity extends Activity
             FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
             root.addView(label, labelParams);
-            if (ipcSessionReady) submitSyntheticFrame(generation);
+            if (ipcSessionReady) {
+                if (reattachSessionId > 0L && type111FixtureMode)
+                    startType111FixtureRun(generation);
+                else submitSyntheticFrame(generation);
+            }
         } catch (RuntimeException failure) {
             log("RENDERER_ATTACH_FAILED type=" + failure.getClass().getSimpleName());
             releaseRenderer();
@@ -848,9 +943,21 @@ public final class ClarityLinkDisplayActivity extends Activity
 
     /** CL-R4 lab-only fixture path: parser -> API17 YUV buffers -> RGBA -> Binder/PFD -> View. */
     private void startType111FixtureRun(final long binderGeneration) {
-        if (type111RunStarted || !active || closing || renderer == null || frameIpcClient == null) return;
+        if (!active || closing || renderer == null || frameIpcClient == null) return;
+        Thread previousWorker = type111FixtureWorker;
+        if (previousWorker != null && previousWorker.isAlive()) {
+            main.postDelayed(new Runnable() {
+                public void run() { startType111FixtureRun(binderGeneration); }
+            }, 100L);
+            return;
+        }
+        if (type111RunStarted) return;
         type111RunStarted = true;
-        new Thread(new Runnable() {
+        final FixtureRunToken runToken = new FixtureRunToken();
+        type111FixtureRunToken = runToken;
+        fixtureTimestampOffsetNs = reattachSessionId > 0L ? 1000000000000L : 0L;
+        lastType111SubmissionTimestampNs = fixtureTimestampOffsetNs;
+        type111FixtureWorker = new Thread(new Runnable() {
             public void run() {
                 Api17BufferH264Decoder decoder = null;
                 Api17BufferH264Decoder type110Decoder = null;
@@ -897,7 +1004,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     int blueOutputs = 0;
                     int sentFrames = 0;
                     boolean backpressureVerified = false;
-                    long inputPts = 100000L;
+                    long inputPts = fixturePtsUs(100000L);
                     for (int index = 0; index < 8 && blueOutputs < 4; index++, inputPts += 100000L) {
                         byte[] accessUnit = blueAccessUnits[index % blueAccessUnits.length];
                         DecodedFrame frame = decoder.decode(accessUnit, inputPts, 960001L, 3000L);
@@ -981,7 +1088,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     int greenColorFormat = -1;
                     int greenOutputs = 0;
                     DecodedFrame latestGreenFrame = null;
-                    inputPts = 900000L;
+                    inputPts = fixturePtsUs(900000L);
                     for (int index = 0; index < 8 && greenOutputs < 3; index++, inputPts += 100000L) {
                         DecodedFrame frame = decoder.decode(
                                 greenAccessUnits[index % greenAccessUnits.length], inputPts, 960003L, 3000L);
@@ -1012,7 +1119,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     Log.i(TAG, "CL_R4_TYPE110_ISOLATION_PASS type111_decoder_reset=true " +
                             "type110_decoder_generation=970001 type110_frame_before_after=true " +
                             "binder_session_preserved=true fixture_only=true");
-                    DecodedFrame paddedCrop = paddedCropFixtureFrame(4000000000L);
+                    DecodedFrame paddedCrop = paddedCropFixtureFrame(fixtureTimestamp(4000000000L));
                     int[] croppedRgb = readDecodedCenterRgb(paddedCrop);
                     requireType111(paddedCrop.rowStride == 128 && paddedCrop.cropLeft == 8 &&
                             paddedCrop.cropTop == 8 && paddedCrop.cropRight == 24 &&
@@ -1046,8 +1153,13 @@ public final class ClarityLinkDisplayActivity extends Activity
                             " new=" + nextType111Generation + " connection_preserved=true " +
                             "binder_session_preserved=true stale_rejected=true frame_redrawn=true " +
                             "parent_display_generation=" + binderGeneration);
-                    runIndependentType111ProducerFault(type110Decoder, type110AccessUnits,
-                            binderGeneration);
+                    if (reattachSessionId <= 0L) {
+                        runIndependentType111ProducerFault(type110Decoder, type110AccessUnits,
+                                binderGeneration);
+                    } else {
+                        Log.i(TAG, "CL_R4A_REATTACH_FIXTURE_PASS producer_process_fault_test=" +
+                                "covered_before_view_death=true timestamp_bounds_preserved=true");
+                    }
                     decoder.close();
                     decoder = null;
                     type110Decoder.close();
@@ -1063,7 +1175,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder);
                     if (type110Identity == null || type110Final == null)
                         throw new IllegalStateException("type110_survivor_receipt_unavailable");
-                    issueType110ProbeOwnership(type110Identity, type110Final);
+                    if (!type111ReattachTest)
+                        issueType110ProbeOwnership(type110Identity, type110Final);
                     Log.i(TAG, "CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED pid=" +
                             android.os.Process.myPid() + " session_id=" + type110Identity.sessionId +
                             " type110_connection_id=" + type110Identity.connectionId +
@@ -1071,16 +1184,44 @@ public final class ClarityLinkDisplayActivity extends Activity
                             " type110_last_frame_id=" + type110Final.frameId +
                             " type110_sink_pid=" + type110Final.pid +
                             " type111_sink_pid=" + android.os.Process.myPid());
-                    android.os.Process.killProcess(android.os.Process.myPid());
+                    if (runToken.isCancelled() || !active || closing) {
+                        log("CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE parent_session_preserved=true");
+                        return;
+                    }
+                    if (reattachSessionId > 0L) {
+                        captureType111Proof("type111-reattached-frame.png");
+                        FrameLabSink.Stats reattachedType110Stats = queryType110StatsOrThrow(
+                                "reattach_type110_stats_unavailable");
+                        Type111ControlClient reattachControl = type111ControlClient;
+                        if (!runToken.claimTeardown()) {
+                            log("CL_R4A_FIXTURE_CANCELLED_BEFORE_PARENT_TEARDOWN parent_session_preserved=true");
+                            return;
+                        }
+                        if (reattachControl == null || !reattachControl.parentTeardown(type110Identity))
+                            throw new IllegalStateException("reattached_parent_teardown_rejected");
+                        Log.i(TAG, "CL_R4A_VIEW_REATTACH_PASS session_id=" + type110Identity.sessionId +
+                                " type110_generation=" + reattachType110Generation +
+                                " type110_generation_after_fixture=" + type110Identity.streamGeneration +
+                                " type111_generation=" + frameIpcClient.streamIdentity().streamGeneration +
+                                " type110_last_frame_id=" + reattachedType110Stats.frameId +
+                                " stale_frame_rejected=true parent_teardown=accepted");
+                        stopOwnedDisplay("reattach-test-complete");
+                    } else {
+                        android.os.Process.killProcess(android.os.Process.myPid());
+                    }
                 } catch (Throwable failure) {
                     Log.e(TAG, "CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL", failure);
-                    closeType111Lab("type111_fixture_failed");
+                    if (!runToken.isCancelled())
+                        closeType111Lab("type111_fixture_failed");
+                    else log("CL_R4A_FIXTURE_FAILURE_IGNORED_AFTER_VIEW_DETACH parent_session_preserved=true");
                 } finally {
                     if (decoder != null) decoder.close();
                     if (type110Decoder != null) type110Decoder.close();
+                    if (type111FixtureWorker == Thread.currentThread()) type111FixtureWorker = null;
                 }
             }
-        }, "ClarityLinkType111FixtureToView").start();
+        }, "ClarityLinkType111FixtureToView");
+        type111FixtureWorker.start();
     }
 
     private byte[] type111Fixture(String name) throws Exception {
@@ -1247,7 +1388,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             data.writeLong(identity.streamGeneration);
             data.writeInt(identity.outputId);
             data.writeLong(nextFrameId);
-            data.writeLong(firstPtsUs);
+            data.writeLong(firstPtsUs + fixtureTimestampOffsetNs / 1000L);
             producer.transact(IBinder.FIRST_CALL_TRANSACTION, data, reply, 0);
             reply.readException();
             boolean accepted = reply.readInt() != 0;
@@ -1401,20 +1542,23 @@ public final class ClarityLinkDisplayActivity extends Activity
             DecodedFrame decodedType110, long binderGeneration) throws Exception {
         requireType111(decodedType111 != null && decodedType110 != null,
                 "dual_stream_saturation_uses_decoded_fixture_frames");
-        final long baseTimestamp = 5000000000L;
+        final long baseTimestamp = fixtureTimestamp(5000000000L);
+        final DecodedFrame handlerBarrierFrame = withTimestamp(decodedType111, baseTimestamp);
         final FrameViewSink.TestControl control = new FrameViewSink.TestControl();
-        control.pauseHandlerAt(baseTimestamp);
+        control.pauseHandlerAt(handlerBarrierFrame.presentationTimeNs);
         control.expectDispatchCount(FrameViewSink.MAX_QUEUED_FRAMES);
         viewSink.setDispatchProbe(control);
         try {
-            String first = submitForReceipt(frameIpcClient, withTimestamp(decodedType111, baseTimestamp), binderGeneration);
+            String first = submitForReceipt(frameIpcClient, handlerBarrierFrame, binderGeneration);
             requireType111("accepted".equals(first), "first_type111_frame_accepted_before_handler_barrier");
             requireType111(awaitRace(control.handlerEntered), "type111_handler_paused_at_exact_frame");
 
-            String second = submitForReceipt(frameIpcClient,
-                    withTimestamp(decodedType111, baseTimestamp + 100000000L), binderGeneration);
-            String third = submitForReceipt(frameIpcClient,
-                    withTimestamp(decodedType111, baseTimestamp + 200000000L), binderGeneration);
+            DecodedFrame secondFrame = withTimestamp(decodedType111,
+                    baseTimestamp + 100000000L);
+            DecodedFrame thirdFrame = withTimestamp(decodedType111,
+                    baseTimestamp + 200000000L);
+            String second = submitForReceipt(frameIpcClient, secondFrame, binderGeneration);
+            String third = submitForReceipt(frameIpcClient, thirdFrame, binderGeneration);
             requireType111("accepted".equals(second) && "accepted".equals(third),
                     "type111_bounded_pending_frames_accepted");
             requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
@@ -1433,8 +1577,13 @@ public final class ClarityLinkDisplayActivity extends Activity
                     primaryBefore.sessionId == secondaryBefore.sessionId,
                     "both_streams_share_one_binder_session_identity");
             long newPrimaryGeneration = primaryBefore.streamGeneration + 1L;
-            requireType111(primaryLabIpcClient.replaceGeneration(primaryBefore.streamGeneration,
-                    newPrimaryGeneration), "type110_live_generation_change_accepted");
+            if (reattachSessionId <= 0L) {
+                requireType111(primaryLabIpcClient.replaceGeneration(primaryBefore.streamGeneration,
+                        newPrimaryGeneration), "type110_live_generation_change_accepted");
+            } else {
+                requireType111(primaryBefore.streamGeneration == reattachType110Generation,
+                        "type110_identity_unchanged_since_type111_sink_replacement");
+            }
             requireType111(frameIpcClient.streamIdentity().streamGeneration == secondaryBefore.streamGeneration,
                     "type110_generation_change_does_not_change_type111_generation");
             String stalePrimary = primaryLabIpcClient.probeMalformed("stale_generation",
@@ -1443,7 +1592,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     "stale_type110_generation_rejected_by_actual_binder_receiver");
             Log.i(TAG, "CL_R4_STREAM_GENERATION_ISOLATION_PASS session_id=" + primaryBefore.sessionId +
                     " stream_type=110 old=" + primaryBefore.streamGeneration +
-                    " new=" + newPrimaryGeneration + " stream_type_111_generation=" +
+                    " new=" + (reattachSessionId <= 0L ? newPrimaryGeneration : primaryBefore.streamGeneration) +
+                    " stream_type_111_generation=" +
                     secondaryBefore.streamGeneration + " binder_pid_preserved=true stale_rejected=true");
 
             submitType110DecodedFrame(decodedType110, binderGeneration);
@@ -1455,7 +1605,7 @@ public final class ClarityLinkDisplayActivity extends Activity
 
             control.releaseHandler.countDown();
             requireType111(awaitRace(control.dispatchFinished), "all_accepted_type111_queue_entries_drained");
-            long finalTimestamp = baseTimestamp + 200000000L;
+            long finalTimestamp = thirdFrame.presentationTimeNs;
             requireType111(awaitViewFrameDrawn(binderGeneration, finalTimestamp),
                     "latest_accepted_type111_frame_drawn_after_release");
             requireType111(viewSink.queuedFrameCount() == 0,
@@ -1490,32 +1640,53 @@ public final class ClarityLinkDisplayActivity extends Activity
         return receipt[0];
     }
 
-    private static DecodedFrame withTimestamp(DecodedFrame frame, long timestampNs) throws Exception {
+    private DecodedFrame withTimestamp(DecodedFrame frame, long timestampNs) throws Exception {
+        long monotonicTimestamp = Math.max(timestampNs,
+                lastType111SubmissionTimestampNs + 1L);
+        lastType111SubmissionTimestampNs = monotonicTimestamp;
+        return copyWithTimestamp(frame, monotonicTimestamp);
+    }
+
+    private DecodedFrame copyWithTimestamp(DecodedFrame frame, long timestampNs) throws Exception {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream(frame.byteSize());
         frame.writeRgbaTo(bytes);
-        return new DecodedFrame(frame.width, frame.height, frame.rowStride, timestampNs,
+        return new DecodedFrame(frame.width, frame.height, frame.rowStride,
+                timestampNs,
                 frame.rotationDegrees, frame.cropLeft, frame.cropTop, frame.cropRight,
                 frame.cropBottom, ByteBuffer.wrap(bytes.toByteArray()));
     }
 
     private void submitDecodedFrame(final DecodedFrame frame, final long binderGeneration,
             boolean verifyBackpressure, FrameIpcClient client, boolean primaryLabOutput) {
+        final DecodedFrame submittedFrame;
+        try {
+            if (primaryLabOutput) submittedFrame = frame;
+            else {
+                long timestamp = Math.max(frame.presentationTimeNs,
+                        lastType111SubmissionTimestampNs + 1L);
+                submittedFrame = timestamp == frame.presentationTimeNs ? frame :
+                        copyWithTimestamp(frame, timestamp);
+                lastType111SubmissionTimestampNs = timestamp;
+            }
+        } catch (Exception failure) {
+            throw new IllegalStateException("type111_monotonic_timestamp_copy_failed", failure);
+        }
         final CountDownLatch completed = new CountDownLatch(1);
         final boolean[] accepted = new boolean[] { false };
         FrameStreamIdentity identity = client == null ? null : client.streamIdentity();
         final long streamGeneration = identity == null ? -1L : identity.streamGeneration;
-        requireType111(client != null && client.submit(frame, streamGeneration,
+        requireType111(client != null && client.submit(submittedFrame, streamGeneration,
                 new FrameIpcClient.Callback() {
                     public void complete(boolean value, String reason) {
                         accepted[0] = value;
                         if (!value) log("CL_R4_BINDER_FRAME_REJECT timestamp=" +
-                                frame.presentationTimeNs + " reason=" + reason);
+                                submittedFrame.presentationTimeNs + " reason=" + reason);
                         completed.countDown();
                     }
                 }), "decoded_frame_submitted_to_real_binder_pfd");
         if (verifyBackpressure) {
             final boolean[] rejected = new boolean[] { false };
-            boolean started = client.submit(frame, streamGeneration, new FrameIpcClient.Callback() {
+            boolean started = client.submit(submittedFrame, streamGeneration, new FrameIpcClient.Callback() {
                 public void complete(boolean accepted, String reason) {
                     rejected[0] = !accepted && "backpressure".equals(reason);
                 }
@@ -1524,10 +1695,10 @@ public final class ClarityLinkDisplayActivity extends Activity
         }
         requireType111(awaitRace(completed) && accepted[0], "decoded_frame_accepted_by_remote_receiver");
         if (!primaryLabOutput) {
-            requireType111(awaitViewFrameDrawn(activeGeneration, frame.presentationTimeNs),
+            requireType111(awaitViewFrameDrawn(activeGeneration, submittedFrame.presentationTimeNs),
                     "decoded_frame_drawn_by_actual_view");
             Log.i(TAG, "CL_R4_DECODED_FRAME_DRAWN width=" + frame.width + " height=" + frame.height +
-                    " timestamp_ns=" + frame.presentationTimeNs + " stream_generation=" + streamGeneration +
+                    " timestamp_ns=" + submittedFrame.presentationTimeNs + " stream_generation=" + streamGeneration +
                     " parent_display_generation=" + activeGeneration);
         }
     }
@@ -1563,12 +1734,22 @@ public final class ClarityLinkDisplayActivity extends Activity
 
     private DecodedFrame decodeFixtureFrame(Api17BufferH264Decoder decoder,
             byte[][] accessUnits, long generation, long firstPtsUs, long minimumTimestampNs) {
+        firstPtsUs += fixtureTimestampOffsetNs / 1000L;
+        minimumTimestampNs += fixtureTimestampOffsetNs;
         for (int index = 0; index < 16; index++) {
             DecodedFrame frame = decoder.decode(accessUnits[index % accessUnits.length],
                     firstPtsUs + index * 100000L, generation, 3000L);
             if (frame != null && frame.presentationTimeNs > minimumTimestampNs) return frame;
         }
         throw new IllegalStateException("type110_fixture_decoder_no_output");
+    }
+
+    private long fixtureTimestamp(long timestampNs) {
+        return timestampNs + fixtureTimestampOffsetNs;
+    }
+
+    private long fixturePtsUs(long ptsUs) {
+        return ptsUs + fixtureTimestampOffsetNs / 1000L;
     }
 
     /** Deterministic fault hook used only by the explicitly requested emulator fixture run. */
@@ -1701,17 +1882,19 @@ public final class ClarityLinkDisplayActivity extends Activity
         FrameIpcClient client = frameIpcClient;
         if (client == null || renderer == null || ipcSubmitted) return;
         ipcSubmitted = true;
-        boolean started = client.submit(syntheticFrame(), generation, new FrameIpcClient.Callback() {
+        FrameStreamIdentity streamIdentity = client.streamIdentity();
+        final long streamGeneration = streamIdentity == null ? -1L : streamIdentity.streamGeneration;
+        boolean started = client.submit(syntheticFrame(), streamGeneration, new FrameIpcClient.Callback() {
             public void complete(final boolean accepted, final String reason) {
                 main.post(new Runnable() {
                     public void run() {
                         if (!active || closing || activeGeneration != generation) return;
                         if (!accepted) {
-                            log("IPC_SYNTHETIC_FRAME_REJECTED generation=" + generation + " reason=" + reason);
+                            log("IPC_SYNTHETIC_FRAME_REJECTED generation=" + streamGeneration + " reason=" + reason);
                             stopOwnedDisplay("ipc-frame-rejected");
                             return;
                         }
-                        log("IPC_SYNTHETIC_FRAME_ACCEPTED_BY_REMOTE_AND_VIEW_SINK generation=" + generation
+                        log("IPC_SYNTHETIC_FRAME_ACCEPTED_BY_REMOTE_AND_VIEW_SINK generation=" + streamGeneration
                                 + " timestamp=1 bytes=16 backpressure=single_in_flight");
                         if (crashAfterFirstFrame)
                             log("CRASH_PROBE_ARMED_AFTER_CL_R1_AND_FRAME_SEQUENCE");
@@ -1719,7 +1902,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 });
             }
         });
-        if (!started) log("IPC_FRAME_BACKPRESSURE_REJECT generation=" + generation);
+        if (!started) log("IPC_FRAME_BACKPRESSURE_REJECT generation=" + streamGeneration);
     }
 
     private void saveBinderViewProof() {
@@ -1792,6 +1975,67 @@ public final class ClarityLinkDisplayActivity extends Activity
         closing = false;
     }
 
+    /** Release only the Activity-owned View attachment while retaining the Type110 parent session. */
+    private void closeViewAttachmentPreservingParent(String reason) {
+        if (closing || (!active && displayHost == null && renderer == null)) return;
+        closing = true;
+        active = false;
+        FixtureRunToken runToken = type111FixtureRunToken;
+        if (runToken != null) runToken.cancelForDetach();
+        type111RunStarted = false;
+        Thread fixtureWorker = type111FixtureWorker;
+        if (fixtureWorker != null) fixtureWorker.interrupt();
+        log("VIEW_ATTACHMENT_DETACH reason=" + reason + " parent_session_preserved=true");
+        closeDiagnosticSources();
+        releaseRenderer();
+        SecondaryDisplayHost old = displayHost;
+        displayHost = null;
+        if (old != null) {
+            try { old.close(); }
+            catch (RuntimeException failure) {
+                log("PRESENTATION_CLOSE_FAILED type=" + failure.getClass().getSimpleName());
+            }
+        }
+        borrowedPresentationSurface = null;
+        FrameIpcClient type111Client = frameIpcClient;
+        FrameIpcClient type110Client = primaryLabIpcClient;
+        FrameStreamIdentity owner = type110Client == null ? null : type110Client.streamIdentity();
+        FrameStreamIdentity child = type111Client == null ? null : type111Client.streamIdentity();
+        Type111ControlClient control = type111ControlClient;
+        if (control != null && owner != null && child != null) {
+            try {
+                boolean detached = control.detachType111Sink(owner, child);
+                log("TYPE111_LIFECYCLE_DETACH accepted=" + detached +
+                        " session_id=" + child.sessionId + " generation=" +
+                        child.streamGeneration + " parent_session_preserved=true");
+            } catch (Exception failure) {
+                log("TYPE111_LIFECYCLE_DETACH_FAILED type=" +
+                        failure.getClass().getSimpleName());
+            }
+        }
+        frameIpcClient = null;
+        primaryLabIpcClient = null;
+        type111ControlClient = null;
+        ipcSessionReady = false;
+        ipcSessionStartAttempted = false;
+        compositorEndpoint = null;
+        primaryLabSinkBinder = null;
+        if (child != null) viewSink.close(child.streamGeneration);
+        if (primarySinkBound) {
+            try { unbindService(primarySinkConnection); } catch (IllegalArgumentException ignored) { }
+            primarySinkBound = false;
+        }
+        if (compositorBound) {
+            try { unbindService(compositorConnection); } catch (IllegalArgumentException ignored) { }
+            compositorBound = false;
+        }
+        reattachSessionId = activeGeneration;
+        parentSessionPreservedForLifecycle = true;
+        lifecycleReattachPending = true;
+        ipcSubmitted = false;
+        closing = false;
+    }
+
     private void closeIpcSession() {
         FrameIpcClient client = frameIpcClient;
         FrameIpcClient primaryClient = primaryLabIpcClient;
@@ -1832,13 +2076,24 @@ public final class ClarityLinkDisplayActivity extends Activity
     }
 
     @Override protected void onPause() {
-        if (active || displayHost != null) stopOwnedDisplay("activity-pause");
+        if (active || displayHost != null) closeViewAttachmentPreservingParent("activity-pause");
         super.onPause();
     }
 
     @Override protected void onDestroy() {
-        if (active || displayHost != null || renderer != null) stopOwnedDisplay("activity-destroy");
+        if (active || displayHost != null || renderer != null)
+            closeViewAttachmentPreservingParent("activity-destroy");
         super.onDestroy();
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (parentSessionPreservedForLifecycle && reattachSessionId > 0L) {
+            parentSessionPreservedForLifecycle = false;
+            log("VIEW_ATTACHMENT_REATTACH_REQUEST session_id=" + reattachSessionId +
+                    " parent_session_preserved=true");
+            startEmulatorLab();
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {

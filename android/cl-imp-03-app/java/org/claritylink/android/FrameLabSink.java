@@ -54,6 +54,18 @@ final class FrameLabSink extends Binder {
         } finally { reply.recycle(); data.recycle(); }
     }
 
+    static FrameStreamIdentity queryIdentity(IBinder remote) throws RemoteException {
+        if (remote == null || !remote.isBinderAlive()) return null;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(SINK_DESCRIPTOR);
+            remote.transact(FrameIpcProtocol.FRAME_LAB_QUERY_IDENTITY, data, reply, 0);
+            reply.readException();
+            if (reply.readInt() == 0) return null;
+            return readIdentity(reply);
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     @Override protected synchronized boolean onTransact(int code, Parcel data, Parcel reply, int flags)
             throws RemoteException {
         if (code == FrameIpcProtocol.FRAME_LAB_QUERY_STATS) {
@@ -68,6 +80,18 @@ final class FrameLabSink extends Binder {
             reply.writeLong(lastChecksum);
             reply.writeInt(Process.myPid());
             reply.writeInt(Process.myUid());
+            return true;
+        }
+        if (code == FrameIpcProtocol.FRAME_LAB_QUERY_IDENTITY) {
+            if (Binder.getCallingUid() != Process.myUid()) {
+                reply.writeException(new SecurityException("lab output caller rejected"));
+                return true;
+            }
+            data.enforceInterface(SINK_DESCRIPTOR);
+            FrameStreamIdentity current = identity;
+            reply.writeNoException();
+            reply.writeInt(current == null ? 0 : 1);
+            if (current != null) writeIdentity(reply, current);
             return true;
         }
         if (code != FrameIpcProtocol.VIEW_FRAME && code != FrameIpcProtocol.VIEW_WARNING &&
@@ -166,6 +190,12 @@ final class FrameLabSink extends Binder {
     private static FrameStreamIdentity readIdentity(Parcel data) {
         return new FrameStreamIdentity(data.readLong(), data.readInt(), data.readLong(),
                 data.readLong(), data.readInt());
+    }
+
+    private static void writeIdentity(Parcel data, FrameStreamIdentity identity) {
+        data.writeLong(identity.sessionId); data.writeInt(identity.streamType);
+        data.writeLong(identity.connectionId); data.writeLong(identity.streamGeneration);
+        data.writeInt(identity.outputId);
     }
 
     private static void closeQuietly(ParcelFileDescriptor value) {
