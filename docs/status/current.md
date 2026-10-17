@@ -10,7 +10,7 @@
 
 | Area | State | Evidence |
 |---|---|---|
-| CL-R0 repository foundation | `ECC_REVIEWED_STATIC`; separate read-only code and security reviews found no actionable issue through candidate `5b2da6213cadb9ca1e5ef93e833735207139b70a`. Publication remains subject to the documented runtime limitation and owner licensing decision. | [CL-R0 validation](cl-r0-validation.md) |
+| CL-R0 repository foundation | `REVIEW_PENDING`; separate read-only code and security reviews found no actionable issue through `5b2da6213cadb9ca1e5ef93e833735207139b70a`. A GitHub CI health-check policy fix is awaiting targeted review. Publication remains subject to the documented runtime limitation and owner licensing decision. | [CL-R0 validation](cl-r0-validation.md) |
 | CL-R1 warning-preemption race | `API17_EMULATOR_VERIFIED` for deterministic Binder/Handler/View race interleavings and final-draw epoch gating. This is laboratory evidence, not Honda warning-priority validation. | [CL-R3 acceptance summary](../../research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md) |
 | CL-R2 API17 isolation and crash recovery | `API17_EMULATOR_VERIFIED`; system-owned crash-dialog handling was validated. A historical FinalizerWatchdog timeout did not recur; its original cause remains unknown. | [CL-R3 acceptance summary](../../research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md) |
 | CL-R3 Binder-to-View | `API17_EMULATOR_VERIFIED`; acceptance summary covers malformed frames, generations, pixel classification, warning interleavings, process death, crash recovery, and cleanup. No physical scanout is claimed. | [Final acceptance](../../research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md) |
@@ -22,7 +22,7 @@
 
 ## Review and publication
 
-The publication candidate is a clean-history selection based on `origin/main`; it excludes raw/private emulator evidence and vehicle-specific local inventories. Separate read-only ECC-guided code and security reviewers reviewed the cumulative candidate changes through `5b2da6213cadb9ca1e5ef93e833735207139b70a`; neither reported a remaining actionable finding. The post-fix API17 runtime remains unverified as documented in [CL-R0 validation](cl-r0-validation.md). AI review is not human vehicle-safety certification.
+The publication candidate is a clean-history selection based on `origin/main`; it excludes raw/private emulator evidence and vehicle-specific local inventories. Separate read-only ECC-guided code and security reviewers reviewed the candidate through `5b2da6213cadb9ca1e5ef93e833735207139b70a`; neither reported a remaining actionable finding. A CI health-check policy correction is pending targeted review. The post-fix API17 runtime remains unverified as documented in [CL-R0 validation](cl-r0-validation.md). AI review is not human vehicle-safety certification.
 
 ## Next action
 

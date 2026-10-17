@@ -36,6 +36,12 @@ def test_generated_evidence_exemption_does_not_allow_other_binary_types():
     assert not check_repo_health.is_health_exempt_image(path, b"")
 
 
+def test_review_scope_health_accepts_completed_static_review_without_approval():
+    assert "ECC_REVIEWED_STATIC_NO_ACTIONABLE_FINDINGS" in check_repo_health.REVIEW_SCOPE_STATUSES
+    assert "PENDING_TARGETED_ECC_REVIEW" in check_repo_health.REVIEW_SCOPE_STATUSES
+    assert "APPROVED_FOR_VEHICLE_TESTING" not in check_repo_health.REVIEW_SCOPE_STATUSES
+
+
 def test_health_reads_staged_blob_instead_of_modified_worktree(tmp_path, monkeypatch):
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=tmp_path, check=True)

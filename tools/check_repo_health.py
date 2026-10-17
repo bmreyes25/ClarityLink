@@ -43,6 +43,11 @@ REQUIRED_PATHS = (
     "tests/README.md",
     "tools/README.md",
 )
+REVIEW_SCOPE_STATUSES = {
+    "PENDING_INDEPENDENT_ECC_REVIEW",
+    "PENDING_TARGETED_ECC_REVIEW",
+    "ECC_REVIEWED_STATIC_NO_ACTIONABLE_FINDINGS",
+}
 STRICT_PUBLIC_DOCS = (
     "README.md",
     "CONTRIBUTING.md",
@@ -284,8 +289,8 @@ def main() -> int:
         else:
             if review_scope.get("approval_claimed") is not False:
                 failures.append("CL-R0 review scope must not claim independent approval")
-            if review_scope.get("review_status") != "PENDING_INDEPENDENT_ECC_REVIEW":
-                failures.append("CL-R0 review scope status must remain pending until an independent review is recorded")
+            if review_scope.get("review_status") not in REVIEW_SCOPE_STATUSES:
+                failures.append("CL-R0 review scope has an unsupported review status")
             for entry in review_scope.get("files", []):
                 path = entry.get("path")
                 if not isinstance(path, str) or path not in indexed:
