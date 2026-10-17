@@ -8,8 +8,6 @@ export JAVA_HOME="$java_home" PATH="$java_home/bin:$PATH"
 adb="$sdk/platform-tools/adb"
 emulator="$sdk/.emulator-intel/emulator/emulator"
 avdmanager="$sdk/cmdline-tools/latest/bin/avdmanager"
-apk="$out/claritylink-display-lab.apk"
-attacker_apk="$out/cl-r4-boundary-attacker/cl-r4-boundary-attacker.apk"
 package=org.claritylink.independentdisplay.lab
 attacker_package=org.claritylink.labattacker
 attacker_component=org.claritylink.attacker.ExportBoundaryAttackActivity
@@ -31,14 +29,20 @@ elif [ "${1:-}" = "--cl-r4-type111" ]; then
   shift
 fi
 [ "$#" -eq 0 ] || { echo 'Unexpected emulator harness arguments.' >&2; exit 2; }
+guard="$repo/tools/api17_runner_guard.py"
+out=$(python3 "$guard" resolve-build "$repo" "$out") || exit $?
+apk="$out/claritylink-display-lab.apk"
+attacker_apk="$out/cl-r4-boundary-attacker/cl-r4-boundary-attacker.apk"
 [ -f "$apk" ] && [ -f "$attacker_apk" ] && [ -x "$adb" ] && [ -x "$emulator" ] && [ -x "$avdmanager" ] || {
   echo 'Build CL-IMP-03 lab and boundary-attacker APKs, and provide isolated API17 tools first.' >&2; exit 2;
 }
-mkdir -p "$out/avd"
-campaign_evidence="$repo/research/vehicle/test6a-t7-integration/evidence"
-mkdir -p "$campaign_evidence"
+run_root=$(python3 "$guard" create-run "$repo" "$out") || exit $?
+run_label=$(basename -- "$run_root")
+campaign_evidence="$run_root/evidence"
+mkdir "$campaign_evidence" "$run_root/avd"
+chmod 700 "$campaign_evidence" "$run_root/avd"
 ui_test_source="$repo/android/cl-imp-03-app/test/org/claritylink/test/CrashDialogDismissTest.java"
-ui_test_build="$out/ui-automator-$$"
+ui_test_build="$run_root/ui-automator"
 ui_test_classes="$ui_test_build/classes"
 ui_test_dex="$ui_test_build/dex"
 ui_test_jar="$ui_test_build/claritylink-crash-dialog-tests.jar"
@@ -53,8 +57,8 @@ mkdir -p "$ui_test_classes" "$ui_test_dex"
 "$java_home/bin/jar" cf "$ui_test_jar" -C "$ui_test_classes" org/claritylink/test
 "$java_home/bin/jar" uf "$ui_test_jar" -C "$ui_test_dex" classes.dex
 ui_test_sha=$(shasum -a 256 "$ui_test_jar" | awk '{print $1}')
-echo "API17_CRASH_DIALOG_TEST_JAR sha256=$ui_test_sha path=$ui_test_jar"
-export ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" ANDROID_AVD_HOME="$out/avd"
+echo "API17_CRASH_DIALOG_TEST_JAR sha256=$ui_test_sha artifact=$run_label/ui-automator/claritylink-crash-dialog-tests.jar"
+export ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" ANDROID_AVD_HOME="$run_root/avd"
 adb_port=$(python3 - <<'PY'
 import socket
 s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()
@@ -64,8 +68,18 @@ export ADB_SERVER_PORT="$adb_port" ANDROID_ADB_SERVER_PORT="$adb_port"
 adb_local() { "$adb" -P "$adb_port" "$@"; }
 serial= emulator_pid= adb_server_pid= adb_server_started=0 avd_created=0
 avd="climp03_api17_$$"
-avd_dir="$out/avd/$avd.avd"
-avd_ini="$out/avd/$avd.ini"
+avd_dir="$run_root/avd/$avd.avd"
+avd_ini="$run_root/avd/$avd.ini"
+adb_server_owned() {
+  [ "$adb_server_started" -eq 1 ] && [ -n "$adb_server_pid" ] &&
+    kill -0 "$adb_server_pid" 2>/dev/null || return 1
+  parent=$(ps -p "$adb_server_pid" -o ppid= 2>/dev/null | tr -d ' ')
+  executable=$(lsof -a -p "$adb_server_pid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+  command=$(ps -p "$adb_server_pid" -o command= 2>/dev/null || true)
+  python3 "$guard" check-adb-child "$adb_server_pid" "$$" \
+    "$adb_server_pid" "$parent" "$executable" "$adb" "$command" "$adb_port" \
+    >/dev/null 2>&1
+}
 cleanup() {
   result=$?
   trap - EXIT INT TERM
@@ -73,23 +87,15 @@ cleanup() {
     kill "$emulator_pid" 2>/dev/null || true
     wait "$emulator_pid" 2>/dev/null || true
   fi
-  # Stop only the dedicated server created by this run and verified by PID,
-  # executable path, and its isolated port. Unknown servers are never touched.
+  # Stop only the foreground ADB server this shell launched as a direct child.
+  # If the child identity is ambiguous or changed, leave it untouched.
   if [ "$adb_server_started" -eq 1 ] && adb_server_owned; then
     kill "$adb_server_pid" 2>/dev/null || true
-    for attempt in $(seq 1 20); do
-      kill -0 "$adb_server_pid" 2>/dev/null || break
-      sleep 0.1
-    done
+    wait "$adb_server_pid" 2>/dev/null || true
   fi
   if [ "$avd_created" -eq 1 ]; then
-    python3 - "$avd_dir" "$avd_ini" <<'PY'
-from pathlib import Path
-import shutil,sys
-avd,ini=map(Path,sys.argv[1:])
-if avd.exists(): shutil.rmtree(avd)
-if ini.exists(): ini.unlink()
-PY
+    python3 "$guard" cleanup-avd "$run_root" "$avd" ||
+      echo 'AVD ownership could not be proven; preserving its files.' >&2
   fi
   exit "$result"
 }
@@ -97,33 +103,54 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-adb_local --one-device CL_IMP_03_NO_PHYSICAL_USB start-server >/dev/null
-adb_server_pid=$(lsof -nP -tiTCP:"$adb_port" -sTCP:LISTEN | head -1)
-adb_server_owned() {
-  [ -n "$adb_server_pid" ] && kill -0 "$adb_server_pid" 2>/dev/null || return 1
-  executable=$(lsof -a -p "$adb_server_pid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
-  command=$(ps -p "$adb_server_pid" -o command= 2>/dev/null || true)
-  [ "$executable" = "$adb" ] &&
-    printf '%s\n' "$command" | grep -F "$adb_port" | grep -F 'fork-server server' >/dev/null
-}
-adb_server_owned || { adb_server_pid=; echo 'Cannot prove dedicated ADB server ownership; leaving it untouched.' >&2; exit 3; }
+adb_server_log="$run_root/adb-server.log"
+"$adb" -P "$adb_port" --one-device CL_IMP_03_NO_PHYSICAL_USB server nodaemon > "$adb_server_log" 2>&1 &
+adb_server_pid=$!
 adb_server_started=1
-echo "ISOLATED_ADB_SERVER pid=$adb_server_pid port=$adb_port executable=$adb"
-source_receipt="$campaign_evidence/api17-source-manifest-$adb_port.sha256"
-{
-  shasum -a 256 "$apk" "$repo/tools/run_cl_imp_03_emulator.sh" \
-    "$repo/tools/build_cl_imp_03_apks.sh" "$repo/tools/normalize_api17_png.py" \
-    "$attacker_apk" "$repo/android/cl-r4-boundary-attacker/AndroidManifest.xml" \
-    "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java" \
-    "$repo/tools/verify_api17_pixel_content.swift" \
-    "$repo/android/cl-imp-03-app/AndroidManifest.lab.xml" "$ui_test_source" \
-    "$ui_test_jar" "$sdk/platforms/android-17/android.jar" "$adb" "$emulator"
+server_ready=0
+for attempt in $(seq 1 30); do
+  if adb_server_owned && adb_local devices >/dev/null 2>&1; then server_ready=1; break; fi
+  kill -0 "$adb_server_pid" 2>/dev/null || break
+  sleep 0.1
+done
+[ "$server_ready" -eq 1 ] || {
+  echo 'Cannot prove dedicated ADB server ownership for this run; no target commands were sent.' >&2
+  exit 3;
+}
+echo "ISOLATED_ADB_SERVER pid=$adb_server_pid port=$adb_port launch=foreground-child target=none"
+source_receipt="$campaign_evidence/api17-source-manifest.sha256"
+(
+  cd "$repo"
+  hash_file() {
+    digest=$(shasum -a 256 "$1" | awk '{print $1}')
+    printf '%s  %s\n' "$digest" "$2"
+  }
+  hash_file "$apk" 'build/claritylink-display-lab.apk'
+  hash_file "$repo/tools/run_cl_imp_03_emulator.sh" 'tools/run_cl_imp_03_emulator.sh'
+  hash_file "$repo/tools/build_cl_imp_03_apks.sh" 'tools/build_cl_imp_03_apks.sh'
+  hash_file "$repo/tools/normalize_api17_png.py" 'tools/normalize_api17_png.py'
+  hash_file "$guard" 'tools/api17_runner_guard.py'
+  hash_file "$attacker_apk" 'build/cl-r4-boundary-attacker.apk'
+  hash_file "$repo/android/cl-r4-boundary-attacker/AndroidManifest.xml" 'android/cl-r4-boundary-attacker/AndroidManifest.xml'
+  hash_file "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java" 'android/cl-r4-boundary-attacker/ExportBoundaryAttackActivity.java'
+  hash_file "$repo/tools/verify_api17_pixel_content.swift" 'tools/verify_api17_pixel_content.swift'
+  hash_file "$repo/tools/verify_api17_padded_crop_content.swift" 'tools/verify_api17_padded_crop_content.swift'
+  hash_file "$repo/android/cl-imp-03-app/AndroidManifest.lab.xml" 'android/cl-imp-03-app/AndroidManifest.lab.xml'
+  hash_file "$ui_test_source" 'android/cl-imp-03-app/test/CrashDialogDismissTest.java'
+  hash_file "$ui_test_jar" 'artifacts/claritylink-crash-dialog-tests.jar'
+  hash_file "$sdk/platforms/android-17/android.jar" 'toolchain/android-17/android.jar'
+  hash_file "$sdk/platforms/android-17/uiautomator.jar" 'toolchain/android-17/uiautomator.jar'
+  hash_file "$adb" 'toolchain/platform-tools/adb'
+  hash_file "$emulator" 'toolchain/emulator/emulator'
   find "$repo/android/cl-imp-03-app/java/org/claritylink/android" \
     "$repo/android/src/main/java/org/claritylink/android" \
-    "$repo/src/claritylink-renderer/android-api17" -type f -name '*.java' -print0 |
-    xargs -0 shasum -a 256
-} | LC_ALL=C sort > "$source_receipt"
-echo "API17_SOURCE_MANIFEST $source_receipt"
+    "$repo/src/claritylink-renderer/android-api17" -type f -name '*.java' |
+    while IFS= read -r file; do
+      label=${file#"$repo"/}
+      hash_file "$file" "$label"
+    done
+) | LC_ALL=C sort > "$source_receipt"
+echo "API17_SOURCE_MANIFEST artifact=$run_label/evidence/api17-source-manifest.sha256"
 # Ignore adb's `* daemon ...` startup banners; retain every actual serial/status row,
 # including unauthorized/offline targets, so the unknown-device guard stays strict.
 inventory() { adb_local devices | awk 'NF >= 2 && $1 != "List" && $1 !~ /^\*/ {print $1" "$2}'; }
@@ -148,13 +175,15 @@ owned() {
   [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null &&
     [ "$(inventory)" = "$serial device" ]
 }
+python3 "$guard" check-avd "$run_root" "$avd"
 printf 'no\n' | "$avdmanager" create avd --name "$avd" \
-  --package 'system-images;android-17;default;x86' --force >/dev/null
+  --package 'system-images;android-17;default;x86' >/dev/null
+python3 "$guard" mark-avd "$run_root" "$avd"
 avd_created=1
 grep -q '^abi.type=x86$' "$avd_dir/config.ini" || { echo 'AVD ABI mismatch.' >&2; exit 4; }
 arch -x86_64 "$emulator" -avd "$avd" -port "$port" -no-window -no-audio \
   -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
-  > "$out/emulator.log" 2>&1 &
+  > "$run_root/emulator.log" 2>&1 &
 emulator_pid=$!
 ready=0
 for attempt in $(seq 1 300); do
@@ -218,10 +247,10 @@ printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_CAP_RECOVERY_PASS
 }
 owner_isolation_receipt="$campaign_evidence/api17-owner-session-isolation-$adb_port.txt"
 printf '%s\n' "$owner_isolation_logs" | grep 'TYPE110_OWNER_SESSION_ISOLATION_PASS ' > "$owner_isolation_receipt"
-echo "TYPE110_OWNER_SESSION_ISOLATION_RUNTIME_PASS concurrent_issue=true reverse_consume=true records_remaining=0 receipt=$owner_isolation_receipt"
+echo "TYPE110_OWNER_SESSION_ISOLATION_RUNTIME_PASS concurrent_issue=true reverse_consume=true records_remaining=0 artifact=$run_label/evidence/$(basename -- "$owner_isolation_receipt")"
 owner_cap_receipt="$campaign_evidence/api17-owner-cap-recovery-$adb_port.txt"
 printf '%s\n' "$owner_isolation_logs" | grep 'TYPE110_OWNER_CAP_RECOVERY_PASS ' > "$owner_cap_receipt"
-echo "TYPE110_OWNER_CAP_RECOVERY_RUNTIME_PASS expired_records=32 orphan_temp=true orphan_claim=true new_issue=true artifacts_remaining=0 receipt=$owner_cap_receipt"
+echo "TYPE110_OWNER_CAP_RECOVERY_RUNTIME_PASS expired_records=32 orphan_temp=true orphan_claim=true new_issue=true artifacts_remaining=0 artifact=$run_label/evidence/$(basename -- "$owner_cap_receipt")"
 assert_type110_probe_cross_uid_denied() {
   owned || exit 7
   before_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
@@ -383,7 +412,7 @@ owned || exit 7
 adb_local -s "$serial" shell run-as "$package" cat files/test6a-binder-view-proof.png > "$proof_tmp"
 python3 "$repo/tools/normalize_api17_png.py" "$proof_tmp"
 mv "$proof_tmp" "$proof"
-echo "BINDER_VIEW_PROOF_SAVED $proof"
+echo "BINDER_VIEW_PROOF_SAVED artifact=$run_label/evidence/$(basename -- "$proof")"
 
 if [ "$type111_mode" -eq 1 ]; then
   wait_for 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_PASS'
