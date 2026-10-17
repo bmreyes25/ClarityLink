@@ -56,3 +56,85 @@ def test_failed_replacement_unlinks_candidate_and_rolls_back_generation():
     assert "ReplacementDeathGate deathGate = new ReplacementDeathGate();" in service
     assert "if (!deathGate.dead && stillCurrent" in service
     assert "state.compositor.end(newIdentity.streamGeneration);" in service
+
+
+def test_activity_lifecycle_detaches_view_without_tearing_down_parent_session():
+    protocol = (APP / "FrameIpcProtocol.java").read_text()
+    client = (APP / "Type111ControlClient.java").read_text()
+    service = (APP / "CompositorService.java").read_text()
+    activity = (APP / "ClarityLinkDisplayActivity.java").read_text()
+
+    assert "TYPE111_DETACH_SINK = 28" in protocol
+    assert "detachType111Sink(final FrameStreamIdentity type110Owner" in client
+    assert "ownerIdentity.streamType != FrameStreamIdentity.TYPE110" in service
+    assert '"authorized_type110_owner=true"' in service
+    lifecycle_start = activity.index("private void closeViewAttachmentPreservingParent")
+    cleanup_start = activity.index("private void closeIpcSession", lifecycle_start)
+    lifecycle = activity[lifecycle_start:cleanup_start]
+    assert "control.detachType111Sink(owner, child)" in lifecycle
+    assert "parentSessionPreservedForLifecycle = true;" in lifecycle
+    assert 'closeViewAttachmentPreservingParent("activity-pause")' in activity
+    assert 'closeViewAttachmentPreservingParent("activity-destroy")' in activity
+    assert "parentTeardown(" not in lifecycle
+
+
+def test_generation_change_and_parent_snapshot_are_fenced_against_teardown():
+    service = (APP / "CompositorService.java").read_text()
+    generation_change = service[service.index("if (code == FrameIpcProtocol.CHANGE_GENERATION)"):
+                               service.index("if (code == FrameIpcProtocol.WARNING)")]
+    teardown = service[service.index("private String teardownType111Session"):
+                       service.index("private static void writeControlReply")]
+
+    assert "synchronized (streamsLock)" in generation_change
+    assert "!closingSessions.contains(identity.sessionId)" in generation_change
+    assert "state.identity = identity.withGeneration(newGeneration);" in generation_change
+    assert "ArrayList<StreamState> ownedStates" in teardown
+    assert "synchronized (state.lock) { identity = state.identity; }" in teardown
+
+
+def test_lifecycle_detach_cancels_fixture_worker_without_parent_teardown():
+    activity = (APP / "ClarityLinkDisplayActivity.java").read_text()
+    detach_start = activity.index("private void closeViewAttachmentPreservingParent")
+    cleanup_start = activity.index("private void closeIpcSession", detach_start)
+    lifecycle = activity[detach_start:cleanup_start]
+    worker_catch = activity[activity.index("private void startType111FixtureRun"):
+                            activity.index("private byte[] type111Fixture")]
+
+    assert "runToken.cancelForDetach();" in lifecycle
+    assert "fixtureWorker.interrupt();" in lifecycle
+    assert "if (!runToken.isCancelled())" in worker_catch
+    assert "if (!runToken.claimTeardown())" in worker_catch
+    assert "if (previousWorker != null && previousWorker.isAlive())" in worker_catch
+    assert "CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE" in worker_catch
+
+
+def test_api17_reattach_harness_restarts_view_with_the_existing_parent_session():
+    activity = (APP / "ClarityLinkDisplayActivity.java").read_text()
+    runner = (ROOT / "tools/run_cl_imp_03_emulator.sh").read_text()
+
+    assert 'control.queryType111Stream(primaryIdentity)' in activity
+    assert 'FrameIpcClient.replaceType111Sink(compositorEndpoint, primaryIdentity' in activity
+    assert '"stale_frame_rejected=true"' in activity
+    assert '"CL_R4A_VIEW_REATTACH_PASS session_id="' in activity
+    assert '" type110_generation=" + reattachType110Generation' in activity
+    assert 'if (reattachSessionId > 0L && type111FixtureMode)' in activity
+    assert 'else submitSyntheticFrame(activeGeneration);' in activity
+    assert 'fixtureTimestampOffsetNs = reattachSessionId > 0L ? 1000000000000L : 0L;' in activity
+    assert 'firstPtsUs += fixtureTimestampOffsetNs / 1000L;' in activity
+    assert 'long inputPts = fixturePtsUs(100000L);' in activity
+    assert 'lastType111SubmissionTimestampNs + 1L' in activity
+    assert 'copyWithTimestamp(frame, timestamp)' in activity
+    assert 'control.pauseHandlerAt(handlerBarrierFrame.presentationTimeNs);' in activity
+    assert 'if (reattachSessionId <= 0L)' in activity
+    assert 'timestamp_bounds_preserved=true' in activity
+    assert 'type110_identity_unchanged_since_type111_sink_replacement' in activity
+    assert '--cl-r4-type111-reattach' in runner
+    assert 'start_lab_activity_privileged type111_reattach "$session_id"' in runner
+    assert 'initial_type111_pid=$(printf' in runner
+    assert 'api17-type111-reattach-logcat-$adb_port.txt"' in runner
+    assert "grep -F 'IPC_REMOTE_FRAME ' | grep -F \"session_id=$session_id \"" in runner
+    assert 'grep -F "IPC_TYPE111_SINK_REPLACED session_id=$session_id "' in runner
+    assert "grep -F 'streams=110:primary_lab,111:secondary_view'" in runner
+    assert 'if [ "$type111_reattach" -eq 0 ]; then' in runner
+    assert 'replacement_pid=$replacement_pid parent_session_reused=true' in runner
+    assert "type110_last_frame_id=\\([0-9]" in runner

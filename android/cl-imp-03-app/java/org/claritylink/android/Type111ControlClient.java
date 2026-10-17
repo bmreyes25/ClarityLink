@@ -10,6 +10,49 @@ final class Type111ControlClient {
 
     Type111ControlClient(IBinder endpoint) { this.endpoint = endpoint; }
 
+    static final class StreamQuery {
+        final boolean ownerValid;
+        final boolean sinkAttached;
+        final FrameStreamIdentity identity;
+        final int compositorPid;
+        StreamQuery(boolean ownerValid, boolean sinkAttached, FrameStreamIdentity identity,
+                int compositorPid) {
+            this.ownerValid = ownerValid; this.sinkAttached = sinkAttached;
+            this.identity = identity; this.compositorPid = compositorPid;
+        }
+    }
+
+    StreamQuery queryType111Stream(FrameStreamIdentity type110Owner) throws RemoteException {
+        if (type110Owner == null || !type110Owner.isValid() ||
+                type110Owner.streamType != FrameStreamIdentity.TYPE110) return null;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            header(data); writeIdentity(data, type110Owner);
+            endpoint.transact(FrameIpcProtocol.TYPE111_QUERY_STREAM, data, reply, 0);
+            reply.readException();
+            boolean ownerValid = reply.readInt() != 0;
+            boolean present = reply.readInt() != 0;
+            boolean sinkAttached = reply.readInt() != 0;
+            FrameStreamIdentity identity = present ? readIdentity(reply) : null;
+            int pid = reply.readInt();
+            return new StreamQuery(ownerValid, sinkAttached, identity, pid);
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
+    boolean detachType111Sink(final FrameStreamIdentity type110Owner,
+            final FrameStreamIdentity type111Identity) throws RemoteException {
+        if (type110Owner == null || !type110Owner.isValid() ||
+                type110Owner.streamType != FrameStreamIdentity.TYPE110 ||
+                type111Identity == null || !type111Identity.isValid() ||
+                type111Identity.streamType != FrameStreamIdentity.TYPE111 ||
+                type110Owner.sessionId != type111Identity.sessionId) return false;
+        return transact(FrameIpcProtocol.TYPE111_DETACH_SINK, new Writer() {
+            public void write(Parcel data) {
+                writeIdentity(data, type110Owner); writeIdentity(data, type111Identity);
+            }
+        });
+    }
+
     boolean registerLabCapability(final long sessionId, final String uuid, final int width,
             final int height, final int fps)
             throws RemoteException {
@@ -111,6 +154,11 @@ final class Type111ControlClient {
         data.writeLong(identity.sessionId); data.writeInt(identity.streamType);
         data.writeLong(identity.connectionId); data.writeLong(identity.streamGeneration);
         data.writeInt(identity.outputId);
+    }
+
+    private static FrameStreamIdentity readIdentity(Parcel data) {
+        return new FrameStreamIdentity(data.readLong(), data.readInt(), data.readLong(),
+                data.readLong(), data.readInt());
     }
 
     private interface Writer { void write(Parcel data); }

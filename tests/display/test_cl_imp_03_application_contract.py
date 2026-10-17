@@ -45,8 +45,9 @@ def test_surface_is_borrowed_from_presentation_and_renderer_is_released_on_lifec
     assert "released_by_app=false" in source
     assert "borrowedPresentationSurface = surface" in source
     assert "old.close()" in source
-    assert "stopOwnedDisplay(\"activity-pause\")" in source
-    assert "stopOwnedDisplay(\"activity-destroy\")" in source
+    assert 'closeViewAttachmentPreservingParent("activity-pause")' in source
+    assert 'closeViewAttachmentPreservingParent("activity-destroy")' in source
+    assert "parent_session_preserved=true" in source
     assert "new Display1OutputBackend" in source
     host = (REPO / "android/src/main/java/org/claritylink/android/SecondaryDisplayHost.java").read_text()
     assert "HostedContentListener" in host

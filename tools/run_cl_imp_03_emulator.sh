@@ -15,6 +15,7 @@ component=org.claritylink.android.ClarityLinkDisplayActivity
 decoder_only=0
 type111_mode=0
 type111_first=0
+type111_reattach=0
 if [ "${1:-}" = "--cl-imp-08-decoder" ]; then
   decoder_only=1
   component=org.claritylink.android.Api17DecoderLabActivity
@@ -26,6 +27,10 @@ if [ "${1:-}" = "--cl-r4-type111-first" ]; then
   shift
 elif [ "${1:-}" = "--cl-r4-type111" ]; then
   type111_mode=1
+  shift
+elif [ "${1:-}" = "--cl-r4-type111-reattach" ]; then
+  type111_mode=1
+  type111_reattach=1
   shift
 fi
 [ "$#" -eq 0 ] || { echo 'Unexpected emulator harness arguments.' >&2; exit 2; }
@@ -296,13 +301,20 @@ invoke_type110_probe_privileged() {
 start_lab_activity_privileged() {
   owned || exit 7
   scenario=$1
+  reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_first|controlled_exit|crash)
+    presentation|type111|type111_first|type111_reattach|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true ;;
+        type111_reattach)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true
+          if [ -n "$reattach_session_arg" ]; then
+            set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
+          fi
+          ;;
         controlled_exit) set -- "$@" --ez controlled_exit_after_validation true ;;
         crash) set -- "$@" --ez crash_after_first_frame true ;;
       esac
@@ -361,7 +373,11 @@ if [ "$decoder_only" -eq 1 ]; then
 elif [ "$type111_first" -eq 1 ]; then
   start_lab_activity_privileged type111_first
 elif [ "$type111_mode" -eq 1 ]; then
-  start_lab_activity_privileged type111
+  if [ "$type111_reattach" -eq 1 ]; then
+    start_lab_activity_privileged type111_reattach
+  else
+    start_lab_activity_privileged type111
+  fi
 else
   start_lab_activity_privileged presentation
 fi
@@ -405,6 +421,9 @@ wait_for 'SURFACE_BORROWED_READY valid=true owner=Presentation_SurfaceHolder rel
 wait_for 'BINDER_FRAME_DRAWN_ON_PRESENTATION_VIEW'
 wait_for 'SYNTHETIC_FRAME_DRAWN_ON_PRESENTATION_CANVAS'
 wait_for 'BINDER_VIEW_PROOF_SAVED'
+initial_activity_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+initial_type111_pid=$(printf '%s\n' "$initial_activity_logs" | sed -n 's/.*ACTIVITY_READY .*pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+[ -n "$initial_type111_pid" ] || { echo 'Initial Type111 process identity was not captured.' >&2; exit 9; }
 proof="$campaign_evidence/api17-binder-view-proof-$adb_port.png"
 proof_tmp="$proof.tmp"
 owned || exit 7
@@ -430,7 +449,7 @@ if [ "$type111_mode" -eq 1 ]; then
   wait_for 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED'
   wait_for 'IPC_VIEW_SINK_DEATH_CALLBACK session_id='
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
-  app_pid=$(printf '%s\n' "$logs" | sed -n 's/.*ACTIVITY_READY .*pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+  app_pid=$initial_type111_pid
   [ -n "$app_pid" ] || { echo 'Type111 process identity was not captured.' >&2; exit 9; }
   death_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED ' | tail -1)
   printf '%s\n' "$death_line" | grep -F "pid=$app_pid " >/dev/null || {
@@ -470,24 +489,85 @@ if [ "$type111_mode" -eq 1 ]; then
   window_state=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' | grep -F "mOwnerUid=$app_uid" || true)
   [ -z "$window_state" ] || { echo "ClarityLink window remains after Type111 sink death: $window_state" >&2; exit 9; }
   echo "TYPE111_SINK_DEATH_VERIFIED pid=$app_pid type110_sink_pid=$type110_sink_pid compositor_pid=$compositor_pid type110_death_callback=false"
-  invoke_type110_probe_privileged "$session_id" "$type110_generation" "$type110_last_frame" "$type110_sink_pid" "$compositor_pid"
-  complete_probe_session_and_stop_isolated_package
+  if [ "$type111_reattach" -eq 1 ]; then
+    start_lab_activity_privileged type111_reattach "$session_id"
+    for attempt in $(seq 1 180); do
+      owned || { echo 'Owned emulator changed while waiting for Type111 reattachment.' >&2; exit 7; }
+      logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+      printf '%s\n' "$logs" | grep -F 'CL_R4A_TYPE111_SINK_REPLACED ' | grep -F "session_id=$session_id " >/dev/null && break
+      sleep 1
+    done
+    logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    replacement_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4A_TYPE111_SINK_REPLACED ' | tail -1)
+    printf '%s\n' "$replacement_line" | grep -F "session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'stale_frame_rejected=true' >/dev/null || {
+      echo 'API17 Binder reattachment did not preserve Type110 identity or reject a stale Type111 frame.' >&2; exit 9;
+    }
+    replacement_pid=$(printf '%s\n' "$logs" | sed -n 's/.*ACTIVITY_READY .*pid=\([0-9][0-9]*\).*/\1/p' | tail -1)
+    [ -n "$replacement_pid" ] && [ "$replacement_pid" != "$app_pid" ] || {
+      echo 'Restarted Type111 View process did not receive a fresh PID.' >&2; exit 9;
+    }
+    wait_for 'CL_R4A_VIEW_REATTACH_PASS'
+    logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt"
+    printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown=accepted' >/dev/null || {
+      echo 'Reattached Activity receipt did not match the expected owner-authorized teardown.' >&2
+      printf '%s\n' "$logs" | grep -F 'CL_R4A_VIEW_REATTACH_PASS ' >&2 || true
+      echo "expected_session_id=$session_id expected_type110_generation=$type110_generation" >&2
+      exit 9;
+    }
+    wait_for 'TYPE110_LAB_SINK_DESTROYED '
+    wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0'
+    proof_path="$campaign_evidence/api17-type111-reattached-frame-$adb_port.png"
+    proof_tmp="$proof_path.tmp"
+    owned || exit 7
+    adb_local -s "$serial" shell run-as "$package" cat files/type111-reattached-frame.png > "$proof_tmp"
+    python3 "$repo/tools/normalize_api17_png.py" "$proof_tmp"
+    mv "$proof_tmp" "$proof_path"
+    shasum -a 256 "$proof_path" "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt" \
+      > "$campaign_evidence/api17-type111-reattach-artifact-hashes-$adb_port.sha256"
+  else
+    invoke_type110_probe_privileged "$session_id" "$type110_generation" "$type110_last_frame" "$type110_sink_pid" "$compositor_pid"
+  fi
+  if [ "$type111_reattach" -eq 0 ]; then
+    complete_probe_session_and_stop_isolated_package
+  fi
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-logcat-$adb_port.txt"
-  assert_type110_progress_precedes_parent_teardown "$session_id" "$type110_last_frame" "$type110_sink_pid" "$logs"
-  printf '%s\n' "$logs" | grep -F "CL_R4_TYPE110_AFTER_TYPE111_SINK_DEATH_PASS session_id=$session_id stream_generation=$type110_generation old_last_frame_id=$type110_last_frame" >/dev/null || {
-    echo 'Type110 did not report post-death progress on the original stream identity.' >&2; exit 9;
-  }
-  printf '%s\n' "$logs" | grep -F "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$type110_sink_pid" | grep -E "frame_id=$((type110_last_frame + 1))([[:space:]]|$)" >/dev/null || {
-    echo 'The independent Type110 sink did not record the next frame after Type111 sink death.' >&2; exit 9;
-  }
+  if [ "$type111_reattach" -eq 0 ]; then
+    assert_type110_progress_precedes_parent_teardown "$session_id" "$type110_last_frame" "$type110_sink_pid" "$logs"
+    printf '%s\n' "$logs" | grep -F "CL_R4_TYPE110_AFTER_TYPE111_SINK_DEATH_PASS session_id=$session_id stream_generation=$type110_generation old_last_frame_id=$type110_last_frame" >/dev/null || {
+      echo 'Type110 did not report post-death progress on the original stream identity.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$type110_sink_pid" | grep -E "frame_id=$((type110_last_frame + 1))([[:space:]]|$)" >/dev/null || {
+      echo 'The independent Type110 sink did not record the next frame after Type111 sink death.' >&2; exit 9;
+    }
+  else
+    progress_line=$(printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | tail -1)
+    progress_frame=$(printf '%s\n' "$progress_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
+    [ -n "$progress_frame" ] && [ "$progress_frame" -gt "$type110_last_frame" ] || {
+      echo 'Type110 did not accept a later frame on the unchanged generation after View death.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_FRAME ' | grep -F "session_id=$session_id " | grep -F 'stream_type=110' | grep -F 'accepted=true' >/dev/null || {
+      echo 'No post-death Type110 frame was accepted over Binder.' >&2; exit 9;
+    }
+  fi
   printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null || {
     echo 'Parent teardown did not close the remaining Type110 child stream.' >&2; exit 9;
   }
   for stream_type in 110 111; do
-    printf '%s\n' "$logs" | grep -F "IPC_STREAM_REGISTERED session_id=" | grep -F "stream_type=$stream_type" >/dev/null || {
-      echo "Missing actual Binder registration for stream type $stream_type." >&2; exit 9;
-    }
+    if [ "$type111_reattach" -eq 1 ] && [ "$stream_type" -eq 111 ]; then
+      printf '%s\n' "$logs" | grep -F "IPC_TYPE111_SINK_REPLACED session_id=$session_id " >/dev/null || {
+        echo 'Missing actual Binder Type111 sink replacement receipt.' >&2; exit 9;
+      }
+    elif [ "$type111_reattach" -eq 1 ] && [ "$stream_type" -eq 110 ]; then
+      printf '%s\n' "$logs" | grep -F "IPC_SESSION_STARTED generation=$session_id " | grep -F 'streams=110:primary_lab,111:secondary_view' >/dev/null || {
+        echo 'Missing actual Binder receipt for the existing Type110 stream.' >&2; exit 9;
+      }
+    else
+      printf '%s\n' "$logs" | grep -F "IPC_STREAM_REGISTERED session_id=" | grep -F "stream_type=$stream_type" >/dev/null || {
+        echo "Missing actual Binder registration for stream type $stream_type." >&2; exit 9;
+      }
+    fi
     printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_FRAME ' | grep -F 'accepted=true' | grep -F "stream_type=$stream_type" >/dev/null || {
       echo "No accepted Binder/PFD frame for stream type $stream_type." >&2; exit 9;
     }
@@ -512,9 +592,13 @@ if [ "$type111_mode" -eq 1 ]; then
   }
   process_state=$(adb_local -s "$serial" shell ps | tr -d '\r' | awk -v pid="$app_pid" '$2 == pid {print}')
   [ -z "$process_state" ] || { echo "Consumer process still exists: $process_state" >&2; exit 9; }
-  window_state=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' | grep -F "mOwnerUid=$app_uid" || true)
-  [ -z "$window_state" ] || { echo "ClarityLink window remains after consumer death: $window_state" >&2; exit 9; }
-  echo "TYPE111_CONSUMER_DEATH_VERIFIED pid=$app_pid process_absent=true app_window_absent=true"
+  if [ "$type111_reattach" -eq 0 ]; then
+    window_state=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' | grep -F "mOwnerUid=$app_uid" || true)
+    [ -z "$window_state" ] || { echo "ClarityLink window remains after consumer death: $window_state" >&2; exit 9; }
+    echo "TYPE111_CONSUMER_DEATH_VERIFIED pid=$app_pid process_absent=true app_window_absent=true"
+  else
+    echo "TYPE111_CONSUMER_DEATH_VERIFIED pid=$app_pid process_absent=true replacement_pid=$replacement_pid parent_session_reused=true"
+  fi
   printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_FRAME ' | grep -F 'accepted=true' >/dev/null || {
     echo 'No decoded frame crossed the receiver Binder/PFD boundary.' >&2; exit 9;
   }
