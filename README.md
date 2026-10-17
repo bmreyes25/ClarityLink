@@ -2,101 +2,60 @@
 
 [![Offline CI](https://github.com/bmreyes25/ClarityLink/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bmreyes25/ClarityLink/actions/workflows/ci.yml)
 
-ClarityLink is a research and engineering project exploring whether a 2018 Honda Clarity can keep normal CarPlay on its factory center display while using CarPlay's secondary-display architecture to provide independent navigation content in the instrument cluster. The feature is **experimental and not implemented or validated on the vehicle**.
+ClarityLink is an experimental automotive software research project exploring whether factory CarPlay can remain on a 2018 Honda Clarity's center display while independent navigation uses the instrument cluster's existing Navigation region. This vehicle feature is not implemented, validated, or authorized for installation.
 
-## Goal
+## Project goal
 
-| Display | Intended behavior |
-|---|---|
-| Display 0 — center | Preserve the factory stock CarPlay experience. |
-| Display 1 — cluster | Explore an independent navigation stream in the existing Navigation region, starting with Apple Maps; Waze is a later possibility only if supported. |
+- Preserve factory CarPlay and warnings on Display 0.
+- Investigate independent navigation on Display 1.
+- Keep factory authentication, audio, controls, instruments, and stock behavior intact.
 
-The design preserves the stock Type110 path and unrelated safety UI. Type111 is an unproven project path; it is not enabled on the Honda.
+ClarityLink is not affiliated with Honda, Apple, Tesla, or another manufacturer.
 
 ## Current status
 
-| Area | Status |
-|---|---|
-| Honda firmware and Type110 | Static Honda evidence exists for examined artifacts and paths; the evidence index states each claim's scope. |
-| Type111 on current iOS | A separate Mac/iPhone lab observed two stream topology; it does not establish Honda Type111 behavior or security. |
-| Offline dual-display model | Synthetic model and visual demo are available; they prove only the modeled host behavior. |
-| Honda network preflight | D4 completed a valid three-phase read-only capture; G11-A-D and the specific-address IPv6 binding policy are resolved. Listener reachability and process ownership remain unknown. |
-| Honda Type111 negotiation | Not ready or authorized. Honda acceptance, framing, reachability, and security remain unknown. |
-| Cluster rendering | A host-side renderer mock exists; handoff to the real Honda cluster remains unproven. |
-| Vehicle deployment | Not implemented or authorized. |
+The laboratory Binder-to-View path is verified on an isolated API17 emulator. CL-R1 through CL-R3 have laboratory passes. CL-R4 remains partial: dual-stream routing, bounded Type111 delivery, producer death/restart, and Type111 sink death have runtime evidence, while sink reconnection, Type110-only recovery ownership, parent-authority death, and reentrant teardown still need validation. CL-R5 is a synthetic laboratory control-plane model. Genuine authenticated Honda Type111 delegation and a supported Honda frame-output interface remain unestablished. `safeForHonda()` remains false.
 
-See [current project state](PROJECT_STATE.md), [next action](NEXT_ACTION.md), and the [claim-level evidence index](EVIDENCE_INDEX.md). The current next step is offline 43T1-R2 API-17 ARM/Bionic and CFLite ownership work; no modifying Honda experiment is authorized.
+See [authoritative current status](docs/status/current.md), [blockers](docs/status/blockers.md), and the [roadmap](docs/roadmap/final-development-plan.md) for evidence and next steps. API17 results describe emulator behavior only; they do not establish Honda compatibility or vehicle readiness.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   phone[iPhone] --> session[CarPlay session]
-  session --> jmcs[Honda jmcs]
-  jmcs -->|stock Type110 — Honda evidence| center[Display 0: center CarPlay]
-  jmcs -.->|proposed Type111 — unresolved| receiver[ClarityLink receiver]
-  receiver -.->|synthetic ScreenStream / H.264 model| renderer[Host renderer mock]
-  renderer -.->|real handoff unresolved| cluster[Display 1: cluster Navigation region]
+  session --> jmcs[Honda receiver]
+  jmcs -->|verified stock Type110 path| center[Display 0: factory CarPlay]
+  jmcs -.->|Type111 acceptance and authority unverified| receiver[ClarityLink receiver]
+  receiver -.->|synthetic fixture path; API17 View verified| renderer[Lab renderer]
+  renderer -.->|Honda frame admission unresolved| cluster[Display 1: Navigation region]
 ```
 
-Solid Type110 is the examined stock Honda path. Dashed links are proposed or modeled boundaries, not proof of a working vehicle feature.
+Solid Type110 represents the examined stock path. The Type111 fixture-to-View path is verified in the API17 laboratory; dashed links mark unresolved receiver authority and Honda-owned output interfaces. The diagram does not describe a working vehicle modification.
 
-## Evidence discipline
+## Offline quickstart
 
-| Label | Meaning |
-|---|---|
-| `HONDA_CONFIRMED` / `OBSERVED_ON_HONDA_READ_ONLY` | Artifact-backed static evidence or bounded read-only observation, scoped in the cited record. |
-| `CURRENT_IOS_LAB_CONFIRMED` | Observed in a separate iPhone lab; not Honda evidence. |
-| `LAB_EXECUTABLE_CONFIRMED` / `LAB_HOST_RUNTIME_CONFIRMED` | Executed in a controlled lab or host model; not vehicle proof. |
-| `EXTERNAL_PRIOR_ART` | Another project's implementation or documentation; not a Honda requirement. |
-| `SYNTHETIC_TEST_VALUE`, `HYPOTHESIS`, `UNKNOWN` | Generated input, proposed interpretation, or unresolved fact. |
-
-Use the [evidence classification guide](docs/development/evidence-classification.md) and [full evidence index](EVIDENCE_INDEX.md) before relying on any claim.
-
-## Safety boundary
-
-Work is offline-first. Any vehicle observation requires a separately reviewed and authorized milestone and a parked vehicle. This project does not perform CAN writes or vehicle-control work. Preserve Type110 and existing safety UI; do not write block devices or add startup persistence. Keep private captures, firmware, credentials, and personal data out of Git. Read the [vehicle testing guide](docs/safety/vehicle-testing.md) before proposing vehicle work.
-
-## See it and try it
-
-The [offline visual twin](demo/type111/README.md) uses synthetic data. From the repository root:
+The visual twin uses synthetic data and does not connect to a phone or vehicle.
 
 ```sh
 python3 src/claritylink-sim/export_visual_demo.py --screenstream-h264
 python3 -m http.server 8000 --bind 127.0.0.1 --directory demo/type111
 ```
 
-Open `http://localhost:8000` and select Hypothetical Type111. To run the configured offline checks, install [test requirements](requirements-test.txt) and run:
+Open `http://localhost:8000` and choose **Hypothetical Type111**. See the [full quickstart](docs/getting-started/quickstart.md) and [development setup](docs/getting-started/development-setup.md).
 
-```sh
-python -m pip install -r requirements-test.txt
-./tools/run_tests.sh
-```
+## Documentation
 
-See [development and test instructions](docs/development/testing.md) for details and limits.
+- New readers: [project overview](docs/getting-started/overview.md), [architecture](docs/architecture/overview.md), and [glossary](docs/glossary.md).
+- Developers: [contributing](CONTRIBUTING.md), [testing](docs/development/testing.md), [source](src/README.md), and [tools](tools/README.md).
+- Current engineering: [status](docs/status/current.md), [capabilities](docs/status/capabilities.md), and [blockers](docs/status/blockers.md).
+- Roadmap: [CL-R0–CL-R8 plan](docs/roadmap/final-development-plan.md), [milestone specifications](docs/roadmap/milestone-specifications.md), and [dependencies](docs/roadmap/dependency-map.md).
+- Researchers: [research guide](research/README.md), [evidence index](EVIDENCE_INDEX.md), and [historical milestone reports](step-reports/README.md).
+- Safety: [vehicle testing](docs/safety/vehicle-testing.md) and [security reporting](SECURITY.md).
 
-## Choose a path
+## Safety and evidence
 
-- Curious reader: [architecture](docs/architecture/overview.md) and [roadmap](ROADMAP.md).
-- Developer: [contributing](CONTRIBUTING.md), [source guide](src/README.md), [test guide](tests/README.md), and [tool guide](tools/README.md).
-- Reverse-engineering researcher: [research guide](research/README.md), [evidence index](EVIDENCE_INDEX.md), and [milestone archive](step-reports/README.md).
-- Vehicle-test contributor: [safety guide](docs/safety/vehicle-testing.md) and the [vehicle test proposal form](.github/ISSUE_TEMPLATE/vehicle-test-proposal.yml).
+Offline and synthetic results do not prove Honda behavior. Vehicle observation, emulator use, live iPhone sessions, installation, and hardware validation require their own gates and, where applicable, separate explicit authorization. Do not publish private vehicle identifiers, credentials, firmware, raw captures, or personal information. See [safety guidance](docs/safety/vehicle-testing.md) and [evidence classifications](docs/development/evidence-classification.md).
 
-## Repository map
+## Contributing and license
 
-| Path | Role |
-|---|---|
-| `docs/` | Curated, current reader and contributor guides. |
-| `src/`, `tests/`, `tools/` | Models and implementation, verification, and analysis utilities. |
-| `research/` | Deep technical investigations and evidence. |
-| `step-reports/` | Chronological milestone history, including negative results. |
-| `demo/`, `simulator/` | Offline presentation and digital-twin material. |
-| Root status files | Detailed records at their established paths: roadmap, project state, next action, and evidence ledger. |
-
-Historical reports and research files are intentionally preserved in place. Start with the [documentation hub](docs/README.md) rather than reading the archive chronologically.
-
-## Project records and community
-
-The detailed engineering records remain at their established paths: [roadmap](ROADMAP.md), [current state](PROJECT_STATE.md), [one next action](NEXT_ACTION.md), and [evidence ledger](EVIDENCE_INDEX.md). See [contribution guidance](CONTRIBUTING.md) and [security reporting](SECURITY.md).
-
-**License: not selected.** No license is granted by this repository at present. See the [owner license decision note](docs/project/license-decision.md).
+Start with [contribution instructions](CONTRIBUTING.md). The repository has **no selected license**; do not assume public reuse permission. See the [license decision](docs/project/license-decision.md).

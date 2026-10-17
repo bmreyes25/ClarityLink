@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "P2-C4 synthetic logical Display 1 safe-area configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["canvas_width", "canvas_height", "safe", "protected", "scale_numerator", "scale_denominator", "rotation_degrees", "provenance"],
+  "properties": {
+    "canvas_width": {"const": 800},
+    "canvas_height": {"const": 480},
+    "safe": {"$ref": "#/definitions/rect"},
+    "protected": {"type": "array", "items": {"$ref": "#/definitions/rect"}},
+    "scale_numerator": {"type": "integer", "minimum": 1},
+    "scale_denominator": {"type": "integer", "minimum": 1},
+    "rotation_degrees": {"const": 0},
+    "provenance": {"const": "SYNTHETIC_TEST_ONLY"}
+  },
+  "definitions": {
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": {"type": "integer", "minimum": 0},
+        "y": {"type": "integer", "minimum": 0},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1}
+      }
+    }
+  },
+  "description": "Schema is structural only. SafeAreaConfig.validate enforces canvas containment and identity scale. No Honda physical geometry is encoded.",
+  "examples": [
+    {
+      "canvas_width": 800,
+      "canvas_height": 480,
+      "safe": {"x": 100, "y": 60, "width": 600, "height": 360},
+      "protected": [{"x": 300, "y": 60, "width": 200, "height": 80}],
+      "scale_numerator": 1,
+      "scale_denominator": 1,
+      "rotation_degrees": 0,
+      "provenance": "SYNTHETIC_TEST_ONLY"
+    }
+  ]
+}

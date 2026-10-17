@@ -19,3 +19,5 @@ Apply these labels to research, models, reports, and demo output:
 | `UNKNOWN` | Not established. Do not fill it with a plausible value silently. |
 
 `ABSENT_LITERAL` is a search result scoped to a particular artifact and search method; it is not proof that behavior is absent. When a document compares evidence, put the class beside the claim rather than relying on a general disclaimer. Preserve source links and exact repository SHAs. Do not commit private captures, firmware, keys, or generated media.
+
+API17 emulator screenshots and per-run logs under `research/vehicle/test6a-t7-integration/evidence/` are generated local evidence. Keep them out of source commits unless an exact artifact has been reviewed for privacy, provenance, and reproducibility. The repository-health checker exempts PNG files only in that exact generated-evidence directory; a PNG elsewhere still requires an individually documented public-fixture exception. The exemption is a content-type classification, not publication approval or backup verification.
