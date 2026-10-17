@@ -79,7 +79,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "6ad5b9216851cebb503a96440e2ea6fe4b636878ecbd337cefccfc641ff30070"
+      "sha256": "2c54d8d8b801e52f0f7debafe9cda754969a13dc9ef16ec1e9a0037ca57a9a20"
     }
   ]
 }

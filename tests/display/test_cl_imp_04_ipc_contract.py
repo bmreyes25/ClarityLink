@@ -349,7 +349,11 @@ def test_display_probe_entrypoints_are_private_and_emulator_gated():
     assert "getInstrumentation().startActivitySync(intent)" in instrumentation
     p2c2_source = (REPO / "android/p2c2-probe/java/org/claritylink/android/"
                    "P2C2AdmissionProbeActivity.java").read_text()
+    p2c2_api_guard = p2c2_source.index("if (android.os.Build.VERSION.SDK_INT != 17)")
     p2c2_guard = p2c2_source.index("if (!isIsolatedEmulator())")
+    assert p2c2_api_guard < p2c2_guard
+    assert p2c2_api_guard < p2c2_source.index("new HondaStyleDisplayHostSimulator(this)")
+    assert p2c2_api_guard < p2c2_source.index("getSystemService(Context.DISPLAY_SERVICE)")
     assert p2c2_guard < p2c2_source.index("new HondaStyleDisplayHostSimulator(this)")
     assert p2c2_guard < p2c2_source.index("getSystemService(Context.DISPLAY_SERVICE)")
     assert p2c2_guard < p2c2_source.index("verifyClarityContentView(0)")
@@ -371,7 +375,11 @@ def test_display_probe_entrypoints_are_private_and_emulator_gated():
     assert "getInstrumentation().startActivitySync(intent)" in test4_launch
     window_source = (REPO / "android/test4-window-probe/java/org/claritylink/android/"
                     "Test4WindowAdmissionActivity.java").read_text()
+    window_api_guard = window_source.index("if (Build.VERSION.SDK_INT != 17)")
     window_guard = window_source.index("if (!isIsolatedEmulator())")
+    assert window_api_guard < window_guard
+    assert window_api_guard < window_source.index("getSystemService(Context.DISPLAY_SERVICE)")
+    assert window_api_guard < window_source.index("new ProbePresentation")
     assert window_guard < window_source.index("getSystemService(Context.DISPLAY_SERVICE)")
     assert window_guard < window_source.index("createDisplayContext(target)")
     assert window_guard < window_source.index("new ProbePresentation")
