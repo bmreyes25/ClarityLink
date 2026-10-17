@@ -62,6 +62,11 @@ public final class Test4WindowAdmissionActivity extends Activity {
             finish();
             return;
         }
+        if (!isIsolatedEmulator()) {
+            log("ADMISSION_REJECTED reason=emulator_guard");
+            finish();
+            return;
+        }
         final Display target;
         try {
             manager = (DisplayManager)getSystemService(Context.DISPLAY_SERVICE);
@@ -97,11 +102,6 @@ public final class Test4WindowAdmissionActivity extends Activity {
                     " flags=0x" + Integer.toHexString(window.getAttributes().flags));
             if (!modeBRequested()) {
                 log("ADMISSION_NOT_REQUESTED windows_created=0 surfaces_allocated=0");
-                finish();
-                return;
-            }
-            if (!isIsolatedEmulator()) {
-                log("ADMISSION_REJECTED reason=emulator_guard");
                 finish();
                 return;
             }

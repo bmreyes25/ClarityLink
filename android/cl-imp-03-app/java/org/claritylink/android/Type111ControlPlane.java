@@ -208,7 +208,7 @@ final class Type111ControlPlane {
     }
 
     synchronized String teardown(FrameStreamIdentity requestIdentity) {
-        if (identity == null || requestIdentity == null || !identity.sameStream(requestIdentity))
+        if (identity == null || requestIdentity == null || !identity.equals(requestIdentity))
             return "stale_type111_teardown";
         identity = null;
         pendingIdentity = null;

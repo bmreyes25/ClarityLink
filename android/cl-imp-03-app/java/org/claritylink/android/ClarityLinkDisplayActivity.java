@@ -627,6 +627,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     long currentGeneration = generation;
                     int sessionIdentity = liveClient.sessionIdentity();
                     for (int transition = 1; transition <= 2; transition++) {
+                        FrameStreamIdentity previousIdentity = liveClient.streamIdentity();
                         long nextGeneration = currentGeneration + 1L;
                         boolean replaced;
                         try { replaced = liveClient.replaceGeneration(currentGeneration, nextGeneration); }
@@ -643,9 +644,24 @@ public final class ClarityLinkDisplayActivity extends Activity
                                 "new generation frame drawn");
                         requireRace(liveClient.sessionIdentity() == sessionIdentity,
                                 "Binder endpoint identity preserved across generation transition");
+                        boolean staleEndAccepted;
+                        try { staleEndAccepted = liveClient.probeEndIdentity(previousIdentity); }
+                        catch (android.os.RemoteException failure) {
+                            throw new RuntimeException("stale_end_probe_remote_exception");
+                        }
+                        requireRace(!staleEndAccepted,
+                                "stale END from prior generation rejected over Binder");
+                        long afterStaleEndTimestamp = postMalformed + transition * 1000L + 500L;
+                        control.recoveryTimestamp = afterStaleEndTimestamp;
+                        control.recoveryDrawn = new CountDownLatch(1);
+                        requireRace(sendRaceFrame(nextGeneration, afterStaleEndTimestamp),
+                                "current generation remains active after stale Binder END");
+                        requireRace(awaitViewFrameDrawn(activeGeneration, afterStaleEndTimestamp),
+                                "current generation draws after stale Binder END");
                         log("CL_R3_GENERATION_FRAME_PASS stream_generation=" + nextGeneration +
                                 " parent_display_generation=" + activeGeneration + " transition=" +
-                                transition + " same_binder_endpoint=true");
+                                transition + " same_binder_endpoint=true stale_end_rejected=true " +
+                                "new_generation_continued=true");
                         currentGeneration = nextGeneration;
                     }
                     String staleReason;

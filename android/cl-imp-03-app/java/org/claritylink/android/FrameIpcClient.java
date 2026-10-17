@@ -242,6 +242,20 @@ final class FrameIpcClient {
         } finally { reply.recycle(); data.recycle(); }
     }
 
+    boolean probeEndIdentity(FrameStreamIdentity requestedIdentity) throws RemoteException {
+        if (closed || requestedIdentity == null || !endpoint.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
+            data.writeInt(FrameIpcProtocol.VERSION);
+            writeIdentity(data, requestedIdentity);
+            endpoint.transact(FrameIpcProtocol.END, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     boolean hasFrameInFlight() { return frameGate.isOccupied(); }
     int sessionIdentity() { return System.identityHashCode(endpoint); }
     FrameStreamIdentity streamIdentity() { return identity; }

@@ -27,6 +27,7 @@ public final class P2C2AdmissionProbeActivity extends Activity {
     private static final String TAG = "ClarityLinkP2C2";
     private static final int CYCLES = 3;
     private final Handler main = new Handler(Looper.getMainLooper());
+    private DisplayManager displayManager;
     private Display display;
     private SecondaryDisplayHost host;
     private int cycle;
@@ -39,18 +40,43 @@ public final class P2C2AdmissionProbeActivity extends Activity {
     private HondaStyleDisplayHostSimulator contentHost;
     private ClarityLinkContentView contentView;
     private Display1OutputBackend contentBackend;
+    private final DisplayManager.DisplayListener displayListener = new DisplayManager.DisplayListener() {
+        public void onDisplayAdded(int id) { }
+        public void onDisplayChanged(int id) { }
+        public void onDisplayRemoved(int id) {
+            if (display == null || id != display.getDisplayId()) return;
+            event("DISPLAY_REMOVED_CALLBACK id=" + id);
+            if (cyclesFinished && !removed) {
+                removed = true;
+                main.postDelayed(new Runnable() { public void run() { checkRemoval(); } }, 100L);
+            } else {
+                if (host != null) host.close();
+                fail("display_removed_before_test_cleanup");
+            }
+        }
+    };
 
     private void event(String value) { Log.i(TAG, "P2C2_" + value); }
     private void fail(String value) { event("FAIL case=" + value); }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        event("READY api=" + android.os.Build.VERSION.SDK_INT);
+        if (android.os.Build.VERSION.SDK_INT != 17) { fail("wrong_api"); return; }
+        if (!isIsolatedEmulator()) { fail("emulator_guard"); return; }
         simulatedHost = new HondaStyleDisplayHostSimulator(this);
         setContentView(simulatedHost.getDisplayRoot());
         if (!verifyHostSimulator()) { fail("host_simulator"); return; }
-        event("READY api=" + android.os.Build.VERSION.SDK_INT);
-        if (android.os.Build.VERSION.SDK_INT != 17) { fail("wrong_api"); return; }
         verifyClarityContentView(0);
+    }
+
+    private static boolean isIsolatedEmulator() {
+        String hardware = android.os.Build.HARDWARE == null ? "" :
+                android.os.Build.HARDWARE.toLowerCase();
+        String fingerprint = android.os.Build.FINGERPRINT == null ? "" :
+                android.os.Build.FINGERPRINT.toLowerCase();
+        return (hardware.contains("goldfish") || hardware.contains("ranchu")) &&
+                fingerprint.startsWith("generic");
     }
 
     private boolean verifyHostSimulator() {
@@ -183,6 +209,9 @@ public final class P2C2AdmissionProbeActivity extends Activity {
             return;
         }
         display = selected;
+        displayManager = manager;
+        manager.registerDisplayListener(displayListener, main);
+        event("DISPLAY_LISTENER_REGISTERED id=" + selected.getDisplayId());
         event("DISPLAY_ENUMERATED id=" + selected.getDisplayId());
         if (manager.getDisplay(selected.getDisplayId()) == null) { fail("display_lookup"); return; }
         if (manager.getDisplay(0x7ffffffe) != null) { fail("invalid_display_accepted"); return; }
@@ -284,10 +313,27 @@ public final class P2C2AdmissionProbeActivity extends Activity {
         if (!host.showOfflineLabForRuntimeTest(this, display, CYCLES + 1,
                 DisplayPolicy.FULL_FRAME_TEST_LAYOUT)) { fail("final_show"); return; }
         main.postDelayed(new Runnable() { public void run() {
-            if (surfaceActive && created == CYCLES + 1 && destroyed == CYCLES)
+            if (surfaceActive && created == CYCLES + 1 && destroyed == CYCLES) {
                 event("PRESENTATION_PASS cycles=" + CYCLES + " activeSurface=1");
-            else fail("final_surface_count");
+                awaitDisplayRemoval(0);
+            } else fail("final_surface_count");
         } }, 400);
+    }
+
+    private void awaitDisplayRemoval(final int attempt) {
+        if (removed) return;
+        DisplayManager manager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        if (display != null && manager != null && manager.getDisplay(display.getDisplayId()) == null) {
+            removed = true;
+            event("DISPLAY_REMOVAL_POLL_CONFIRMED id=" + display.getDisplayId());
+            if (host != null) host.close();
+            main.postDelayed(new Runnable() { public void run() { checkRemoval(); } }, 100L);
+            return;
+        }
+        if (attempt >= 40) { fail("display_removal_timeout"); return; }
+        main.postDelayed(new Runnable() { public void run() {
+            awaitDisplayRemoval(attempt + 1);
+        } }, 250L);
     }
 
     private void checkRemoval() {
@@ -300,6 +346,11 @@ public final class P2C2AdmissionProbeActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (displayManager != null) {
+            try { displayManager.unregisterDisplayListener(displayListener); }
+            catch (RuntimeException ignored) { }
+            displayManager = null;
+        }
         if (host != null) host.close();
         if (contentBackend != null) contentBackend.close();
         if (contentHost != null) contentHost.close();

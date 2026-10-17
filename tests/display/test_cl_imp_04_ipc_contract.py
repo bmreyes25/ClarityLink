@@ -312,6 +312,63 @@ def test_parent_teardown_closes_registration_admission_before_child_snapshot():
     assert "usedSessionIds.add(sessionId)" in capability
     assert "unregisterStreamIfCurrent(state, deadIdentity)" in source
     assert "streams.get(identity.key()) != state" in unregister_body
+    assert "!identity.equals(state.identity)" in unregister_body
+
+
+def test_stale_stream_end_cannot_tear_down_newer_type111_generation():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    control = (APP / "java/org/claritylink/android/Type111ControlPlane.java").read_text()
+    client = (APP / "java/org/claritylink/android/FrameIpcClient.java").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    unregister = compositor[compositor.index("private boolean unregisterStreamState"):
+                            compositor.index("private static FrameStreamIdentity readIdentity")]
+    teardown = control[control.index("synchronized String teardown("):
+                       control.index("synchronized Snapshot snapshot()")]
+    # sameStream ignores generation; END and control-plane teardown require the full generation.
+    assert "!identity.equals(state.identity)" in unregister
+    assert "!identity.equals(requestIdentity)" in teardown
+    assert "!identity.sameStream(state.identity)" not in unregister
+    assert "!identity.sameStream(requestIdentity)" not in teardown
+    assert "boolean probeEndIdentity(FrameStreamIdentity requestedIdentity)" in client
+    assert "liveClient.probeEndIdentity(previousIdentity)" in activity
+    assert 'stale_end_rejected=true " +' in activity
+    assert '"current generation draws after stale Binder END"' in activity
+
+
+def test_display_probe_entrypoints_are_private_and_emulator_gated():
+    import xml.etree.ElementTree as ET
+
+    p2c2 = ET.parse(REPO / "android/p2c2-probe/AndroidManifest.xml").getroot()
+    p2c2_activity = p2c2.find("application/activity")
+    assert p2c2_activity is not None
+    assert p2c2_activity.get(ANDROID + "exported") == "false"
+    p2c2_instrumentation = p2c2.find("instrumentation")
+    assert p2c2_instrumentation.get(ANDROID + "name") == "android.test.InstrumentationTestRunner"
+    instrumentation = (REPO / "android/p2c2-probe/test/org/claritylink/android/"
+                       "P2C2ProbeLaunchTest.java").read_text()
+    assert "getInstrumentation().startActivitySync(intent)" in instrumentation
+    p2c2_source = (REPO / "android/p2c2-probe/java/org/claritylink/android/"
+                   "P2C2AdmissionProbeActivity.java").read_text()
+    assert p2c2_source.index("if (!isIsolatedEmulator())") < p2c2_source.index("verifyClarityContentView(0)")
+    assert "manager.registerDisplayListener(displayListener, main)" in p2c2_source
+    assert "displayManager.unregisterDisplayListener(displayListener)" in p2c2_source
+    assert 'event("DISPLAY_REMOVED_PASS created=' in p2c2_source
+    assert 'event("DISPLAY_LISTENER_REGISTERED id="' in p2c2_source
+    assert 'event("DISPLAY_REMOVAL_POLL_CONFIRMED id="' in p2c2_source
+
+    window = ET.parse(REPO / "android/test4-window-probe/AndroidManifest.xml").getroot()
+    window_activity = window.find("application/activity")
+    assert window_activity is not None
+    assert window_activity.get(ANDROID + "exported") == "false"
+    assert not window_activity.findall("intent-filter")
+    assert window.find("instrumentation").get(ANDROID + "name") == \
+        "org.claritylink.android.Test4ProbeInstrumentationRunner"
+    test4_launch = (REPO / "android/test4-window-probe/test/org/claritylink/android/"
+                    "Test4ProbeLaunchTest.java").read_text()
+    assert "getInstrumentation().startActivitySync(intent)" in test4_launch
+    window_source = (REPO / "android/test4-window-probe/java/org/claritylink/android/"
+                    "Test4WindowAdmissionActivity.java").read_text()
+    assert window_source.index("if (!isIsolatedEmulator())") < window_source.index("new ProbePresentation")
 
 
 def test_candidate_compositor_remains_disabled_and_unexported():

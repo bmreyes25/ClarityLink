@@ -71,7 +71,7 @@
     },
     {
       "path": "docs/status/cl-r0-validation.md",
-      "sha256": "23bbefa52f9eef1c861d3cc55e124797c6e007b4a00d450aac5c767fca033895"
+      "sha256": "9c8ff414533ffb6d478de919e2ca8dbe16e2c3bb11a8145029f35734f1bd9d72"
     },
     {
       "path": "tools/check_repo_health.py",

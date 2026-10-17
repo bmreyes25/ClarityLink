@@ -635,7 +635,7 @@ public final class CompositorService extends Service {
     private boolean unregisterStreamState(StreamState state, FrameStreamIdentity identity) {
         synchronized (state.lock) {
             synchronized (streamsLock) {
-                if (streams.get(identity.key()) != state || !identity.sameStream(state.identity))
+                if (streams.get(identity.key()) != state || !identity.equals(state.identity))
                     return false;
                 state.compositor.end(state.identity.streamGeneration);
                 if (state.sink != null && state.deathRecipient != null) {
