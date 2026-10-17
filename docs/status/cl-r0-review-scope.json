@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "campaign": "clean-history public-safe publication candidate",
-  "review_status": "PENDING_INDEPENDENT_ECC_REVIEW",
+  "review_status": "ECC_REVIEWED_STATIC_NO_ACTIONABLE_FINDINGS",
   "approval_claimed": false,
   "source_snapshot": "3239c865dd7bb42ae8bce2095afe21912d044341",
   "source_branch": "overnight/cl-race-binder-view",
@@ -63,11 +63,11 @@
     },
     {
       "path": "docs/status/cl-r0-validation.md",
-      "sha256": "0015b9bb8c3070bb7943f64cf2d590d928301262be02ffb6c19ae92a469f60c3"
+      "sha256": "69af2972d4af4ad6de16818e241a598a9c2222a39bc5298df95b8cc42081ce7f"
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "c61b487d9e1b7b641b1c405f08577c98b4b98605d661c2471f84cd7be60dfe49"
+      "sha256": "a7729248991df0b7a3cc3dc12bdc1d3b7860713345f43e2229f1c8e64c92e27d"
     },
     {
       "path": "docs/status/milestones.json",
@@ -134,11 +134,10 @@
       "sha256": "0718a20a0617e5cdacbbdf4fbdb4fb7999c230e79ee2c212ee065fdec8aaab45"
     }
   ],
-  "reviewed_head": "fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
-  "code_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a",
-  "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..5b2da6213cadb9ca1e5ef93e833735207139b70a",
-  "code_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
-  "security_review_followup_range": "923e1eb41e22286692f81e6a0540749553a67a37..fc5a70b80dc517c2a8fb81ceb84f4eb3be888279",
-  "pending_review_base": "edea469044c1e259a43e3dd441600e95e148670a",
-  "pending_review_source_head": "3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128"
+  "reviewed_head": "4889118bbc3a1a9257f20268330031c815e699ad",
+  "code_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
+  "security_review_range": "edea469044c1e259a43e3dd441600e95e148670a..31cf50ab3a7d8d6084824c98c22246b7a8453982",
+  "code_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
+  "security_review_followup_range": "15cdd08abb646da0e72ec48832c8c19ed62a59d5..3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128",
+  "final_status_review_range": "3d6f8bf1ff7ce3719cb59e4fb9fbc9070b112128..4889118bbc3a1a9257f20268330031c815e699ad"
 }
