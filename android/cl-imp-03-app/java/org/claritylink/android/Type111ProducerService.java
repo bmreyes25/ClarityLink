@@ -127,10 +127,24 @@ public final class Type111ProducerService extends Service {
                 " transport_generation=" + identity.streamGeneration + " output_id=" +
                 identity.outputId + " compositor_binder_alive=" + endpoint.isBinderAlive() +
                 " sink_binder_alive=" + sink.isBinderAlive());
-        new Thread(new Runnable() {
-            public void run() { decodeAndSubmit(client, identity, firstPtsUs); }
-        }, "ClarityLinkType111IsolatedProducer").start();
+        try {
+            new Thread(new Runnable() {
+                public void run() { decodeAndSubmit(client, identity, firstPtsUs); }
+            }, "ClarityLinkType111IsolatedProducer").start();
+        } catch (RuntimeException startupFailure) {
+            rollbackProducerStart();
+            throw startupFailure;
+        } catch (Error startupFailure) {
+            rollbackProducerStart();
+            throw startupFailure;
+        }
         return true;
+    }
+
+    private synchronized void rollbackProducerStart() {
+        running = false;
+        completed = true;
+        runFinished.countDown();
     }
 
     private void decodeAndSubmit(FrameIpcClient client, FrameStreamIdentity identity, long firstPtsUs) {

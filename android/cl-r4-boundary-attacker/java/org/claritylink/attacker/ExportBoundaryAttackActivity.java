@@ -39,7 +39,8 @@ public final class ExportBoundaryAttackActivity extends Activity {
         attemptPrivateService("FrameLabSinkService");
         attemptPrivateService("CompositorService");
         attemptPrivateService("Type111ProducerService");
-        if (attempted == 19 && denied == attempted) {
+        attemptPrivateService("Type110SinkFailureTestService");
+        if (attempted == 21 && denied == attempted) {
             Log.i(TAG, "CL_R4_CROSS_UID_ATTACKS_PASS uid=" + Process.myUid() +
                     " target_uid=" + appUid + " attempts=" + attempted + " denied=" + denied);
         } else {
@@ -91,18 +92,27 @@ public final class ExportBoundaryAttackActivity extends Activity {
     }
 
     private void attemptPrivateService(String simpleName) {
-        attempted++;
+        boolean destructiveHelper = "Type110SinkFailureTestService".equals(simpleName);
         Intent target = new Intent().setComponent(new ComponentName(TARGET,
                 "org.claritylink.android." + simpleName));
-        boolean stopped = false;
-        try { stopped = stopService(target); }
-        catch (SecurityException expected) { /* private service boundary */ }
-        if (stopped) {
-            Log.e(TAG, "ATTACK_NOT_DENIED operation=stop_service component=" + simpleName);
-            return;
+        if (destructiveHelper) {
+            target.putExtra("confirmation", "CL_R4B_OFFLINE_EMULATOR_ONLY");
+            target.putExtra("target_pid", getIntent().getIntExtra("attack_sink_pid", 1));
+            target.putExtra("target_session_id", getIntent().getLongExtra("attack_session_id", 1L));
         }
-        denied++;
+        if (!destructiveHelper) {
+            attempted++;
+            boolean stopped = false;
+            try { stopped = stopService(target); }
+            catch (SecurityException expected) { /* private service boundary */ }
+            if (stopped) {
+                Log.e(TAG, "ATTACK_NOT_DENIED operation=stop_service component=" + simpleName);
+                return;
+            }
+            denied++;
+        }
         attempted++;
+        final boolean strictBindDenial = destructiveHelper;
         try {
             ServiceConnection connection = new ServiceConnection() {
                 public void onServiceConnected(ComponentName name, IBinder service) {
@@ -115,8 +125,14 @@ public final class ExportBoundaryAttackActivity extends Activity {
             if (bound) {
                 Log.e(TAG, "ATTACK_NOT_DENIED operation=bind_service component=" + simpleName);
                 try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
+            } else if (strictBindDenial) {
+                Log.e(TAG, "ATTACK_UNVERIFIED operation=bind_service component=" + simpleName);
             } else denied++;
-        } catch (SecurityException expected) { denied++; }
+        } catch (SecurityException expected) {
+            denied++;
+            if (strictBindDenial)
+                Log.i(TAG, "ATTACK_DENIED operation=bind_service component=" + simpleName);
+        }
         attempted++;
         try {
             startService(target);

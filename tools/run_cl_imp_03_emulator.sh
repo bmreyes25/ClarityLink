@@ -16,7 +16,11 @@ decoder_only=0
 type111_mode=0
 type111_first=0
 type111_reattach=0
-if [ "${1:-}" = "--cl-imp-08-decoder" ]; then
+type110_failure=0
+if [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
+  type110_failure=1
+  shift
+elif [ "${1:-}" = "--cl-imp-08-decoder" ]; then
   decoder_only=1
   component=org.claritylink.android.Api17DecoderLabActivity
   shift
@@ -272,7 +276,19 @@ assert_type110_probe_cross_uid_denied() {
   [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=probe' || true)" -eq 7 ] || {
     echo 'Separate-UID attacker did not have all seven probe-service launches denied.' >&2; exit 9;
   }
-  printf '%s\n' "$logs" | grep -F "CL_R4_CROSS_UID_ATTACKS_PASS uid=$attacker_uid target_uid=$app_uid attempts=19 denied=19" >/dev/null || {
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=service component=Type110SinkFailureTestService' || true)" -ge 1 ] || {
+    echo 'Separate-UID start of the destructive Type110 failure helper was not denied.' >&2; exit 9;
+  }
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=bind_service component=Type110SinkFailureTestService' || true)" -ge 1 ] || {
+    echo 'Separate-UID bind of the destructive Type110 failure helper was not explicitly denied.' >&2; exit 9;
+  }
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_UNVERIFIED operation=bind_service component=Type110SinkFailureTestService' || true)" -eq 0 ] || {
+    echo 'Separate-UID bind failure for the destructive Type110 helper was ambiguous.' >&2; exit 9;
+  }
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_NOT_DENIED operation=bind_service component=Type110SinkFailureTestService' || true)" -eq 0 ] || {
+    echo 'Separate-UID attacker bound the destructive Type110 failure helper.' >&2; exit 9;
+  }
+  printf '%s\n' "$logs" | grep -F "CL_R4_CROSS_UID_ATTACKS_PASS uid=$attacker_uid target_uid=$app_uid attempts=21 denied=21" >/dev/null || {
     echo 'Separate-UID attacker did not reject all probe/service operations.' >&2; exit 9;
   }
   echo "TYPE110_PROBE_CROSS_UID_DENIED attacker_uid=$attacker_uid app_uid=$app_uid sink_pid=$4 compositor_pid=$5"
@@ -432,6 +448,75 @@ adb_local -s "$serial" shell run-as "$package" cat files/test6a-binder-view-proo
 python3 "$repo/tools/normalize_api17_png.py" "$proof_tmp"
 mv "$proof_tmp" "$proof"
 echo "BINDER_VIEW_PROOF_SAVED artifact=$run_label/evidence/$(basename -- "$proof")"
+
+if [ "$type110_failure" -eq 1 ]; then
+  logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  sink_ready=$(printf '%s\n' "$logs" | grep -F 'TYPE110_LAB_SINK_READY ' | tail -1)
+  type110_identity=$(printf '%s\n' "$logs" | grep -F 'IPC_STREAM_REGISTERED ' |
+    grep -F 'stream_type=110 ' | tail -1)
+  type111_identity=$(printf '%s\n' "$logs" | grep -F 'IPC_STREAM_REGISTERED ' |
+    grep -F 'stream_type=111 ' | tail -1)
+  sink_pid=$(printf '%s\n' "$sink_ready" | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p')
+  session_id=$(printf '%s\n' "$type110_identity" | sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
+  type110_generation=$(printf '%s\n' "$type110_identity" | sed -n 's/.*stream_generation=\([0-9][0-9]*\).*/\1/p')
+  compositor_pid=$(printf '%s\n' "$logs" | sed -n 's/.*IPC_SESSION_STARTED .*remote_pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+  [ -n "$sink_pid" ] && [ -n "$session_id" ] && [ -n "$type110_generation" ] &&
+    [ -n "$compositor_pid" ] &&
+    printf '%s\n' "$sink_ready" | grep -F "session_id=$session_id" >/dev/null &&
+    printf '%s\n' "$type111_identity" | grep -F "session_id=$session_id " >/dev/null || {
+      echo 'Could not prove both stream identities before Type110-only sink failure.' >&2
+      exit 9
+    }
+  echo "CL_R4B_TYPE110_FAILURE_PRECONDITION session_id=$session_id type110_generation=$type110_generation sink_pid=$sink_pid type111_registered=true"
+  assert_type110_probe_cross_uid_denied "$session_id" "$type110_generation" 0 "$sink_pid" "$compositor_pid"
+  adb_local -s "$serial" shell am startservice -n \
+    "$package/org.claritylink.android.Type110SinkFailureTestService" \
+    --ei target_pid "$sink_pid" --el target_session_id "$session_id" \
+    --es confirmation CL_R4B_OFFLINE_EMULATOR_ONLY >/dev/null
+  wait_for "CL_R4B_TYPE110_SINK_FAILURE_TARGET_VERIFIED pid=$sink_pid "
+  wait_for "CL_R4B_TYPE110_SINK_FAILURE_REQUESTED pid=$sink_pid"
+  wait_for "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110 "
+  teardown_observed=0
+  for teardown_attempt in $(seq 1 30); do
+    owned || exit 7
+    teardown_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    if printf '%s\n' "$teardown_logs" | grep -F "TYPE110_OWNER_SESSION_INVALIDATED session_id=$session_id cause=owner_sink_death streams_closed=2" >/dev/null ||
+       printf '%s\n' "$teardown_logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null; then
+      teardown_observed=1
+      break
+    fi
+    sleep 1
+  done
+  [ "$teardown_observed" -eq 1 ] || { echo 'Neither sink death nor the owner END invalidated the Type110 session.' >&2; exit 9; }
+  wait_for "IPC_STREAM_UNREGISTERED session_id=$session_id stream_type=110 "
+  wait_for "IPC_STREAM_UNREGISTERED session_id=$session_id stream_type=111 "
+  wait_for 'LIFECYCLE_STOP reason=type110-lab-sink-disconnected'
+  wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0'
+  final_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  printf '%s\n' "$final_logs" > "$campaign_evidence/api17-type110-owner-failure-logcat-$adb_port.txt"
+  if ! printf '%s\n' "$final_logs" | grep -F "TYPE110_OWNER_SESSION_INVALIDATED session_id=$session_id cause=owner_sink_death streams_closed=2" >/dev/null &&
+     ! printf '%s\n' "$final_logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null; then
+    echo 'Type110 sink failure did not invalidate the parent session through either teardown actor.' >&2; exit 9
+  fi
+  final_cleanup=$(printf '%s\n' "$final_logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true' | tail -1)
+  printf '%s\n' "$final_cleanup" | grep -F 'active_pfd_transfers=0 retained_frame_bytes=0' >/dev/null || {
+    echo "Type110-only failure cleanup counters are not zero: $final_cleanup" >&2; exit 9;
+  }
+  ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
+  printf '%s\n' "$ps_snapshot" | awk -v pid="$sink_pid" '$2==pid {found=1} END {exit !found}' && {
+    echo "Type110 sink PID $sink_pid remains alive after the targeted failure." >&2; exit 9;
+  }
+  echo "CL_R4B_TYPE110_ONLY_FAILURE_PASS session_id=$session_id type110_generation=$type110_generation type111_invalidated=true streams_unregistered=2 active_pfd_transfers=0 retained_frame_bytes=0 cross_uid_denied=21/21 sink_pid_exited=true fixture_only=true"
+  shasum -a 256 "$campaign_evidence/api17-type110-owner-failure-logcat-$adb_port.txt" \
+    > "$campaign_evidence/api17-type110-owner-failure-artifact-hashes-$adb_port.sha256"
+  owned || exit 7
+  adb_local -s "$serial" shell am force-stop "$attacker_package"
+  adb_local -s "$serial" uninstall "$attacker_package" >/dev/null
+  adb_local -s "$serial" uninstall "$package" >/dev/null
+  adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+  echo "CL_R4B_API17_TYPE110_FAILURE_EMULATOR_PASS session_id=$session_id dedicated_adb_port=$adb_port serial=$serial"
+  exit 0
+fi
 
 if [ "$type111_mode" -eq 1 ]; then
   wait_for 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_PASS'
