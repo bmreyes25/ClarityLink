@@ -25,7 +25,12 @@ elif [ "${1:-}" = "--cl-imp-08-decoder" ]; then
   component=org.claritylink.android.Api17DecoderLabActivity
   shift
 fi
-if [ "${1:-}" = "--cl-r4-type111-first" ]; then
+if [ "${1:-}" = "--cl-r5-type111-first-reattach" ]; then
+  type111_mode=1
+  type111_first=1
+  type111_reattach=1
+  shift
+elif [ "${1:-}" = "--cl-r4-type111-first" ]; then
   type111_mode=1
   type111_first=1
   shift
@@ -319,12 +324,15 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_first|type111_reattach|controlled_exit|crash)
+    presentation|type111|type111_first|type111_first_reattach|type111_reattach|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true ;;
+        type111_first_reattach)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true
+          ;;
         type111_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true
           if [ -n "$reattach_session_arg" ]; then
@@ -387,7 +395,11 @@ owned || exit 7
 if [ "$decoder_only" -eq 1 ]; then
   :
 elif [ "$type111_first" -eq 1 ]; then
-  start_lab_activity_privileged type111_first
+  if [ "$type111_reattach" -eq 1 ]; then
+    start_lab_activity_privileged type111_first_reattach
+  else
+    start_lab_activity_privileged type111_first
+  fi
 elif [ "$type111_mode" -eq 1 ]; then
   if [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
