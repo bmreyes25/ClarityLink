@@ -54,6 +54,7 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type110ProgressProbeService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type111ProducerService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type110OwnerIsolationTestActivity.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Api17DecoderLabActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSinkService.java" \

@@ -17,8 +17,13 @@ type111_mode=0
 type111_first=0
 type111_reattach=0
 type110_failure=0
+owner_death=0
 if [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-parent-owner-death" ]; then
+  type111_mode=1
+  owner_death=1
   shift
 elif [ "${1:-}" = "--cl-imp-08-decoder" ]; then
   decoder_only=1
@@ -324,11 +329,12 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_first|type111_first_reattach|type111_reattach|controlled_exit|crash)
+    presentation|type111|type111_owner_death|type111_first|type111_first_reattach|type111_reattach|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true ;;
+        type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true ;;
         type111_first_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true
@@ -401,7 +407,9 @@ elif [ "$type111_first" -eq 1 ]; then
     start_lab_activity_privileged type111_first
   fi
 elif [ "$type111_mode" -eq 1 ]; then
-  if [ "$type111_reattach" -eq 1 ]; then
+  if [ "$owner_death" -eq 1 ]; then
+    start_lab_activity_privileged type111_owner_death
+  elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
   else
     start_lab_activity_privileged type111
@@ -543,6 +551,81 @@ if [ "$type111_mode" -eq 1 ]; then
   wait_for 'CL_R4_STREAM_GENERATION_ISOLATION_PASS'
   wait_for 'CL_R4_TYPE110_ISOLATION_PASS type111_decoder_reset=true type110_decoder_generation=970001 type110_frame_before_after=true binder_session_preserved=true fixture_only=true'
   wait_for 'CL_R4_PADDED_CROP_VIEW_PASS adapter=YUV420-planar source_stride=40 source_slice_height=40 crop=8,8,24,24 binder_pfd=true view_draw=true decoded_h264_output=false'
+  if [ "$owner_death" -eq 1 ]; then
+    wait_for 'CL_R4B_OWNER_SESSION_READY '
+    logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    ready_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_OWNER_SESSION_READY ' | tail -1)
+    owner_pid=$(printf '%s\n' "$ready_line" | sed -n 's/.*parent_owner_pid=\([0-9][0-9]*\).*/\1/p')
+    session_id=$(printf '%s\n' "$ready_line" | sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
+    type110_connection_id=$(printf '%s\n' "$ready_line" | sed -n 's/.*type110_connection_id=\([0-9][0-9]*\).*/\1/p')
+    type110_generation=$(printf '%s\n' "$ready_line" | sed -n 's/.*type110_generation=\([0-9][0-9]*\).*/\1/p')
+    type110_last_frame=$(printf '%s\n' "$ready_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
+    type111_connection_id=$(printf '%s\n' "$ready_line" | sed -n 's/.*type111_connection_id=\([0-9][0-9]*\).*/\1/p')
+    type111_generation=$(printf '%s\n' "$ready_line" | sed -n 's/.*type111_generation=\([0-9][0-9]*\).*/\1/p')
+    [ -n "$owner_pid" ] && [ -n "$session_id" ] && [ -n "$type110_connection_id" ] &&
+      [ -n "$type110_generation" ] && [ -n "$type110_last_frame" ] &&
+      [ -n "$type111_connection_id" ] && [ -n "$type111_generation" ] || {
+        echo 'Parent-owner death precondition omitted process or stream identity.' >&2; exit 9;
+      }
+    printf '%s\n' "$ready_line" | grep -F 'valid_type110_and_type111_frames=true session_kept_open=true' >/dev/null || {
+      echo 'Parent-owner death lacks valid dual-stream frame evidence.' >&2; exit 9;
+    }
+    adb_local -s "$serial" shell am startservice \
+      -n "$package/org.claritylink.android.CompositorOwnerDeathTestService" \
+      --es confirmation CL_R4B_OFFLINE_EMULATOR_ONLY \
+      --ei target_pid "$owner_pid" --el session_id "$session_id" \
+      --el type110_connection_id "$type110_connection_id" \
+      --el type110_generation "$type110_generation" \
+      --el type110_last_frame_id "$type110_last_frame" \
+      --el type111_connection_id "$type111_connection_id" \
+      --el type111_generation "$type111_generation" >/dev/null
+    wait_for_owner_death_marker() {
+      marker=$1
+      for owner_attempt in $(seq 1 180); do
+        owned || { echo 'Owned emulator changed during parent-owner death check.' >&2; return 1; }
+        owner_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+        if printf '%s\n' "$owner_logs" | grep -F 'CL_R4B_PARENT_OWNER_DEATH_FAIL ' >/dev/null; then
+          printf '%s\n' "$owner_logs" | grep -F 'CL_R4B_PARENT_OWNER_DEATH_FAIL ' >&2
+          return 1
+        fi
+        printf '%s\n' "$owner_logs" | grep -F "$marker" >/dev/null && return 0
+        sleep 1
+      done
+      echo "Timed out waiting for parent-owner death evidence: $marker" >&2
+      return 1
+    }
+    wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_TARGET_VERIFIED pid=$owner_pid "
+    wait_for_owner_death_marker "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=$owner_pid "
+    wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=$owner_pid "
+    wait_for_owner_death_marker "CL_R4B_PARENT_OWNER_DEATH_PASS old_pid=$owner_pid "
+    wait_for 'LIFECYCLE_STOP reason=ipc-remote-disconnected'
+    owner_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$owner_logs" > "$campaign_evidence/api17-compositor-owner-death-logcat-$adb_port.txt"
+    new_owner_pid=$(printf '%s\n' "$owner_logs" | sed -n \
+      's/.*CL_R4B_PARENT_OWNER_DEATH_PASS old_pid=[0-9][0-9]* new_pid=\([0-9][0-9]*\).*/\1/p' | tail -1)
+    [ -n "$new_owner_pid" ] && [ "$new_owner_pid" != "$owner_pid" ] || {
+      echo 'Surviving observer did not identify a fresh compositor process.' >&2; exit 9;
+    }
+    ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
+    printf '%s\n' "$ps_snapshot" | awk -v pid="$owner_pid" '$2==pid {found=1} END {exit !found}' && {
+      echo "Dead compositor PID $owner_pid remains in the OS process list." >&2; exit 9;
+    }
+    printf '%s\n' "$owner_logs" | grep -F 'PRESENTATION_DISMISS_REQUESTED reason=ipc-remote-disconnected' >/dev/null || {
+      echo 'Surviving Activity did not request secondary Presentation dismissal after owner loss.' >&2; exit 9;
+    }
+    adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' \
+      > "$campaign_evidence/api17-compositor-owner-death-window-state-$adb_port.txt"
+    shasum -a 256 "$apk" "$campaign_evidence/api17-compositor-owner-death-logcat-$adb_port.txt" \
+      > "$campaign_evidence/api17-compositor-owner-death-artifact-hashes-$adb_port.sha256"
+    echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected registrations=0 pfd_transfers=0 retained_bytes=0 presentation=dismiss_requested evidence=$run_label/evidence"
+    owned || exit 7
+    adb_local -s "$serial" shell am force-stop "$package"
+    adb_local -s "$serial" shell am force-stop "$attacker_package"
+    adb_local -s "$serial" uninstall "$attacker_package" >/dev/null
+    adb_local -s "$serial" uninstall "$package" >/dev/null
+    adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+    exit 0
+  fi
   wait_for 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED'
   wait_for 'IPC_VIEW_SINK_DEATH_CALLBACK session_id='
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')

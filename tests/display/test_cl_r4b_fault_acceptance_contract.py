@@ -74,3 +74,48 @@ def test_type111_producer_thread_start_failure_rolls_back_wait_state():
     assert "running = false;" in rollback
     assert "completed = true;" in rollback
     assert "runFinished.countDown();" in rollback
+
+
+def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_restart():
+    manifest = ET.parse(APP / "AndroidManifest.lab.xml").getroot()
+    activity = next(item for item in manifest.find("application").findall("service")
+                    if item.get(ANDROID + "name") ==
+                    "org.claritylink.android.CompositorOwnerDeathTestService")
+    assert activity.get(ANDROID + "process") == ":owner_death_test"
+    assert activity.get(ANDROID + "exported") == "true"
+    assert activity.get(ANDROID + "permission") == "android.permission.DUMP"
+
+    source = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
+    assert 'expected.equals(process.processName)' in source
+    assert "process.uid == Process.myUid()" in source
+    assert "Process.killProcess(targetPid);" in source
+    assert "query.compositorPid == targetPid" in source
+    assert "!query.ownerValid" in source and "query.identity != null" in source
+    assert "requireOldFrameRejected(service, ownerIdentity" in source
+    assert "requireOldFrameRejected(service, childIdentity" in source
+    assert '"stream_identity_rejected".equals(reason[0])' in source
+    assert "activePfdTransfers == 0" in source
+    assert "retainedFrameBytes == 0" in source
+
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "--cl-r4b-parent-owner-death" in runner
+    assert 'CL_R4B_OWNER_SESSION_READY ' in runner
+    assert 'CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=$owner_pid ' in runner
+    assert 'CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=$owner_pid ' in runner
+    assert "'$2==pid {found=1} END {exit !found}'" in runner
+    assert "old_pid_absent=true owner_valid=false child_present=false" in runner
+    assert "PRESENTATION_DISMISS_REQUESTED reason=ipc-remote-disconnected" in runner
+    assert "owner-death-window-state-$adb_port.txt" in runner
+
+    build = (REPO / "tools/build_cl_imp_03_apks.sh").read_text()
+    assert "CompositorOwnerDeathTestService.java" in build
+
+
+def test_parent_owner_loss_cancels_activity_fixture_worker():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    start = activity.index("private void stopOwnedDisplay")
+    end = activity.index("/** Release only the Activity-owned View attachment", start)
+    stop = activity[start:end]
+    assert "runToken.cancelForDetach();" in stop
+    assert "fixtureWorker.interrupt();" in stop
+    assert "closeIpcSession();" in stop
