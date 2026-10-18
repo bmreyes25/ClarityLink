@@ -84,6 +84,8 @@ final class FrameIpcClient {
     int begin(FrameStreamIdentity streamIdentity, IBinder viewSink) throws RemoteException {
         if (closed || streamIdentity == null || !streamIdentity.isValid() || viewSink == null ||
                 !endpoint.isBinderAlive()) return -1;
+        if (streamIdentity.streamType == FrameStreamIdentity.TYPE110 &&
+                !openParentAuthority(endpoint, streamIdentity, viewSink)) return -1;
         Parcel data = Parcel.obtain();
         Parcel reply = Parcel.obtain();
         try {
@@ -98,6 +100,24 @@ final class FrameIpcClient {
             activeGeneration = streamIdentity.streamGeneration;
             nextFrameId.set(1L);
             return reply.readInt();
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
+    /** Opens/reuses the lab parent authority without registering or activating a video stream. */
+    static boolean openParentAuthority(IBinder endpoint, FrameStreamIdentity ownerIdentity,
+            IBinder ownerSink) throws RemoteException {
+        if (endpoint == null || !endpoint.isBinderAlive() || ownerIdentity == null ||
+                !ownerIdentity.isValid() || ownerIdentity.streamType != FrameStreamIdentity.TYPE110 ||
+                ownerSink == null || !ownerSink.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
+            data.writeInt(FrameIpcProtocol.VERSION);
+            writeIdentity(data, ownerIdentity);
+            data.writeStrongBinder(ownerSink);
+            endpoint.transact(FrameIpcProtocol.PARENT_OPEN_AUTHORITY, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
         } finally { reply.recycle(); data.recycle(); }
     }
 
@@ -292,6 +312,19 @@ final class FrameIpcClient {
 
     boolean hasFrameInFlight() { return frameGate.isOccupied(); }
     int sessionIdentity() { return System.identityHashCode(endpoint); }
+
+    static IBinder requestType110SinkAdmission(IBinder endpoint, long sessionId) throws RemoteException {
+        if (endpoint == null || !endpoint.isBinderAlive() || sessionId <= 0L) return null;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
+            data.writeInt(FrameIpcProtocol.VERSION);
+            data.writeLong(sessionId);
+            endpoint.transact(FrameIpcProtocol.TYPE110_SINK_ADMISSION, data, reply, 0);
+            reply.readException();
+            return reply.readInt() == 0 ? null : reply.readStrongBinder();
+        } finally { reply.recycle(); data.recycle(); }
+    }
     FrameStreamIdentity streamIdentity() { return identity; }
     long nextFrameIdHint() { return nextFrameId.get(); }
 

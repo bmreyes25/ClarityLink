@@ -10,7 +10,7 @@ emulator="$sdk/.emulator-intel/emulator/emulator"
 avdmanager="$sdk/cmdline-tools/latest/bin/avdmanager"
 package=org.claritylink.independentdisplay.lab
 attacker_package=org.claritylink.labattacker
-attacker_component=org.claritylink.attacker.ExportBoundaryAttackActivity
+attacker_component=org.claritylink.attacker.ExportBoundaryAttackService
 component=org.claritylink.android.ClarityLinkDisplayActivity
 decoder_only=0
 type111_mode=0
@@ -31,6 +31,15 @@ elif [ "${1:-}" = "--cl-r4b-reentrant-teardown" ]; then
   shift
 elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
+  # The failure matrix requires both independently owned streams and a live
+  # Type111 producer before it tests Type110 sink death. The generic presentation
+  # launch registers Type111 but does not start the producer service.
+  type111_mode=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-type110-failure-type111-first" ]; then
+  type110_failure=1
+  type111_mode=1
+  type111_first=1
   shift
 elif [ "${1:-}" = "--cl-r4b-parent-owner-death" ]; then
   type111_mode=1
@@ -107,7 +116,18 @@ s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()
 PY
 )
 export ADB_SERVER_PORT="$adb_port" ANDROID_ADB_SERVER_PORT="$adb_port"
-adb_local() { "$adb" -P "$adb_port" "$@"; }
+runtime_logcat_pid= runtime_logs_file=
+adb_local() {
+  # API17's 256 KiB log buffers can be overwritten by EGL frame-render chatter
+  # before a later lifecycle assertion reads them. Keep a live, app-tag-only
+  # receipt for this owned emulator and use it for every historical `logcat -d`.
+  if [ -n "$runtime_logs_file" ] && [ "${1:-}" = "-s" ] &&
+      [ "${3:-}" = "logcat" ] && [ "${4:-}" = "-d" ]; then
+    cat "$runtime_logs_file"
+    return 0
+  fi
+  "$adb" -P "$adb_port" "$@"
+}
 serial= emulator_pid= adb_server_pid= adb_server_started=0 avd_created=0
 avd="climp03_api17_$$"
 avd_dir="$run_root/avd/$avd.avd"
@@ -125,6 +145,10 @@ adb_server_owned() {
 cleanup() {
   result=$?
   trap - EXIT INT TERM
+  if [ -n "$runtime_logcat_pid" ]; then
+    kill "$runtime_logcat_pid" 2>/dev/null || true
+    wait "$runtime_logcat_pid" 2>/dev/null || true
+  fi
   if [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null; then
     kill "$emulator_pid" 2>/dev/null || true
     wait "$emulator_pid" 2>/dev/null || true
@@ -175,6 +199,7 @@ source_receipt="$campaign_evidence/api17-source-manifest.sha256"
   hash_file "$attacker_apk" 'build/cl-r4-boundary-attacker.apk'
   hash_file "$repo/android/cl-r4-boundary-attacker/AndroidManifest.xml" 'android/cl-r4-boundary-attacker/AndroidManifest.xml'
   hash_file "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java" 'android/cl-r4-boundary-attacker/ExportBoundaryAttackActivity.java'
+  hash_file "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackService.java" 'android/cl-r4-boundary-attacker/ExportBoundaryAttackService.java'
   hash_file "$repo/tools/verify_api17_pixel_content.swift" 'tools/verify_api17_pixel_content.swift'
   hash_file "$repo/tools/verify_api17_padded_crop_content.swift" 'tools/verify_api17_padded_crop_content.swift'
   hash_file "$repo/android/cl-imp-03-app/AndroidManifest.lab.xml" 'android/cl-imp-03-app/AndroidManifest.lab.xml'
@@ -295,20 +320,76 @@ printf '%s\n' "$owner_isolation_logs" | grep 'TYPE110_OWNER_CAP_RECOVERY_PASS ' 
 echo "TYPE110_OWNER_CAP_RECOVERY_RUNTIME_PASS expired_records=32 orphan_temp=true orphan_claim=true new_issue=true artifacts_remaining=0 artifact=$run_label/evidence/$(basename -- "$owner_cap_receipt")"
 assert_type110_probe_cross_uid_denied() {
   owned || exit 7
+  before_service_dump=$(adb_local -s "$serial" shell dumpsys activity services | tr -d '\r')
+  before_process_dump=$(adb_local -s "$serial" shell ps | tr -d '\r')
+  for component in FrameLabSinkService CompositorService Type111ProducerService; do
+    printf '%s\n' "$before_service_dump" | grep -F "$component" >/dev/null || {
+      echo "Separate-UID attack precondition failed: $component was not active before the attack." >&2; exit 9;
+    }
+  done
+  for process_name in \
+    org.claritylink.independentdisplay.lab:type110_sink \
+    org.claritylink.independentdisplay.lab:compositor \
+    org.claritylink.independentdisplay.lab:type111_producer; do
+    before_pid=$(printf '%s\n' "$before_process_dump" | awk -v name="$process_name" '$NF == name {print $2}')
+    [ -n "$before_pid" ] || { echo "Separate-UID attack precondition failed: $process_name PID missing." >&2; exit 9; }
+  done
   before_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   before_teardown=$(printf '%s\n' "$before_logs" | grep -F -c 'TYPE111_PARENT_TEARDOWN session_id=' || true)
-  adb_local -s "$serial" shell am start -n "$attacker_package/$attacker_component" \
+  adb_local -s "$serial" shell am startservice -n "$attacker_package/$attacker_component" \
     --el attack_session_id "$1" --el attack_generation "$2" \
     --el attack_last_frame "$3" --ei attack_sink_pid "$4" \
     --ei attack_compositor_pid "$5" >/dev/null
-  wait_for 'CL_R4_CROSS_UID_ATTACKS_PASS'
+  wait_for 'CL_R4_CROSS_UID_ATTACKS_COMPLETE'
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  after_service_dump=$(adb_local -s "$serial" shell dumpsys activity services | tr -d '\r')
+  after_process_dump=$(adb_local -s "$serial" shell ps | tr -d '\r')
+  for component in FrameLabSinkService CompositorService Type111ProducerService; do
+    printf '%s\n' "$after_service_dump" | grep -F "$component" >/dev/null || {
+      echo "Separate-UID attack changed service lifecycle: $component is no longer active. Session=$1; after-service records:" >&2
+      printf '%s\n' "$after_service_dump" | grep -E 'ServiceRecord.*(FrameLabSinkService|CompositorService|Type111ProducerService)' >&2 || true
+      printf '%s\n' "$after_process_dump" | grep -E 'org\.claritylink\.independentdisplay\.lab:(compositor|type110_sink|type111_producer)' >&2 || true
+      exit 9
+    }
+  done
+  for process_name in \
+    org.claritylink.independentdisplay.lab:type110_sink \
+    org.claritylink.independentdisplay.lab:compositor \
+    org.claritylink.independentdisplay.lab:type111_producer; do
+    before_pid=$(printf '%s\n' "$before_process_dump" | awk -v name="$process_name" '$NF == name {print $2}')
+    after_pid=$(printf '%s\n' "$after_process_dump" | awk -v name="$process_name" '$NF == name {print $2}')
+    [ -n "$before_pid" ] && [ "$before_pid" = "$after_pid" ] || {
+      echo "Separate-UID attack changed $process_name PID (before=$before_pid after=$after_pid)." >&2; exit 9;
+    }
+  done
+  service_receipt="$campaign_evidence/api17-cross-uid-live-services-$adb_port.txt"
+  {
+    echo "attacker_uid=$attacker_uid target_uid=$app_uid"
+    echo 'before_service_records:'; printf '%s\n' "$before_service_dump" | grep -E 'ServiceRecord.*(FrameLabSinkService|CompositorService|Type111ProducerService)'
+    echo 'before_processes:'; printf '%s\n' "$before_process_dump" | grep -E 'org\.claritylink\.independentdisplay\.lab:(compositor|type110_sink|type111_producer)'
+    echo 'after_service_records:'; printf '%s\n' "$after_service_dump" | grep -E 'ServiceRecord.*(FrameLabSinkService|CompositorService|Type111ProducerService)'
+    echo 'after_processes:'; printf '%s\n' "$after_process_dump" | grep -E 'org\.claritylink\.independentdisplay\.lab:(compositor|type110_sink|type111_producer)'
+  } > "$service_receipt"
   after_teardown=$(printf '%s\n' "$logs" | grep -F -c 'TYPE111_PARENT_TEARDOWN session_id=' || true)
   [ "$before_teardown" -eq "$after_teardown" ] || {
     echo 'Separate-UID attack changed parent-session teardown state.' >&2; exit 9;
   }
   [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=probe' || true)" -eq 7 ] || {
     echo 'Separate-UID attacker did not have all seven probe-service launches denied.' >&2; exit 9;
+  }
+  unverified_stop_count=$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_UNVERIFIED operation=stop_service result=false' || true)
+  explicit_stop_count=$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=stop_service' || true)
+  [ "$((unverified_stop_count + explicit_stop_count))" -eq 3 ] || {
+    echo 'Separate-UID stopService outcomes were not fully distinguished as exceptions or false returns.' >&2; exit 9;
+  }
+  unverified_bind_count=$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_UNVERIFIED operation=bind_service' || true)
+  explicit_denial_count=$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED' || true)
+  unverified_no_effect_count=$((unverified_stop_count + unverified_bind_count))
+  [ "$((explicit_denial_count + unverified_no_effect_count))" -eq 23 ] || {
+    echo "Separate-UID attack accounting did not cover 23 attempts (explicit=$explicit_denial_count no_effect=$unverified_no_effect_count)." >&2; exit 9;
+  }
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_NOT_DENIED' || true)" -eq 0 ] || {
+    echo 'Separate-UID attacker received a successful operation.' >&2; exit 9;
   }
   [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=service component=Type110SinkFailureTestService' || true)" -ge 1 ] || {
     echo 'Separate-UID start of the destructive Type110 failure helper was not denied.' >&2; exit 9;
@@ -331,10 +412,11 @@ assert_type110_probe_cross_uid_denied() {
   [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_NOT_DENIED operation=bind_service component=CompositorOwnerDeathTestService' || true)" -eq 0 ] || {
     echo 'Separate-UID attacker bound the compositor owner-death helper.' >&2; exit 9;
   }
-  printf '%s\n' "$logs" | grep -F "CL_R4_CROSS_UID_ATTACKS_PASS uid=$attacker_uid target_uid=$app_uid attempts=23 denied=23" >/dev/null || {
-    echo 'Separate-UID attacker did not reject all probe/service operations.' >&2; exit 9;
+  printf '%s\n' "$logs" | grep -F "CL_R4_CROSS_UID_ATTACKS_COMPLETE uid=$attacker_uid target_uid=$app_uid attempts=23 explicit_denials=$explicit_denial_count unverified_no_effect=$unverified_no_effect_count" >/dev/null || {
+    echo 'Separate-UID attacker did not report the observed operation accounting.' >&2; exit 9;
   }
-  echo "TYPE110_PROBE_CROSS_UID_DENIED attacker_uid=$attacker_uid app_uid=$app_uid sink_pid=$4 compositor_pid=$5"
+  echo "CL_R4_CROSS_UID_ATTACKS_PASS attacker_uid=$attacker_uid app_uid=$app_uid attempts=23 explicit_denials=$explicit_denial_count unverified_no_effect=$unverified_no_effect_count active_services_before_after=true pids_unchanged=true receipt=$run_label/evidence/$(basename -- "$service_receipt")"
+  adb_local -s "$serial" shell run-as "$package" touch "files/cl-r4b-cross-uid-release-$1"
 }
 invoke_type110_probe_privileged() {
   owned || exit 7
@@ -362,32 +444,41 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|controlled_exit|crash)
+    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
-        type111) set -- "$@" --ez type111_fixture_mode true ;;
-        type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true ;;
+        type111) set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true ;;
+        type111_type110_failure)
+          set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true \
+            --ez security_live_producer true --ez type110_sink_failure_test true
+          ;;
+        type111_first_type110_failure)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true \
+            --ez hold_after_same_uid_attack true --ez security_live_producer true \
+            --ez type110_sink_failure_test true
+          ;;
+        type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true --ez hold_after_same_uid_attack true ;;
         type111_reentrant_teardown) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true ;;
         type111_first_reentrant) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez reentrant_teardown_test true ;;
-        type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true ;;
+        type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez hold_after_same_uid_attack true ;;
         type111_first_reattach)
-          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true
+          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true --ez hold_after_same_uid_attack true
           ;;
         type111_delayed_callback_first)
-          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true --ez hold_after_same_uid_attack true
           ;;
         type111_first_delayed_callback_first)
-          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true
+          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true --ez hold_after_same_uid_attack true
           ;;
         type111_delayed_callback_replacement)
-          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true --ez hold_after_same_uid_attack true
           if [ -n "$reattach_session_arg" ]; then
             set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
           fi
           ;;
         type111_reattach)
-          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez hold_after_same_uid_attack true
           if [ -n "$reattach_session_arg" ]; then
             set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
           fi
@@ -444,6 +535,16 @@ assert_type110_progress_precedes_parent_teardown() {
     }
 }
 adb_local -s "$serial" logcat -c
+runtime_logs_file="$campaign_evidence/api17-runtime-logcat-$adb_port.txt"
+adb_local -s "$serial" logcat -s ClarityLinkCLIMP03:I '*:S' > "$runtime_logs_file" 2>&1 &
+runtime_logcat_pid=$!
+for log_attempt in $(seq 1 20); do
+  kill -0 "$runtime_logcat_pid" 2>/dev/null || {
+    echo 'Could not start the bounded API17 lifecycle log capture.' >&2
+    exit 8
+  }
+  sleep 0.1
+done
 owned || exit 7
 if [ "$decoder_only" -eq 1 ]; then
   :
@@ -454,6 +555,8 @@ elif [ "$type111_first" -eq 1 ]; then
     start_lab_activity_privileged type111_first_delayed_callback_first
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_first_reattach
+  elif [ "$type110_failure" -eq 1 ]; then
+    start_lab_activity_privileged type111_first_type110_failure
   else
     start_lab_activity_privileged type111_first
   fi
@@ -466,6 +569,8 @@ elif [ "$type111_mode" -eq 1 ]; then
     start_lab_activity_privileged type111_delayed_callback_first
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
+    elif [ "$type110_failure" -eq 1 ]; then
+      start_lab_activity_privileged type111_type110_failure
   else
     start_lab_activity_privileged type111
   fi
@@ -544,6 +649,9 @@ mv "$proof_tmp" "$proof"
 echo "BINDER_VIEW_PROOF_SAVED artifact=$run_label/evidence/$(basename -- "$proof")"
 
 if [ "$type110_failure" -eq 1 ]; then
+  # The Presentation proof precedes the H.264 fixture worker. Do not probe the
+  # separate producer service until its actual Binder connection is recorded.
+  wait_for 'TYPE111_SECURITY_TEST_PRODUCER_BOUND '
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   sink_ready=$(printf '%s\n' "$logs" | grep -F 'TYPE110_LAB_SINK_READY ' | tail -1)
   type110_identity=$(printf '%s\n' "$logs" | grep -F 'IPC_STREAM_REGISTERED ' |
@@ -559,6 +667,16 @@ if [ "$type110_failure" -eq 1 ]; then
     printf '%s\n' "$sink_ready" | grep -F "session_id=$session_id" >/dev/null &&
     printf '%s\n' "$type111_identity" | grep -F "session_id=$session_id " >/dev/null || {
       echo 'Could not prove both stream identities before Type110-only sink failure.' >&2
+      exit 9
+    }
+  owner_link=$(printf '%s\n' "$logs" | grep -F "IPC_TYPE110_PARENT_DEATH_LINKED session_id=$session_id " | tail -1)
+  owner_death_recipient_id=$(printf '%s\n' "$owner_link" |
+    sed -n 's/.*death_recipient_id=\([-0-9][0-9-]*\).*/\1/p')
+  type110_stream_link=$(printf '%s\n' "$logs" |
+    grep -F "IPC_STREAM_SINK_DEATH_LINKED session_id=$session_id stream_type=110 " | tail -1)
+  [ -n "$owner_death_recipient_id" ] &&
+    printf '%s\n' "$type110_stream_link" | grep -F 'owner_sink_binder=true' >/dev/null || {
+      echo 'Type110 owner and stream DeathRecipient links were not both proven on the session sink Binder.' >&2
       exit 9
     }
   echo "CL_R4B_TYPE110_FAILURE_PRECONDITION session_id=$session_id type110_generation=$type110_generation sink_pid=$sink_pid type111_registered=true"
@@ -597,7 +715,7 @@ if [ "$type110_failure" -eq 1 ]; then
   for callback_attempt in $(seq 1 30); do
     owned || exit 7
     callback_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
-    if printf '%s\n' "$callback_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110 " >/dev/null; then
+    if printf '%s\n' "$callback_logs" | grep -F "IPC_TYPE110_PARENT_DEATH_CALLBACK_ENTERED session_id=$session_id " >/dev/null; then
       callback_seen=1
       break
     fi
@@ -607,17 +725,25 @@ if [ "$type110_failure" -eq 1 ]; then
   if [ "$callback_seen" -ne 1 ]; then
     adb_local -s "$serial" shell dumpsys activity services | tr -d '\r' \
       > "$campaign_evidence/api17-type110-sink-death-services-$adb_port.txt"
-    echo "Type110 sink PID $sink_pid exited but compositor death callback was not observed within 30s." >&2
+    echo "Type110 sink PID $sink_pid exited but its parent-owner DeathRecipient callback was not observed within 30s." >&2
     echo "Logcat: $run_label/evidence/api17-type110-sink-death-logcat-$adb_port.txt" >&2
     echo "Processes: $run_label/evidence/$(basename -- "$sink_death_process_receipt")" >&2
     echo "Services: $run_label/evidence/api17-type110-sink-death-services-$adb_port.txt" >&2
     exit 9
   fi
+  owner_callback=$(printf '%s\n' "$callback_logs" |
+    grep -F "IPC_TYPE110_PARENT_DEATH_CALLBACK_ENTERED session_id=$session_id " | tail -1)
+  printf '%s\n' "$owner_callback" | grep -F "death_recipient_id=$owner_death_recipient_id " |
+    grep -F 'owner_binder_alive=false' >/dev/null || {
+      echo 'Observed parent owner callback did not match the linked DeathRecipient and dead owner Binder.' >&2
+      exit 9
+    }
   teardown_observed=0
   for teardown_attempt in $(seq 1 30); do
     owned || exit 7
     teardown_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     if printf '%s\n' "$teardown_logs" | grep -F "TYPE110_OWNER_SESSION_INVALIDATED session_id=$session_id cause=owner_sink_death streams_closed=2" >/dev/null ||
+       printf '%s\n' "$teardown_logs" | grep -F "TYPE110_PARENT_AUTHORITY_REVOKED session_id=$session_id " | grep -F 'cause=owner_binder_death' >/dev/null ||
        printf '%s\n' "$teardown_logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null; then
       teardown_observed=1
       break
@@ -632,6 +758,7 @@ if [ "$type110_failure" -eq 1 ]; then
   final_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   printf '%s\n' "$final_logs" > "$campaign_evidence/api17-type110-owner-failure-logcat-$adb_port.txt"
   if ! printf '%s\n' "$final_logs" | grep -F "TYPE110_OWNER_SESSION_INVALIDATED session_id=$session_id cause=owner_sink_death streams_closed=2" >/dev/null &&
+     ! printf '%s\n' "$final_logs" | grep -F "TYPE110_PARENT_AUTHORITY_REVOKED session_id=$session_id " | grep -F 'cause=owner_binder_death' >/dev/null &&
      ! printf '%s\n' "$final_logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null; then
     echo 'Type110 sink failure did not invalidate the parent session through either teardown actor.' >&2; exit 9
   fi
@@ -643,7 +770,7 @@ if [ "$type110_failure" -eq 1 ]; then
   printf '%s\n' "$ps_snapshot" | awk -v pid="$sink_pid" '$2==pid {found=1} END {exit !found}' && {
     echo "Type110 sink PID $sink_pid remains alive after the targeted failure." >&2; exit 9;
   }
-  echo "CL_R4B_TYPE110_ONLY_FAILURE_PASS session_id=$session_id type110_generation=$type110_generation type111_invalidated=true streams_unregistered=2 active_pfd_transfers=0 retained_frame_bytes=0 cross_uid_denied=21/21 sink_pid_exited=true fixture_only=true"
+  echo "CL_R4B_TYPE110_ONLY_FAILURE_PASS session_id=$session_id type110_generation=$type110_generation type111_invalidated=true streams_unregistered=2 active_pfd_transfers=0 retained_frame_bytes=0 cross_uid_attempts=23 explicit_denials=$explicit_denial_count unverified_no_effect=$unverified_no_effect_count active_services_before_after=true sink_pid_exited=true fixture_only=true"
   shasum -a 256 "$campaign_evidence/api17-type110-owner-failure-logcat-$adb_port.txt" \
     > "$campaign_evidence/api17-type110-owner-failure-artifact-hashes-$adb_port.sha256"
   owned || exit 7
@@ -656,6 +783,26 @@ if [ "$type110_failure" -eq 1 ]; then
 fi
 
 if [ "$type111_mode" -eq 1 ]; then
+  wait_for 'TYPE110_LAB_SINK_START_REJECTED reason=admission_required session_id='
+  wait_for 'CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS'
+  if [ "$probe_boundary_checked" -eq 0 ]; then
+    attack_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    attack_session_line=$(printf '%s\n' "$attack_logs" | grep -F 'IPC_SESSION_STARTED generation=' | head -1)
+    attack_type110_line=$(printf '%s\n' "$attack_logs" | grep -F 'IPC_STREAM_REGISTERED ' |
+      grep -F 'stream_type=110 ' | head -1)
+    attack_sink_line=$(printf '%s\n' "$attack_logs" | grep -F 'TYPE110_LAB_SINK_READY ' | head -1)
+    attack_session=$(printf '%s\n' "$attack_session_line" | sed -n 's/.*generation=\([0-9][0-9]*\).*/\1/p')
+    attack_generation=$(printf '%s\n' "$attack_type110_line" | sed -n 's/.*stream_generation=\([0-9][0-9]*\).*/\1/p')
+    attack_sink_pid=$(printf '%s\n' "$attack_sink_line" | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p')
+    attack_compositor_pid=$(printf '%s\n' "$attack_session_line" | sed -n 's/.*remote_pid=\([0-9][0-9]*\).*/\1/p')
+    [ -n "$attack_session" ] && [ -n "$attack_generation" ] &&
+      [ -n "$attack_sink_pid" ] && [ -n "$attack_compositor_pid" ] || {
+      echo 'Could not identify live target services before the cross-UID attack.' >&2; exit 9;
+    }
+    assert_type110_probe_cross_uid_denied "$attack_session" "$attack_generation" 0 \
+      "$attack_sink_pid" "$attack_compositor_pid"
+    probe_boundary_checked=1
+  fi
   wait_for 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_PASS'
   wait_for 'TYPE111_PRODUCER_WAIT_BOUNDS_PASS'
   wait_for 'CL_R4_TYPE111_INFLIGHT_PRODUCER_DEATH_CLEANUP_PASS'
@@ -711,7 +858,7 @@ if [ "$type111_mode" -eq 1 ]; then
       --el type111_generation "$type111_generation" >/dev/null
     wait_for_owner_death_marker() {
       marker=$1
-      for owner_attempt in $(seq 1 180); do
+      for owner_attempt in $(seq 1 900); do
         owned || { echo 'Owned emulator changed during parent-owner death check.' >&2; return 1; }
         owner_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
         if printf '%s\n' "$owner_logs" | grep -F 'CL_R4B_PARENT_OWNER_DEATH_FAIL ' >/dev/null; then
@@ -727,6 +874,7 @@ if [ "$type111_mode" -eq 1 ]; then
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_TARGET_VERIFIED pid=$owner_pid "
     wait_for_owner_death_marker "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=$owner_pid "
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=$owner_pid "
+    wait_for_owner_death_marker "TYPE110_OWNER_EPOCH_REVOKED session_id=$session_id cause=compositor_process_death"
     wait_for 'CL_R4B_ACTIVITY_OWNER_INVALIDATED '
     wait_for 'CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS '
     owner_death_early_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')

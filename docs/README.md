@@ -23,6 +23,7 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 
 - [Contributing](../CONTRIBUTING.md)
 - [Testing](development/testing.md)
+- [CL-R4B laboratory session authority and replay scope](development/cl-r4b-session-authority.md)
 - [Blocker resolution workflow](development/blocker-resolution.md)
 - [Local ECC review roles](development/ecc-review.md)
 - [Development setup](getting-started/development-setup.md)

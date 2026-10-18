@@ -17,17 +17,24 @@ def test_type110_owner_end_and_sink_death_close_the_parent_session():
                       service.index("private boolean unregisterStreamIfCurrent")]
     assert "boolean accepted = endStream(identity);" in end_branch
     assert "endStreamIfCurrent(state, deadIdentity)" in death_callback
-    assert helpers.count("teardownType111Session(identity)") == 2
+    assert "teardownType111Session(identity)" in helpers
+    assert "teardownType111Session(identity, true)" in helpers
     assert "TYPE110_OWNER_SESSION_INVALIDATED" in helpers
     assert "return unregisterStream(identity);" in helpers
     assert "return unregisterStreamIfCurrent(state, identity);" in helpers
+    assert "IPC_TYPE110_PARENT_DEATH_LINKED" in service
+    assert "IPC_TYPE110_PARENT_DEATH_CALLBACK_ENTERED" in service
+    assert "IPC_STREAM_SINK_DEATH_LINKED" in service
+    assert "IPC_STREAM_SINK_DEATH_CALLBACK_ENTERED" in death_callback
 
 
-def test_type110_sink_rejects_a_second_session_identity():
+def test_type110_sink_rejects_live_reuse_and_replaces_only_after_owner_revocation():
     service = (APP / "java/org/claritylink/android/FrameLabSinkService.java").read_text()
     ensure = service[service.index("private synchronized boolean ensureSink"):
                     service.index("@Override public void onDestroy()")]
-    assert "if (sink != null) return sessionId > 0L && requestedSession == sessionId;" in ensure
+    assert "if (sessionId > 0L && requestedSession == sessionId) return true;" in ensure
+    assert "if (requestedSession <= 0L || previous != null) return false;" in ensure
+    assert "TYPE110_LAB_SINK_REPLACED_AFTER_OWNER_LOSS" in ensure
 
 
 def test_type110_only_api17_failure_harness_is_guarded_and_checks_cleanup():
@@ -68,6 +75,23 @@ def test_type110_only_api17_failure_harness_is_guarded_and_checks_cleanup():
     assert "IPC_STREAM_UNREGISTERED session_id=$session_id stream_type=111" in runner
     assert "active_pfd_transfers=0 retained_frame_bytes=0" in runner
     assert "CL_R4B_TYPE110_ONLY_FAILURE_PASS" in runner
+    assert "wait_for 'TYPE111_SECURITY_TEST_PRODUCER_BOUND '" in runner
+    assert 'IPC_TYPE110_PARENT_DEATH_CALLBACK_ENTERED session_id=$session_id ' in runner
+    assert 'death_recipient_id=$owner_death_recipient_id' in runner
+    assert 'TYPE110_PARENT_AUTHORITY_REVOKED session_id=$session_id ' in runner
+
+
+def test_type110_failure_launches_live_type111_producer_and_preserves_api17_receipts():
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    mode = runner[runner.index('--cl-r4b-type110-failure'):
+                  runner.index('elif [ "${1:-}" = "--cl-r4b-parent-owner-death"')]
+    assert "type110_failure=1" in mode and "type111_mode=1" in mode
+    assert "256 KiB log buffers can be overwritten by EGL frame-render chatter" in runner
+    assert 'runtime_logs_file="$campaign_evidence/api17-runtime-logcat-$adb_port.txt"' in runner
+    assert 'adb_local -s "$serial" logcat -s ClarityLinkCLIMP03:I' in runner
+    assert 'cat "$runtime_logs_file"' in runner
+    assert "--cl-r4b-type110-failure-type111-first" in runner
+    assert "start_lab_activity_privileged type111_first_type110_failure" in runner
 
 
 def test_type111_producer_thread_start_failure_rolls_back_wait_state():
@@ -139,7 +163,7 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
 
     attacker = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java").read_text()
     assert 'attemptPrivateService("CompositorOwnerDeathTestService")' in attacker
-    assert 'if (attempted == 23 && denied == attempted)' in attacker
+    assert 'if (attempted == 23 && denied + unverifiedNoEffect == attempted && notDenied == 0)' in attacker
     assert '"CompositorOwnerDeathTestService".equals(simpleName)' in attacker
 
     build = (REPO / "tools/build_cl_imp_03_apks.sh").read_text()
@@ -162,7 +186,14 @@ def test_compositor_owner_restart_rejects_persisted_session_and_registers_fresh_
     assert "preferences.edit().putStringSet(SESSION_ID_SET, encoded)" in compositor
     assert "putString(SESSION_ID_ORDER, ordered.toString())" in compositor
     assert "nextOrder.remove(evict)" in compositor
-    assert "reserveSessionIdLocked(identity.sessionId)" in compositor
+    assert "reserveSessionIdLocked(ownerIdentity.sessionId)" in compositor
+    assert "ParentAuthority authority = parentAuthorities.get(sessionId)" in compositor
+    assert "authority.ownerSink.isBinderAlive()" in compositor
+    assert "FrameLabSink.bindCompositorEpoch(ownerSink, ownerIdentity, endpoint)" in compositor
+    assert "MAX_ACTIVE_PARENT_SESSIONS = 8" in compositor
+    assert "PROVISIONAL_PARENT_AUTHORITY_TIMEOUT_MS = 30000L" in compositor
+    assert "provisional_authority_timeout" in compositor
+    assert "authority.provisional = false" in compositor
     assert "verifyFreshSessionRecovery(service, query.compositorPid)" in observer
     assert "old_type110_identity_re_registered_after_owner_restart" in observer
     assert "old_session_capability_re_registered_after_owner_restart" in observer
@@ -171,19 +202,95 @@ def test_compositor_owner_restart_rejects_persisted_session_and_registers_fresh_
     assert "fresh_session_parent_teardown_failed" in observer
     assert "registrations_after_teardown=0" in observer
     assert "verifySessionAdmissionBeyondPreviousTombstoneLimit(service, control, compositorPid)" in observer
-    assert "for (int i = 0; i < 300; i++)" in observer
+    assert "for (int i = 0; i < 257; i++)" in observer
     assert "active_session_evicted_from_replay_window" in observer
-    assert "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS admitted_and_torn_down=300" in observer
+    assert "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS admitted_and_torn_down=257" in observer
     assert "same_process_session_id_reused_after_end_at=" in observer
     assert "MAX_CLOSED_SESSION_IDS" not in compositor
     assert "activeSessionIds.contains(sessionId)" in compositor
     assert "!activeSessionIds.contains(nextOrder.get(i))" in compositor
     assert "activeSessionIds.remove(identity.sessionId)" in compositor
+    assert "SESSION_REPLAY_BLOOM_BYTES = 32768" in compositor
+    assert "mightContainSessionReplay(sessionReplayBloom, sessionId)" in compositor
+    assert "sessionReplayBloom = nextBloom" in compositor
+    assert "old_owner_session_replayed_after_256_id_window_eviction" in observer
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert 'CL_R4B_OWNER_DEATH_FRESH_SESSION_RECOVERY_PASS ' in runner
     assert 'Type110 sink or Type111 producer service remained registered after owner loss.' in runner
     assert "api17-compositor-owner-death-processes-$adb_port.txt" in runner
     assert "api17-compositor-owner-death-services-$adb_port.txt" in runner
+
+
+def test_type111_capability_requires_explicit_live_type110_authority_without_stream_ordering():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    client = (APP / "java/org/claritylink/android/FrameIpcClient.java").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    protocol = (APP / "java/org/claritylink/android/FrameIpcProtocol.java").read_text()
+    assert "PARENT_OPEN_AUTHORITY = 35" in protocol
+    assert "ownerIdentity.sessionId == sessionId" in compositor
+    assert 'reason = "parent_authority_required"' in compositor
+    assert "authority.ownerIdentity.equals(ownerIdentity)" in compositor
+    assert "authority.ownerPid == Binder.getCallingPid()" in compositor
+    assert "isAuthorizedParentCaller(Binder.getCallingPid())" in compositor
+    assert 'getPackageName() + ":type111_view"' in compositor
+    assert "reserveSessionIdLocked(ownerIdentity.sessionId)" in compositor
+    assert "static boolean openParentAuthority" in client
+    assert "if (streamIdentity.streamType == FrameStreamIdentity.TYPE110" in client
+    open_index = activity.index("FrameIpcClient.openParentAuthority(compositorEndpoint, primaryIdentity")
+    capability_index = activity.index("boolean capability = control.registerLabCapability(primaryIdentity")
+    type111_first_index = activity.index("if (type111FirstMode)")
+    assert open_index < capability_index < type111_first_index
+
+
+def test_parent_identity_is_revoked_on_session_end_and_compositor_process_death():
+    sink = (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    assert "FRAME_LAB_BIND_COMPOSITOR_EPOCH" in sink
+    assert "compositor.linkToDeath(recipient, 0)" in sink
+    assert "cause=compositor_process_death" in sink
+    assert "clearIdentityAndCompositorEpoch();" in sink
+    assert "FrameLabSink.revokeParentAuthority(authority.ownerSink, authority.ownerIdentity)" in compositor
+    assert "cause=owner_end" in compositor
+    assert "MAX_RECENT_SESSION_IDS = 256" in compositor
+    sink = (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
+    assert "isCompositorProcessCaller()" in sink
+    assert 'context.getPackageName() + ":compositor"' in sink
+
+
+def test_api17_same_uid_sibling_attack_compares_authorized_state_before_and_after():
+    source = (APP / "java/org/claritylink/android/SameUidRegistrationAttackTestService.java").read_text()
+    manifest = ET.parse(APP / "AndroidManifest.lab.xml").getroot()
+    service = next(item for item in manifest.find("application").findall("service")
+                   if item.get(ANDROID + "name") ==
+                   "org.claritylink.android.SameUidRegistrationAttackTestService")
+    assert service.get(ANDROID + "process") == ":registration_attacker"
+    assert service.get(ANDROID + "exported") == "false"
+    assert '"authorized_before_state_missing"' in source
+    assert "boolean authority = FrameIpcClient.openParentAuthority" in source
+    assert "boolean capability = control.registerLabCapability" in source
+    assert "boolean teardown = control.parentTeardown" in source
+    assert "boolean end = rawEnd(owner)" in source
+    assert "boolean producerStart = rawProducerStart" in source
+    assert "boolean producerStop = rawProducerStop()" in source
+    assert "producer_pid_before=" in source and "producer_pid_after=" in source
+    assert "test_barrier_arm_wait_release_rejected=true" in source
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    assert "awaitCrossUidRunnerRelease" in activity
+    assert "SystemClock.elapsedRealtime() + 120000L" in activity
+    assert "hold_after_same_uid_attack" in activity
+    assert '"hold_after_attack"' in source
+    assert "awaitCrossUidRunnerRelease(owner.sessionId)" in source
+    assert '"frame_caller_not_authorized".equals(frameReason[0])' in source
+    assert "same_uid_attack_mutated_authorized_state" in source
+    assert "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS" in source
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    for handler in ("LAB_ARM_TRANSFER_BARRIER", "LAB_WAIT_TRANSFER_BARRIER",
+                    "LAB_ARM_PARENT_TEARDOWN_BARRIER", "LAB_WAIT_PARENT_TEARDOWN_BARRIER",
+                    "LAB_ARM_DELAYED_SINK_DEATH_CALLBACK", "LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK"):
+        block = compositor[compositor.index("if (code == FrameIpcProtocol." + handler):]
+        assert "isSessionOwnerCaller" in block[:500]
+    assert "SameUidRegistrationAttackTestService.java" in (REPO / "tools/build_cl_imp_03_apks.sh").read_text()
+    assert "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS" in (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
 
 
 def test_parent_owner_loss_cancels_activity_fixture_worker():

@@ -30,7 +30,8 @@ def test_api17_fixture_path_connects_control_and_media_lifecycle_to_binder_view(
     activity = (APP / "ClarityLinkDisplayActivity.java").read_text()
     compositor = (APP / "CompositorService.java").read_text()
     control = (APP / "Type111ControlPlane.java").read_text()
-    assert "control.registerLabCapability(activeGeneration" in activity
+    assert "control.registerLabCapability(primaryIdentity" in activity
+    assert "FrameIpcClient.openParentAuthority(compositorEndpoint, primaryIdentity" in activity
     assert "control.setup(secondaryIdentity)" in activity
     assert "TYPE111_CONTROL_SETUP" in compositor
     assert "control.videoConfig(controlIdentity, 64, 64)" in activity

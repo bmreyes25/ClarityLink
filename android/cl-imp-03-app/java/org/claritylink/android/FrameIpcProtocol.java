@@ -38,6 +38,14 @@ final class FrameIpcProtocol {
     static final int LAB_RELEASE_PARENT_TEARDOWN_BARRIER = 32;
     static final int LAB_ARM_DELAYED_SINK_DEATH_CALLBACK = 33;
     static final int LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK = 34;
+    static final int PARENT_OPEN_AUTHORITY = 35;
+    static final int FRAME_LAB_REVOKE_PARENT_AUTHORITY = 36;
+    static final int FRAME_LAB_BIND_COMPOSITOR_EPOCH = 37;
+    static final int TYPE110_PROBE_AUTHORIZE = 38;
+    static final int TYPE110_PROBE_REGISTER = 39;
+    static final int TYPE111_PRODUCER_AUTHORIZE = 40;
+    static final int TYPE110_SINK_ADMISSION = 41;
+    static final int TYPE110_SINK_ADMISSION_CONSUME = 1;
     static final int FRAME_LAB_QUERY_IDENTITY = 26;
     static final int PIXEL_FORMAT_RGBA_8888 = 1;
     static final int MAX_FRAME_BYTES = 4 * 1024 * 1024;

@@ -1,5 +1,7 @@
 package org.claritylink.android;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
@@ -15,20 +17,36 @@ import java.util.zip.CRC32;
 final class FrameLabSink extends Binder {
     private static final String SINK_DESCRIPTOR = "org.claritylink.android.IClarityLinkViewFrameSink";
     private volatile FrameStreamIdentity identity;
+    private final Context context;
+    private IBinder compositorEpoch;
+    private IBinder.DeathRecipient compositorDeathRecipient;
     private volatile long lastFrameId;
     private volatile long lastTimestampNs = -1L;
     private volatile long lastChecksum;
     private volatile int renderedFrames;
+    private volatile int compositorPid;
 
-    FrameLabSink(FrameStreamIdentity identity) {
+    FrameLabSink(Context context, FrameStreamIdentity identity) {
+        if (context == null) throw new IllegalArgumentException("owner context required");
         if (identity == null || !identity.isValid() || identity.streamType != FrameStreamIdentity.TYPE110)
             throw new IllegalArgumentException("Type110 laboratory output identity required");
+        this.context = context.getApplicationContext();
         this.identity = identity;
     }
 
     int renderedFrames() { return renderedFrames; }
     long lastFrameId() { return lastFrameId; }
     long lastChecksum() { return lastChecksum; }
+    FrameStreamIdentity queryLocalIdentity() { return identity; }
+
+    synchronized boolean clearIfUnbound(FrameStreamIdentity expected, String cause) {
+        if (expected == null || identity == null || !identity.equals(expected) || compositorEpoch != null)
+            return false;
+        clearIdentityAndCompositorEpoch();
+        android.util.Log.i("ClarityLinkCLIMP03", "TYPE110_UNBOUND_ADMISSION_REVOKED session_id=" +
+                expected.sessionId + " cause=" + cause);
+        return true;
+    }
 
     static final class Stats {
         final int frames;
@@ -66,6 +84,34 @@ final class FrameLabSink extends Binder {
         } finally { reply.recycle(); data.recycle(); }
     }
 
+    static boolean revokeParentAuthority(IBinder remote, FrameStreamIdentity expected)
+            throws RemoteException {
+        if (remote == null || !remote.isBinderAlive() || expected == null) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(SINK_DESCRIPTOR);
+            writeIdentity(data, expected);
+            remote.transact(FrameIpcProtocol.FRAME_LAB_REVOKE_PARENT_AUTHORITY, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
+    static boolean bindCompositorEpoch(IBinder remote, FrameStreamIdentity expected,
+            IBinder compositor) throws RemoteException {
+        if (remote == null || !remote.isBinderAlive() || expected == null ||
+                compositor == null || !compositor.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(SINK_DESCRIPTOR);
+            writeIdentity(data, expected);
+            data.writeStrongBinder(compositor);
+            remote.transact(FrameIpcProtocol.FRAME_LAB_BIND_COMPOSITOR_EPOCH, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     @Override protected synchronized boolean onTransact(int code, Parcel data, Parcel reply, int flags)
             throws RemoteException {
         if (code == FrameIpcProtocol.FRAME_LAB_QUERY_STATS) {
@@ -94,11 +140,67 @@ final class FrameLabSink extends Binder {
             if (current != null) writeIdentity(reply, current);
             return true;
         }
+        if (code == FrameIpcProtocol.FRAME_LAB_REVOKE_PARENT_AUTHORITY) {
+            if (!isCompositorProcessCaller()) {
+                reply.writeException(new SecurityException("lab owner revocation caller rejected"));
+                return true;
+            }
+            data.enforceInterface(SINK_DESCRIPTOR);
+            FrameStreamIdentity expected = readIdentity(data);
+            boolean accepted = identity != null && identity.equals(expected);
+            if (accepted) clearIdentityAndCompositorEpoch();
+            reply.writeNoException();
+            reply.writeInt(accepted ? 1 : 0);
+            return true;
+        }
+        if (code == FrameIpcProtocol.FRAME_LAB_BIND_COMPOSITOR_EPOCH) {
+            if (!isCompositorProcessCaller()) {
+                reply.writeException(new SecurityException("lab owner epoch caller rejected"));
+                return true;
+            }
+            data.enforceInterface(SINK_DESCRIPTOR);
+            FrameStreamIdentity expected = readIdentity(data);
+            final IBinder compositor = data.readStrongBinder();
+            boolean accepted = false;
+            if (identity != null && identity.equals(expected) && compositor != null &&
+                    compositor.isBinderAlive()) {
+                if (compositorEpoch == compositor && compositorDeathRecipient != null) {
+                    accepted = true;
+                } else if (compositorEpoch == null || !compositorEpoch.isBinderAlive()) {
+                    final FrameStreamIdentity boundIdentity = identity;
+                    final IBinder.DeathRecipient recipient = new IBinder.DeathRecipient() {
+                        public void binderDied() {
+                            synchronized (FrameLabSink.this) {
+                                if (compositorEpoch == compositor && identity != null &&
+                                        identity.sameStream(boundIdentity)) {
+                                    clearIdentityAndCompositorEpoch();
+                                    android.util.Log.i("ClarityLinkCLIMP03",
+                                            "TYPE110_OWNER_EPOCH_REVOKED session_id=" +
+                                            boundIdentity.sessionId + " cause=compositor_process_death");
+                                }
+                            }
+                        }
+                    };
+                    try {
+                        compositor.linkToDeath(recipient, 0);
+                        compositorEpoch = compositor;
+                        compositorDeathRecipient = recipient;
+                        compositorPid = Binder.getCallingPid();
+                        accepted = true;
+                    } catch (RemoteException deadCompositor) { }
+                }
+            }
+            reply.writeNoException();
+            reply.writeInt(accepted ? 1 : 0);
+            return true;
+        }
         if (code != FrameIpcProtocol.VIEW_FRAME && code != FrameIpcProtocol.VIEW_WARNING &&
                 code != FrameIpcProtocol.VIEW_CHANGE_GENERATION)
             return super.onTransact(code, data, reply, flags);
-        if (Binder.getCallingUid() != Process.myUid()) {
-            reply.writeException(new SecurityException("lab output caller rejected"));
+        if (!isBoundCompositorCaller()) {
+            android.util.Log.w("ClarityLinkCLIMP03", "TYPE110_LAB_SINK_MUTATION_REJECTED code=" +
+                    code + " caller_pid=" + Binder.getCallingPid() + " owner_pid=" + compositorPid);
+            reply.writeException(new SecurityException("compositor-bound lab output caller required"));
             return true;
         }
         data.enforceInterface("org.claritylink.android.IClarityLinkViewFrameSink");
@@ -185,6 +287,39 @@ final class FrameLabSink extends Binder {
         reply.writeNoException(); reply.writeInt(accepted ? 1 : 0);
         reply.writeString(accepted ? "primary_lab_recorded" : "primary_lab_frame_rejected");
         return true;
+    }
+
+    private void clearIdentityAndCompositorEpoch() {
+        IBinder oldCompositor = compositorEpoch;
+        IBinder.DeathRecipient oldRecipient = compositorDeathRecipient;
+        identity = null;
+        compositorEpoch = null;
+        compositorDeathRecipient = null;
+        compositorPid = 0;
+        if (oldCompositor != null && oldRecipient != null) {
+            try { oldCompositor.unlinkToDeath(oldRecipient, 0); }
+            catch (RuntimeException ignored) { }
+        }
+    }
+
+    private boolean isBoundCompositorCaller() {
+        IBinder epoch = compositorEpoch;
+        return Binder.getCallingUid() == Process.myUid() && compositorPid > 0 &&
+                Binder.getCallingPid() == compositorPid && epoch != null && epoch.isBinderAlive();
+    }
+
+    private boolean isCompositorProcessCaller() {
+        int callerPid = Binder.getCallingPid();
+        if (callerPid <= 0 || Binder.getCallingUid() != Process.myUid()) return false;
+        ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        if (manager == null) return false;
+        java.util.List<ActivityManager.RunningAppProcessInfo> processes = manager.getRunningAppProcesses();
+        if (processes == null) return false;
+        String expected = context.getPackageName() + ":compositor";
+        for (ActivityManager.RunningAppProcessInfo process : processes)
+            if (process.pid == callerPid && process.uid == Process.myUid())
+                return expected.equals(process.processName);
+        return false;
     }
 
     private static FrameStreamIdentity readIdentity(Parcel data) {

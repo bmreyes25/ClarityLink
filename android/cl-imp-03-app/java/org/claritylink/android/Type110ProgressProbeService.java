@@ -6,8 +6,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Build;
+import android.os.Binder;
 import android.os.IBinder;
+import android.os.Parcel;
 import android.os.Process;
+import android.os.RemoteException;
 import android.util.Base64;
 import android.util.Log;
 
@@ -24,7 +27,57 @@ public final class Type110ProgressProbeService extends Service {
     private volatile boolean bound;
     private volatile boolean finished;
     private boolean started;
+    private boolean startCommandConsumed;
     private Type110LabProbeOwnership.Record ownership;
+
+    private final IBinder authorizationBinder = new Binder() {
+        @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
+                throws RemoteException {
+            if (code != FrameIpcProtocol.TYPE110_PROBE_AUTHORIZE) return super.onTransact(code, data, reply, flags);
+            FrameStreamIdentity ownerIdentity = readIdentity(data);
+            FrameStreamIdentity expectedDeath = readIdentity(data);
+            long lastFrameId = data.readLong();
+            int sinkPid = data.readInt();
+            int callerPid = Binder.getCallingPid();
+            boolean compositorCaller = (getPackageName() + ":compositor").equals(processNameForPid(callerPid));
+            Type110LabProbeOwnership.Record claimed = compositorCaller && ownerIdentity != null &&
+                    ownerIdentity.isValid() && ownerIdentity.streamType == FrameStreamIdentity.TYPE110 &&
+                    expectedDeath != null && expectedDeath.isValid() &&
+                    expectedDeath.streamType == FrameStreamIdentity.TYPE111 &&
+                    ownerIdentity.sessionId == expectedDeath.sessionId && lastFrameId > 0L && sinkPid > 0
+                    ? new Type110LabProbeOwnership.Record(ownerIdentity, expectedDeath, lastFrameId, sinkPid)
+                    : null;
+            boolean grantIssued = claimed != null && Type110LabProbeOwnership
+                    .issueTeardownGrantAuthorized(Type110ProgressProbeService.this, claimed);
+            if (!grantIssued) claimed = null;
+            boolean accepted = false;
+            synchronized (Type110ProgressProbeService.this) {
+                if (claimed != null && !started && !finished && claimed.sinkPid != Process.myPid()) {
+                    ownership = claimed;
+                    started = true;
+                    accepted = true;
+                }
+            }
+            reply.writeNoException();
+            reply.writeInt(accepted ? 1 : 0);
+            if (accepted) {
+                Intent launch = new Intent(Type110ProgressProbeService.this,
+                        Type110ProgressProbeService.class);
+                if (startService(launch) == null) {
+                    synchronized (Type110ProgressProbeService.this) {
+                        ownership = null; started = false;
+                    }
+                    reply.setDataPosition(0);
+                    reply.writeNoException(); reply.writeInt(0);
+                    accepted = false;
+                }
+            }
+            Log.i(TAG, "TYPE110_POST_DEATH_PROBE_AUTHORIZATION caller_pid=" + callerPid +
+                    " caller_process=" + processNameForPid(callerPid) + " accepted=" + accepted +
+                    " expected_type111_death=" + (claimed != null));
+            return true;
+        }
+    };
 
     private final ServiceConnection compositorConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, final IBinder endpoint) {
@@ -38,31 +91,31 @@ public final class Type110ProgressProbeService extends Service {
         }
     };
 
-    @Override public IBinder onBind(Intent intent) { return null; }
+    @Override public IBinder onBind(Intent intent) { return authorizationBinder; }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        Type110LabProbeOwnership.Record authorized;
         synchronized (this) {
-            if (started || finished) {
-                Log.i(TAG, "TYPE110_POST_DEATH_PROBE_DUPLICATE_START_IGNORED start_id=" + startId);
+            if (!started || startCommandConsumed || finished || ownership == null) {
+                Log.w(TAG, "TYPE110_POST_DEATH_PROBE_UNAUTHORIZED_START_IGNORED start_id=" + startId);
+                stopSelf(startId);
                 return START_NOT_STICKY;
             }
-            started = true;
+            startCommandConsumed = true;
+            authorized = ownership;
         }
-        FrameStreamIdentity expectedDeath = Type110LabProbeOwnership.expectedDeathFrom(intent);
-        ownership = Type110LabProbeOwnership.consume(this, expectedDeath);
-        if (!isEmulator() || ownership == null ||
-                ownership.identity.sessionId <= 0L || ownership.identity.streamGeneration <= 0L ||
-                ownership.sinkPid == Process.myPid()) {
+        if (!isEmulator() || authorized.identity.sessionId <= 0L ||
+                authorized.identity.streamGeneration <= 0L || authorized.sinkPid == Process.myPid()) {
             Log.e(TAG, "CL_R4_TYPE110_AFTER_TYPE111_DEATH_FAIL reason=lab_guard_or_identity_rejected");
             complete();
             return START_NOT_STICKY;
         }
-        FrameStreamIdentity owner = ownership.identity;
+        FrameStreamIdentity owner = authorized.identity;
         Log.i(TAG, "TYPE110_POST_DEATH_PROBE_READY pid=" + Process.myPid() + " uid=" +
                 Process.myUid() + " session_id=" + owner.sessionId + " stream_generation=" +
                 owner.streamGeneration + " last_frame_id=" + ownership.lastFrameId +
-                " expected_type111_connection_id=" + expectedDeath.connectionId +
-                " expected_type111_generation=" + expectedDeath.streamGeneration +
+                " expected_type111_connection_id=" + authorized.expectedType111Death.connectionId +
+                " expected_type111_generation=" + authorized.expectedType111Death.streamGeneration +
                 " type110_sink_pid=" + ownership.sinkPid + " owner_record=consumed_once");
         bound = bindService(new Intent(this, CompositorService.class), compositorConnection,
                 Context.BIND_AUTO_CREATE);
@@ -71,6 +124,24 @@ public final class Type110ProgressProbeService extends Service {
             complete();
         }
         return START_NOT_STICKY;
+    }
+
+    private String processNameForPid(int pid) {
+        if (pid <= 0) return null;
+        android.app.ActivityManager manager = (android.app.ActivityManager)
+                getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) return null;
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes =
+                manager.getRunningAppProcesses();
+        if (processes == null) return null;
+        for (android.app.ActivityManager.RunningAppProcessInfo process : processes)
+            if (process.pid == pid && process.uid == Process.myUid()) return process.processName;
+        return null;
+    }
+
+    private static FrameStreamIdentity readIdentity(Parcel data) {
+        return new FrameStreamIdentity(data.readLong(), data.readInt(), data.readLong(),
+                data.readLong(), data.readInt());
     }
 
     private void executeProbe(IBinder endpoint, Type110LabProbeOwnership.Record record) {
