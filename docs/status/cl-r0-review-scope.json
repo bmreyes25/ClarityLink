@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "ca842e9a4c3c75be8bfa3e00359788bb6dcae5db5b4674284a298dc363a8b725"
+      "sha256": "c596329bce8a0d95ffcecf5c9ad4dfbe148aa4c909463ebe50528435ecc355ab"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,7 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "714616802b734d0008cdd884b93a33a2526835813ebfe5984f30733502b736da"
+      "sha256": "6145457225cb732559d5a3d339efd9f4f6ed37f83fa8fbd3b5324d1603763a5c"
     },
     {
       "path": "docs/status/milestones.json",
