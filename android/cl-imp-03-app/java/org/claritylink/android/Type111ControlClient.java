@@ -22,6 +22,34 @@ final class Type111ControlClient {
         }
     }
 
+    static final class FrameStats {
+        final boolean registered;
+        final int activePfdTransfers;
+        final int retainedFrameBytes;
+        final boolean transferActive;
+        final long lastFrameId;
+        FrameStats(boolean registered, int activePfdTransfers, int retainedFrameBytes,
+                boolean transferActive, long lastFrameId) {
+            this.registered = registered;
+            this.activePfdTransfers = activePfdTransfers;
+            this.retainedFrameBytes = retainedFrameBytes;
+            this.transferActive = transferActive;
+            this.lastFrameId = lastFrameId;
+        }
+    }
+
+    FrameStats queryFrameStats(FrameStreamIdentity identity) throws RemoteException {
+        if (identity == null || !identity.isValid()) return null;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            header(data); writeIdentity(data, identity);
+            endpoint.transact(FrameIpcProtocol.FRAME_LAB_QUERY_STATS, data, reply, 0);
+            reply.readException();
+            return new FrameStats(reply.readInt() != 0, reply.readInt(), reply.readInt(),
+                    reply.readInt() != 0, reply.readLong());
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     StreamQuery queryType111Stream(FrameStreamIdentity type110Owner) throws RemoteException {
         if (type110Owner == null || !type110Owner.isValid() ||
                 type110Owner.streamType != FrameStreamIdentity.TYPE110) return null;

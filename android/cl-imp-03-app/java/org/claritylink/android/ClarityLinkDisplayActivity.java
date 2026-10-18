@@ -68,6 +68,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_TYPE111_FIRST = "type111_first_mode";
     private static final String EXTRA_REATTACH_SESSION_ID = "type111_reattach_session_id";
     private static final String EXTRA_REATTACH_TEST = "type111_reattach_test";
+    private static final String EXTRA_OWNER_DEATH_TEST = "owner_death_test";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
     private static final String LAB_CONFIRM = "CL_IMP_03_OFFLINE_EMULATOR_ONLY";
     private static final boolean PRODUCTION_HONDA_INTEGRATION_ENABLED = false;
@@ -155,6 +156,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private long fixtureTimestampOffsetNs;
     private long lastType111SubmissionTimestampNs;
     private boolean type111ReattachTest;
+    private boolean ownerDeathTest;
     private boolean type111RunStarted;
     private volatile Thread type111FixtureWorker;
     private volatile FixtureRunToken type111FixtureRunToken;
@@ -214,6 +216,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         reattachSessionId = getIntent() == null ? 0L :
                 getIntent().getLongExtra(EXTRA_REATTACH_SESSION_ID, 0L);
         type111ReattachTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_REATTACH_TEST, false);
+        ownerDeathTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_OWNER_DEATH_TEST, false);
         recreation = state != null;
         showStatus("ClarityLink disabled candidate. No display is selected automatically.");
         log("ACTIVITY_READY api=" + Build.VERSION.SDK_INT + " pid=" + android.os.Process.myPid()
@@ -1175,7 +1178,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder);
                     if (type110Identity == null || type110Final == null)
                         throw new IllegalStateException("type110_survivor_receipt_unavailable");
-                    if (!type111ReattachTest)
+                    if (!type111ReattachTest && !ownerDeathTest)
                         issueType110ProbeOwnership(type110Identity, type110Final);
                     Log.i(TAG, "CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED pid=" +
                             android.os.Process.myPid() + " session_id=" + type110Identity.sessionId +
@@ -1184,6 +1187,17 @@ public final class ClarityLinkDisplayActivity extends Activity
                             " type110_last_frame_id=" + type110Final.frameId +
                             " type110_sink_pid=" + type110Final.pid +
                             " type111_sink_pid=" + android.os.Process.myPid());
+                    if (ownerDeathTest) {
+                        Log.i(TAG, "CL_R4B_OWNER_SESSION_READY session_id=" + type110Identity.sessionId +
+                                " type110_connection_id=" + type110Identity.connectionId +
+                                " type110_generation=" + type110Identity.streamGeneration +
+                                " type110_last_frame_id=" + type110Final.frameId +
+                                " type111_connection_id=" + frameIpcClient.streamIdentity().connectionId +
+                                " type111_generation=" + frameIpcClient.streamIdentity().streamGeneration +
+                                " parent_owner_pid=" + compositorRemotePid +
+                                " valid_type110_and_type111_frames=true session_kept_open=true");
+                        return;
+                    }
                     if (runToken.isCancelled() || !active || closing) {
                         log("CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE parent_session_preserved=true");
                         return;
@@ -1960,14 +1974,21 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (closing) return;
         closing = true;
         active = false;
+        FixtureRunToken runToken = type111FixtureRunToken;
+        if (runToken != null) runToken.cancelForDetach();
+        type111RunStarted = false;
+        Thread fixtureWorker = type111FixtureWorker;
+        if (fixtureWorker != null && fixtureWorker != Thread.currentThread()) fixtureWorker.interrupt();
         log("LIFECYCLE_STOP reason=" + reason);
         closeDiagnosticSources();
         releaseRenderer();
         SecondaryDisplayHost old = displayHost;
         displayHost = null;
         if (old != null) {
-            try { old.close(); }
+            boolean dismissed = false;
+            try { old.close(); dismissed = true; }
             catch (RuntimeException failure) { log("PRESENTATION_CLOSE_FAILED type=" + failure.getClass().getSimpleName()); }
+            if (dismissed) log("PRESENTATION_DISMISS_REQUESTED reason=" + reason);
         }
         borrowedPresentationSurface = null;
         closeIpcSession();
