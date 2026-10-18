@@ -162,3 +162,52 @@ def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verif
     assert "overlap_barrier=first_paused_contender_rejected" in runner
     assert "Expected one parent teardown commit" in runner
     assert "Stream $stream_type unregister count was" in runner
+
+
+def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_authorized_replacement():
+    protocol = (APP / "java/org/claritylink/android/FrameIpcProtocol.java").read_text()
+    service = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    client = (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+
+    assert "LAB_ARM_DELAYED_SINK_DEATH_CALLBACK = 33" in protocol
+    assert "LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK = 34" in protocol
+    assert "Binder.getCallingUid() != Process.myUid()" in service
+    assert "armDelayedSinkDeathCallback(identity)" in service
+    assert "fireDelayedSinkDeathCallback(ownerIdentity, currentIdentity)" in service
+    assert "labDelayedDeathIdentity.streamGeneration + 1L != currentIdentity.streamGeneration" in service
+    assert "labDelayedDeathState != child" in service
+    assert "labDelayedDeathState != state" in service
+    assert "labDelayedDeathRecipient != recipient" in service
+    assert "labDelayedDeathRecipient = state.deathRecipient" in service
+    assert "if (labDelayedDeathIdentity != null) return false" in service
+    assert "pauseLabDelayedDeathCallback(" in service
+    assert "release.await(120000L, TimeUnit.MILLISECONDS)" in service
+    assert "release.countDown()" in service
+    assert "completed.await(10000L, TimeUnit.MILLISECONDS)" in service
+    assert "old_callback_completed_after_replacement=true" in activity
+    assert "armLabDelayedSinkDeathCallback" in client
+    assert "fireLabDelayedSinkDeathCallback(primaryIdentity, replacement)" in activity
+    assert "if (existing.sinkAttached && !delayedDeathCallbackTest)" in activity
+    assert "replacement_preserved=true" in activity
+    assert "wrong_owner_callback_release_rejected" in activity
+    assert "duplicate_callback_release_rejected" in activity
+    assert "callback_release_after_parent_teardown_rejected" in activity
+    assert "CL_R4B_DELAYED_CALLBACK_NEGATIVE_IDENTITY_PASS" in runner
+    assert "CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS" in runner
+    assert "--cl-r4b-delayed-callback" in runner
+    assert "--cl-r4b-delayed-callback-type111-first" in runner
+    assert "IPC_LAB_DELAYED_DEATH_CALLBACK_ENTERED session_id=$initial_session_generation " in runner
+    assert "Delayed callback detached the old sink after entering its pre-mutation barrier but before replacement." in runner
+    assert 'NR > entered && index($0, "IPC_TYPE111_SINK_DETACHED session_id=" session " ")' in runner
+    assert 'api17-delayed-callback-before-replacement-$adb_port.txt' in runner
+    assert "entered_before_replacement=true completed_after_replacement=true current_sink_preserved=true" in runner
+    assert "replacement_activity_pid" in runner
+    assert runner.index('start_lab_activity_privileged type111_delayed_callback_replacement "$initial_session_generation"') < runner.index('window_state=$(adb_local -s "$serial" shell dumpsys window windows')
+    delayed_flow = runner[runner.index("wait_for 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED'"):runner.index('app_pid=$initial_type111_pid')]
+    assert delayed_flow.index('IPC_LAB_DELAYED_DEATH_CALLBACK_ENTERED') < delayed_flow.index('start_lab_activity_privileged type111_delayed_callback_replacement')
+    assert delayed_flow.index('start_lab_activity_privileged type111_delayed_callback_replacement') < delayed_flow.index('IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED')
+    assert 'grep -F "pid=$app_pid " | tail -1' in runner
+    assert 'grep -F "session_id=$initial_session_generation "' in runner
+    assert 'else\n    wait_for \'IPC_VIEW_SINK_DEATH_CALLBACK session_id=\'' in delayed_flow

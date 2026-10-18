@@ -36,6 +36,8 @@ final class FrameIpcProtocol {
     static final int LAB_WAIT_PARENT_TEARDOWN_BARRIER = 30;
     static final int LAB_WAIT_PARENT_TEARDOWN_CONTENDER = 31;
     static final int LAB_RELEASE_PARENT_TEARDOWN_BARRIER = 32;
+    static final int LAB_ARM_DELAYED_SINK_DEATH_CALLBACK = 33;
+    static final int LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK = 34;
     static final int FRAME_LAB_QUERY_IDENTITY = 26;
     static final int PIXEL_FORMAT_RGBA_8888 = 1;
     static final int MAX_FRAME_BYTES = 4 * 1024 * 1024;

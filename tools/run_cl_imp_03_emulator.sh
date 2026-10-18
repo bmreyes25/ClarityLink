@@ -19,6 +19,7 @@ type111_reattach=0
 type110_failure=0
 owner_death=0
 reentrant_teardown=0
+delayed_death_callback=0
 if [ "${1:-}" = "--cl-r4b-reentrant-teardown-type111-first" ]; then
   type111_mode=1
   type111_first=1
@@ -55,6 +56,18 @@ elif [ "${1:-}" = "--cl-r4-type111" ]; then
 elif [ "${1:-}" = "--cl-r4-type111-reattach" ]; then
   type111_mode=1
   type111_reattach=1
+  shift
+fi
+if [ "${1:-}" = "--cl-r4b-delayed-callback" ]; then
+  type111_mode=1
+  type111_reattach=1
+  delayed_death_callback=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-delayed-callback-type111-first" ]; then
+  type111_mode=1
+  type111_first=1
+  type111_reattach=1
+  delayed_death_callback=1
   shift
 fi
 [ "$#" -eq 0 ] || { echo 'Unexpected emulator harness arguments.' >&2; exit 2; }
@@ -349,7 +362,7 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|controlled_exit|crash)
+    presentation|type111|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
@@ -360,6 +373,18 @@ start_lab_activity_privileged() {
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true ;;
         type111_first_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true
+          ;;
+        type111_delayed_callback_first)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true
+          ;;
+        type111_first_delayed_callback_first)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true
+          ;;
+        type111_delayed_callback_replacement)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez delayed_death_callback_test true
+          if [ -n "$reattach_session_arg" ]; then
+            set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
+          fi
           ;;
         type111_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true
@@ -425,6 +450,8 @@ if [ "$decoder_only" -eq 1 ]; then
 elif [ "$type111_first" -eq 1 ]; then
   if [ "$reentrant_teardown" -eq 1 ]; then
     start_lab_activity_privileged type111_first_reentrant
+  elif [ "$delayed_death_callback" -eq 1 ]; then
+    start_lab_activity_privileged type111_first_delayed_callback_first
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_first_reattach
   else
@@ -435,6 +462,8 @@ elif [ "$type111_mode" -eq 1 ]; then
     start_lab_activity_privileged type111_owner_death
   elif [ "$reentrant_teardown" -eq 1 ]; then
     start_lab_activity_privileged type111_reentrant_teardown
+  elif [ "$delayed_death_callback" -eq 1 ]; then
+    start_lab_activity_privileged type111_delayed_callback_first
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
   else
@@ -743,12 +772,31 @@ if [ "$type111_mode" -eq 1 ]; then
     exit 0
   fi
   wait_for 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED'
-  wait_for 'IPC_VIEW_SINK_DEATH_CALLBACK session_id='
+  if [ "$delayed_death_callback" -eq 1 ]; then
+    wait_for "IPC_LAB_DELAYED_DEATH_CALLBACK_ENTERED session_id=$initial_session_generation "
+    logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$logs" > "$campaign_evidence/api17-delayed-callback-before-replacement-$adb_port.txt"
+    entered_line=$(printf '%s\n' "$logs" | grep -nF "IPC_LAB_DELAYED_DEATH_CALLBACK_ENTERED session_id=$initial_session_generation " | tail -1 | cut -d: -f1)
+    [ -n "$entered_line" ] || { echo 'Delayed callback entry receipt disappeared before replacement.' >&2; exit 9; }
+    post_entry_detach=$(printf '%s\n' "$logs" | awk -v entered="$entered_line" -v session="$initial_session_generation" '
+      NR > entered && index($0, "IPC_TYPE111_SINK_DETACHED session_id=" session " ") {print; found=1}
+      END {if (!found) exit 1}
+    ' || true)
+    [ -z "$post_entry_detach" ] || {
+      echo 'Delayed callback detached the old sink after entering its pre-mutation barrier but before replacement.' >&2
+      printf '%s\n' "$post_entry_detach" >&2
+      exit 9;
+    }
+    start_lab_activity_privileged type111_delayed_callback_replacement "$initial_session_generation"
+    wait_for "IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED session_id=$initial_session_generation "
+  else
+    wait_for 'IPC_VIEW_SINK_DEATH_CALLBACK session_id='
+  fi
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   app_pid=$initial_type111_pid
   [ -n "$app_pid" ] || { echo 'Type111 process identity was not captured.' >&2; exit 9; }
-  death_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED ' | tail -1)
-  printf '%s\n' "$death_line" | grep -F "pid=$app_pid " >/dev/null || {
+  death_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED ' | grep -F "pid=$app_pid " | tail -1)
+  printf '%s\n' "$death_line" | grep -F "session_id=$initial_session_generation " >/dev/null || {
     echo 'The Type111 sink process exit was not the identified Activity process.' >&2; exit 9;
   }
   session_id=$(printf '%s\n' "$death_line" | sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
@@ -781,19 +829,44 @@ if [ "$type111_mode" -eq 1 ]; then
   printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2==pid {found=1} END {exit !found}' && {
     echo "Type111 View process $app_pid remains alive after its self-termination request." >&2; exit 9;
   }
-  printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=111" >/dev/null || {
-    echo 'Compositor did not observe Type111 Binder sink death.' >&2; exit 9;
-  }
+  if [ "$delayed_death_callback" -eq 1 ]; then
+    printf '%s\n' "$logs" | grep -F "CL_R4B_DELAYED_CALLBACK_NEGATIVE_IDENTITY_PASS wrong_session=true wrong_generation=true replacement_unchanged=true" >/dev/null || {
+      echo 'Delayed callback wrong-identity releases were not rejected without changing the replacement.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED session_id=$session_id " \
+      | grep -F 'entered_before_replacement=true completed_after_replacement=true current_sink_preserved=true' >/dev/null || {
+      printf '%s\n' "$logs" | grep -F 'IPC_LAB_DELAYED_DEATH_CALLBACK_' >&2 || true
+      echo 'Paused old Binder callback did not complete after replacement while preserving the current sink.' >&2; exit 9;
+    }
+  else
+    printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=111" >/dev/null || {
+      echo 'Compositor did not observe Type111 Binder sink death.' >&2; exit 9;
+    }
+  fi
   if printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110" >/dev/null; then
     echo 'Type110 sink died when only the Type111 View process died.' >&2; exit 9;
   fi
   process_state=$(printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2 == pid {print}')
   [ -z "$process_state" ] || { echo "Type111 sink process still exists: $process_state" >&2; exit 9; }
-  window_state=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' | grep -F "mOwnerUid=$app_uid" || true)
-  [ -z "$window_state" ] || { echo "ClarityLink window remains after Type111 sink death: $window_state" >&2; exit 9; }
+  if [ "$delayed_death_callback" -eq 1 ]; then
+    replacement_activity_pid=$(printf '%s\n' "$logs" | sed -n \
+      's/.*ACTIVITY_READY .*pid=\([0-9][0-9]*\).*/\1/p' | tail -1)
+    [ -n "$replacement_activity_pid" ] && [ "$replacement_activity_pid" != "$app_pid" ] || {
+      echo 'Delayed callback replacement did not start a fresh View Activity process.' >&2; exit 9;
+    }
+  else
+    window_state=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' | grep -F "mOwnerUid=$app_uid" || true)
+    [ -z "$window_state" ] || { echo "ClarityLink window remains after Type111 sink death: $window_state" >&2; exit 9; }
+  fi
   echo "TYPE111_SINK_DEATH_VERIFIED pid=$app_pid type110_sink_pid=$type110_sink_pid compositor_pid=$compositor_pid type110_death_callback=false"
   if [ "$type111_reattach" -eq 1 ]; then
-    start_lab_activity_privileged type111_reattach "$session_id"
+    if [ "$delayed_death_callback" -eq 0 ]; then
+      start_lab_activity_privileged type111_reattach "$session_id"
+    fi
+    if [ "$delayed_death_callback" -eq 1 ]; then
+      wait_for "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=$session_id "
+      wait_for "IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED session_id=$session_id "
+    fi
     for attempt in $(seq 1 180); do
       owned || { echo 'Owned emulator changed while waiting for Type111 reattachment.' >&2; exit 7; }
       logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
@@ -810,6 +883,9 @@ if [ "$type111_mode" -eq 1 ]; then
       echo 'Restarted Type111 View process did not receive a fresh PID.' >&2; exit 9;
     }
     wait_for 'CL_R4A_VIEW_REATTACH_PASS'
+    if [ "$delayed_death_callback" -eq 1 ]; then
+      wait_for 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'
+    fi
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt"
     printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown=accepted' >/dev/null || {
