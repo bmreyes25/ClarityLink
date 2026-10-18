@@ -1758,21 +1758,29 @@ public final class ClarityLinkDisplayActivity extends Activity
     }
 
     private long[] awaitIsolatedProducerFrames(IBinder producer, String descriptor) throws Exception {
-        Parcel data = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            data.writeInterfaceToken(descriptor);
-            data.writeLong(15000L);
-            producer.transact(IBinder.FIRST_CALL_TRANSACTION + 3, data, reply, 0);
-            reply.readException();
-            boolean finished = reply.readInt() != 0;
-            int count = reply.readInt();
-            if (!finished || count < 0 || count > 4)
-                throw new IllegalStateException("isolated_producer_completion_or_count_invalid");
-            long[] timestamps = new long[count];
-            for (int i = 0; i < count; i++) timestamps[i] = reply.readLong();
-            return timestamps;
-        } finally { reply.recycle(); data.recycle(); }
+        // Each Binder wait remains capped by the producer's 15s contract. Retry only
+        // after an explicit unfinished reply, for a bounded total of 45s; this avoids
+        // treating slow API17 codec startup as a producer failure or using blind sleeps.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Parcel data = Parcel.obtain();
+            Parcel reply = Parcel.obtain();
+            try {
+                data.writeInterfaceToken(descriptor);
+                data.writeLong(15000L);
+                producer.transact(IBinder.FIRST_CALL_TRANSACTION + 3, data, reply, 0);
+                reply.readException();
+                boolean finished = reply.readInt() != 0;
+                int count = reply.readInt();
+                if (count < 0 || count > 4)
+                    throw new IllegalStateException("isolated_producer_completion_count_invalid");
+                if (finished) {
+                    long[] timestamps = new long[count];
+                    for (int i = 0; i < count; i++) timestamps[i] = reply.readLong();
+                    return timestamps;
+                }
+            } finally { reply.recycle(); data.recycle(); }
+        }
+        throw new IllegalStateException("isolated_producer_did_not_finish_within_bounded_waits");
     }
 
     private boolean controlBarrier(int code, FrameStreamIdentity identity, long timeoutMs)

@@ -87,6 +87,16 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
 
     source = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
     assert 'expected.equals(process.processName)' in source
+    assert 'bindOwnerObserver("observer_bind_failed")' in source
+    assert 'bindOwnerObserver("observer_rebind_failed_after_owner_death")' in source
+    assert "observerRebindStarted = true" in source
+    assert "unbindService(deadConnection)" in source
+    assert "private final Object lifecycleLock" in source
+    assert "connection != this || endpointDisconnected ||" in source
+    assert "endpointVerificationStarted = true" in source
+    assert "ownerDeathObserved = true" in source
+    assert "if (!ownerDeathObserved ||" in source
+    assert "synchronized (lifecycleLock)" in source
     assert "process.uid == Process.myUid()" in source
     assert "Process.killProcess(targetPid);" in source
     assert "service.isBinderAlive() || !isExactOwnedCompositorPid(targetPid)" in source
@@ -294,3 +304,15 @@ def test_api17_producer_recovery_rebinds_only_after_real_binder_death():
     assert '"producer_rebound_after_process_death"' in recovery
     assert "CL_R4_TYPE111_PRODUCER_REBIND_PASS" in recovery
     assert "bound_service_recreated_after_process_death" not in recovery
+
+
+def test_api17_producer_wait_retries_only_bounded_unfinished_binder_replies():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    start = activity.index("private long[] awaitIsolatedProducerFrames")
+    end = activity.index("private void verifyProducerWaitBounds", start)
+    wait = activity[start:end]
+    assert "attempt < 3" in wait
+    assert "data.writeLong(15000L)" in wait
+    assert "if (finished)" in wait
+    assert "isolated_producer_did_not_finish_within_bounded_waits" in wait
+    assert "Thread.sleep" not in wait

@@ -26,10 +26,14 @@ public final class CompositorOwnerDeathTestService extends Service {
     private static final String TAG = "ClarityLinkCLIMP03";
     private static final String CONFIRMATION = "CL_R4B_OFFLINE_EMULATOR_ONLY";
     private final Handler handler = new Handler();
+    private final Object lifecycleLock = new Object();
     private volatile IBinder endpoint;
     private volatile boolean ownerDeathRequested;
     private volatile boolean endpointDisconnected;
+    private volatile boolean ownerDeathObserved;
     private volatile boolean finished;
+    private boolean observerRebindStarted;
+    private boolean endpointVerificationStarted;
     private boolean started;
     private int targetPid;
     private FrameStreamIdentity ownerIdentity;
@@ -67,26 +71,67 @@ public final class CompositorOwnerDeathTestService extends Service {
         Log.i(TAG, "CL_R4B_OWNER_DEATH_TARGET_VERIFIED pid=" + targetPid +
                 " process=" + getPackageName() + ":compositor uid=" + Process.myUid() +
                 " session_id=" + sessionId);
-        connection = new ServiceConnection() {
+        handler.postDelayed(new Runnable() {
+            public void run() { if (!finished) fail("owner_death_observation_timeout"); }
+        }, 30000L);
+        bindOwnerObserver("observer_bind_failed");
+        return START_NOT_STICKY;
+    }
+
+    /** API17 does not reliably reconnect a bound-only service after its process is killed. */
+    private void bindOwnerObserver(final String failureReason) {
+        final ServiceConnection observer;
+        synchronized (lifecycleLock) {
+            if (finished) return;
+            endpointVerificationStarted = false;
+            observer = new ServiceConnection() {
             public void onServiceConnected(ComponentName name, final IBinder service) {
-                endpoint = service;
+                synchronized (lifecycleLock) {
+                    // Ignore a late reconnect from the binding that reported owner death.
+                    if (finished || connection != this || endpointDisconnected ||
+                            endpointVerificationStarted) return;
+                    endpointVerificationStarted = true;
+                    endpoint = service;
+                }
                 new Thread(new Runnable() {
                     public void run() { onEndpointConnected(service); }
                 }, "ClarityLinkOwnerDeathObserver").start();
             }
             public void onServiceDisconnected(ComponentName name) {
-                endpoint = null;
-                endpointDisconnected = true;
+                final ServiceConnection deadConnection = this;
+                synchronized (lifecycleLock) {
+                    if (finished || connection != deadConnection) return;
+                    endpoint = null;
+                    endpointDisconnected = true;
+                    ownerDeathObserved = true;
+                    if (observerRebindStarted) return;
+                    observerRebindStarted = true;
+                }
                 Log.i(TAG, "CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=" + targetPid +
                         " process=" + name.getClassName());
+                handler.post(new Runnable() {
+                    public void run() {
+                        synchronized (lifecycleLock) {
+                            if (finished || connection != deadConnection) return;
+                            try { unbindService(deadConnection); }
+                            catch (IllegalArgumentException ignored) { }
+                            connection = null;
+                            observerRebindStarted = false;
+                            endpointDisconnected = false;
+                        }
+                        bindOwnerObserver("observer_rebind_failed_after_owner_death");
+                    }
+                });
             }
-        };
-        handler.postDelayed(new Runnable() {
-            public void run() { if (!finished) fail("owner_death_observation_timeout"); }
-        }, 30000L);
-        if (!bindService(new Intent(this, CompositorService.class), connection,
-                Context.BIND_AUTO_CREATE)) fail("observer_bind_failed");
-        return START_NOT_STICKY;
+            };
+            connection = observer;
+            if (!bindService(new Intent(this, CompositorService.class), observer,
+                    Context.BIND_AUTO_CREATE)) {
+                connection = null;
+            }
+        }
+        if (connection != observer) fail(failureReason);
+        else Log.i(TAG, "CL_R4B_OWNER_DEATH_OBSERVER_BIND_STARTED rebind=" + observerRebindStarted);
     }
 
     private void onEndpointConnected(IBinder service) {
@@ -107,7 +152,7 @@ public final class CompositorOwnerDeathTestService extends Service {
                 Process.killProcess(targetPid);
                 return;
             }
-            if (!endpointDisconnected || query.compositorPid == targetPid || query.ownerValid ||
+            if (!ownerDeathObserved || query.compositorPid == targetPid || query.ownerValid ||
                     query.identity != null || query.sinkAttached)
                 throw new IllegalStateException("restarted_owner_retained_old_session");
             Type111ControlClient.FrameStats type110 = control.queryFrameStats(ownerIdentity);
@@ -283,12 +328,16 @@ public final class CompositorOwnerDeathTestService extends Service {
     }
 
     private void finishOnce() {
-        if (finished) return;
-        finished = true;
-        handler.removeCallbacksAndMessages(null);
-        if (connection != null) {
-            try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
+        final ServiceConnection observer;
+        synchronized (lifecycleLock) {
+            if (finished) return;
+            finished = true;
+            observer = connection;
             connection = null;
+        }
+        handler.removeCallbacksAndMessages(null);
+        if (observer != null) {
+            try { unbindService(observer); } catch (IllegalArgumentException ignored) { }
         }
         stopSelf();
     }
