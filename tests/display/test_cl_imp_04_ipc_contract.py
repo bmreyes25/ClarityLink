@@ -310,9 +310,13 @@ def test_parent_teardown_closes_registration_admission_before_child_snapshot():
     assert "sink.unlinkToDeath(state.deathRecipient, 0)" in register_body
     assert "closing = closingSessions.contains(identity.sessionId)" in setup
     assert "closingSessions.contains(sessionId)" in capability
-    assert "MAX_CLOSED_SESSION_IDS = 128" in source
-    assert "usedSessionIds.size() >= MAX_CLOSED_SESSION_IDS" in capability
-    assert "usedSessionIds.add(sessionId)" in capability
+    assert "MAX_CLOSED_SESSION_IDS" not in source
+    assert "MAX_RECENT_SESSION_IDS = 256" in source
+    assert "legacySessionIds.contains(sessionId)" in source
+    assert "ArrayList<Long> unsequenced" in source
+    assert "persistSessionWindowLocked(preferences, nextOrder, nextIds)" in source
+    assert "if (!activeSessionIds.contains(nextOrder.get(i)))" in source
+    assert "closingSessions.remove(sessionId)" in teardown
     assert "endStreamIfCurrent(state, deadIdentity)" in source
     assert "streams.get(identity.key()) != state" in unregister_body
     assert "!identity.equals(state.identity)" in unregister_body

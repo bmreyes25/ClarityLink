@@ -10,6 +10,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
+import android.content.SharedPreferences;
 
 import org.claritylink.renderer.SimulatedExternalDisplayCompositor;
 
@@ -28,14 +29,24 @@ import java.util.zip.CRC32;
 /** Private second-process compositor endpoint for the emulator lab only. */
 public final class CompositorService extends Service {
     private static final String TAG = "ClarityLinkCLIMP03";
-    private static final int MAX_CLOSED_SESSION_IDS = 128;
+    private static final int MAX_RECENT_SESSION_IDS = 256;
     private final Object streamsLock = new Object();
     private final Map<String, StreamState> streams = new HashMap<String, StreamState>();
     private final Map<Long, Type111ControlPlane> type111Sessions = new HashMap<Long, Type111ControlPlane>();
-    /** Session IDs are single-use; delayed Binder requests cannot revive a closed session. */
+    /** Sessions currently closing; retired IDs are tracked by the bounded replay window below. */
     private final java.util.HashSet<Long> closingSessions = new java.util.HashSet<Long>();
-    /** At most 128 identities are admitted during this service lifetime; this bounds tombstones. */
-    private final java.util.HashSet<Long> usedSessionIds = new java.util.HashSet<Long>();
+    /** Recent session IDs survive compositor death; replay protection retains the latest 256 IDs. */
+    private final java.util.HashSet<Long> persistedSessionIds = new java.util.HashSet<Long>();
+    /** Unordered IDs from the prior preference schema are retained intact; their age is unknown. */
+    private final java.util.HashSet<Long> legacySessionIds = new java.util.HashSet<Long>();
+    private final ArrayList<Long> persistedSessionOrder = new ArrayList<Long>();
+    /** IDs currently reserved by a live session; durable tombstones remain in persistedSessionIds. */
+    private final java.util.HashSet<Long> activeSessionIds = new java.util.HashSet<Long>();
+    private boolean sessionWindowReady = true;
+    private static final String SESSION_ID_PREFS = "claritylink_lab_session_tombstones_v1";
+    private static final String LEGACY_SESSION_ID_SET = "session_ids";
+    private static final String SESSION_ID_SET = "session_ids_v2";
+    private static final String SESSION_ID_ORDER = "session_id_order_v2";
     private final AtomicInteger activePfdTransfers = new AtomicInteger();
     private final AtomicInteger retainedFrameBytes = new AtomicInteger();
     private final Object labTransferBarrierLock = new Object();
@@ -429,7 +440,103 @@ public final class CompositorService extends Service {
 
     @Override public void onCreate() {
         super.onCreate();
+        SharedPreferences preferences = getSharedPreferences(SESSION_ID_PREFS, MODE_PRIVATE);
+        java.util.Set<String> legacy = preferences.getStringSet(LEGACY_SESSION_ID_SET,
+                java.util.Collections.<String>emptySet());
+        java.util.Set<String> saved = preferences.getStringSet(SESSION_ID_SET,
+                java.util.Collections.<String>emptySet());
+        synchronized (streamsLock) {
+            int legacyCountBefore = legacySessionIds.size();
+            if (legacy != null) for (String value : legacy) {
+                try {
+                    long sessionId = Long.parseLong(value);
+                    if (sessionId > 0L) legacySessionIds.add(sessionId);
+                } catch (NumberFormatException ignored) { }
+            }
+            if (saved != null) for (String value : saved) {
+                try {
+                    long sessionId = Long.parseLong(value);
+                    if (sessionId > 0L) persistedSessionIds.add(sessionId);
+                } catch (NumberFormatException ignored) { }
+            }
+            String order = preferences.getString(SESSION_ID_ORDER, "");
+            if (order.length() > 0) for (String value : order.split(",")) {
+                try {
+                    long sessionId = Long.parseLong(value);
+                    if (persistedSessionIds.contains(sessionId) && !persistedSessionOrder.contains(sessionId))
+                        persistedSessionOrder.add(sessionId);
+                } catch (NumberFormatException ignored) { }
+            }
+            // If an interrupted/corrupt v2 write left IDs without order metadata, move them
+            // to the permanent fail-closed legacy set before replacing either v2 preference.
+            ArrayList<Long> unsequenced = new ArrayList<Long>();
+            for (Long sessionId : persistedSessionIds)
+                if (!persistedSessionOrder.contains(sessionId)) unsequenced.add(sessionId);
+            for (Long sessionId : unsequenced) {
+                legacySessionIds.add(sessionId);
+                persistedSessionIds.remove(sessionId);
+            }
+            if (legacySessionIds.size() != legacyCountBefore) {
+                java.util.HashSet<String> legacyEncoded = new java.util.HashSet<String>();
+                for (Long sessionId : legacySessionIds) legacyEncoded.add(sessionId.toString());
+                if (!preferences.edit().putStringSet(LEGACY_SESSION_ID_SET, legacyEncoded).commit())
+                    sessionWindowReady = false;
+            }
+            boolean windowTrimmed = false;
+            while (persistedSessionOrder.size() > MAX_RECENT_SESSION_IDS) {
+                Long expired = persistedSessionOrder.remove(0);
+                persistedSessionIds.remove(expired);
+                windowTrimmed = true;
+            }
+            if (sessionWindowReady && (unsequenced.size() > 0 || windowTrimmed)) {
+                if (!persistSessionWindowLocked(preferences, persistedSessionOrder,
+                        persistedSessionIds)) sessionWindowReady = false;
+            }
+        }
+        Log.i(TAG, "IPC_REMOTE_SESSION_REPLAY_WINDOW_LOADED count=" + persistedSessionIds.size() +
+                " legacy_unordered_count=" + legacySessionIds.size() +
+                " retention=" + MAX_RECENT_SESSION_IDS);
         Log.i(TAG, "IPC_REMOTE_PROCESS_READY pid=" + Process.myPid());
+    }
+
+    /** Must be called under streamsLock; commit before any registration can be published. */
+    private boolean reserveSessionIdLocked(long sessionId) {
+        if (!sessionWindowReady || sessionId <= 0L) return false;
+        if (activeSessionIds.contains(sessionId)) return true;
+        if (persistedSessionIds.contains(sessionId) || legacySessionIds.contains(sessionId)) return false;
+        ArrayList<Long> nextOrder = new ArrayList<Long>(persistedSessionOrder);
+        java.util.HashSet<Long> nextIds = new java.util.HashSet<Long>(persistedSessionIds);
+        if (nextOrder.size() >= MAX_RECENT_SESSION_IDS) {
+            int evict = -1;
+            for (int i = 0; i < nextOrder.size(); i++)
+                if (!activeSessionIds.contains(nextOrder.get(i))) { evict = i; break; }
+            if (evict < 0) return false;
+            nextIds.remove(nextOrder.remove(evict));
+        }
+        nextOrder.add(sessionId);
+        nextIds.add(sessionId);
+        SharedPreferences preferences = getSharedPreferences(SESSION_ID_PREFS, MODE_PRIVATE);
+        if (!persistSessionWindowLocked(preferences, nextOrder, nextIds)) return false;
+        persistedSessionOrder.clear();
+        persistedSessionOrder.addAll(nextOrder);
+        persistedSessionIds.clear();
+        persistedSessionIds.addAll(nextIds);
+        activeSessionIds.add(sessionId);
+        return true;
+    }
+
+    /** Must be called under streamsLock; write the bounded replay window atomically. */
+    private boolean persistSessionWindowLocked(SharedPreferences preferences,
+            ArrayList<Long> order, java.util.HashSet<Long> ids) {
+        java.util.HashSet<String> encoded = new java.util.HashSet<String>();
+        StringBuilder ordered = new StringBuilder();
+        for (Long sessionId : order) {
+            encoded.add(sessionId.toString());
+            if (ordered.length() > 0) ordered.append(',');
+            ordered.append(sessionId);
+        }
+        return preferences.edit().putStringSet(SESSION_ID_SET, encoded)
+                .putString(SESSION_ID_ORDER, ordered.toString()).commit();
     }
 
     @Override public IBinder onBind(Intent intent) { return endpoint; }
@@ -600,18 +707,14 @@ public final class CompositorService extends Service {
                 reason = plane.registerCapability(new Type111ControlPlane.Capability(
                         sessionId, uuid, width, height, fps, contexts));
                 if ("accepted".equals(reason)) synchronized (streamsLock) {
-                    if (closingSessions.contains(sessionId) || usedSessionIds.contains(sessionId)) {
+                    if (closingSessions.contains(sessionId) || !reserveSessionIdLocked(sessionId)) {
                         plane.parentTeardown();
                         reason = "session_id_closed";
-                    } else if (usedSessionIds.size() >= MAX_CLOSED_SESSION_IDS) {
-                        plane.parentTeardown();
-                        reason = "session_capacity_exhausted";
                     } else if (type111Sessions.containsKey(sessionId)) {
                         plane.parentTeardown();
                         reason = "duplicate_session_capability";
                     } else {
                         type111Sessions.put(sessionId, plane);
-                        usedSessionIds.add(sessionId);
                     }
                 }
             } catch (IllegalArgumentException invalid) { reason = "invalid_type111_capability"; }
@@ -663,6 +766,8 @@ public final class CompositorService extends Service {
         plane.parentTeardown();
         synchronized (streamsLock) {
             type111Sessions.remove(sessionId);
+            activeSessionIds.remove(sessionId);
+            closingSessions.remove(sessionId);
             synchronized (labDelayedDeathLock) {
                 if (labDelayedDeathIdentity != null && labDelayedDeathIdentity.sessionId == sessionId) {
                     labDelayedDeathRelease.countDown();
@@ -847,7 +952,9 @@ public final class CompositorService extends Service {
         synchronized (streamsLock) {
             boolean validOwner = identity.streamType != FrameStreamIdentity.TYPE111 ||
                     type111Sessions.get(identity.sessionId) == control;
-            if (!streams.containsKey(identity.key()) && validOwner &&
+            boolean sessionAvailable = identity.streamType != FrameStreamIdentity.TYPE110 ||
+                    reserveSessionIdLocked(identity.sessionId);
+            if (!streams.containsKey(identity.key()) && validOwner && sessionAvailable &&
                     !closingSessions.contains(identity.sessionId) && sink.isBinderAlive()) {
                 int sessionStreams = 0;
                 boolean conflict = false;
@@ -1117,6 +1224,9 @@ public final class CompositorService extends Service {
                 }
                 state.sink = null;
                 streams.remove(identity.key());
+                if (identity.streamType == FrameStreamIdentity.TYPE110 &&
+                        !type111Sessions.containsKey(identity.sessionId))
+                    activeSessionIds.remove(identity.sessionId);
             }
         }
         if (identity.streamType == FrameStreamIdentity.TYPE111) {
