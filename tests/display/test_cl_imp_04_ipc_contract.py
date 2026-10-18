@@ -112,13 +112,15 @@ def test_type110_progress_probe_is_private_and_uses_one_shot_owner_record():
     owner = (APP / "java/org/claritylink/android/Type110LabProbeOwnership.java").read_text()
     assert "CL_IMP_03_OFFLINE_EMULATOR_ONLY" not in probe
     assert "EXTRA_CONFIRM" not in probe
-    assert "Type110LabProbeOwnership.consume(this, expectedDeath)" in probe
+    assert "issueTeardownGrantAuthorized(Type110ProgressProbeService.this, claimed)" in probe
+    assert 'getPackageName() + ":compositor"' in probe
+    assert "TYPE110_PROBE_AUTHORIZE" in probe
     assert "getLongExtra" not in probe
     assert "parentTeardown(owner)" in probe
     assert "renameTo(claimed)" in owner
     assert "Files.readAllBytes" not in owner
     assert "parentTeardown(sessionId)" not in probe
-    assert "DUPLICATE_START_IGNORED" in probe
+    assert "UNAUTHORIZED_START_IGNORED" in probe
     client = (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
     service = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
     assert "parentTeardown(final FrameStreamIdentity type110Owner)" in client
@@ -164,14 +166,85 @@ def test_recovery_probe_is_bound_to_the_exact_type111_death_identity():
     assert "expectedType111Death.equals(expectedDeath)" in owner
     assert "identity.sessionId != expectedType111Death.sessionId" in owner
     assert "deadIdentity = state.sink == registeredSink ? state.identity : registeredIdentity;" in compositor
-    assert "hasPending(CompositorService.this, deadIdentity)" in compositor
-    assert "putExpectedDeath(recovery, deadIdentity)" in compositor
+    assert "takeType110RecoveryForDeath(deadIdentity)" in compositor
+    assert "authorizeType110PostDeathProbe(recovery)" in compositor
+    assert "TYPE110_PROBE_AUTHORIZE" in compositor
     assert "frameIpcClient.streamIdentity()" in activity
-    assert "expectedType111Death, stats.frameId, stats.pid" in activity
-    assert "consume(this, expectedDeath)" in service
-    assert "TYPE110_POST_DEATH_PROBE_DUPLICATE_START_IGNORED" in service
+    assert "registerType110Recovery(identity," in activity
+    assert "authority.pendingType110Recovery" in compositor
+    assert "TYPE110_POST_DEATH_RECOVERY_RECEIPT_CONSUMED" in compositor
+    assert "issueTeardownGrantAuthorized(Type110ProgressProbeService.this, claimed)" in service
+    assert "TYPE110_POST_DEATH_PROBE_UNAUTHORIZED_START_IGNORED" in service
+    assert "TYPE110_POST_DEATH_PROBE_AUTHORIZATION" in service
+    assert "TEARDOWN_SUFFIX = \".teardown\"" in owner
+    assert "FileLock" in owner
+    assert "TEARDOWN_GRANT_TTL_MS" in owner
     assert "expected_type111_connection_id=" in service
     assert "expected_type111_generation=" in service
+    assert "takeType110RecoveryForDeath(deadIdentity)" in compositor
+    assert "authority.pendingType110Recovery = new Type110LabProbeOwnership.Record(" in compositor
+    assert "authority=compositor_memory" in compositor
+    assert "TYPE110_PROBE_REGISTER" in (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
+    assert "FrameStreamIdentity ownerIdentity;" in compositor
+    assert "authority.ownerIdentity = state.identity" in compositor
+    assert "isSessionOwnerCaller(identity.sessionId)" in compositor
+    assert "authorizedOwnerRebind" in compositor
+    assert "oldOwnerProcessGone" in compositor
+    assert "existing.ownerProcess.equals(callerProcess)" in compositor
+
+
+def test_type110_owner_epoch_death_callback_survives_stream_generation_advance():
+    sink = (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    assert "compositorEpoch == compositor && identity != null" in sink
+    assert "identity.sameStream(boundIdentity)" in sink
+    assert "state.identity = identity.withGeneration(newGeneration)" in compositor
+    assert "authority.ownerIdentity = state.identity" in compositor
+
+
+def test_type111_producer_frame_authority_rechecks_pid_role_outside_lock():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    frame_auth = compositor[compositor.index("private boolean isAuthorizedFrameCaller("):
+                            compositor.index("private void revokeParentAuthority(")]
+    assert "final int callerPid = Binder.getCallingPid()" in frame_auth
+    assert "processNameForPid(callerPid)" in frame_auth
+    assert "producer_process_role_changed" in frame_auth
+    assert frame_auth.index("processNameForPid(callerPid)") < frame_auth.index("synchronized (streamsLock)",
+            frame_auth.index("processNameForPid(callerPid)"))
+    assert "current.authorizedType111ProducerPid == callerPid" in frame_auth
+
+
+def test_session_owner_pid_reuse_is_fenced_by_recorded_process_role():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    owner_auth = compositor[compositor.index("private boolean isSessionOwnerCaller("):
+                           compositor.index("private boolean isAuthorizedFrameCaller(")]
+    assert "expected.ownerProcess.equals(processNameForPid(callerPid))" in owner_auth
+    assert "current == expected" in owner_auth
+    register = compositor[compositor.index("private boolean registerStream("):
+                        compositor.index("private boolean replaceType111Sink(")]
+    assert "!isSessionOwnerCaller(identity.sessionId)" in register
+    assert "authority.ownerProcess.equals(registeringProcess)" in register
+    assert "isSessionOwnerCaller(identity.sessionId)" in compositor[compositor.index(
+        "if (code == FrameIpcProtocol.WARNING)"):compositor.index(
+        "if (code == FrameIpcProtocol.TYPE111_CAPABILITY)")]
+
+
+def test_process_name_binder_lookups_are_outside_compositor_lock_and_revalidated():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    owner = compositor[compositor.index("private boolean openParentAuthority("):
+                       compositor.index("private boolean isAuthorizedParentCaller(")]
+    producer = compositor[compositor.index("private boolean authorizeType111Producer("):
+                          compositor.index("private String processNameForPid(")]
+    assert "processNameForPid(existingOwnerPid)" in owner
+    assert owner.index("processNameForPid(existingOwnerPid)") < owner.rindex(
+        "synchronized (streamsLock)")
+    assert "existing == existingSnapshot" in owner
+    assert "existing.ownerPid == existingOwnerPid" in owner
+    assert "processNameForPid(priorPid)" in producer
+    assert producer.index("processNameForPid(priorPid)") < producer.rindex(
+        "synchronized (streamsLock)")
+    assert "authority != authoritySnapshot" in producer
+    assert "authority.authorizedType111ProducerPid != priorPid" in producer
 
 
 def test_recovery_owner_handoffs_are_keyed_and_bounded_per_session():
@@ -205,11 +278,14 @@ def test_api17_runner_proves_cross_uid_denial_and_uses_privileged_shell_launch()
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     attacker = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java").read_text()
     assert "assert_type110_probe_cross_uid_denied" in runner
-    assert "CL_R4_CROSS_UID_ATTACKS_PASS" in runner
-    assert "attempts=23 denied=23" in runner
+    assert "CL_R4_CROSS_UID_ATTACKS_COMPLETE" in runner
+    assert '"$((explicit_denial_count + unverified_no_effect_count))" -eq 23' in runner
+    assert 'unverified_stop_count + explicit_stop_count))" -eq 3' in runner
+    assert "ATTACK_UNVERIFIED operation=bind_service" in runner
+    assert 'grep -F -c \'ATTACK_NOT_DENIED\'' in runner
     assert "attacker_uid" in runner
     assert "invoke_type110_probe_privileged" in runner
-    assert 'shell am start -n "$attacker_package/$attacker_component"' in runner
+    assert 'shell am startservice -n "$attacker_package/$attacker_component"' in runner
     assert "shell am instrument" not in runner
     assert "Process.myUid() == appUid" in attacker
     assert "Type110ProgressProbeService" in attacker
@@ -219,6 +295,35 @@ def test_api17_runner_proves_cross_uid_denial_and_uses_privileged_shell_launch()
     assert "TYPE110_OWNER_CAP_RECOVERY_RUNTIME_PASS" in runner
     assert "Type110OwnerIsolationTestActivity" in runner
     assert 'attemptLabActivity("Type110OwnerIsolationTestActivity")' in attacker
+
+
+def test_same_uid_api17_registration_matrix_sends_raw_invalid_binder_identities():
+    attacker = (APP / "java/org/claritylink/android/SameUidRegistrationAttackTestService.java").read_text()
+    for marker in (
+        "wrongSession", "wrongType", "wrongConnection", "wrongOutput", "oldGeneration",
+        "futureGeneration", "oldSinkReplacement", "invalidOwner", "probeAuthorizationAccepted",
+        "before_after_state_equal=true", "authorized_owner_and_generations_preserved=true",
+    ):
+        assert marker in attacker
+    assert "private boolean rawBegin(FrameStreamIdentity identity)" in attacker
+    assert "compositor.transact(FrameIpcProtocol.BEGIN" in attacker
+    assert "writeIdentity(probeData, owner)" in attacker
+    assert "writeIdentity(probeData, child)" in attacker
+    assert "probeData.writeLong(sinkBefore.frameId)" in attacker
+    assert "probeData.writeInt(sinkBefore.pid)" in attacker
+
+
+def test_expected_type110_sink_loss_stops_fixture_with_parent_owner_cleanup_reason():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert 'getBooleanExtra("type110_sink_failure_test", false)' in activity
+    assert "catch (ExpectedType110SinkLoss expectedLoss)" in activity
+    assert 'closeType111Lab("type110-lab-sink-disconnected")' in activity
+    assert "catch (android.os.DeadObjectException ownerSinkDied)" in activity
+    assert "before == null && type110SinkFailureTest && sink != null && !sink.isBinderAlive()" in activity
+    assert '!"type110-lab-sink-disconnected".equals(reason)' in activity
+    assert "LIFECYCLE_STOP reason=type110-lab-sink-disconnected" in runner
+    assert "--ez type110_sink_failure_test true" in runner
 
 
 def test_lab_activities_require_dump_permission_and_attacker_cannot_admit_or_crash_them():
@@ -238,7 +343,9 @@ def test_lab_activities_require_dump_permission_and_attacker_cannot_admit_or_cra
     assert 'attemptPrivateService("Type110SinkFailureTestService")' in attacker
     assert 'attemptPrivateService("CompositorOwnerDeathTestService")' in attacker
     assert 'target.putExtra("confirmation", "CL_R4B_OFFLINE_EMULATOR_ONLY")' in attacker
-    assert "attempted == 23 && denied == attempted" in attacker
+    assert "denied + unverifiedNoEffect == attempted && notDenied == 0" in attacker
+    assert "stopService(target)" in attacker
+    assert "unverifiedNoEffect++" in attacker
 
 
 def test_api17_runner_uses_internal_probe_and_gracefully_stops_owned_services():
@@ -270,12 +377,22 @@ def test_cross_uid_attacker_has_distinct_uid_and_requests_no_permissions():
     assert manifest.findall("uses-permission") == []
     source = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java").read_text()
     assert 'attemptPrivateService("Type111ProducerService")' in source
-    assert "attempted == 23 && denied == attempted" in source
+    assert "denied + unverifiedNoEffect == attempted && notDenied == 0" in source
     assert "ATTACK_NOT_DENIED" in source
     assert 'attemptLabActivity("ClarityLinkDisplayActivity")' in source
     assert 'attemptLabActivity("Api17DecoderLabActivity")' in source
     assert 'attemptLabActivity("Type110OwnerIsolationTestActivity")' in source
     assert '"crash_after_first_frame", true' in source
+    service_manifest = app.find("service")
+    assert service_manifest is not None and service_manifest.get(ANDROID + "exported") == "true"
+    service_source = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackService.java").read_text()
+    assert "caller=background_service" in service_source
+    assert "FLAG_ACTIVITY_NEW_TASK" in service_source
+    assert "denied + unverifiedNoEffect == attempted && notDenied == 0" in service_source
+    assert "ATTACK_UNVERIFIED operation=stop_service result=false" in service_source
+    assert 'ATTACK_DENIED operation=stop_service component=' in service_source
+    assert "ATTACK_UNVERIFIED operation=bind_service result=false" in service_source
+    assert "stopSelf(startId)" in service_source
 
 def test_type111_decoder_fault_hook_is_lab_gated_and_recovers_with_new_codec():
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
@@ -314,7 +431,18 @@ def test_parent_teardown_closes_registration_admission_before_child_snapshot():
     assert "MAX_RECENT_SESSION_IDS = 256" in source
     assert "legacySessionIds.contains(sessionId)" in source
     assert "ArrayList<Long> unsequenced" in source
-    assert "persistSessionWindowLocked(preferences, nextOrder, nextIds)" in source
+    assert "persistSessionWindowLocked(preferences, persistedSessionOrder," in source
+    assert "MAX_SESSION_IDS_SINCE_REPLAY_INITIALIZATION = 4096" in source
+    assert "SESSION_REPLAY_ISSUED_COUNT" in source
+    assert "hasSavedIssuedCount = preferences.contains(SESSION_REPLAY_ISSUED_COUNT)" in source
+    assert "savedBloom == null && !hasSavedIssuedCount" in source
+    assert "sessionReplayIssuedCount >= MAX_SESSION_IDS_SINCE_REPLAY_INITIALIZATION" in source
+    assert "issuedCount).commit()" in source
+    replay_load = source[source.index("boolean migrateReplayBloom"):
+                         source.index("if (legacySessionIds.size() != legacyCountBefore)")]
+    assert "else {\n                sessionWindowReady = false;\n            }" in replay_load
+    assert "SESSION_REPLAY_BLOOM" in source
+    assert "mightContainSessionReplay(sessionReplayBloom, sessionId)" in source
     assert "if (!activeSessionIds.contains(nextOrder.get(i)))" in source
     assert "closingSessions.remove(sessionId)" in teardown
     assert "endStreamIfCurrent(state, deadIdentity)" in source
@@ -475,3 +603,22 @@ def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership()
     assert "FrameLabSink.queryStats(primaryLabSinkBinder)" in activity
     assert "primaryClient.begin(primaryIdentity, primaryLabSinkBinder)" in activity
     assert "primary_lab_recorded" in lab_sink
+
+
+def test_type110_sink_preclaim_requires_compositor_one_use_admission():
+    service = (APP / "java/org/claritylink/android/FrameLabSinkService.java").read_text()
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    assert "consumeAdmission(admission.grant, requestedSession)" in service
+    assert "reason=admission_required" in service
+    assert "if (sink != null && sessionId == requestedSession) return sink" in service
+    assert "TYPE110_LAB_SINK_BIND_REJECTED reason=admission_required" in service
+    assert "TYPE110_SINK_ADMISSION_CONSUME" in compositor
+    assert "isAuthorizedParentCaller(callerPid)" in compositor
+    assert "TYPE110_SINK_ADMISSION_ISSUED" in compositor
+    assert "TYPE110_SINK_ADMISSION_CONSUMED" in compositor
+    assert "requestType110SinkAdmission(compositor, activeGeneration)" in activity
+    assert "CL_R4B_SINK_OWNERLESS_PRECLAIM_ATTEMPT" in activity
+    assert "isBoundCompositorCaller()" in (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
+    assert "direct_type110_sink_generation_mutation_rejected=true" in (
+        APP / "java/org/claritylink/android/SameUidRegistrationAttackTestService.java").read_text()

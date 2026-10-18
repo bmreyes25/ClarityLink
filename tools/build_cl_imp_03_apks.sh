@@ -55,9 +55,11 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type111ProducerService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type110OwnerIsolationTestActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/SameUidRegistrationAttackTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Api17DecoderLabActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSinkService.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSinkAdmission.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type110SinkFailureTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcClient.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameViewSink.java" \
@@ -119,7 +121,8 @@ attacker_dex="$attacker_out/dex"
 mkdir -p "$attacker_classes" "$attacker_dex"
 "${JAVAC:-javac}" -source 1.7 -target 1.7 -Xlint:all -bootclasspath "$platform/android.jar" \
   -d "$attacker_classes" \
-  "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java"
+  "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java" \
+  "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackService.java"
 "$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$attacker_dex" \
   $(find "$attacker_classes" -type f -name '*.class' -print)
 attacker_unsigned="$attacker_out/cl-r4-boundary-attacker-unsigned.apk"

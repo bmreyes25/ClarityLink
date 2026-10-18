@@ -5,5 +5,7 @@
         android:debuggable="false">
         <activity android:name="org.claritylink.attacker.ExportBoundaryAttackActivity"
             android:exported="true" />
+        <service android:name="org.claritylink.attacker.ExportBoundaryAttackService"
+            android:exported="true" />
     </application>
 </manifest>

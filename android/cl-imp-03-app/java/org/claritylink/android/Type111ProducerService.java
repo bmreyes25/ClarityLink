@@ -43,18 +43,30 @@ public final class Type111ProducerService extends Service {
             }
             data.enforceInterface(DESCRIPTOR);
             if (code == START_PRODUCER) {
+                int ownerPid = Binder.getCallingPid();
+                if (!isAuthorizedViewCaller(ownerPid)) {
+                    Log.w(TAG, "TYPE111_PRODUCER_CONTROL_REJECT operation=start caller_pid=" + ownerPid);
+                    reply.writeNoException(); reply.writeInt(0); reply.writeInt(Process.myPid());
+                    return true;
+                }
                 IBinder endpoint = data.readStrongBinder();
                 IBinder sink = data.readStrongBinder();
                 FrameStreamIdentity identity = readIdentity(data);
                 long nextFrameId = data.readLong();
                 long firstPtsUs = data.readLong();
-                boolean accepted = startProducer(endpoint, sink, identity, nextFrameId, firstPtsUs);
+                boolean accepted = startProducer(endpoint, sink, identity, nextFrameId, firstPtsUs, ownerPid);
                 reply.writeNoException();
                 reply.writeInt(accepted ? 1 : 0);
                 reply.writeInt(Process.myPid());
                 return true;
             }
             if (code == TERMINATE_PRODUCER) {
+                int ownerPid = Binder.getCallingPid();
+                if (!isAuthorizedViewCaller(ownerPid)) {
+                    Log.w(TAG, "TYPE111_PRODUCER_CONTROL_REJECT operation=terminate caller_pid=" + ownerPid);
+                    reply.writeNoException(); reply.writeInt(0); reply.writeInt(Process.myPid());
+                    return true;
+                }
                 boolean accepted = running || completed;
                 reply.writeNoException();
                 reply.writeInt(accepted ? 1 : 0);
@@ -107,12 +119,14 @@ public final class Type111ProducerService extends Service {
     }
 
     private synchronized boolean startProducer(final IBinder endpoint, final IBinder sink,
-            final FrameStreamIdentity identity, final long nextFrameId, final long firstPtsUs) {
+            final FrameStreamIdentity identity, final long nextFrameId, final long firstPtsUs,
+            final int ownerPid) {
         if (running || endpoint == null || sink == null || identity == null ||
                 identity.streamType != FrameStreamIdentity.TYPE111 ||
                 identity.outputId != FrameStreamIdentity.OUTPUT_SECONDARY_VIEW ||
                 !identity.isValid() || nextFrameId <= 0 || nextFrameId == Long.MAX_VALUE ||
                 firstPtsUs <= 0 || firstPtsUs > 60000000L) return false;
+        if (!authorizeWithCompositor(endpoint, identity, ownerPid)) return false;
         if (completed) {
             completed = false;
             submittedCount = 0;
@@ -139,6 +153,37 @@ public final class Type111ProducerService extends Service {
             throw startupFailure;
         }
         return true;
+    }
+
+    private boolean authorizeWithCompositor(IBinder endpoint, FrameStreamIdentity identity, int ownerPid) {
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
+            data.writeInt(FrameIpcProtocol.VERSION);
+            data.writeInt(ownerPid);
+            data.writeLong(identity.sessionId); data.writeInt(identity.streamType);
+            data.writeLong(identity.connectionId); data.writeLong(identity.streamGeneration);
+            data.writeInt(identity.outputId);
+            if (!endpoint.transact(FrameIpcProtocol.TYPE111_PRODUCER_AUTHORIZE, data, reply, 0)) return false;
+            reply.readException();
+            return reply.readInt() != 0;
+        } catch (RemoteException failure) {
+            Log.w(TAG, "TYPE111_PRODUCER_AUTHORIZATION_FAILED", failure);
+            return false;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
+    private boolean isAuthorizedViewCaller(int pid) {
+        android.app.ActivityManager manager = (android.app.ActivityManager)
+                getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) return false;
+        java.util.List<android.app.ActivityManager.RunningAppProcessInfo> processes =
+                manager.getRunningAppProcesses();
+        if (processes == null) return false;
+        String expected = getPackageName() + ":type111_view";
+        for (android.app.ActivityManager.RunningAppProcessInfo process : processes)
+            if (process.pid == pid) return expected.equals(process.processName);
+        return false;
     }
 
     private synchronized void rollbackProducerStart() {

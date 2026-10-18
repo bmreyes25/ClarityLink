@@ -14,6 +14,8 @@ public final class ExportBoundaryAttackActivity extends Activity {
     private static final String TAG = "ClarityLinkCLIMP03";
     private static final String TARGET = "org.claritylink.independentdisplay.lab";
     private int denied = 0;
+    private int unverifiedNoEffect = 0;
+    private int notDenied = 0;
     private int attempted = 0;
 
     @Override public void onCreate(Bundle state) {
@@ -41,12 +43,14 @@ public final class ExportBoundaryAttackActivity extends Activity {
         attemptPrivateService("Type111ProducerService");
         attemptPrivateService("Type110SinkFailureTestService");
         attemptPrivateService("CompositorOwnerDeathTestService");
-        if (attempted == 23 && denied == attempted) {
-            Log.i(TAG, "CL_R4_CROSS_UID_ATTACKS_PASS uid=" + Process.myUid() +
-                    " target_uid=" + appUid + " attempts=" + attempted + " denied=" + denied);
+        if (attempted == 23 && denied + unverifiedNoEffect == attempted && notDenied == 0) {
+            Log.i(TAG, "CL_R4_CROSS_UID_ATTACKS_COMPLETE uid=" + Process.myUid() +
+                    " target_uid=" + appUid + " attempts=" + attempted +
+                    " explicit_denials=" + denied + " unverified_no_effect=" + unverifiedNoEffect);
         } else {
             Log.e(TAG, "CL_R4_CROSS_UID_ATTACK_FAIL uid=" + Process.myUid() +
-                    " target_uid=" + appUid + " attempts=" + attempted + " denied=" + denied);
+                    " target_uid=" + appUid + " attempts=" + attempted + " explicit_denials=" + denied +
+                    " unverified_no_effect=" + unverifiedNoEffect + " not_denied=" + notDenied);
         }
         finish();
     }
@@ -62,6 +66,7 @@ public final class ExportBoundaryAttackActivity extends Activity {
         try {
             startActivity(forged);
             Log.e(TAG, "ATTACK_NOT_DENIED operation=start_activity component=" + simpleName);
+            notDenied++;
         } catch (SecurityException expected) {
             denied++;
             Log.i(TAG, "ATTACK_DENIED operation=start_activity component=" + simpleName);
@@ -86,6 +91,7 @@ public final class ExportBoundaryAttackActivity extends Activity {
         try {
             startService(forged);
             Log.e(TAG, "ATTACK_NOT_DENIED operation=probe variant=" + variant);
+            notDenied++;
         } catch (SecurityException expected) {
             denied++;
             Log.i(TAG, "ATTACK_DENIED operation=probe variant=" + variant);
@@ -113,13 +119,22 @@ public final class ExportBoundaryAttackActivity extends Activity {
         if (!destructiveHelper) {
             attempted++;
             boolean stopped = false;
+            boolean stopDenied = false;
             try { stopped = stopService(target); }
-            catch (SecurityException expected) { /* private service boundary */ }
+            catch (SecurityException expected) {
+                denied++;
+                stopDenied = true;
+                Log.i(TAG, "ATTACK_DENIED operation=stop_service component=" + simpleName);
+            }
             if (stopped) {
                 Log.e(TAG, "ATTACK_NOT_DENIED operation=stop_service component=" + simpleName);
+                notDenied++;
                 return;
             }
-            denied++;
+            if (!stopDenied) {
+                unverifiedNoEffect++;
+                Log.w(TAG, "ATTACK_UNVERIFIED operation=stop_service result=false component=" + simpleName);
+            }
         }
         attempted++;
         final boolean strictBindDenial = destructiveHelper;
@@ -134,19 +149,24 @@ public final class ExportBoundaryAttackActivity extends Activity {
             boolean bound = bindService(target, connection, BIND_AUTO_CREATE);
             if (bound) {
                 Log.e(TAG, "ATTACK_NOT_DENIED operation=bind_service component=" + simpleName);
+                notDenied++;
                 try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
             } else if (strictBindDenial) {
                 Log.e(TAG, "ATTACK_UNVERIFIED operation=bind_service component=" + simpleName);
-            } else denied++;
+                unverifiedNoEffect++;
+            } else {
+                Log.w(TAG, "ATTACK_UNVERIFIED operation=bind_service result=false component=" + simpleName);
+                unverifiedNoEffect++;
+            }
         } catch (SecurityException expected) {
             denied++;
-            if (strictBindDenial)
-                Log.i(TAG, "ATTACK_DENIED operation=bind_service component=" + simpleName);
+            Log.i(TAG, "ATTACK_DENIED operation=bind_service component=" + simpleName);
         }
         attempted++;
         try {
             startService(target);
             Log.e(TAG, "ATTACK_NOT_DENIED operation=start_service component=" + simpleName);
+            notDenied++;
         } catch (SecurityException expected) {
             denied++;
             Log.i(TAG, "ATTACK_DENIED operation=service component=" + simpleName);

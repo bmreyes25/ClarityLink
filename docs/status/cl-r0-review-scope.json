@@ -32,23 +32,23 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "f27796602d6a90b71ed0d9242bd2e0b98eb1ab0fc9e9f1c40c17f0874ea90223"
+      "sha256": "3088a25afd9e9109dea55842793439cb1ff473cd866794887f4b083bd48060e6"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
-      "sha256": "796d2c9e4e65e5d019e498613bb2439ac678bea0496f3b0eda8d9384f00c087e"
+      "sha256": "6e3a4757ed90adac9db1725c852e137540244e1c13c43104acb8d27b68b8512e"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java",
-      "sha256": "680e5e44a47585e6d95542e7f80e52198404dda70bcf24f2dd01fadf853da2a3"
+      "sha256": "05065e4c102dc32b953184a6249ffdda31351da66a767d9aa1d9bc23a806e71f"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/Type111ControlClient.java",
-      "sha256": "3fb44174a2af20ad0ff3cd88310a35c55aa9b9a96b58f853b6a20603fec3fc0e"
+      "sha256": "5d9dfb1efab78b4503bff6fea1a86abdb40dd9a83a0c02f51d53d4b9a713d7d2"
     },
     {
       "path": "docs/README.md",
-      "sha256": "0acc15f0489347f86592d4d49dfd74e975081c7ca89d06078818dffc705afe97"
+      "sha256": "3f57ec6260346336086e8f82841b6d51c332bf79d09a66b1df24b10b2b00c61e"
     },
     {
       "path": "docs/development/blocker-resolution.md",
@@ -100,15 +100,15 @@
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "07a2ff7dcfd15e765da886a0fb2e3542f42912a70ef3a9bf8c1f45720b157a92"
+      "sha256": "692b62777a3d0734d99e1ec4c6e693fb253ee016d6820c3392253c6370077d3b"
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "f7595f29fd132e507354ef0467455ce6cab056c8329e5986d0624126d68e3b5c"
+      "sha256": "464997b019f75ee3405ac534e46565f1b528936ff53bb8aea4827d2e4bea2d22"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
-      "sha256": "e3ac7c600665df94622e1ced082a8ab93fbfbf3bbab02583de6cbc523dc63113"
+      "sha256": "93439e6ba3b70526373c7797224c477847d64668167949b3f0245ef5c5d5a7ea"
     },
     {
       "path": "tests/jmcs/test_r6e_auth_transport.py",
@@ -140,7 +140,7 @@
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
-      "sha256": "8da0fb5cc261ca1403e11fea82a2ad75ebdda8645ffe23ba833169df8fb5bd6c"
+      "sha256": "a3c484e4218c818293a299035845683590120048e378814ecbd07539ecb97fe1"
     },
     {
       "path": "tools/check_repo_health.py",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "fd53b16a68cf4c82ff96bb3d4ec5abebfd50f47e6bba1f9586e158cbc1ab86e2"
+      "sha256": "bdcbe1b6c6ca37a70b9d459c06656656120811fcd41207eafdce7fa409996570"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -168,7 +168,7 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java",
-      "sha256": "8687857410d436dbd1a73393623d5b27ec00d8132f78c3a3dfe4d9ed2a9c9b6f"
+      "sha256": "cdb854cff08c91d221e13e79069f8088f7e807b2dbaac6b199f607826357b5df"
     }
   ],
   "reviewed_head": "cb6ccd0c78bd6e6f3c63988cd99185f5d8a087c4",
@@ -193,5 +193,6 @@
   "cl_r4b_parent_owner_death_refresh_note": "Pinned the API17 Activity, compositor service, owner-death observer, contract tests, and runner for CL-R4B unexpected compositor-owner death. Exact-source ECC code and security reviews reported no actionable findings on implementation diff SHA bc860baa23b827e85f768d879010df0a21e228c8f2d1533b7c32b504d0f4b7c8 (commit 21cf3f0069a54eff8d9288f07cd90c5b971c8b40). The API17 runner killed the actual :compositor PID, observed Binder owner loss and stale-identity rejection, then recovered via a fresh session. This refresh does not alter historical review ranges or claim independent approval.",
   "cl_r4b_overnight06_scope_refresh_note": "Pinned the reentrant teardown and producer recovery fixture updates after separate read-only ECC code and security review of source diff SHA 0e40d98d54d6d917758ae390026db7eba2b650007f3aeedf20941d7009bde953. The code reviewer identified an ambiguous producer rebind callback; a fresh ServiceConnection and latch resolved it, and targeted re-review found no new actionable issue. The security review found no new security issue. Fresh API17 reentrant teardown passed in Type110-first and Type111-first order; local runtime artifacts remain ignored.",
   "cl_r4b_overnight06_owner_binding_scope_note": "Pinned the API17 owner-death observer binding-race correction, bounded producer wait, and focused contract tests. Read-only ECC code/security reviews first found duplicate observer verification and a finish/rebind binding leak, then security review found the disconnect receipt was cleared during rebind. The corrections use a lifecycle lock, connection identity and one-shot verification, plus a persistent ownerDeathObserved receipt; targeted re-review of source diff SHA 8e845737cd915072f334f66eb8baba460ef638fe2f8ca4b6f3db5a84a523efd0 found no actionable findings. Final-source API17 owner-death, reentrant teardown, and delayed Binder callback fixtures passed. A separate Type110-only failure fixture timed out waiting for the compositor death callback and is not counted as passing. Runtime artifacts remain local/ignored.",
-  "cl_r4b_type110_death_diagnostic_refresh_note": "Added bounded API17 sink-PID exit verification and preserved process, filtered logcat, and service diagnostics on PID/callback timeout. Three fresh Android 4.2.2 runs observed sink PID exit, the real compositor Binder death callback, both stream invalidations, and zero reported active PFD transfers/retained bytes. The earlier Overnight 06 callback timeout has no preserved PID/log artifacts, so its cause remains unresolved and is not claimed fixed. Exact working-tree diff SHA 2cc2ab197091ce3936c7f1ab6d97bfe15012f6e0b52e152c898341899f363b21 received separate ECC code and security re-review with no actionable findings; configured suite: 1224 passed, 29 skipped."
+  "cl_r4b_type110_death_diagnostic_refresh_note": "Added bounded API17 sink-PID exit verification and preserved process, filtered logcat, and service diagnostics on PID/callback timeout. Three fresh Android 4.2.2 runs observed sink PID exit, the real compositor Binder death callback, both stream invalidations, and zero reported active PFD transfers/retained bytes. The earlier Overnight 06 callback timeout has no preserved PID/log artifacts, so its cause remains unresolved and is not claimed fixed. Exact working-tree diff SHA 2cc2ab197091ce3936c7f1ab6d97bfe15012f6e0b52e152c898341899f363b21 received separate ECC code and security re-review with no actionable findings; configured suite: 1224 passed, 29 skipped.",
+  "cl_r4b_security_closure_02_scope_refresh_note": "The pinned blobs for the previously listed files changed by CL-R4B Security Closure 02 were refreshed after separate read-only ECC code and security review of exact source diff SHA-256 1c388dcd3223a944769be5e2b21e1ad1d21c116e911fbe8c3a0bd232df1e9a09, committed as 6217ee0f8e433b5bb8f11a2f7e007fb97741a186. The original CL-R0 source_snapshot, review ranges, and approval_claimed=false remain unchanged; this note records a later exact-source review and does not retroactively claim CL-R0 approval."
 }

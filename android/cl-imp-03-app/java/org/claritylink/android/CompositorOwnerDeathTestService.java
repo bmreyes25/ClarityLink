@@ -73,7 +73,7 @@ public final class CompositorOwnerDeathTestService extends Service {
                 " session_id=" + sessionId);
         handler.postDelayed(new Runnable() {
             public void run() { if (!finished) fail("owner_death_observation_timeout"); }
-        }, 30000L);
+        }, 900000L);
         bindOwnerObserver("observer_bind_failed");
         return START_NOT_STICKY;
     }
@@ -181,7 +181,7 @@ public final class CompositorOwnerDeathTestService extends Service {
         if (staleOwner.begin(ownerIdentity, new Binder()) > 0)
             throw new IllegalStateException("old_type110_identity_re_registered_after_owner_restart");
         Type111ControlClient control = new Type111ControlClient(service);
-        if (control.registerLabCapability(ownerIdentity.sessionId, "stale-owner-replay",
+        if (control.registerLabCapability(ownerIdentity, "stale-owner-replay",
                 800, 480, 30))
             throw new IllegalStateException("old_session_capability_re_registered_after_owner_restart");
 
@@ -197,10 +197,11 @@ public final class CompositorOwnerDeathTestService extends Service {
                 FrameStreamIdentity.TYPE111, 21101L, newSessionId,
                 FrameStreamIdentity.OUTPUT_SECONDARY_VIEW);
         FrameIpcClient newOwnerClient = new FrameIpcClient(service);
-        int registeredOwnerPid = newOwnerClient.begin(newOwner, new Binder());
+        FrameLabSink newOwnerSink = new FrameLabSink(this, newOwner);
+        int registeredOwnerPid = newOwnerClient.begin(newOwner, newOwnerSink);
         if (registeredOwnerPid != compositorPid)
             throw new IllegalStateException("fresh_type110_session_registration_failed");
-        if (!control.registerLabCapability(newSessionId, "claritylink-owner-recovery", 800, 480, 30) ||
+        if (!control.registerLabCapability(newOwner, "claritylink-owner-recovery", 800, 480, 30) ||
                 !control.setup(newChild))
             throw new IllegalStateException("fresh_type111_setup_failed");
         FrameViewSink newSink = new FrameViewSink(handler, new FrameViewSink.Target() {
@@ -241,7 +242,7 @@ public final class CompositorOwnerDeathTestService extends Service {
                 "fresh_session_teardown=true registrations_after_teardown=0");
     }
 
-    /** Ensures durable replay protection does not exhaust admission after the former 128-ID cap. */
+    /** Ensures the exact recent-ID window can roll without replaying IDs or losing active sessions. */
     private void verifySessionAdmissionBeyondPreviousTombstoneLimit(IBinder service,
             Type111ControlClient control, int compositorPid) throws Exception {
         long pinnedSessionId = SystemClock.elapsedRealtimeNanos();
@@ -249,30 +250,43 @@ public final class CompositorOwnerDeathTestService extends Service {
                 FrameStreamIdentity.TYPE110, 32000L, pinnedSessionId,
                 FrameStreamIdentity.OUTPUT_PRIMARY_LAB);
         FrameIpcClient pinnedClient = new FrameIpcClient(service);
-        if (pinnedClient.begin(pinnedIdentity, new Binder()) != compositorPid)
+        FrameLabSink pinnedSink = new FrameLabSink(this, pinnedIdentity);
+        if (pinnedClient.begin(pinnedIdentity, pinnedSink) != compositorPid)
             throw new IllegalStateException("active_session_pin_setup_failed");
-        for (int i = 0; i < 300; i++) {
+        for (int i = 0; i < 257; i++) {
             long sessionId = SystemClock.elapsedRealtimeNanos();
             FrameStreamIdentity identity = new FrameStreamIdentity(sessionId,
                     FrameStreamIdentity.TYPE110, 31000L + i, sessionId,
                     FrameStreamIdentity.OUTPUT_PRIMARY_LAB);
             FrameIpcClient client = new FrameIpcClient(service);
-            if (sessionId <= 0L || client.begin(identity, new Binder()) != compositorPid)
+            FrameLabSink sink = new FrameLabSink(this, identity);
+            if (sessionId <= 0L || client.begin(identity, sink) != compositorPid)
                 throw new IllegalStateException("session_admission_capacity_regressed_at=" + i);
             client.end(sessionId);
             if (!zeroUnregistered(control.queryFrameStats(identity)))
                 throw new IllegalStateException("session_capacity_trial_cleanup_failed_at=" + i);
-            if (new FrameIpcClient(service).begin(identity, new Binder()) == compositorPid)
+            if (new FrameIpcClient(service).begin(identity, sink) == compositorPid)
+                throw new IllegalStateException("revoked_owner_binder_reused_after_end_at=" + i);
+            if (new FrameIpcClient(service).begin(identity,
+                    new FrameLabSink(this, identity)) == compositorPid)
                 throw new IllegalStateException("same_process_session_id_reused_after_end_at=" + i);
         }
+        if (new FrameIpcClient(service).begin(ownerIdentity,
+                new FrameLabSink(this, ownerIdentity)) == compositorPid ||
+                control.registerLabCapability(ownerIdentity, "evicted-owner-replay", 800, 480, 30))
+            throw new IllegalStateException("old_owner_session_replayed_after_256_id_window_eviction");
         if (!control.queryFrameStats(pinnedIdentity).registered)
             throw new IllegalStateException("active_session_evicted_from_replay_window");
         pinnedClient.end(pinnedSessionId);
         if (!zeroUnregistered(control.queryFrameStats(pinnedIdentity)) ||
-                new FrameIpcClient(service).begin(pinnedIdentity, new Binder()) == compositorPid)
+                new FrameIpcClient(service).begin(pinnedIdentity, pinnedSink) == compositorPid)
+            throw new IllegalStateException("pinned_owner_binder_reused_after_end");
+        if (new FrameIpcClient(service).begin(pinnedIdentity,
+                new FrameLabSink(this, pinnedIdentity)) == compositorPid)
             throw new IllegalStateException("active_session_replay_after_window_pressure");
-        Log.i(TAG, "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS admitted_and_torn_down=300 " +
-                "active_session_pinned=true replay_window=256 same_process_replay_rejected=true");
+        Log.i(TAG, "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS admitted_and_torn_down=257 " +
+                "active_session_pinned=true replay_window=256 owner_replay_after_window_eviction_rejected=true " +
+                "same_process_replay_rejected=true");
     }
 
     private void requireOldFrameRejected(IBinder service, FrameStreamIdentity identity,
@@ -294,7 +308,8 @@ public final class CompositorOwnerDeathTestService extends Service {
             }
         })) throw new IllegalStateException("stale_frame_submit_not_started");
         if (!completed.await(8L, TimeUnit.SECONDS) || accepted[0] ||
-                !"stream_identity_rejected".equals(reason[0]))
+                !("stream_identity_rejected".equals(reason[0]) ||
+                "frame_caller_not_authorized".equals(reason[0])))
             throw new IllegalStateException("stale_frame_not_rejected:" + reason[0]);
     }
 

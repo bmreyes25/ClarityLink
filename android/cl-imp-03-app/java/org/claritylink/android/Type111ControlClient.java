@@ -81,12 +81,15 @@ final class Type111ControlClient {
         });
     }
 
-    boolean registerLabCapability(final long sessionId, final String uuid, final int width,
+    boolean registerLabCapability(final FrameStreamIdentity type110Owner, final String uuid, final int width,
             final int height, final int fps)
             throws RemoteException {
+        if (type110Owner == null || !type110Owner.isValid() ||
+                type110Owner.streamType != FrameStreamIdentity.TYPE110) return false;
         return transact(FrameIpcProtocol.TYPE111_CAPABILITY, new Writer() {
             public void write(Parcel data) {
-                data.writeLong(sessionId); data.writeString(uuid);
+                writeIdentity(data, type110Owner);
+                data.writeLong(type110Owner.sessionId); data.writeString(uuid);
                 data.writeInt(width); data.writeInt(height); data.writeInt(fps);
                 data.writeInt(2);
                 data.writeString(Type111ControlPlane.MAP_CONTEXT);
@@ -151,6 +154,25 @@ final class Type111ControlClient {
         return transact(FrameIpcProtocol.TYPE111_PARENT_TEARDOWN, new Writer() {
             public void write(Parcel data) { writeIdentity(data, type110Owner); }
         });
+    }
+
+    /** Register a compositor-held recovery receipt for this exact live parent/child identity. */
+    boolean registerType110Recovery(FrameStreamIdentity owner, FrameStreamIdentity expectedDeath,
+            long lastFrameId, int sinkPid) {
+        if (endpoint == null || owner == null || !owner.isValid() ||
+                owner.streamType != FrameStreamIdentity.TYPE110 || expectedDeath == null ||
+                !expectedDeath.isValid() || expectedDeath.streamType != FrameStreamIdentity.TYPE111 ||
+                owner.sessionId != expectedDeath.sessionId || lastFrameId <= 0L || sinkPid <= 0)
+            return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            header(data); writeIdentity(data, owner); writeIdentity(data, expectedDeath);
+            data.writeLong(lastFrameId); data.writeInt(sinkPid);
+            endpoint.transact(FrameIpcProtocol.TYPE110_PROBE_REGISTER, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } catch (Exception failure) { return false; }
+        finally { reply.recycle(); data.recycle(); }
     }
 
     boolean armLabParentTeardownBarrier(final FrameStreamIdentity type110Owner) throws RemoteException {
