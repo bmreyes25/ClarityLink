@@ -684,9 +684,16 @@ if [ "$type111_mode" -eq 1 ]; then
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_TARGET_VERIFIED pid=$owner_pid "
     wait_for_owner_death_marker "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=$owner_pid "
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=$owner_pid "
+    wait_for 'CL_R4B_ACTIVITY_OWNER_INVALIDATED '
+    wait_for 'CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS '
+    owner_death_early_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$owner_death_early_logs" \
+      > "$campaign_evidence/api17-compositor-owner-death-early-logcat-$adb_port.txt"
+    wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_FRESH_SESSION_RECOVERY_PASS "
     wait_for_owner_death_marker "CL_R4B_PARENT_OWNER_DEATH_PASS old_pid=$owner_pid "
-    wait_for 'LIFECYCLE_STOP reason=ipc-remote-disconnected'
     owner_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    owner_logs="$owner_death_early_logs
+$owner_logs"
     printf '%s\n' "$owner_logs" > "$campaign_evidence/api17-compositor-owner-death-logcat-$adb_port.txt"
     new_owner_pid=$(printf '%s\n' "$owner_logs" | sed -n \
       's/.*CL_R4B_PARENT_OWNER_DEATH_PASS old_pid=[0-9][0-9]* new_pid=\([0-9][0-9]*\).*/\1/p' | tail -1)
@@ -694,14 +701,27 @@ if [ "$type111_mode" -eq 1 ]; then
       echo 'Surviving observer did not identify a fresh compositor process.' >&2; exit 9;
     }
     ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
+    printf '%s\n' "$ps_snapshot" > "$campaign_evidence/api17-compositor-owner-death-processes-$adb_port.txt"
     printf '%s\n' "$ps_snapshot" | awk -v pid="$owner_pid" '$2==pid {found=1} END {exit !found}' && {
       echo "Dead compositor PID $owner_pid remains in the OS process list." >&2; exit 9;
     }
-    printf '%s\n' "$owner_logs" | grep -F 'PRESENTATION_DISMISS_REQUESTED reason=ipc-remote-disconnected' >/dev/null || {
+    printf '%s\n' "$owner_logs" | grep -E 'PRESENTATION_DISMISS_REQUESTED reason=parent-owner-(died|replaced)' >/dev/null || {
       echo 'Surviving Activity did not request secondary Presentation dismissal after owner loss.' >&2; exit 9;
     }
     adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' \
       > "$campaign_evidence/api17-compositor-owner-death-window-state-$adb_port.txt"
+    adb_local -s "$serial" shell dumpsys activity services | tr -d '\r' \
+      > "$campaign_evidence/api17-compositor-owner-death-services-$adb_port.txt"
+    if grep -E 'ServiceRecord.*(FrameLabSinkService|Type111ProducerService)' \
+      "$campaign_evidence/api17-compositor-owner-death-services-$adb_port.txt" >/dev/null; then
+      echo 'Type110 sink or Type111 producer service remained registered after owner loss.' >&2; exit 9;
+    fi
+    printf '%s\n' "$owner_logs" | grep -F 'TYPE110_LAB_SINK_DESTROYED ' >/dev/null || {
+      echo 'Independent Type110 sink process did not report service destruction.' >&2; exit 9;
+    }
+    printf '%s\n' "$owner_logs" | grep -F 'TYPE111_PRODUCER_RUN_PASS ' | grep -F 'resources_released=true' >/dev/null || {
+      echo 'Type111 producer did not report decoder/worker completion before owner death.' >&2; exit 9;
+    }
     if printf '%s\n' "$owner_logs" | grep -F 'PRESENTATION_CLOSE_FAILED' >/dev/null; then
       echo 'Activity reported a failed Presentation close after parent-owner death.' >&2; exit 9;
     fi
@@ -717,6 +737,8 @@ if [ "$type111_mode" -eq 1 ]; then
       echo 'App-owned secondary Presentation window remained after parent-owner death.' >&2; exit 9;
     fi
     shasum -a 256 "$apk" "$campaign_evidence/api17-compositor-owner-death-logcat-$adb_port.txt" \
+      "$campaign_evidence/api17-compositor-owner-death-processes-$adb_port.txt" \
+      "$campaign_evidence/api17-compositor-owner-death-services-$adb_port.txt" \
       > "$campaign_evidence/api17-compositor-owner-death-artifact-hashes-$adb_port.sha256"
     echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected registrations=0 pfd_transfers=0 retained_bytes=0 presentation=dismiss_requested evidence=$run_label/evidence"
     owned || exit 7

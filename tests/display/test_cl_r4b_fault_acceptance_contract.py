@@ -107,7 +107,12 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
     assert 'CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=$owner_pid ' in runner
     assert "'$2==pid {found=1} END {exit !found}'" in runner
     assert "old_pid_absent=true owner_valid=false child_present=false" in runner
-    assert "PRESENTATION_DISMISS_REQUESTED reason=ipc-remote-disconnected" in runner
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    assert "CL_R4B_ACTIVITY_OWNER_INVALIDATED " in runner
+    assert "CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS " in runner
+    assert '"CL_R4B_ACTIVITY_OWNER_INVALIDATED old_pid="' in activity
+    assert "binder.linkToDeath(compositorDeathRecipient, 0)" in activity
+    assert "parent_teardown_request_skipped=true stale_stream_end_skipped=true" in activity
     assert "owner-death-window-state-$adb_port.txt" in runner
     assert "api17-compositor-owner-death-window-before-$adb_port.txt" in runner
     assert "App-owned secondary Presentation window remained" in runner
@@ -123,6 +128,46 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
     assert "CompositorOwnerDeathTestService.java" in build
 
 
+def test_compositor_owner_restart_rejects_persisted_session_and_registers_fresh_session():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    observer = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
+    assert "SESSION_ID_PREFS" in compositor and "SESSION_ID_SET" in compositor
+    assert "preferences.getStringSet(SESSION_ID_SET" in compositor
+    assert "preferences.getStringSet(LEGACY_SESSION_ID_SET" in compositor
+    assert "legacySessionIds.contains(sessionId)" in compositor
+    assert "ArrayList<Long> unsequenced" in compositor
+    assert "sessionWindowReady = false" in compositor
+    assert "legacySessionIds.add(sessionId)" in compositor
+    assert 'LEGACY_SESSION_ID_SET = "session_ids"' in compositor
+    assert 'SESSION_ID_SET = "session_ids_v2"' in compositor
+    assert "MAX_RECENT_SESSION_IDS = 256" in compositor
+    assert "preferences.edit().putStringSet(SESSION_ID_SET, encoded)" in compositor
+    assert "putString(SESSION_ID_ORDER, ordered.toString())" in compositor
+    assert "nextOrder.remove(evict)" in compositor
+    assert "reserveSessionIdLocked(identity.sessionId)" in compositor
+    assert "verifyFreshSessionRecovery(service, query.compositorPid)" in observer
+    assert "old_type110_identity_re_registered_after_owner_restart" in observer
+    assert "old_session_capability_re_registered_after_owner_restart" in observer
+    assert "fresh_type110_session_registration_failed" in observer
+    assert "fresh_type111_stream_registration_failed" in observer
+    assert "fresh_session_parent_teardown_failed" in observer
+    assert "registrations_after_teardown=0" in observer
+    assert "verifySessionAdmissionBeyondPreviousTombstoneLimit(service, control, compositorPid)" in observer
+    assert "for (int i = 0; i < 300; i++)" in observer
+    assert "active_session_evicted_from_replay_window" in observer
+    assert "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS admitted_and_torn_down=300" in observer
+    assert "same_process_session_id_reused_after_end_at=" in observer
+    assert "MAX_CLOSED_SESSION_IDS" not in compositor
+    assert "activeSessionIds.contains(sessionId)" in compositor
+    assert "!activeSessionIds.contains(nextOrder.get(i))" in compositor
+    assert "activeSessionIds.remove(identity.sessionId)" in compositor
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert 'CL_R4B_OWNER_DEATH_FRESH_SESSION_RECOVERY_PASS ' in runner
+    assert 'Type110 sink or Type111 producer service remained registered after owner loss.' in runner
+    assert "api17-compositor-owner-death-processes-$adb_port.txt" in runner
+    assert "api17-compositor-owner-death-services-$adb_port.txt" in runner
+
+
 def test_parent_owner_loss_cancels_activity_fixture_worker():
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     start = activity.index("private void stopOwnedDisplay")
@@ -131,6 +176,17 @@ def test_parent_owner_loss_cancels_activity_fixture_worker():
     assert "runToken.cancelForDetach();" in stop
     assert "fixtureWorker.interrupt();" in stop
     assert "closeIpcSession();" in stop
+    assert "binder.linkToDeath(compositorDeathRecipient, 0)" in activity
+    assert "parentOwnerLossSessionId = observedSessionId" in activity
+    assert "CL_R4B_ACTIVITY_OWNER_REATTACH_ABORTED" in activity
+    assert "detached_owner_loss=" in activity
+    assert "TYPE111_LIFECYCLE_DETACH_SKIPPED reason=parent-owner-lost stale_session_rpc=false" in activity
+    close_start = activity.index("private void closeIpcSession()")
+    close_end = activity.index("@Override protected void onPause()", close_start)
+    close = activity[close_start:close_end]
+    assert "if (!ownerLost && control != null && type110Owner != null)" in close
+    assert "if (!ownerLost && client != null) client.end(activeGeneration)" in close
+    assert "if (!ownerLost && primaryClient != null) primaryClient.end(activeGeneration)" in close
 
 
 def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verifies_empty_state():

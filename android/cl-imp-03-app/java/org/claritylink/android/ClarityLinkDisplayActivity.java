@@ -182,11 +182,16 @@ public final class ClarityLinkDisplayActivity extends Activity
     private Type111ControlClient type111ControlClient;
     private IBinder primaryLabSinkBinder;
     private IBinder compositorEndpoint;
+    private IBinder observedCompositorBinder;
+    private IBinder.DeathRecipient compositorDeathRecipient;
     private boolean primarySinkBound;
     private boolean compositorServiceStarted;
     private boolean type110SinkServiceStarted;
     private boolean ipcSessionStartAttempted;
     private boolean parentSessionPreservedForLifecycle;
+    private volatile boolean parentOwnerLost;
+    private volatile long parentOwnerLossSessionId;
+    private volatile boolean parentOwnerLossWhileDetached;
     private boolean lifecycleReattachPending;
     private int compositorRemotePid = -1;
     private final ServiceConnection primarySinkConnection = new ServiceConnection() {
@@ -201,17 +206,94 @@ public final class ClarityLinkDisplayActivity extends Activity
     };
     private final ServiceConnection compositorConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, android.os.IBinder service) {
+            if (active && ipcSessionReady && compositorRemotePid > 0 &&
+                    primaryLabSinkBinder != null) {
+                try {
+                    FrameStreamIdentity owner = FrameLabSink.queryIdentity(primaryLabSinkBinder);
+                    Type111ControlClient.StreamQuery rebound = owner == null ? null :
+                            new Type111ControlClient(service).queryType111Stream(owner);
+                    if (rebound == null || !rebound.ownerValid ||
+                            rebound.compositorPid != compositorRemotePid) {
+                        compositorEndpoint = service;
+                        log("CL_R4B_ACTIVITY_OWNER_INVALIDATED old_pid=" + compositorRemotePid +
+                                " new_pid=" + (rebound == null ? -1 : rebound.compositorPid) +
+                                " session_id=" + (owner == null ? 0L : owner.sessionId) +
+                                " old_session_reused=false");
+                        parentOwnerLossSessionId = activeGeneration;
+                        parentOwnerLost = true;
+                        stopOwnedDisplay("parent-owner-replaced");
+                        return;
+                    }
+                } catch (Exception failure) {
+                    compositorEndpoint = service;
+                    log("CL_R4B_ACTIVITY_OWNER_INVALIDATED old_pid=" + compositorRemotePid +
+                            " new_pid=-1 session_id=unknown old_session_reused=false reason=" +
+                            failure.getClass().getSimpleName());
+                    parentOwnerLossSessionId = activeGeneration;
+                    parentOwnerLost = true;
+                    stopOwnedDisplay("parent-owner-replaced");
+                    return;
+                }
+            }
             compositorEndpoint = service;
+            observeCompositorBinder(service);
             startIpcSessionWhenReady();
         }
         public void onServiceDisconnected(ComponentName name) {
+            final int lostPid = compositorRemotePid;
+            final long lostSession = activeGeneration;
             compositorEndpoint = null;
             frameIpcClient = null;
             ipcSessionReady = false;
             log("IPC_REMOTE_DISCONNECTED");
-            if (active && !closing) stopOwnedDisplay("ipc-remote-disconnected");
+            if (active && !closing) {
+                log("CL_R4B_ACTIVITY_OWNER_INVALIDATED old_pid=" + lostPid +
+                        " new_pid=-1 session_id=" + lostSession +
+                        " old_session_reused=false notification=binder-disconnected");
+                parentOwnerLossSessionId = lostSession;
+                parentOwnerLost = true;
+                stopOwnedDisplay("parent-owner-died");
+            }
         }
     };
+
+    private void observeCompositorBinder(final IBinder binder) {
+        if (binder == null) return;
+        if (compositorDeathRecipient != null && observedCompositorBinder != null) {
+            try { observedCompositorBinder.unlinkToDeath(compositorDeathRecipient, 0); }
+            catch (RuntimeException ignored) { }
+        }
+        final long observedSessionId = activeGeneration;
+        observedCompositorBinder = binder;
+        compositorDeathRecipient = new IBinder.DeathRecipient() {
+            public void binderDied() {
+                if (observedCompositorBinder != binder) return;
+                parentOwnerLossSessionId = observedSessionId;
+                parentOwnerLossWhileDetached = !active;
+                parentOwnerLost = true;
+                log("CL_R4B_ACTIVITY_OWNER_INVALIDATED old_pid=" + compositorRemotePid +
+                        " new_pid=-1 session_id=" + observedSessionId +
+                        " old_session_reused=false notification=binder-death-recipient");
+                main.post(new Runnable() {
+                    public void run() {
+                        if (parentOwnerLossSessionId != activeGeneration || !active || closing) return;
+                        stopOwnedDisplay("parent-owner-died");
+                    }
+                });
+            }
+        };
+        try { binder.linkToDeath(compositorDeathRecipient, 0); }
+        catch (android.os.RemoteException alreadyDead) {
+            if (active && !closing) {
+                log("CL_R4B_ACTIVITY_OWNER_INVALIDATED old_pid=" + compositorRemotePid +
+                        " new_pid=-1 session_id=" + activeGeneration +
+                        " old_session_reused=false notification=already-dead-binder");
+                parentOwnerLossSessionId = activeGeneration;
+                parentOwnerLost = true;
+                stopOwnedDisplay("parent-owner-died");
+            }
+        }
+    }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -2156,7 +2238,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         FrameStreamIdentity owner = type110Client == null ? null : type110Client.streamIdentity();
         FrameStreamIdentity child = type111Client == null ? null : type111Client.streamIdentity();
         Type111ControlClient control = type111ControlClient;
-        if (control != null && owner != null && child != null) {
+        if (!parentOwnerLost && control != null && owner != null && child != null) {
             try {
                 boolean detached = control.detachType111Sink(owner, child);
                 log("TYPE111_LIFECYCLE_DETACH accepted=" + detached +
@@ -2166,6 +2248,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                 log("TYPE111_LIFECYCLE_DETACH_FAILED type=" +
                         failure.getClass().getSimpleName());
             }
+        } else if (parentOwnerLost) {
+            log("TYPE111_LIFECYCLE_DETACH_SKIPPED reason=parent-owner-lost stale_session_rpc=false");
         }
         frameIpcClient = null;
         primaryLabIpcClient = null;
@@ -2199,13 +2283,24 @@ public final class ClarityLinkDisplayActivity extends Activity
         Type111ControlClient control = type111ControlClient;
         type111ControlClient = null;
         FrameStreamIdentity type110Owner = primaryClient == null ? null : primaryClient.streamIdentity();
-        if (control != null && type110Owner != null) {
+        boolean ownerLost = parentOwnerLost;
+        if (!ownerLost && control != null && type110Owner != null) {
             try { control.parentTeardown(type110Owner); }
             catch (Exception failure) { log("TYPE111_PARENT_TEARDOWN_FAILED type=" +
                     failure.getClass().getSimpleName()); }
         }
-        if (client != null) client.end(activeGeneration);
-        if (primaryClient != null) primaryClient.end(activeGeneration);
+        if (!ownerLost && client != null) client.end(activeGeneration);
+        if (!ownerLost && primaryClient != null) primaryClient.end(activeGeneration);
+        if (ownerLost)
+            log("CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS session_id=" + activeGeneration +
+                    " parent_teardown_request_skipped=true stale_stream_end_skipped=true " +
+                    "detached_owner_loss=" + parentOwnerLossWhileDetached);
+        if (compositorDeathRecipient != null && observedCompositorBinder != null) {
+            try { observedCompositorBinder.unlinkToDeath(compositorDeathRecipient, 0); }
+            catch (RuntimeException ignored) { }
+        }
+        compositorDeathRecipient = null;
+        observedCompositorBinder = null;
         primaryLabSinkBinder = null;
         viewSink.close(activeGeneration);
         if (primarySinkBound) {
@@ -2227,6 +2322,9 @@ public final class ClarityLinkDisplayActivity extends Activity
             compositorServiceStarted = false;
         }
         compositorEndpoint = null;
+        parentOwnerLossSessionId = 0L;
+        parentOwnerLossWhileDetached = false;
+        parentOwnerLost = false;
     }
 
     @Override protected void onPause() {
@@ -2243,6 +2341,15 @@ public final class ClarityLinkDisplayActivity extends Activity
     @Override protected void onResume() {
         super.onResume();
         if (parentSessionPreservedForLifecycle && reattachSessionId > 0L) {
+            if (parentOwnerLost && parentOwnerLossSessionId == reattachSessionId) {
+                log("CL_R4B_ACTIVITY_OWNER_REATTACH_ABORTED session_id=" + reattachSessionId +
+                        " stale_session_rpc=false fresh_session_required=true");
+                parentSessionPreservedForLifecycle = false;
+                lifecycleReattachPending = false;
+                reattachSessionId = 0L;
+                stopOwnedDisplay("parent-owner-died-during-detach");
+                return;
+            }
             parentSessionPreservedForLifecycle = false;
             log("VIEW_ATTACHMENT_REATTACH_REQUEST session_id=" + reattachSessionId +
                     " parent_session_preserved=true");
