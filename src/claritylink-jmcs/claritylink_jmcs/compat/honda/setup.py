@@ -21,6 +21,15 @@ class HondaStaticType110Adapter:
     evidence: str = "HONDA_STATIC"
 
     def parse_known_request(self, raw: Mapping[str, Any], generation: int) -> SetupRequest:
+        # The bounded Honda audit found no Type111 branch. Detect that stream
+        # before the generic lab parser applies any Type111 descriptor rules;
+        # Honda's Type111 request fields remain unknown.
+        if isinstance(raw, Mapping):
+            streams = raw.get("streams")
+            if isinstance(streams, (list, tuple)) and any(
+                    isinstance(stream, Mapping) and type(stream.get("type")) is int and
+                    stream.get("type") == 111 for stream in streams):
+                raise EvidenceRequired("honda_type111_setup_dispatch")
         parsed = SetupRequest.parse(raw, generation)
         if any(s.type != 110 for s in parsed.streams):
             raise EvidenceRequired("honda_non_type110_setup_behavior")

@@ -45,7 +45,7 @@ def test_honda_known_type110_fields_and_unknown_type111() -> None:
     adapter = HondaStaticType110Adapter()
     assert adapter.parse_known_request(request(110), 1).streams[0].stream_connection_id == 1110
     assert adapter.known_response_entry(50001) == {"type": 110, "dataPort": 50001}
-    with pytest.raises(EvidenceRequired, match="honda_non_type110"):
+    with pytest.raises(EvidenceRequired, match="honda_type111_setup_dispatch"):
         adapter.parse_known_request(request(111), 1)
     with pytest.raises(EvidenceRequired, match="honda_type111_response"):
         adapter.type111_response({})
