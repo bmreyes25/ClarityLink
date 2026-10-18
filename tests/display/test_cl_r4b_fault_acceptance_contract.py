@@ -177,7 +177,8 @@ def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_auth
     assert "armDelayedSinkDeathCallback(identity)" in service
     assert "fireDelayedSinkDeathCallback(ownerIdentity, currentIdentity)" in service
     assert "labDelayedDeathIdentity.streamGeneration + 1L != currentIdentity.streamGeneration" in service
-    assert "labDelayedDeathSink == child.sink" in service
+    assert "labDelayedDeathState != child" in service
+    assert "labDelayedDeathState != state" in service
     assert "pauseLabDelayedDeathCallback(" in service
     assert "release.await(120000L, TimeUnit.MILLISECONDS)" in service
     assert "release.countDown()" in service
@@ -187,6 +188,11 @@ def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_auth
     assert "fireLabDelayedSinkDeathCallback(primaryIdentity, replacement)" in activity
     assert "if (existing.sinkAttached && !delayedDeathCallbackTest)" in activity
     assert "replacement_preserved=true" in activity
+    assert "wrong_owner_callback_release_rejected" in activity
+    assert "duplicate_callback_release_rejected" in activity
+    assert "callback_release_after_parent_teardown_rejected" in activity
+    assert "CL_R4B_DELAYED_CALLBACK_NEGATIVE_IDENTITY_PASS" in runner
+    assert "CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS" in runner
     assert "--cl-r4b-delayed-callback" in runner
     assert "--cl-r4b-delayed-callback-type111-first" in runner
     assert "IPC_LAB_DELAYED_DEATH_CALLBACK_ENTERED session_id=$initial_session_generation " in runner

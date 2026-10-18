@@ -51,7 +51,7 @@ public final class CompositorService extends Service {
     private CountDownLatch labParentTeardownContender = new CountDownLatch(0);
     private final Object labDelayedDeathLock = new Object();
     private FrameStreamIdentity labDelayedDeathIdentity;
-    private IBinder labDelayedDeathSink;
+    private StreamState labDelayedDeathState;
     private CountDownLatch labDelayedDeathEntered = new CountDownLatch(0);
     private CountDownLatch labDelayedDeathRelease = new CountDownLatch(0);
     private CountDownLatch labDelayedDeathCompleted = new CountDownLatch(0);
@@ -490,7 +490,11 @@ public final class CompositorService extends Service {
                 return false;
             synchronized (labDelayedDeathLock) {
                 labDelayedDeathIdentity = identity;
-                labDelayedDeathSink = state.sink;
+                // The callback closes over this exact StreamState and is only invoked by
+                // Binder after the registered sink dies. Binder interface proxies need not
+                // have Java reference identity across transactions, so bind the test gate to
+                // the state object instead of comparing proxy objects in binderDied().
+                labDelayedDeathState = state;
                 labDelayedDeathEntered = new CountDownLatch(1);
                 labDelayedDeathRelease = new CountDownLatch(1);
                 labDelayedDeathCompleted = new CountDownLatch(1);
@@ -522,7 +526,7 @@ public final class CompositorService extends Service {
                     if (labDelayedDeathIdentity == null ||
                             !labDelayedDeathIdentity.sameStream(currentIdentity) ||
                             labDelayedDeathIdentity.streamGeneration + 1L != currentIdentity.streamGeneration ||
-                            labDelayedDeathSink == child.sink || labDelayedDeathEntered.getCount() != 0L)
+                            labDelayedDeathState != child || labDelayedDeathEntered.getCount() != 0L)
                         return false;
                     release = labDelayedDeathRelease;
                     completed = labDelayedDeathCompleted;
@@ -542,7 +546,7 @@ public final class CompositorService extends Service {
                 if (labDelayedDeathIdentity != null &&
                         labDelayedDeathIdentity.sessionId == currentIdentity.sessionId) {
                     labDelayedDeathIdentity = null;
-                    labDelayedDeathSink = null;
+                    labDelayedDeathState = null;
                 }
             }
             Log.i(TAG, "IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED session_id=" + currentIdentity.sessionId +
@@ -554,12 +558,13 @@ public final class CompositorService extends Service {
         }
     }
 
-    private CountDownLatch pauseLabDelayedDeathCallback(FrameStreamIdentity identity, IBinder sink) {
+    private CountDownLatch pauseLabDelayedDeathCallback(StreamState state,
+            FrameStreamIdentity identity) {
         CountDownLatch entered, release, completed;
         long currentGeneration;
         synchronized (labDelayedDeathLock) {
             if (labDelayedDeathIdentity == null || !labDelayedDeathIdentity.sameStream(identity) ||
-                    labDelayedDeathSink != sink) return null;
+                    labDelayedDeathState != state) return null;
             entered = labDelayedDeathEntered;
             release = labDelayedDeathRelease;
             completed = labDelayedDeathCompleted;
@@ -657,7 +662,7 @@ public final class CompositorService extends Service {
                 if (labDelayedDeathIdentity != null && labDelayedDeathIdentity.sessionId == sessionId) {
                     labDelayedDeathRelease.countDown();
                     labDelayedDeathIdentity = null;
-                    labDelayedDeathSink = null;
+                    labDelayedDeathState = null;
                     labDelayedDeathEntered = new CountDownLatch(0);
                     labDelayedDeathRelease = new CountDownLatch(0);
                     labDelayedDeathCompleted = new CountDownLatch(0);
@@ -876,7 +881,7 @@ public final class CompositorService extends Service {
         return new IBinder.DeathRecipient() {
             public void binderDied() {
                 final CountDownLatch delayedCompletion = pauseLabDelayedDeathCallback(
-                        registeredIdentity, registeredSink);
+                        state, registeredIdentity);
                 try {
                 if (deathGate != null) synchronized (deathGate) { deathGate.dead = true; }
                 final FrameStreamIdentity deadIdentity;

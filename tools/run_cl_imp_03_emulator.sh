@@ -830,6 +830,9 @@ if [ "$type111_mode" -eq 1 ]; then
     echo "Type111 View process $app_pid remains alive after its self-termination request." >&2; exit 9;
   }
   if [ "$delayed_death_callback" -eq 1 ]; then
+    printf '%s\n' "$logs" | grep -F "CL_R4B_DELAYED_CALLBACK_NEGATIVE_IDENTITY_PASS wrong_session=true wrong_generation=true replacement_unchanged=true" >/dev/null || {
+      echo 'Delayed callback wrong-identity releases were not rejected without changing the replacement.' >&2; exit 9;
+    }
     printf '%s\n' "$logs" | grep -F "IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED session_id=$session_id " \
       | grep -F 'entered_before_replacement=true completed_after_replacement=true current_sink_preserved=true' >/dev/null || {
       printf '%s\n' "$logs" | grep -F 'IPC_LAB_DELAYED_DEATH_CALLBACK_' >&2 || true
@@ -880,6 +883,9 @@ if [ "$type111_mode" -eq 1 ]; then
       echo 'Restarted Type111 View process did not receive a fresh PID.' >&2; exit 9;
     }
     wait_for 'CL_R4A_VIEW_REATTACH_PASS'
+    if [ "$delayed_death_callback" -eq 1 ]; then
+      wait_for 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'
+    fi
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt"
     printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown=accepted' >/dev/null || {

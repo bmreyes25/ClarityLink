@@ -291,8 +291,27 @@ public final class ClarityLinkDisplayActivity extends Activity
                 if (client == null || primaryClient == null)
                     throw new IllegalStateException("reattached_stream_client_unavailable");
                 if (delayedDeathCallbackTest) {
+                    FrameStreamIdentity wrongOwner = new FrameStreamIdentity(
+                            primaryIdentity.sessionId + 1L, primaryIdentity.streamType,
+                            primaryIdentity.connectionId, primaryIdentity.streamGeneration,
+                            primaryIdentity.outputId);
+                    FrameStreamIdentity wrongChild = replacement.withGeneration(
+                            replacement.streamGeneration + 1L);
+                    requireType111(!control.fireLabDelayedSinkDeathCallback(wrongOwner, replacement),
+                            "wrong_owner_callback_release_rejected");
+                    requireType111(!control.fireLabDelayedSinkDeathCallback(primaryIdentity, wrongChild),
+                            "wrong_generation_callback_release_rejected");
+                    Type111ControlClient.StreamQuery afterRejectedReleases =
+                            control.queryType111Stream(primaryIdentity);
+                    requireType111(afterRejectedReleases != null && afterRejectedReleases.identity != null &&
+                            replacement.equals(afterRejectedReleases.identity) && afterRejectedReleases.sinkAttached,
+                            "rejected_callback_release_preserved_replacement");
+                    Log.i(TAG, "CL_R4B_DELAYED_CALLBACK_NEGATIVE_IDENTITY_PASS wrong_session=true " +
+                            "wrong_generation=true replacement_unchanged=true");
                     if (!control.fireLabDelayedSinkDeathCallback(primaryIdentity, replacement))
                         throw new IllegalStateException("delayed_old_sink_callback_changed_replacement");
+                    requireType111(!control.fireLabDelayedSinkDeathCallback(primaryIdentity, replacement),
+                            "duplicate_callback_release_rejected");
                     Type111ControlClient.StreamQuery afterDelayedCallback =
                             control.queryType111Stream(primaryIdentity);
                     if (afterDelayedCallback == null || afterDelayedCallback.identity == null ||
@@ -916,6 +935,11 @@ public final class ClarityLinkDisplayActivity extends Activity
             }
         }
         ClarityLinkContentView currentView = renderer == null ? null : renderer.contentView();
+        // The draw receipt can arrive between the final sleep and the deadline check.
+        // Re-read once at the boundary so a frame actually drawn by the deadline is not
+        // reported as a timeout merely because the polling loop crossed that boundary.
+        if (currentView != null && currentView.drawnGeneration() == expectedGeneration &&
+                currentView.drawnTimestampNs() == expectedTimestampNs) return true;
         log("CL_R3_VIEW_DRAW_TIMEOUT expected_generation=" + expectedGeneration +
                 " expected_timestamp=" + expectedTimestampNs + " displayed_generation=" +
                 (currentView == null ? -1 : currentView.displayedGeneration()) +
@@ -1246,6 +1270,13 @@ public final class ClarityLinkDisplayActivity extends Activity
                         }
                         if (reattachControl == null || !reattachControl.parentTeardown(type110Identity))
                             throw new IllegalStateException("reattached_parent_teardown_rejected");
+                        if (delayedDeathCallbackTest) {
+                            requireType111(!reattachControl.fireLabDelayedSinkDeathCallback(
+                                    type110Identity, frameIpcClient.streamIdentity()),
+                                    "callback_release_after_parent_teardown_rejected");
+                            Log.i(TAG, "CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS " +
+                                    "stale_release_rejected=true session_not_resurrected=true");
+                        }
                         Log.i(TAG, "CL_R4A_VIEW_REATTACH_PASS session_id=" + type110Identity.sessionId +
                                 " type110_generation=" + reattachType110Generation +
                                 " type110_generation_after_fixture=" + type110Identity.streamGeneration +
