@@ -848,7 +848,9 @@ public final class CompositorService extends Service {
         if (trackedPfd) pauseAtLabTransferBarrier(identity);
         byte[] payload = null;
         String rejection = "frame_contract_rejected";
-        boolean contractValid = descriptor != null && identity.equals(state.identity) &&
+        boolean sessionClosing;
+        synchronized (streamsLock) { sessionClosing = closingSessions.contains(identity.sessionId); }
+        boolean contractValid = !sessionClosing && descriptor != null && identity.equals(state.identity) &&
                 !state.compositor.warningVisible() &&
                 timestampNs > state.compositor.lastTimestampNs() &&
                 pixelFormat == FrameIpcProtocol.PIXEL_FORMAT_RGBA_8888 &&
@@ -863,6 +865,12 @@ public final class CompositorService extends Service {
                 payload = readBoundedPayload(descriptor, payloadBytes);
                 descriptor = null;
                 if (payload == null) rejection = "frame_payload_length_rejected";
+            } else if (sessionClosing) {
+                rejection = "session_closing";
+                if (descriptor != null) {
+                    descriptor.close();
+                    descriptor = null;
+                }
             } else if (descriptor != null) {
                 descriptor.close();
                 descriptor = null;

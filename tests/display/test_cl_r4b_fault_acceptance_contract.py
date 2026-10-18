@@ -87,6 +87,16 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
 
     source = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
     assert 'expected.equals(process.processName)' in source
+    assert 'bindOwnerObserver("observer_bind_failed")' in source
+    assert 'bindOwnerObserver("observer_rebind_failed_after_owner_death")' in source
+    assert "observerRebindStarted = true" in source
+    assert "unbindService(deadConnection)" in source
+    assert "private final Object lifecycleLock" in source
+    assert "connection != this || endpointDisconnected ||" in source
+    assert "endpointVerificationStarted = true" in source
+    assert "ownerDeathObserved = true" in source
+    assert "if (!ownerDeathObserved ||" in source
+    assert "synchronized (lifecycleLock)" in source
     assert "process.uid == Process.myUid()" in source
     assert "Process.killProcess(targetPid);" in source
     assert "service.isBinderAlive() || !isExactOwnedCompositorPid(targetPid)" in source
@@ -218,6 +228,22 @@ def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verif
     assert "overlap_barrier=first_paused_contender_rejected" in runner
     assert "Expected one parent teardown commit" in runner
     assert "Stream $stream_type unregister count was" in runner
+    assert "frameIpcClient.submit(pendingFrame" in activity
+    assert "LAB_ARM_TRANSFER_BARRIER" in activity
+    assert "pending_teardown_pfd_barrier_not_reached" in activity
+    assert "CL_R4B_TEARDOWN_PENDING_PFD_REJECTED" in activity
+    assert "session_closing" in service
+    assert "replacement_registered_during_parent_shutdown" in activity
+    assert "CL_R4B_TEARDOWN_REPLACEMENT_REJECTED" in activity
+    assert "killType110SinkForTeardownRace(owner)" in activity
+    assert "CL_R4B_TEARDOWN_TYPE110_DEATH_PASS" in activity
+    assert "reentrantTeardownInProgress" in activity
+    assert "CL_R4B_TYPE110_DEATH_DURING_TEARDOWN_CLEANUP_DEFERRED=true" in activity
+    assert "CL_R4B_TEARDOWN_REGISTRATION_REJECTED" in activity
+    assert "stream_registration_accepted_during_parent_shutdown" in activity
+    assert "Type110 sink process death was not observed during parent teardown" in runner
+    assert "actual in-flight PFD entered the transfer barrier" in runner
+    assert "Pending PFD transfer was not rejected and released" in runner
 
 
 def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_authorized_replacement():
@@ -267,3 +293,26 @@ def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_auth
     assert 'grep -F "pid=$app_pid " | tail -1' in runner
     assert 'grep -F "session_id=$initial_session_generation "' in runner
     assert 'else\n    wait_for \'IPC_VIEW_SINK_DEATH_CALLBACK session_id=\'' in delayed_flow
+
+
+def test_api17_producer_recovery_rebinds_only_after_real_binder_death():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    recovery = activity[activity.index("private void runIndependentType111ProducerFault"):]
+    assert 'awaitRace(death), "producer_binding_death_callback_observed"' in recovery
+    assert "unbindService(connection);" in recovery
+    assert '"type111_producer_rebind_accepted_after_death"' in recovery
+    assert '"producer_rebound_after_process_death"' in recovery
+    assert "CL_R4_TYPE111_PRODUCER_REBIND_PASS" in recovery
+    assert "bound_service_recreated_after_process_death" not in recovery
+
+
+def test_api17_producer_wait_retries_only_bounded_unfinished_binder_replies():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    start = activity.index("private long[] awaitIsolatedProducerFrames")
+    end = activity.index("private void verifyProducerWaitBounds", start)
+    wait = activity[start:end]
+    assert "attempt < 3" in wait
+    assert "data.writeLong(15000L)" in wait
+    assert "if (finished)" in wait
+    assert "isolated_producer_did_not_finish_within_bounded_waits" in wait
+    assert "Thread.sleep" not in wait

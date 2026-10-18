@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.hardware.display.DisplayManager;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -160,6 +161,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean type111ReattachTest;
     private boolean ownerDeathTest;
     private boolean reentrantTeardownTest;
+    private volatile boolean reentrantTeardownInProgress;
     private boolean delayedDeathCallbackTest;
     private boolean type111RunStarted;
     private volatile Thread type111FixtureWorker;
@@ -201,7 +203,10 @@ public final class ClarityLinkDisplayActivity extends Activity
         }
         public void onServiceDisconnected(ComponentName name) {
             primaryLabSinkBinder = null;
-            if (active && !closing) stopOwnedDisplay("type110-lab-sink-disconnected");
+            if (active && !closing && !reentrantTeardownInProgress)
+                stopOwnedDisplay("type110-lab-sink-disconnected");
+            else if (reentrantTeardownInProgress)
+                log("CL_R4B_TYPE110_DEATH_DURING_TEARDOWN_CLEANUP_DEFERRED=true");
         }
     };
     private final ServiceConnection compositorConnection = new ServiceConnection() {
@@ -1370,6 +1375,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                         android.os.Process.killProcess(android.os.Process.myPid());
                     }
                 } catch (Throwable failure) {
+                    reentrantTeardownInProgress = false;
                     Log.e(TAG, "CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL", failure);
                     if (!runToken.isCancelled())
                         closeType111Lab("type111_fixture_failed");
@@ -1387,6 +1393,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     /** Exercise actual Binder parent teardown concurrently, then verify repeat-close is inert. */
     private void runReentrantParentTeardown(final FrameStreamIdentity owner,
             final FrameStreamIdentity child) throws Exception {
+        reentrantTeardownInProgress = true;
         if (owner == null || child == null || owner.streamType != FrameStreamIdentity.TYPE110 ||
                 child.streamType != FrameStreamIdentity.TYPE111 || owner.sessionId != child.sessionId)
             throw new IllegalStateException("reentrant_teardown_identity_mismatch");
@@ -1396,6 +1403,30 @@ public final class ClarityLinkDisplayActivity extends Activity
         final boolean[] results = new boolean[] { false, false };
         final Throwable[] failures = new Throwable[2];
         final Type111ControlClient control = new Type111ControlClient(compositorEndpoint);
+        final CountDownLatch transferDone = new CountDownLatch(1);
+        final boolean[] transferAccepted = new boolean[] { true };
+        final String[] transferReason = new String[] { "callback_missing" };
+        final DecodedFrame pendingFrame = new DecodedFrame(2, 2, 8,
+                fixtureTimestamp(9000000000L), 0, 0, 0, 2, 2,
+                ByteBuffer.wrap(new byte[] {
+                    (byte) 0xff, 0, 0, (byte) 0xff,
+                    (byte) 0xff, 0, 0, (byte) 0xff,
+                    (byte) 0xff, 0, 0, (byte) 0xff,
+                    (byte) 0xff, 0, 0, (byte) 0xff
+                }));
+        if (frameIpcClient == null ||
+                !controlBarrier(FrameIpcProtocol.LAB_ARM_TRANSFER_BARRIER, child, 0L) ||
+                !frameIpcClient.submit(pendingFrame, child.streamGeneration,
+                new FrameIpcClient.Callback() {
+                    public void complete(boolean accepted, String reason) {
+                        transferAccepted[0] = accepted;
+                        transferReason[0] = reason;
+                        transferDone.countDown();
+                    }
+                }) || !controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER, child, 5000L))
+            throw new IllegalStateException("pending_teardown_pfd_barrier_not_reached");
+        Log.i(TAG, "CL_R4B_TEARDOWN_PENDING_PFD_PASS session_id=" + owner.sessionId +
+                " stream_generation=" + child.streamGeneration + " transfer_active=true");
         if (!control.armLabParentTeardownBarrier(owner))
             throw new IllegalStateException("parent_teardown_overlap_barrier_not_armed");
         for (int index = 0; index < 2; index++) {
@@ -1425,6 +1456,41 @@ public final class ClarityLinkDisplayActivity extends Activity
             firstPaused = control.awaitLabParentTeardownBarrier(owner, false, 5000L);
             contenderRejectedWhilePaused = firstPaused &&
                     control.awaitLabParentTeardownBarrier(owner, true, 5000L);
+            if (firstPaused) {
+                FrameStreamIdentity replacement = child.withGeneration(child.streamGeneration + 1L);
+                if (control.setup(replacement) ||
+                        new FrameIpcClient(compositorEndpoint).begin(replacement, new Binder()) >= 0)
+                    throw new IllegalStateException("stream_registration_accepted_during_parent_shutdown");
+                Type111ControlClient.FrameStats beforeRelease = control.queryFrameStats(child);
+                if (beforeRelease == null || !beforeRelease.registered ||
+                        beforeRelease.activePfdTransfers != 1 || beforeRelease.retainedFrameBytes != 0)
+                    throw new IllegalStateException("shutdown_registration_attempt_changed_current_stream");
+                Log.i(TAG, "CL_R4B_TEARDOWN_REGISTRATION_REJECTED session_id=" + owner.sessionId +
+                        " proposed_generation=" + replacement.streamGeneration +
+                        " current_registration_preserved=true active_pfd=1");
+                boolean replacementAccepted = FrameIpcClient.replaceType111Sink(compositorEndpoint,
+                        owner, child, replacement, new Binder());
+                if (replacementAccepted)
+                    throw new IllegalStateException("replacement_registered_during_parent_shutdown");
+                Log.i(TAG, "CL_R4B_TEARDOWN_REPLACEMENT_REJECTED session_id=" + owner.sessionId +
+                        " old_generation=" + child.streamGeneration +
+                        " proposed_generation=" + replacement.streamGeneration +
+                        " replacement_unchanged=true");
+                if (!controlBarrier(FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER, child, 0L) ||
+                        !controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED, child, 5000L) ||
+                        !transferDone.await(5L, TimeUnit.SECONDS))
+                    throw new IllegalStateException("pending_teardown_transfer_did_not_finish");
+                if (transferAccepted[0] || !"session_closing".equals(transferReason[0]))
+                    throw new IllegalStateException("pending_frame_not_rejected_after_admission_closed:" +
+                            transferReason[0]);
+                int[] transferStats = queryType111TransferStats(child);
+                if (transferStats[0] != 0 || transferStats[1] != 0 || transferStats[2] != 0)
+                    throw new IllegalStateException("pending_teardown_transfer_resources_retained");
+                Log.i(TAG, "CL_R4B_TEARDOWN_PENDING_PFD_REJECTED session_id=" + owner.sessionId +
+                        " result=" + transferReason[0] + " active_pfd=0 retained_bytes=0 " +
+                        "transfer_active=false");
+                killType110SinkForTeardownRace(owner);
+            }
         } finally { control.releaseLabParentTeardownBarrier(owner); }
         if (!firstPaused || !contenderRejectedWhilePaused) {
             done.await(8L, TimeUnit.SECONDS);
@@ -1442,10 +1508,36 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (query == null || query.ownerValid || query.identity != null || query.sinkAttached ||
                 !zeroUnregistered(ownerStats) || !zeroUnregistered(childStats))
             throw new IllegalStateException("reentrant_parent_teardown_left_resources");
+        reentrantTeardownInProgress = false;
         Log.i(TAG, "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS session_id=" + owner.sessionId +
                 " concurrent_calls=2 accepted_calls=1 rejected_calls=1 repeated_close_rejected=true " +
                 "overlap_barrier=first_paused_contender_rejected " +
+                "pending_pfd_rejected=true registration_during_shutdown_rejected=true " +
+                "replacement_during_shutdown_rejected=true type110_died_during_shutdown=true " +
                 "owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0");
+    }
+
+    /** Kill the real separate Type110 sink only after teardown has closed session admission. */
+    private void killType110SinkForTeardownRace(final FrameStreamIdentity owner) throws Exception {
+        final CountDownLatch died = new CountDownLatch(1);
+        FrameLabSink.Stats stats = queryType110StatsOrThrow("type110_teardown_race_stats_missing");
+        if (stats.pid <= 0 || primaryLabSinkBinder == null || !primaryLabSinkBinder.isBinderAlive())
+            throw new IllegalStateException("type110_teardown_race_process_missing");
+        try {
+            primaryLabSinkBinder.linkToDeath(new IBinder.DeathRecipient() {
+                public void binderDied() { died.countDown(); }
+            }, 0);
+        } catch (android.os.RemoteException alreadyDead) {
+            throw new IllegalStateException("type110_sink_died_before_teardown_race");
+        }
+        Intent failure = new Intent(this, Type110SinkFailureTestService.class);
+        failure.putExtra("confirmation", "CL_R4B_OFFLINE_EMULATOR_ONLY");
+        failure.putExtra("target_pid", stats.pid);
+        failure.putExtra("target_session_id", owner.sessionId);
+        if (startService(failure) == null || !died.await(5L, TimeUnit.SECONDS))
+            throw new IllegalStateException("type110_sink_did_not_die_during_teardown");
+        Log.i(TAG, "CL_R4B_TEARDOWN_TYPE110_DEATH_PASS session_id=" + owner.sessionId +
+                " sink_pid=" + stats.pid + " binder_death_observed=true admission_already_closed=true");
     }
 
     private static boolean zeroUnregistered(Type111ControlClient.FrameStats stats) {
@@ -1471,27 +1563,24 @@ public final class ClarityLinkDisplayActivity extends Activity
             byte[][] type110AccessUnits, long binderGeneration) throws Exception {
         final String descriptor = "org.claritylink.android.IType111LabProducer";
         final IBinder[] producerBinder = new IBinder[1];
-        final boolean[] connectedOnce = new boolean[1];
-        final boolean[] waitingForRestart = new boolean[1];
+        final boolean[] producerBound = new boolean[1];
+        final ServiceConnection[] recoveryConnection = new ServiceConnection[1];
+        final boolean[] recoveryBound = new boolean[1];
         final CountDownLatch firstConnection = new CountDownLatch(1);
         final CountDownLatch death = new CountDownLatch(1);
-        final CountDownLatch restarted = new CountDownLatch(1);
         ServiceConnection connection = new ServiceConnection() {
             public void onServiceConnected(ComponentName name, IBinder service) {
                 producerBinder[0] = service;
-                if (!connectedOnce[0]) {
-                    connectedOnce[0] = true;
-                    firstConnection.countDown();
-                } else if (waitingForRestart[0]) restarted.countDown();
+                firstConnection.countDown();
             }
             public void onServiceDisconnected(ComponentName name) {
-                waitingForRestart[0] = true;
                 death.countDown();
                 log("TYPE111_PRODUCER_BINDER_DEATH_CALLBACK component=" + name.getClassName());
             }
         };
         if (!bindService(new Intent(this, Type111ProducerService.class), connection,
                 Context.BIND_AUTO_CREATE)) throw new IllegalStateException("type111_producer_bind_failed");
+        producerBound[0] = true;
         try {
             requireType111(awaitRace(firstConnection), "independent_type111_producer_service_bound");
             verifyProducerWaitBounds(producerBinder[0], descriptor);
@@ -1567,6 +1656,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             Log.i(TAG, "CL_R4_TYPE110_AFTER_TYPE111_PRODUCER_DEATH_PASS producer_pid=" + oldPid +
                     " frame_at_death=" + atDeath.frameId + " frame_after_death=" + afterType110.frameId);
 
+            requireType111(awaitRace(death), "producer_binding_death_callback_observed");
             FrameStreamIdentity oldIdentity = frameIpcClient.streamIdentity();
             long freshGeneration = oldIdentity.streamGeneration + 1L;
             requireType111(frameIpcClient.replaceGeneration(oldIdentity.streamGeneration, freshGeneration),
@@ -1579,7 +1669,29 @@ public final class ClarityLinkDisplayActivity extends Activity
             requireType111("frame_contract_rejected".equals(frameIpcClient.probeMalformed(
                     "stale_generation", freshGeneration, 9200000000L)),
                     "predeath_type111_generation_rejected_after_restart");
-            requireType111(awaitRace(restarted), "bound_service_recreated_after_process_death");
+            // API17 reports the dead binding but does not consistently reconnect a bound-only
+            // service. Rebind only after the actual death callback, so recovery is explicit and
+            // its replacement process can be identified without a polling sleep.
+            unbindService(connection);
+            producerBound[0] = false;
+            producerBinder[0] = null;
+            final CountDownLatch restarted = new CountDownLatch(1);
+            recoveryConnection[0] = new ServiceConnection() {
+                public void onServiceConnected(ComponentName name, IBinder service) {
+                    producerBinder[0] = service;
+                    restarted.countDown();
+                }
+                public void onServiceDisconnected(ComponentName name) {
+                    log("TYPE111_PRODUCER_RECOVERY_BINDER_DISCONNECTED component=" +
+                            name.getClassName());
+                }
+            };
+            requireType111(bindService(new Intent(this, Type111ProducerService.class), recoveryConnection[0],
+                    Context.BIND_AUTO_CREATE), "type111_producer_rebind_accepted_after_death");
+            recoveryBound[0] = true;
+            requireType111(awaitRace(restarted), "producer_rebound_after_process_death");
+            Log.i(TAG, "CL_R4_TYPE111_PRODUCER_REBIND_PASS old_pid=" + oldPid +
+                    " binder_death_observed=true previous_binding_released=true new_binding_connected=true");
             IBinder freshProducerBinder = producerBinder[0];
             int freshPid = queryIsolatedProducerPid(freshProducerBinder, descriptor);
             requireType111(freshPid > 0 && freshPid != oldPid && freshPid != android.os.Process.myPid(),
@@ -1599,7 +1711,12 @@ public final class ClarityLinkDisplayActivity extends Activity
                     " new_generation=" + freshIdentity.streamGeneration + " stale_rejected=true " +
                     "type110_progress_after_death=true h264_decoded=true binder_pfd=true view_draw=true");
         } finally {
-            try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
+            if (producerBound[0]) {
+                try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
+            }
+            if (recoveryBound[0]) {
+                try { unbindService(recoveryConnection[0]); } catch (IllegalArgumentException ignored) { }
+            }
         }
     }
 
@@ -1641,21 +1758,29 @@ public final class ClarityLinkDisplayActivity extends Activity
     }
 
     private long[] awaitIsolatedProducerFrames(IBinder producer, String descriptor) throws Exception {
-        Parcel data = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            data.writeInterfaceToken(descriptor);
-            data.writeLong(15000L);
-            producer.transact(IBinder.FIRST_CALL_TRANSACTION + 3, data, reply, 0);
-            reply.readException();
-            boolean finished = reply.readInt() != 0;
-            int count = reply.readInt();
-            if (!finished || count < 0 || count > 4)
-                throw new IllegalStateException("isolated_producer_completion_or_count_invalid");
-            long[] timestamps = new long[count];
-            for (int i = 0; i < count; i++) timestamps[i] = reply.readLong();
-            return timestamps;
-        } finally { reply.recycle(); data.recycle(); }
+        // Each Binder wait remains capped by the producer's 15s contract. Retry only
+        // after an explicit unfinished reply, for a bounded total of 45s; this avoids
+        // treating slow API17 codec startup as a producer failure or using blind sleeps.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            Parcel data = Parcel.obtain();
+            Parcel reply = Parcel.obtain();
+            try {
+                data.writeInterfaceToken(descriptor);
+                data.writeLong(15000L);
+                producer.transact(IBinder.FIRST_CALL_TRANSACTION + 3, data, reply, 0);
+                reply.readException();
+                boolean finished = reply.readInt() != 0;
+                int count = reply.readInt();
+                if (count < 0 || count > 4)
+                    throw new IllegalStateException("isolated_producer_completion_count_invalid");
+                if (finished) {
+                    long[] timestamps = new long[count];
+                    for (int i = 0; i < count; i++) timestamps[i] = reply.readLong();
+                    return timestamps;
+                }
+            } finally { reply.recycle(); data.recycle(); }
+        }
+        throw new IllegalStateException("isolated_producer_did_not_finish_within_bounded_waits");
     }
 
     private boolean controlBarrier(int code, FrameStreamIdentity identity, long timeoutMs)
