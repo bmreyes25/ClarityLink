@@ -16,6 +16,10 @@ def test_api17_runner_can_exercise_first_order_and_same_session_view_replacement
     assert 'setup_order=$expected_setup_order ' in runner
     assert 'api17-initial-setup-order-$adb_port.txt' in runner
     assert 'Initial API17 session did not prove setup_order=' in runner
+    assert 'type111_view_pid=\\([0-9][0-9]*\\)' in runner
+    assert 'generation=\\([0-9][0-9]*\\)' in runner
+    assert 'Initial setup receipt Type111 PID did not match' in runner
+    assert 'Pre-death session identity did not match the initial setup receipt generation.' in runner
     assert 'initial_compositor_pid=$(printf' in runner
     assert 'compositor_pid=$initial_compositor_pid' in runner
     assert 'CL_R4A_TYPE111_SINK_REPLACED ' in runner

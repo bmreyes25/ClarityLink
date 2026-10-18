@@ -479,9 +479,15 @@ printf '%s\n' "$initial_setup_receipt" | grep -F "setup_order=$expected_setup_or
 }
 printf '%s\n' "$initial_setup_receipt" > "$campaign_evidence/api17-initial-setup-order-$adb_port.txt"
 initial_compositor_pid=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*remote_pid=\([0-9][0-9]*\).*/\1/p')
+initial_setup_type111_pid=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*type111_view_pid=\([0-9][0-9]*\).*/\1/p')
+initial_session_generation=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*IPC_SESSION_STARTED generation=\([0-9][0-9]*\).*/\1/p')
 initial_type110_sink_pid=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*type110_sink_pid=\([0-9][0-9]*\).*/\1/p')
-[ -n "$initial_compositor_pid" ] && [ -n "$initial_type110_sink_pid" ] || {
-  echo 'Initial session receipt omitted compositor or Type110 process identity.' >&2; exit 9;
+[ -n "$initial_compositor_pid" ] && [ -n "$initial_setup_type111_pid" ] &&
+  [ -n "$initial_session_generation" ] && [ -n "$initial_type110_sink_pid" ] || {
+  echo 'Initial session receipt omitted compositor, Type111, Type110, or session identity.' >&2; exit 9;
+}
+[ "$initial_setup_type111_pid" = "$initial_type111_pid" ] || {
+  echo 'Initial setup receipt Type111 PID did not match the observed Activity process.' >&2; exit 9;
 }
 proof="$campaign_evidence/api17-binder-view-proof-$adb_port.png"
 proof_tmp="$proof.tmp"
@@ -690,6 +696,9 @@ if [ "$type111_mode" -eq 1 ]; then
   type110_last_frame=$(printf '%s\n' "$death_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
   type110_sink_pid=$(printf '%s\n' "$death_line" | sed -n 's/.*type110_sink_pid=\([0-9][0-9]*\).*/\1/p')
   compositor_pid=$initial_compositor_pid
+  [ "$session_id" = "$initial_session_generation" ] || {
+    echo 'Pre-death session identity did not match the initial setup receipt generation.' >&2; exit 9;
+  }
   [ -n "$session_id" ] && [ -n "$type110_generation" ] && [ -n "$type110_last_frame" ] &&
     [ -n "$type110_sink_pid" ] && [ -n "$compositor_pid" ] || {
     echo "Missing process or stream identity from the pre-death receipt: session=$([ -n "$session_id" ] && echo yes || echo no) type110_generation=$([ -n "$type110_generation" ] && echo yes || echo no) last_frame=$([ -n "$type110_last_frame" ] && echo yes || echo no) type110_sink=$([ -n "$type110_sink_pid" ] && echo yes || echo no) compositor=$([ -n "$compositor_pid" ] && echo yes || echo no)." >&2

@@ -84,7 +84,7 @@
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
-      "sha256": "7cb093dcce22eabcbfd4d6ec9ebbcc174bc8bf5e9b116594e64260d9e619381d"
+      "sha256": "e3ac7c600665df94622e1ced082a8ab93fbfbf3bbab02583de6cbc523dc63113"
     },
     {
       "path": "tests/jmcs/test_r6e_auth_transport.py",
@@ -128,7 +128,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "3ee9dd2e944d5aaef36eb3926bbc074a61c12cb80ca4064efadf2acbf3a7e7ec"
+      "sha256": "b29be2fdf5939e914553e4668687ebc41345c5da90611c771ffc39eed6035076"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
