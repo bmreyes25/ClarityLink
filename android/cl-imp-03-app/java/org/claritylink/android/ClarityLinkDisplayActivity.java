@@ -70,6 +70,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_REATTACH_TEST = "type111_reattach_test";
     private static final String EXTRA_OWNER_DEATH_TEST = "owner_death_test";
     private static final String EXTRA_REENTRANT_TEARDOWN_TEST = "reentrant_teardown_test";
+    private static final String EXTRA_DELAYED_DEATH_CALLBACK_TEST = "delayed_death_callback_test";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
     private static final String LAB_CONFIRM = "CL_IMP_03_OFFLINE_EMULATOR_ONLY";
     private static final boolean PRODUCTION_HONDA_INTEGRATION_ENABLED = false;
@@ -159,6 +160,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean type111ReattachTest;
     private boolean ownerDeathTest;
     private boolean reentrantTeardownTest;
+    private boolean delayedDeathCallbackTest;
     private boolean type111RunStarted;
     private volatile Thread type111FixtureWorker;
     private volatile FixtureRunToken type111FixtureRunToken;
@@ -221,6 +223,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         ownerDeathTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_OWNER_DEATH_TEST, false);
         reentrantTeardownTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_REENTRANT_TEARDOWN_TEST, false);
+        delayedDeathCallbackTest = getIntent() != null &&
+                getIntent().getBooleanExtra(EXTRA_DELAYED_DEATH_CALLBACK_TEST, false);
         recreation = state != null;
         showStatus("ClarityLink disabled candidate. No display is selected automatically.");
         log("ACTIVITY_READY api=" + Build.VERSION.SDK_INT + " pid=" + android.os.Process.myPid()
@@ -266,7 +270,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     throw new IllegalStateException("type111_lifecycle_detach_not_observed");
             }
             if (existing != null && existing.identity != null) {
-                if (existing.sinkAttached)
+                if (existing.sinkAttached && !delayedDeathCallbackTest)
                     throw new IllegalStateException("active_type111_stream_cannot_be_replaced");
                 FrameStreamIdentity replacement = existing.identity.withGeneration(
                         existing.identity.streamGeneration + 1L);
@@ -286,6 +290,19 @@ public final class ClarityLinkDisplayActivity extends Activity
                         compositorEndpoint, primaryIdentity, stats.frameId + 1L);
                 if (client == null || primaryClient == null)
                     throw new IllegalStateException("reattached_stream_client_unavailable");
+                if (delayedDeathCallbackTest) {
+                    if (!control.fireLabDelayedSinkDeathCallback(primaryIdentity, replacement))
+                        throw new IllegalStateException("delayed_old_sink_callback_changed_replacement");
+                    Type111ControlClient.StreamQuery afterDelayedCallback =
+                            control.queryType111Stream(primaryIdentity);
+                    if (afterDelayedCallback == null || afterDelayedCallback.identity == null ||
+                            !replacement.equals(afterDelayedCallback.identity) || !afterDelayedCallback.sinkAttached)
+                        throw new IllegalStateException("replacement_sink_lost_after_delayed_old_callback");
+                    Log.i(TAG, "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=" + replacement.sessionId +
+                            " old_generation=" + existing.identity.streamGeneration +
+                            " new_generation=" + replacement.streamGeneration +
+                            " old_callback_completed_after_replacement=true replacement_preserved=true");
+                }
                 remotePid = existing.compositorPid;
                 primaryRemotePid = remotePid;
                 log("CL_R4A_TYPE111_SINK_REPLACED session_id=" + activeGeneration +
@@ -1182,6 +1199,9 @@ public final class ClarityLinkDisplayActivity extends Activity
                     FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder);
                     if (type110Identity == null || type110Final == null)
                         throw new IllegalStateException("type110_survivor_receipt_unavailable");
+                    if (delayedDeathCallbackTest && reattachSessionId <= 0L &&
+                            !type111ControlClient.armLabDelayedSinkDeathCallback(frameIpcClient.streamIdentity()))
+                        throw new IllegalStateException("delayed_old_sink_callback_not_armed");
                     if (!type111ReattachTest && !ownerDeathTest)
                         issueType110ProbeOwnership(type110Identity, type110Final);
                     Log.i(TAG, "CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED pid=" +

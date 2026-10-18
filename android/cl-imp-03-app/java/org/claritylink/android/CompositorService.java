@@ -49,6 +49,12 @@ public final class CompositorService extends Service {
     private CountDownLatch labParentTeardownEntered = new CountDownLatch(0);
     private CountDownLatch labParentTeardownRelease = new CountDownLatch(0);
     private CountDownLatch labParentTeardownContender = new CountDownLatch(0);
+    private final Object labDelayedDeathLock = new Object();
+    private FrameStreamIdentity labDelayedDeathIdentity;
+    private IBinder labDelayedDeathSink;
+    private CountDownLatch labDelayedDeathEntered = new CountDownLatch(0);
+    private CountDownLatch labDelayedDeathRelease = new CountDownLatch(0);
+    private CountDownLatch labDelayedDeathCompleted = new CountDownLatch(0);
     private static final class StreamState {
         final Object lock = new Object();
         final SimulatedExternalDisplayCompositor compositor = new SimulatedExternalDisplayCompositor();
@@ -135,6 +141,21 @@ public final class CompositorService extends Service {
             if (code == FrameIpcProtocol.LAB_ARM_PARENT_TEARDOWN_BARRIER) {
                 FrameStreamIdentity ownerIdentity = readIdentity(data);
                 boolean accepted = armParentTeardownBarrier(ownerIdentity);
+                reply.writeNoException();
+                reply.writeInt(accepted ? 1 : 0);
+                return true;
+            }
+            if (code == FrameIpcProtocol.LAB_ARM_DELAYED_SINK_DEATH_CALLBACK) {
+                FrameStreamIdentity identity = readIdentity(data);
+                boolean accepted = armDelayedSinkDeathCallback(identity);
+                reply.writeNoException();
+                reply.writeInt(accepted ? 1 : 0);
+                return true;
+            }
+            if (code == FrameIpcProtocol.LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK) {
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                FrameStreamIdentity currentIdentity = readIdentity(data);
+                boolean accepted = fireDelayedSinkDeathCallback(ownerIdentity, currentIdentity);
                 reply.writeNoException();
                 reply.writeInt(accepted ? 1 : 0);
                 return true;
@@ -459,6 +480,102 @@ public final class CompositorService extends Service {
         }
     }
 
+    /** Pause one real Type111 death callback before state mutation for the API17 race test. */
+    private boolean armDelayedSinkDeathCallback(FrameStreamIdentity identity) {
+        StreamState state = findStream(identity);
+        if (identity == null || identity.streamType != FrameStreamIdentity.TYPE111 || state == null)
+            return false;
+        synchronized (state.lock) {
+            if (!identity.equals(state.identity) || state.sink == null || state.deathRecipient == null)
+                return false;
+            synchronized (labDelayedDeathLock) {
+                labDelayedDeathIdentity = identity;
+                labDelayedDeathSink = state.sink;
+                labDelayedDeathEntered = new CountDownLatch(1);
+                labDelayedDeathRelease = new CountDownLatch(1);
+                labDelayedDeathCompleted = new CountDownLatch(1);
+            }
+        }
+        Log.i(TAG, "IPC_LAB_DELAYED_DEATH_CALLBACK_ARMED session_id=" + identity.sessionId +
+                " stream_type=111 generation=" + identity.streamGeneration);
+        return true;
+    }
+
+    /** Release the real old callback only after an owner-authorized replacement is current. */
+    private boolean fireDelayedSinkDeathCallback(FrameStreamIdentity ownerIdentity,
+            FrameStreamIdentity currentIdentity) {
+        if (ownerIdentity == null || currentIdentity == null ||
+                ownerIdentity.streamType != FrameStreamIdentity.TYPE110 ||
+                currentIdentity.streamType != FrameStreamIdentity.TYPE111 ||
+                ownerIdentity.sessionId != currentIdentity.sessionId) return false;
+        StreamState owner = findStream(ownerIdentity);
+        StreamState child = findStream(currentIdentity);
+        if (owner == null || child == null) return false;
+        CountDownLatch release, completed;
+        synchronized (child.lock) {
+            synchronized (streamsLock) {
+                if (streams.get(ownerIdentity.key()) != owner || !ownerIdentity.equals(owner.identity) ||
+                        streams.get(currentIdentity.key()) != child || !currentIdentity.equals(child.identity) ||
+                        child.sink == null || closingSessions.contains(currentIdentity.sessionId))
+                    return false;
+                synchronized (labDelayedDeathLock) {
+                    if (labDelayedDeathIdentity == null ||
+                            !labDelayedDeathIdentity.sameStream(currentIdentity) ||
+                            labDelayedDeathIdentity.streamGeneration + 1L != currentIdentity.streamGeneration ||
+                            labDelayedDeathSink == child.sink || labDelayedDeathEntered.getCount() != 0L)
+                        return false;
+                    release = labDelayedDeathRelease;
+                    completed = labDelayedDeathCompleted;
+                }
+            }
+        }
+        release.countDown();
+        try {
+            if (!completed.await(10000L, TimeUnit.MILLISECONDS)) return false;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        synchronized (child.lock) {
+            boolean remainsCurrent = currentIdentity.equals(child.identity) && child.sink != null;
+            synchronized (labDelayedDeathLock) {
+                if (labDelayedDeathIdentity != null &&
+                        labDelayedDeathIdentity.sessionId == currentIdentity.sessionId) {
+                    labDelayedDeathIdentity = null;
+                    labDelayedDeathSink = null;
+                }
+            }
+            Log.i(TAG, "IPC_LAB_DELAYED_DEATH_CALLBACK_RELEASED session_id=" + currentIdentity.sessionId +
+                    " old_generation=" + (currentIdentity.streamGeneration - 1L) +
+                    " current_generation=" + currentIdentity.streamGeneration +
+                    " entered_before_replacement=true completed_after_replacement=true current_sink_preserved=" +
+                    remainsCurrent);
+            return remainsCurrent;
+        }
+    }
+
+    private CountDownLatch pauseLabDelayedDeathCallback(FrameStreamIdentity identity, IBinder sink) {
+        CountDownLatch entered, release, completed;
+        long currentGeneration;
+        synchronized (labDelayedDeathLock) {
+            if (labDelayedDeathIdentity == null || !labDelayedDeathIdentity.sameStream(identity) ||
+                    labDelayedDeathSink != sink) return null;
+            entered = labDelayedDeathEntered;
+            release = labDelayedDeathRelease;
+            completed = labDelayedDeathCompleted;
+            currentGeneration = labDelayedDeathIdentity.streamGeneration;
+        }
+        entered.countDown();
+        Log.i(TAG, "IPC_LAB_DELAYED_DEATH_CALLBACK_ENTERED session_id=" + identity.sessionId +
+                " stream_type=111 old_generation=" + currentGeneration +
+                " state_mutation=paused");
+        try {
+            if (!release.await(120000L, TimeUnit.MILLISECONDS))
+                Log.w(TAG, "IPC_LAB_DELAYED_DEATH_CALLBACK_TIMEOUT session_id=" + identity.sessionId);
+        } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+        return completed;
+    }
+
     private void handleType111Capability(Parcel data, Parcel reply) {
         long sessionId = data.readLong();
         String uuid = data.readString();
@@ -534,7 +651,19 @@ public final class CompositorService extends Service {
             }
         }
         plane.parentTeardown();
-        synchronized (streamsLock) { type111Sessions.remove(sessionId); }
+        synchronized (streamsLock) {
+            type111Sessions.remove(sessionId);
+            synchronized (labDelayedDeathLock) {
+                if (labDelayedDeathIdentity != null && labDelayedDeathIdentity.sessionId == sessionId) {
+                    labDelayedDeathRelease.countDown();
+                    labDelayedDeathIdentity = null;
+                    labDelayedDeathSink = null;
+                    labDelayedDeathEntered = new CountDownLatch(0);
+                    labDelayedDeathRelease = new CountDownLatch(0);
+                    labDelayedDeathCompleted = new CountDownLatch(0);
+                }
+            }
+        }
         Log.i(TAG, "TYPE111_PARENT_TEARDOWN session_id=" + sessionId +
                 " streams_closed=" + owned.size() + " result=accepted");
         return "accepted";
@@ -746,6 +875,9 @@ public final class CompositorService extends Service {
             final ReplacementDeathGate deathGate) {
         return new IBinder.DeathRecipient() {
             public void binderDied() {
+                final CountDownLatch delayedCompletion = pauseLabDelayedDeathCallback(
+                        registeredIdentity, registeredSink);
+                try {
                 if (deathGate != null) synchronized (deathGate) { deathGate.dead = true; }
                 final FrameStreamIdentity deadIdentity;
                 synchronized (state.lock) {
@@ -772,6 +904,9 @@ public final class CompositorService extends Service {
                         Log.e(TAG, "TYPE110_POST_DEATH_PROBE_INTERNAL_START_FAILED session_id=" +
                                 deadIdentity.sessionId + " type=" + failure.getClass().getSimpleName());
                     }
+                }
+                } finally {
+                    if (delayedCompletion != null) delayedCompletion.countDown();
                 }
             }
         };

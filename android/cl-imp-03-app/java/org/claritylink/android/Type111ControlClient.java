@@ -172,6 +172,30 @@ final class Type111ControlClient {
         return barrierWait(FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER, type110Owner, 0L);
     }
 
+    boolean armLabDelayedSinkDeathCallback(final FrameStreamIdentity type111Identity)
+            throws RemoteException {
+        if (type111Identity == null || !type111Identity.isValid() ||
+                type111Identity.streamType != FrameStreamIdentity.TYPE111) return false;
+        return identityCall(FrameIpcProtocol.LAB_ARM_DELAYED_SINK_DEATH_CALLBACK, type111Identity);
+    }
+
+    boolean fireLabDelayedSinkDeathCallback(final FrameStreamIdentity type110Owner,
+            final FrameStreamIdentity currentType111Identity) throws RemoteException {
+        if (!validOwner(type110Owner) || currentType111Identity == null ||
+                !currentType111Identity.isValid() ||
+                currentType111Identity.streamType != FrameStreamIdentity.TYPE111 ||
+                currentType111Identity.sessionId != type110Owner.sessionId) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            header(data);
+            writeIdentity(data, type110Owner);
+            writeIdentity(data, currentType111Identity);
+            endpoint.transact(FrameIpcProtocol.LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     private boolean barrierWait(int code, FrameStreamIdentity owner, long timeoutMs)
             throws RemoteException {
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();

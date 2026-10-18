@@ -32,19 +32,19 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "b62d63f2c531a2a8970281d0c83a27ad8e08ac5832fcfdcb43c653927d07c750"
+      "sha256": "77c4ca3e7a1cf0fbd252599f17e4d14824651aa429bb9e35dfc1e2e2296ad2e3"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
-      "sha256": "a1116c560e2179034bec65e02495585f2ddcfe271bb63abb8822c404b4776101"
+      "sha256": "9dea9fe30265e55404bc302fecbbb544f40e2e8b168d0a84d2319be8b402eb7a"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java",
-      "sha256": "c8822754217b2ff3909fde891b65d1e54af139fdaf79332e2ee96ec5af7affb8"
+      "sha256": "680e5e44a47585e6d95542e7f80e52198404dda70bcf24f2dd01fadf853da2a3"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/Type111ControlClient.java",
-      "sha256": "2bebab67e7291fba81e9746b2a1b54480218c646bbfc9462a49ce6cfda99be1f"
+      "sha256": "3fb44174a2af20ad0ff3cd88310a35c55aa9b9a96b58f853b6a20603fec3fc0e"
     },
     {
       "path": "docs/README.md",
@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "11a5eb29ac711da9cf4c3969905511857e4d10af63a3a51098ac01f44c0dc749"
+      "sha256": "ca842e9a4c3c75be8bfa3e00359788bb6dcae5db5b4674284a298dc363a8b725"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,7 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "a3dd8530fac1c92a0f9f646a016c392d3380adf7f03359bbfb91d4a53355bec8"
+      "sha256": "714616802b734d0008cdd884b93a33a2526835813ebfe5984f30733502b736da"
     },
     {
       "path": "docs/status/milestones.json",
@@ -104,7 +104,7 @@
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "a3914faefedb71f31087c524bf63d19fd32e0c4d4515d047ddefdf70812334c3"
+      "sha256": "4433ec9e90f74d103624090dfc2b97feca4aa2edcf589262631ace06c2e4eed3"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "794779e358ba9995f2ac4a6c973f3508ae7db8086b9a0725875733eca7d95891"
+      "sha256": "33abbea67927fac6dffe1471b579694f6145895477477cfcef15ba02a0be74b9"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -184,5 +184,6 @@
   "cl_r4b_owner_death_scope_refresh_note": "Updated the pinned API17 build and runner blobs for the guarded compositor-owner death test, cross-UID denial, and WindowManager cleanup proof. Exact-source ECC code and security re-review is recorded against the resulting commit; earlier review ranges and historical claims are unchanged.",
   "cl_r5_setup_order_receipt_note": "Refreshed the pinned API17 runner and integration contract to require a pre-replacement setup-order/process receipt, preserving Type111-first evidence before same-session View death recovery. Exact-source ECC review is tied to the resulting commit; historical review ranges remain unchanged.",
   "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
-  "cl_r4b_reentrant_teardown_scope_note": "The API17 reentrant parent teardown test uses a same-UID service-side barrier to pause after admission closes and observe a competing teardown rejected before releasing the first. Both stream setup orders passed on Android 4.2.2; each reported one accepted teardown, one rejected contender, inert repeated close, two stream unregisters, zero active PFD transfers, and zero retained bytes. The corrected runner captured logcat in ignored local evidence before evaluating receipts. Review conclusions remain tied to the resulting implementation commit. The runner waits for the owner-process destruction receipt after the Activity PASS marker before taking its final log snapshot, avoiding a race with asynchronous main-thread cleanup."
+  "cl_r4b_reentrant_teardown_scope_note": "The API17 reentrant parent teardown test uses a same-UID service-side barrier to pause after admission closes and observe a competing teardown rejected before releasing the first. Both stream setup orders passed on Android 4.2.2; each reported one accepted teardown, one rejected contender, inert repeated close, two stream unregisters, zero active PFD transfers, and zero retained bytes. The corrected runner captured logcat in ignored local evidence before evaluating receipts. Review conclusions remain tied to the resulting implementation commit. The runner waits for the owner-process destruction receipt after the Activity PASS marker before taking its final log snapshot, avoiding a race with asynchronous main-thread cleanup.",
+  "cl_r4b_delayed_callback_scope_note": "Adds a same-UID, owner/session/stream-generation-checked API17 test hook that pauses the real Type111 Binder death callback before registry mutation. The legitimate owner replaces the sink at a fresh generation, then releases the old callback; the stale callback leaves the replacement registered. Both setup orders passed with fresh H.264 View rendering, preserved Type110 generation, and zero parent-teardown PFD/retained-byte counters. Emulator logs/screenshots remain ignored local evidence."
 }
