@@ -762,10 +762,44 @@ $owner_logs"
       | grep -F 'concurrent_calls=2 accepted_calls=1 rejected_calls=1' \
       | grep -F 'overlap_barrier=first_paused_contender_rejected' \
       | grep -F 'repeated_close_rejected=true' \
+      | grep -F 'pending_pfd_rejected=true registration_during_shutdown_rejected=true' \
+      | grep -F 'replacement_during_shutdown_rejected=true type110_died_during_shutdown=true' \
       | grep -F 'owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0' >/dev/null || {
       printf '%s\n' "$pass_line" >&2
       printf '%s\n' "$logs" | grep -E 'PARENT_TEARDOWN_BARRIER|TYPE111_PARENT_TEARDOWN|CL_R4B_REENTRANT|IPC_REMOTE_PROCESS_DESTROYED' >&2 || true
       echo 'Concurrent/repeated teardown receipt did not match the initial session and zero-resource state.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "CL_R4B_TEARDOWN_PENDING_PFD_PASS session_id=$initial_session_generation " \
+      | grep -F 'transfer_active=true' >/dev/null || {
+      echo 'Teardown test did not hold a real pending Type111 PFD transfer.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "CL_R4B_TEARDOWN_PENDING_PFD_REJECTED session_id=$initial_session_generation " \
+      | grep -F 'result=session_closing active_pfd=0 retained_bytes=0 transfer_active=false' >/dev/null || {
+      echo 'Pending PFD transfer was not rejected and released while parent teardown admission was closed.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "CL_R4B_TEARDOWN_REPLACEMENT_REJECTED session_id=$initial_session_generation " \
+      | grep -F 'replacement_unchanged=true' >/dev/null || {
+      echo 'Type111 replacement was not rejected during parent teardown.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "CL_R4B_TEARDOWN_TYPE110_DEATH_PASS session_id=$initial_session_generation " \
+      | grep -F 'binder_death_observed=true admission_already_closed=true' >/dev/null || {
+      echo 'Actual Type110 sink process death was not observed during parent teardown.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "CL_R4B_TEARDOWN_REGISTRATION_REJECTED session_id=$initial_session_generation " \
+      | grep -F 'current_registration_preserved=true active_pfd=1' >/dev/null || {
+      echo 'Type111 stream registration race was not rejected without changing the in-flight registration.' >&2; exit 9;
+    }
+    # The Activity's linked death recipient proves the process death. Depending on
+    # ordering, CompositorService may already have unregistered the stream and
+    # unlinked its recipient; exact-once unregister and zero-resource checks below
+    # validate that teardown won safely in that interleaving.
+    printf '%s\n' "$logs" | grep -F 'IPC_LAB_TRANSFER_BARRIER_ENTERED ' \
+      | grep -F "session_id=$initial_session_generation " | grep -F 'active_pfd=1' >/dev/null || {
+      echo 'No actual in-flight PFD entered the transfer barrier.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "IPC_REMOTE_FRAME_REJECT " \
+      | grep -F 'reason=session_closing' | grep -F 'active_pfd_transfers=0' >/dev/null || {
+      echo 'Compositor did not reject the pending frame after teardown admission closed.' >&2; exit 9;
     }
     teardown_count=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$initial_session_generation " \
       | grep -F 'result=accepted' | wc -l | tr -d ' ')

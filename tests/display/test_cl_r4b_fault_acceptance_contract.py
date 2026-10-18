@@ -218,6 +218,22 @@ def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verif
     assert "overlap_barrier=first_paused_contender_rejected" in runner
     assert "Expected one parent teardown commit" in runner
     assert "Stream $stream_type unregister count was" in runner
+    assert "frameIpcClient.submit(pendingFrame" in activity
+    assert "LAB_ARM_TRANSFER_BARRIER" in activity
+    assert "pending_teardown_pfd_barrier_not_reached" in activity
+    assert "CL_R4B_TEARDOWN_PENDING_PFD_REJECTED" in activity
+    assert "session_closing" in service
+    assert "replacement_registered_during_parent_shutdown" in activity
+    assert "CL_R4B_TEARDOWN_REPLACEMENT_REJECTED" in activity
+    assert "killType110SinkForTeardownRace(owner)" in activity
+    assert "CL_R4B_TEARDOWN_TYPE110_DEATH_PASS" in activity
+    assert "reentrantTeardownInProgress" in activity
+    assert "CL_R4B_TYPE110_DEATH_DURING_TEARDOWN_CLEANUP_DEFERRED=true" in activity
+    assert "CL_R4B_TEARDOWN_REGISTRATION_REJECTED" in activity
+    assert "stream_registration_accepted_during_parent_shutdown" in activity
+    assert "Type110 sink process death was not observed during parent teardown" in runner
+    assert "actual in-flight PFD entered the transfer barrier" in runner
+    assert "Pending PFD transfer was not rejected and released" in runner
 
 
 def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_authorized_replacement():
@@ -267,3 +283,14 @@ def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_auth
     assert 'grep -F "pid=$app_pid " | tail -1' in runner
     assert 'grep -F "session_id=$initial_session_generation "' in runner
     assert 'else\n    wait_for \'IPC_VIEW_SINK_DEATH_CALLBACK session_id=\'' in delayed_flow
+
+
+def test_api17_producer_recovery_rebinds_only_after_real_binder_death():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    recovery = activity[activity.index("private void runIndependentType111ProducerFault"):]
+    assert 'awaitRace(death), "producer_binding_death_callback_observed"' in recovery
+    assert "unbindService(connection);" in recovery
+    assert '"type111_producer_rebind_accepted_after_death"' in recovery
+    assert '"producer_rebound_after_process_death"' in recovery
+    assert "CL_R4_TYPE111_PRODUCER_REBIND_PASS" in recovery
+    assert "bound_service_recreated_after_process_death" not in recovery
