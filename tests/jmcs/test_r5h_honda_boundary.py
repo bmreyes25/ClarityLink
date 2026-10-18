@@ -25,6 +25,16 @@ def test_honda_type111_without_lab_stream_connection_id_remains_unknown():
         adapter.parse_known_request({"streams": [{"type": 111}]}, 1)
 
 
+def test_honda_type111_int_subclass_is_rejected_before_descriptor_parsing():
+    class TypeCode(int):
+        pass
+
+    adapter = HondaStaticType110Adapter()
+
+    with pytest.raises(EvidenceRequired, match="honda_type111_setup_dispatch"):
+        adapter.parse_known_request({"streams": [{"type": TypeCode(111)}]}, 1)
+
+
 def test_static_honda_type110_contract_still_parses_and_builds_known_response():
     adapter = HondaStaticType110Adapter()
     request = adapter.parse_known_request(

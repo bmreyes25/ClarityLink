@@ -27,7 +27,9 @@ class HondaStaticType110Adapter:
         if isinstance(raw, Mapping):
             streams = raw.get("streams")
             if isinstance(streams, (list, tuple)) and any(
-                    isinstance(stream, Mapping) and type(stream.get("type")) is int and
+                    isinstance(stream, Mapping) and
+                    isinstance(stream.get("type"), int) and
+                    not isinstance(stream.get("type"), bool) and
                     stream.get("type") == 111 for stream in streams):
                 raise EvidenceRequired("honda_type111_setup_dispatch")
         parsed = SetupRequest.parse(raw, generation)
