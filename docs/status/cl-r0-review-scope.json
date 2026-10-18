@@ -83,6 +83,10 @@
       "sha256": "8ef5cfed9829db92f3dcd94069214c97d8384b137570856cfef5db290aa7d999"
     },
     {
+      "path": "tests/display/test_cl_r5_integration_contract.py",
+      "sha256": "4f39ec9533a59753a558cb6902972baf475f1e728001f87485ac0bff0e8dd261"
+    },
+    {
       "path": "tests/jmcs/test_r6e_auth_transport.py",
       "sha256": "e62d2da9b46293ad8a8a45f6358867d5e68e7b3b8ad982d4285e6dc12bfa1b0b"
     },
@@ -124,7 +128,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "ff7cb3c34fea80fde3d581ac999f64b9ba647219cb1296221d97e381edbf6052"
+      "sha256": "6440ff25d361590e094c823997ad32bbf8a6719cbabf7b6a85a5e167429896f4"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -156,5 +160,6 @@
     "receipt": "docs/status/cl-r0-main-test-receipt.md"
   },
   "cl_r4a_scope_refresh_note": "The pinned blobs for the IPC contract test and API17 emulator runner were refreshed for CL-R4A. Their updated versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
-  "cl_r4b_scope_refresh_note": "Pinned CL-R0 test and API17 build/runner blobs were refreshed for the CL-R4B Type110 owner failure contract and emulator harness. The CL-R4B versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged."
+  "cl_r4b_scope_refresh_note": "Pinned CL-R0 test and API17 build/runner blobs were refreshed for the CL-R4B Type110 owner failure contract and emulator harness. The CL-R4B versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
+  "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged."
 }
