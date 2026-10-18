@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "2c43a7dc0c82565a5cf71c6561c724648e28996f62566a62a5b46848f9e69525"
+      "sha256": "794779e358ba9995f2ac4a6c973f3508ae7db8086b9a0725875733eca7d95891"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -184,5 +184,5 @@
   "cl_r4b_owner_death_scope_refresh_note": "Updated the pinned API17 build and runner blobs for the guarded compositor-owner death test, cross-UID denial, and WindowManager cleanup proof. Exact-source ECC code and security re-review is recorded against the resulting commit; earlier review ranges and historical claims are unchanged.",
   "cl_r5_setup_order_receipt_note": "Refreshed the pinned API17 runner and integration contract to require a pre-replacement setup-order/process receipt, preserving Type111-first evidence before same-session View death recovery. Exact-source ECC review is tied to the resulting commit; historical review ranges remain unchanged.",
   "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
-  "cl_r4b_reentrant_teardown_scope_note": "The API17 reentrant parent teardown test uses a same-UID service-side barrier to pause after admission closes and observe a competing teardown rejected before releasing the first. Both stream setup orders passed on Android 4.2.2; each reported one accepted teardown, one rejected contender, inert repeated close, two stream unregisters, zero active PFD transfers, and zero retained bytes. The corrected runner captured logcat in ignored local evidence before evaluating receipts. Review conclusions remain tied to the resulting implementation commit."
+  "cl_r4b_reentrant_teardown_scope_note": "The API17 reentrant parent teardown test uses a same-UID service-side barrier to pause after admission closes and observe a competing teardown rejected before releasing the first. Both stream setup orders passed on Android 4.2.2; each reported one accepted teardown, one rejected contender, inert repeated close, two stream unregisters, zero active PFD transfers, and zero retained bytes. The corrected runner captured logcat in ignored local evidence before evaluating receipts. Review conclusions remain tied to the resulting implementation commit. The runner waits for the owner-process destruction receipt after the Activity PASS marker before taking its final log snapshot, avoiding a race with asynchronous main-thread cleanup."
 }

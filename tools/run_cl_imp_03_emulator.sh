@@ -700,6 +700,7 @@ if [ "$type111_mode" -eq 1 ]; then
   fi
   if [ "$reentrant_teardown" -eq 1 ]; then
     wait_for 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS'
+    wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0'
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     printf '%s\n' "$logs" > "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt"
     pass_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS ' | tail -1)
