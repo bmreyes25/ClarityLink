@@ -32,11 +32,11 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "a6a5e0f9a98940e44d493100bdcd257a78e33c8d5774d1411909dc14fbcefd65"
+      "sha256": "c806c78ebfe558288c3d421981120678857781e4e544d75c003ace912f1b4923"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
-      "sha256": "6e467ccadf5d915b1601e7e231c273c34bba99f70d430139b203d0c43c806e3a"
+      "sha256": "aed3397be0215414a80d5277d5d9421bd33d31f5b50c600d6a27eeddde2918f6"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java",
@@ -100,11 +100,11 @@
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "a19a1ff571de49514fac82b87ebfe7a0852cea0fe9586d4eea54add6f722aa24"
+      "sha256": "07a2ff7dcfd15e765da886a0fb2e3542f42912a70ef3a9bf8c1f45720b157a92"
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "4ba5117c113d1f4bc830296e70db42808b4e25d0735419d5208aae2df84bf97f"
+      "sha256": "7dd09d3039e9635f198593a296f54527b3bb682aa25b093c38d87c10737517d2"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "3a528e2d7234db39672d0b69fafe3a2898b661a11a7ad3ebcd7e2bfb90c7d427"
+      "sha256": "910ab9975449a9afe1a00f123562746bf7b75ddafe10b33c66407a893349211e"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -165,6 +165,10 @@
     {
       "path": "tools/verify_api17_pixel_content.swift",
       "sha256": "0718a20a0617e5cdacbbdf4fbdb4fb7999c230e79ee2c212ee065fdec8aaab45"
+    },
+    {
+      "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java",
+      "sha256": "92e41e93b38f5046f5a63210135614b6a8fd6a0d2642843ffb69f361c94fffdc"
     }
   ],
   "reviewed_head": "cb6ccd0c78bd6e6f3c63988cd99185f5d8a087c4",
@@ -185,5 +189,6 @@
   "cl_r5_setup_order_receipt_note": "Refreshed the pinned API17 runner and integration contract to require a pre-replacement setup-order/process receipt, preserving Type111-first evidence before same-session View death recovery. Exact-source ECC review is tied to the resulting commit; historical review ranges remain unchanged.",
   "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
   "cl_r4b_reentrant_teardown_scope_note": "The API17 reentrant parent teardown test uses a same-UID service-side barrier to pause after admission closes and observe a competing teardown rejected before releasing the first. Both stream setup orders passed on Android 4.2.2; each reported one accepted teardown, one rejected contender, inert repeated close, two stream unregisters, zero active PFD transfers, and zero retained bytes. The corrected runner captured logcat in ignored local evidence before evaluating receipts. Review conclusions remain tied to the resulting implementation commit. The runner waits for the owner-process destruction receipt after the Activity PASS marker before taking its final log snapshot, avoiding a race with asynchronous main-thread cleanup.",
-  "cl_r4b_delayed_callback_scope_note": "Adds a same-UID, owner/session/stream-generation-checked API17 test hook that pauses the real Type111 Binder death callback before registry mutation. The legitimate owner replaces the sink at a fresh generation, then releases the old callback; the stale callback leaves the replacement registered. Both setup orders passed with fresh H.264 View rendering, preserved Type110 generation, and zero parent-teardown PFD/retained-byte counters. Emulator logs/screenshots remain ignored local evidence."
+  "cl_r4b_delayed_callback_scope_note": "Adds a same-UID, owner/session/stream-generation-checked API17 test hook that pauses the real Type111 Binder death callback before registry mutation. The legitimate owner replaces the sink at a fresh generation, then releases the old callback; the stale callback leaves the replacement registered. Both setup orders passed with fresh H.264 View rendering, preserved Type110 generation, and zero parent-teardown PFD/retained-byte counters. Emulator logs/screenshots remain ignored local evidence.",
+  "cl_r4b_parent_owner_death_refresh_note": "Pinned the API17 Activity, compositor service, owner-death observer, contract tests, and runner for CL-R4B unexpected compositor-owner death. Exact-source ECC code and security reviews reported no actionable findings on implementation diff SHA bc860baa23b827e85f768d879010df0a21e228c8f2d1533b7c32b504d0f4b7c8 (commit 21cf3f0069a54eff8d9288f07cd90c5b971c8b40). The API17 runner killed the actual :compositor PID, observed Binder owner loss and stale-identity rejection, then recovered via a fresh session. This refresh does not alter historical review ranges or claim independent approval."
 }
