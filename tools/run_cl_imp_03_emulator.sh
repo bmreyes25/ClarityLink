@@ -18,7 +18,17 @@ type111_first=0
 type111_reattach=0
 type110_failure=0
 owner_death=0
-if [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
+reentrant_teardown=0
+if [ "${1:-}" = "--cl-r4b-reentrant-teardown-type111-first" ]; then
+  type111_mode=1
+  type111_first=1
+  reentrant_teardown=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-reentrant-teardown" ]; then
+  type111_mode=1
+  reentrant_teardown=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
   shift
 elif [ "${1:-}" = "--cl-r4b-parent-owner-death" ]; then
@@ -339,12 +349,14 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_owner_death|type111_first|type111_first_reattach|type111_reattach|controlled_exit|crash)
+    presentation|type111|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true ;;
         type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true ;;
+        type111_reentrant_teardown) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true ;;
+        type111_first_reentrant) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez reentrant_teardown_test true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true ;;
         type111_first_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez type111_reattach_test true
@@ -411,7 +423,9 @@ owned || exit 7
 if [ "$decoder_only" -eq 1 ]; then
   :
 elif [ "$type111_first" -eq 1 ]; then
-  if [ "$type111_reattach" -eq 1 ]; then
+  if [ "$reentrant_teardown" -eq 1 ]; then
+    start_lab_activity_privileged type111_first_reentrant
+  elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_first_reattach
   else
     start_lab_activity_privileged type111_first
@@ -419,6 +433,8 @@ elif [ "$type111_first" -eq 1 ]; then
 elif [ "$type111_mode" -eq 1 ]; then
   if [ "$owner_death" -eq 1 ]; then
     start_lab_activity_privileged type111_owner_death
+  elif [ "$reentrant_teardown" -eq 1 ]; then
+    start_lab_activity_privileged type111_reentrant_teardown
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
   else
@@ -680,6 +696,50 @@ if [ "$type111_mode" -eq 1 ]; then
     adb_local -s "$serial" uninstall "$attacker_package" >/dev/null
     adb_local -s "$serial" uninstall "$package" >/dev/null
     adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+    exit 0
+  fi
+  if [ "$reentrant_teardown" -eq 1 ]; then
+    wait_for 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS'
+    wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0'
+    logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$logs" > "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt"
+    pass_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS ' | tail -1)
+    if printf '%s\n' "$logs" | grep -F 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL' >/dev/null; then
+      echo 'Fixture worker reported a failure during the reentrant teardown scenario.' >&2; exit 9;
+    fi
+    printf '%s\n' "$pass_line" | grep -F "session_id=$initial_session_generation " \
+      | grep -F 'concurrent_calls=2 accepted_calls=1 rejected_calls=1' \
+      | grep -F 'overlap_barrier=first_paused_contender_rejected' \
+      | grep -F 'repeated_close_rejected=true' \
+      | grep -F 'owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0' >/dev/null || {
+      printf '%s\n' "$pass_line" >&2
+      printf '%s\n' "$logs" | grep -E 'PARENT_TEARDOWN_BARRIER|TYPE111_PARENT_TEARDOWN|CL_R4B_REENTRANT|IPC_REMOTE_PROCESS_DESTROYED' >&2 || true
+      echo 'Concurrent/repeated teardown receipt did not match the initial session and zero-resource state.' >&2; exit 9;
+    }
+    teardown_count=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$initial_session_generation " \
+      | grep -F 'result=accepted' | wc -l | tr -d ' ')
+    [ "$teardown_count" -eq 1 ] || { echo "Expected one parent teardown commit; observed $teardown_count." >&2; exit 9; }
+    for stream_type in 110 111; do
+      unregister_count=$(printf '%s\n' "$logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$initial_session_generation " \
+        | grep -F "stream_type=$stream_type " | wc -l | tr -d ' ')
+      [ "$unregister_count" -eq 1 ] || { echo "Stream $stream_type unregister count was $unregister_count." >&2; exit 9; }
+      printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_FRAME ' | grep -F "session_id=$initial_session_generation " \
+        | grep -F "stream_type=$stream_type " | grep -F 'accepted=true' >/dev/null || {
+        echo "No valid pre-teardown frame for stream $stream_type." >&2; exit 9;
+      }
+    done
+    printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' >/dev/null || {
+      echo 'Compositor owner did not report zero-resource shutdown after reentrant teardown.' >&2; exit 9;
+    }
+    shasum -a 256 "$apk" "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt" \
+      > "$campaign_evidence/api17-reentrant-teardown-artifact-hashes-$adb_port.sha256"
+    owned || exit 7
+    adb_local -s "$serial" shell am force-stop "$package"
+    adb_local -s "$serial" shell am force-stop "$attacker_package"
+    adb_local -s "$serial" uninstall "$attacker_package" >/dev/null
+    adb_local -s "$serial" uninstall "$package" >/dev/null
+    adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+    echo "CL_R4B_REENTRANT_TEARDOWN_API17_PASS session_id=$initial_session_generation concurrent_calls=2 accepted_calls=1 repeat_close_inert=true streams_unregistered=2 active_pfd_transfers=0 retained_bytes=0 fixture_only=true evidence=$run_label/evidence"
     exit 0
   fi
   wait_for 'CL_R4_TYPE111_SINK_PROCESS_EXIT_REQUESTED'

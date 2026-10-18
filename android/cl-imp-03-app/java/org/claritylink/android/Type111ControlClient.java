@@ -153,6 +153,41 @@ final class Type111ControlClient {
         });
     }
 
+    boolean armLabParentTeardownBarrier(final FrameStreamIdentity type110Owner) throws RemoteException {
+        if (!validOwner(type110Owner)) return false;
+        return transact(FrameIpcProtocol.LAB_ARM_PARENT_TEARDOWN_BARRIER, new Writer() {
+            public void write(Parcel data) { writeIdentity(data, type110Owner); }
+        });
+    }
+
+    boolean awaitLabParentTeardownBarrier(final FrameStreamIdentity type110Owner,
+            final boolean contender, final long timeoutMs) throws RemoteException {
+        if (!validOwner(type110Owner) || timeoutMs < 0L || timeoutMs > 10000L) return false;
+        return barrierWait(contender ? FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_CONTENDER :
+                FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_BARRIER, type110Owner, timeoutMs);
+    }
+
+    boolean releaseLabParentTeardownBarrier(final FrameStreamIdentity type110Owner) throws RemoteException {
+        if (!validOwner(type110Owner)) return false;
+        return barrierWait(FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER, type110Owner, 0L);
+    }
+
+    private boolean barrierWait(int code, FrameStreamIdentity owner, long timeoutMs)
+            throws RemoteException {
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            header(data); writeIdentity(data, owner);
+            if (code != FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER) data.writeLong(timeoutMs);
+            endpoint.transact(code, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
+    private static boolean validOwner(FrameStreamIdentity identity) {
+        return identity != null && identity.isValid() && identity.streamType == FrameStreamIdentity.TYPE110;
+    }
+
     private boolean identityCall(int code, final FrameStreamIdentity identity) throws RemoteException {
         if (identity == null || !identity.isValid()) return false;
         return transact(code, new Writer() { public void write(Parcel data) { writeIdentity(data, identity); } });
