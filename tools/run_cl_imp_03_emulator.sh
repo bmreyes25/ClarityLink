@@ -569,7 +569,50 @@ if [ "$type110_failure" -eq 1 ]; then
     --es confirmation CL_R4B_OFFLINE_EMULATOR_ONLY >/dev/null
   wait_for "CL_R4B_TYPE110_SINK_FAILURE_TARGET_VERIFIED pid=$sink_pid "
   wait_for "CL_R4B_TYPE110_SINK_FAILURE_REQUESTED pid=$sink_pid"
-  wait_for "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110 "
+  sink_death_process_receipt="$campaign_evidence/api17-type110-sink-death-process-$adb_port.txt"
+  sink_pid_exited=0
+  for death_attempt in $(seq 1 30); do
+    owned || exit 7
+    death_ps=$(adb_local -s "$serial" shell ps | tr -d '\r')
+    printf '%s\n' "$death_ps" > "$sink_death_process_receipt"
+    if ! printf '%s\n' "$death_ps" | awk -v pid="$sink_pid" '$2==pid {found=1} END {exit !found}'; then
+      sink_pid_exited=1
+      break
+    fi
+    sleep 1
+  done
+  [ "$sink_pid_exited" -eq 1 ] || {
+    adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r' \
+      > "$campaign_evidence/api17-type110-sink-death-logcat-$adb_port.txt"
+    adb_local -s "$serial" shell dumpsys activity services | tr -d '\r' \
+      > "$campaign_evidence/api17-type110-sink-death-services-$adb_port.txt"
+    echo "Type110 sink process $sink_pid did not exit after the guarded kill request." >&2
+    echo "Process snapshot: $run_label/evidence/$(basename -- "$sink_death_process_receipt")" >&2
+    echo "Logcat: $run_label/evidence/api17-type110-sink-death-logcat-$adb_port.txt" >&2
+    echo "Services: $run_label/evidence/api17-type110-sink-death-services-$adb_port.txt" >&2
+    exit 9
+  }
+  echo "TYPE110_SINK_PID_EXIT_OBSERVED pid=$sink_pid session_id=$session_id artifact=$run_label/evidence/$(basename -- "$sink_death_process_receipt")"
+  callback_seen=0
+  for callback_attempt in $(seq 1 30); do
+    owned || exit 7
+    callback_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    if printf '%s\n' "$callback_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110 " >/dev/null; then
+      callback_seen=1
+      break
+    fi
+    sleep 1
+  done
+  printf '%s\n' "$callback_logs" > "$campaign_evidence/api17-type110-sink-death-logcat-$adb_port.txt"
+  if [ "$callback_seen" -ne 1 ]; then
+    adb_local -s "$serial" shell dumpsys activity services | tr -d '\r' \
+      > "$campaign_evidence/api17-type110-sink-death-services-$adb_port.txt"
+    echo "Type110 sink PID $sink_pid exited but compositor death callback was not observed within 30s." >&2
+    echo "Logcat: $run_label/evidence/api17-type110-sink-death-logcat-$adb_port.txt" >&2
+    echo "Processes: $run_label/evidence/$(basename -- "$sink_death_process_receipt")" >&2
+    echo "Services: $run_label/evidence/api17-type110-sink-death-services-$adb_port.txt" >&2
+    exit 9
+  fi
   teardown_observed=0
   for teardown_attempt in $(seq 1 30); do
     owned || exit 7

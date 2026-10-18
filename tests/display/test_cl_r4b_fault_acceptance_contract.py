@@ -51,6 +51,14 @@ def test_type110_only_api17_failure_harness_is_guarded_and_checks_cleanup():
     assert "--cl-r4b-type110-failure" in runner
     assert "shell am startservice" in runner
     assert "CL_R4B_TYPE110_SINK_FAILURE_TARGET_VERIFIED" in runner
+    assert 'api17-type110-sink-death-process-$adb_port.txt' in runner
+    assert 'api17-type110-sink-death-logcat-$adb_port.txt' in runner
+    assert 'api17-type110-sink-death-services-$adb_port.txt' in runner
+    assert 'did not exit after the guarded kill request.' in runner
+    assert 'TYPE110_SINK_PID_EXIT_OBSERVED pid=$sink_pid' in runner
+    assert 'seq 1 30' in runner
+    assert 'api17-type110-sink-death-logcat-$adb_port.txt' in runner
+    assert 'api17-type110-sink-death-services-$adb_port.txt' in runner
     assert "assert_type110_probe_cross_uid_denied" in runner
     assert "ATTACK_DENIED operation=service component=Type110SinkFailureTestService" in runner
     assert "ATTACK_DENIED operation=bind_service component=Type110SinkFailureTestService" in runner
