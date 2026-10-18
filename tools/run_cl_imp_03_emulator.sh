@@ -470,6 +470,25 @@ wait_for 'BINDER_VIEW_PROOF_SAVED'
 initial_activity_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
 initial_type111_pid=$(printf '%s\n' "$initial_activity_logs" | sed -n 's/.*ACTIVITY_READY .*pid=\([0-9][0-9]*\).*/\1/p' | head -1)
 [ -n "$initial_type111_pid" ] || { echo 'Initial Type111 process identity was not captured.' >&2; exit 9; }
+expected_setup_order=110_first
+[ "$type111_first" -eq 1 ] && expected_setup_order=111_first
+initial_setup_receipt=$(printf '%s\n' "$initial_activity_logs" | grep -F 'IPC_SESSION_STARTED generation=' | head -1)
+printf '%s\n' "$initial_setup_receipt" | grep -F "setup_order=$expected_setup_order " >/dev/null || {
+  echo "Initial API17 session did not prove setup_order=$expected_setup_order before process replacement." >&2
+  exit 9
+}
+printf '%s\n' "$initial_setup_receipt" > "$campaign_evidence/api17-initial-setup-order-$adb_port.txt"
+initial_compositor_pid=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*remote_pid=\([0-9][0-9]*\).*/\1/p')
+initial_setup_type111_pid=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*type111_view_pid=\([0-9][0-9]*\).*/\1/p')
+initial_session_generation=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*IPC_SESSION_STARTED generation=\([0-9][0-9]*\).*/\1/p')
+initial_type110_sink_pid=$(printf '%s\n' "$initial_setup_receipt" | sed -n 's/.*type110_sink_pid=\([0-9][0-9]*\).*/\1/p')
+[ -n "$initial_compositor_pid" ] && [ -n "$initial_setup_type111_pid" ] &&
+  [ -n "$initial_session_generation" ] && [ -n "$initial_type110_sink_pid" ] || {
+  echo 'Initial session receipt omitted compositor, Type111, Type110, or session identity.' >&2; exit 9;
+}
+[ "$initial_setup_type111_pid" = "$initial_type111_pid" ] || {
+  echo 'Initial setup receipt Type111 PID did not match the observed Activity process.' >&2; exit 9;
+}
 proof="$campaign_evidence/api17-binder-view-proof-$adb_port.png"
 proof_tmp="$proof.tmp"
 owned || exit 7
@@ -676,10 +695,17 @@ if [ "$type111_mode" -eq 1 ]; then
   type110_generation=$(printf '%s\n' "$death_line" | sed -n 's/.*type110_generation=\([0-9][0-9]*\).*/\1/p')
   type110_last_frame=$(printf '%s\n' "$death_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
   type110_sink_pid=$(printf '%s\n' "$death_line" | sed -n 's/.*type110_sink_pid=\([0-9][0-9]*\).*/\1/p')
-  compositor_pid=$(printf '%s\n' "$logs" | sed -n 's/.*IPC_REMOTE_PROCESS_READY pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+  compositor_pid=$initial_compositor_pid
+  [ "$session_id" = "$initial_session_generation" ] || {
+    echo 'Pre-death session identity did not match the initial setup receipt generation.' >&2; exit 9;
+  }
   [ -n "$session_id" ] && [ -n "$type110_generation" ] && [ -n "$type110_last_frame" ] &&
     [ -n "$type110_sink_pid" ] && [ -n "$compositor_pid" ] || {
-    echo 'Missing process or stream identity from the pre-death receipt.' >&2; exit 9;
+    echo "Missing process or stream identity from the pre-death receipt: session=$([ -n "$session_id" ] && echo yes || echo no) type110_generation=$([ -n "$type110_generation" ] && echo yes || echo no) last_frame=$([ -n "$type110_last_frame" ] && echo yes || echo no) type110_sink=$([ -n "$type110_sink_pid" ] && echo yes || echo no) compositor=$([ -n "$compositor_pid" ] && echo yes || echo no)." >&2
+    exit 9;
+  }
+  [ "$type110_sink_pid" = "$initial_type110_sink_pid" ] || {
+    echo 'Type110 sink PID changed between initial session receipt and owner-death precondition.' >&2; exit 9;
   }
   [ "$app_pid" != "$type110_sink_pid" ] && [ "$app_pid" != "$compositor_pid" ] &&
     [ "$type110_sink_pid" != "$compositor_pid" ] || {
@@ -833,6 +859,7 @@ if [ "$type111_mode" -eq 1 ]; then
   swift "$repo/tools/verify_api17_padded_crop_content.swift" \
     "$crop_proof" "$green_control" "$apk" "$crop_receipt"
   shasum -a 256 "$apk" "$campaign_evidence/api17-type111-logcat-$adb_port.txt" \
+    "$campaign_evidence/api17-initial-setup-order-$adb_port.txt" \
     "$campaign_evidence/api17-type111-blue-frame-1.png-$adb_port.png" \
     "$campaign_evidence/api17-type111-independent-producer-frame.png-$adb_port.png" \
     "$campaign_evidence/api17-type111-restarted-producer-frame.png-$adb_port.png" \
