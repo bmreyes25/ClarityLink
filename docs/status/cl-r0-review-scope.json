@@ -80,7 +80,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "7b33bd798549d182cf4263be4c2dddf4bd90a6f06a2b12cca4465ffb3c0961d5"
+      "sha256": "8ef5cfed9829db92f3dcd94069214c97d8384b137570856cfef5db290aa7d999"
     },
     {
       "path": "tests/jmcs/test_r6e_auth_transport.py",
@@ -112,7 +112,7 @@
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
-      "sha256": "63403a804acc213f2f07cb2493d4666d79b0dd74bb8483c8fa7e92a3661a50b6"
+      "sha256": "e22240393929d356dab790b5f941f9f22164fbdae6d0afe97521e63f1eed45ed"
     },
     {
       "path": "tools/check_repo_health.py",
@@ -124,7 +124,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "5dde2505977983d136a5c835c08b351eca661406fa9f1f5f8a4dba3a15e31f72"
+      "sha256": "ff7cb3c34fea80fde3d581ac999f64b9ba647219cb1296221d97e381edbf6052"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -155,5 +155,6 @@
     "clone": "one fresh clone; configured suite run twice",
     "receipt": "docs/status/cl-r0-main-test-receipt.md"
   },
-  "cl_r4a_scope_refresh_note": "The pinned blobs for the IPC contract test and API17 emulator runner were refreshed for CL-R4A. Their updated versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged."
+  "cl_r4a_scope_refresh_note": "The pinned blobs for the IPC contract test and API17 emulator runner were refreshed for CL-R4A. Their updated versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
+  "cl_r4b_scope_refresh_note": "Pinned CL-R0 test and API17 build/runner blobs were refreshed for the CL-R4B Type110 owner failure contract and emulator harness. The CL-R4B versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged."
 }

@@ -154,7 +154,7 @@ public final class CompositorService extends Service {
             }
             if (code == FrameIpcProtocol.END) {
                 FrameStreamIdentity identity = readIdentity(data);
-                boolean accepted = unregisterStream(identity);
+                boolean accepted = endStream(identity);
                 Log.i(TAG, "IPC_REMOTE_END generation=" + identity.streamGeneration +
                         " stream_type=" + identity.streamType + " accepted=" + accepted);
                 reply.writeNoException();
@@ -661,7 +661,7 @@ public final class CompositorService extends Service {
                         deadIdentity.connectionId + " stream_generation=" + deadIdentity.streamGeneration);
                 if (deadIdentity.streamType == FrameStreamIdentity.TYPE111)
                     detachType111SinkIfCurrent(state, deadIdentity);
-                else unregisterStreamIfCurrent(state, deadIdentity);
+                else endStreamIfCurrent(state, deadIdentity);
                 if (deadIdentity.streamType == FrameStreamIdentity.TYPE111 &&
                         Type110LabProbeOwnership.hasPending(CompositorService.this, deadIdentity)) {
                     try {
@@ -832,6 +832,31 @@ public final class CompositorService extends Service {
         StreamState state = findStream(identity);
         if (state == null) return false;
         return unregisterStreamState(state, identity);
+    }
+
+    /** A Type110 owner ending or dying closes the entire child session it authorized. */
+    private boolean endStream(FrameStreamIdentity identity) {
+        if (identity != null && identity.streamType == FrameStreamIdentity.TYPE110) {
+            String teardown = teardownType111Session(identity);
+            if ("accepted".equals(teardown)) {
+                Log.i(TAG, "TYPE110_OWNER_SESSION_INVALIDATED session_id=" + identity.sessionId +
+                        " cause=owner_end streams_closed=2");
+                return true;
+            }
+        }
+        return unregisterStream(identity);
+    }
+
+    private boolean endStreamIfCurrent(StreamState state, FrameStreamIdentity identity) {
+        if (identity != null && identity.streamType == FrameStreamIdentity.TYPE110) {
+            String teardown = teardownType111Session(identity);
+            if ("accepted".equals(teardown)) {
+                Log.i(TAG, "TYPE110_OWNER_SESSION_INVALIDATED session_id=" + identity.sessionId +
+                        " cause=owner_sink_death streams_closed=2");
+                return true;
+            }
+        }
+        return unregisterStreamIfCurrent(state, identity);
     }
 
     private boolean unregisterStreamIfCurrent(StreamState expectedState, FrameStreamIdentity identity) {

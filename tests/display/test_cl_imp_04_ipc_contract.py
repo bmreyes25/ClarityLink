@@ -206,7 +206,7 @@ def test_api17_runner_proves_cross_uid_denial_and_uses_privileged_shell_launch()
     attacker = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java").read_text()
     assert "assert_type110_probe_cross_uid_denied" in runner
     assert "CL_R4_CROSS_UID_ATTACKS_PASS" in runner
-    assert "attempts=19 denied=19" in runner
+    assert "attempts=21 denied=21" in runner
     assert "attacker_uid" in runner
     assert "invoke_type110_probe_privileged" in runner
     assert 'shell am start -n "$attacker_package/$attacker_component"' in runner
@@ -235,7 +235,9 @@ def test_lab_activities_require_dump_permission_and_attacker_cannot_admit_or_cra
         assert f'attemptLabActivity("{name}")' in attacker
     assert '"crash_after_first_frame", true' in attacker
     assert 'attemptPrivateService("Type111ProducerService")' in attacker
-    assert "attempted == 19 && denied == attempted" in attacker
+    assert 'attemptPrivateService("Type110SinkFailureTestService")' in attacker
+    assert 'target.putExtra("confirmation", "CL_R4B_OFFLINE_EMULATOR_ONLY")' in attacker
+    assert "attempted == 21 && denied == attempted" in attacker
 
 
 def test_api17_runner_uses_internal_probe_and_gracefully_stops_owned_services():
@@ -267,7 +269,7 @@ def test_cross_uid_attacker_has_distinct_uid_and_requests_no_permissions():
     assert manifest.findall("uses-permission") == []
     source = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java").read_text()
     assert 'attemptPrivateService("Type111ProducerService")' in source
-    assert "attempted == 19 && denied == attempted" in source
+    assert "attempted == 21 && denied == attempted" in source
     assert "ATTACK_NOT_DENIED" in source
     assert 'attemptLabActivity("ClarityLinkDisplayActivity")' in source
     assert 'attemptLabActivity("Api17DecoderLabActivity")' in source
@@ -310,7 +312,7 @@ def test_parent_teardown_closes_registration_admission_before_child_snapshot():
     assert "MAX_CLOSED_SESSION_IDS = 128" in source
     assert "usedSessionIds.size() >= MAX_CLOSED_SESSION_IDS" in capability
     assert "usedSessionIds.add(sessionId)" in capability
-    assert "unregisterStreamIfCurrent(state, deadIdentity)" in source
+    assert "endStreamIfCurrent(state, deadIdentity)" in source
     assert "streams.get(identity.key()) != state" in unregister_body
     assert "!identity.equals(state.identity)" in unregister_body
 

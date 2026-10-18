@@ -57,6 +57,7 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Api17DecoderLabActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSinkService.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type110SinkFailureTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcClient.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameViewSink.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameStreamIdentity.java" \
