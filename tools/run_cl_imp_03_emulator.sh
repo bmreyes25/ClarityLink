@@ -701,13 +701,18 @@ if [ "$type111_mode" -eq 1 ]; then
   if [ "$reentrant_teardown" -eq 1 ]; then
     wait_for 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS'
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$logs" > "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt"
     pass_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS ' | tail -1)
     if printf '%s\n' "$logs" | grep -F 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL' >/dev/null; then
       echo 'Fixture worker reported a failure during the reentrant teardown scenario.' >&2; exit 9;
     fi
     printf '%s\n' "$pass_line" | grep -F "session_id=$initial_session_generation " \
       | grep -F 'concurrent_calls=2 accepted_calls=1 rejected_calls=1' \
-      | grep -F 'repeated_close_rejected=true owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0' >/dev/null || {
+      | grep -F 'overlap_barrier=first_paused_contender_rejected' \
+      | grep -F 'repeated_close_rejected=true' \
+      | grep -F 'owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0' >/dev/null || {
+      printf '%s\n' "$pass_line" >&2
+      printf '%s\n' "$logs" | grep -E 'PARENT_TEARDOWN_BARRIER|TYPE111_PARENT_TEARDOWN|CL_R4B_REENTRANT|IPC_REMOTE_PROCESS_DESTROYED' >&2 || true
       echo 'Concurrent/repeated teardown receipt did not match the initial session and zero-resource state.' >&2; exit 9;
     }
     teardown_count=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$initial_session_generation " \
@@ -725,7 +730,6 @@ if [ "$type111_mode" -eq 1 ]; then
     printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' >/dev/null || {
       echo 'Compositor owner did not report zero-resource shutdown after reentrant teardown.' >&2; exit 9;
     }
-    printf '%s\n' "$logs" > "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt"
     shasum -a 256 "$apk" "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt" \
       > "$campaign_evidence/api17-reentrant-teardown-artifact-hashes-$adb_port.sha256"
     owned || exit 7

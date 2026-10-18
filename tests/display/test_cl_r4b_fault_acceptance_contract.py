@@ -135,18 +135,30 @@ def test_parent_owner_loss_cancels_activity_fixture_worker():
 
 def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verifies_empty_state():
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    service = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    client = (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert "EXTRA_REENTRANT_TEARDOWN_TEST" in activity
     assert "runReentrantParentTeardown(type110Identity, frameIpcClient.streamIdentity())" in activity
     assert "new CountDownLatch(2)" in activity
     assert "start.await(5L, TimeUnit.SECONDS)" in activity
     assert "done.await(8L, TimeUnit.SECONDS)" in activity
+    assert "armLabParentTeardownBarrier(owner)" in activity
+    assert "awaitLabParentTeardownBarrier(owner, true, 5000L)" in activity
+    assert "releaseLabParentTeardownBarrier(owner)" in activity
     assert "results[0] == results[1]" in activity
     assert "repeated_parent_teardown_changed_state" in activity
     assert "reentrant_parent_teardown_left_resources" in activity
     assert "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS" in activity
+    assert "overlap_barrier=first_paused_contender_rejected" in activity
+    assert "pauseAtParentTeardownBarrier(sessionId)" in service
+    assert "signalParentTeardownContender(sessionId)" in service
+    assert "LAB_WAIT_PARENT_TEARDOWN_CONTENDER" in service
+    assert "LAB_ARM_PARENT_TEARDOWN_BARRIER" in client
+    assert "LAB_RELEASE_PARENT_TEARDOWN_BARRIER" in client
     assert "--cl-r4b-reentrant-teardown" in runner
     assert "--cl-r4b-reentrant-teardown-type111-first" in runner
     assert "accepted_calls=1 rejected_calls=1" in runner
+    assert "overlap_barrier=first_paused_contender_rejected" in runner
     assert "Expected one parent teardown commit" in runner
     assert "Stream $stream_type unregister count was" in runner

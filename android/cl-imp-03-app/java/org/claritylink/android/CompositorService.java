@@ -44,6 +44,11 @@ public final class CompositorService extends Service {
     private CountDownLatch labTransferRelease = new CountDownLatch(0);
     private CountDownLatch labTransferFinished = new CountDownLatch(0);
     private final AtomicBoolean labTransferBarrierArmed = new AtomicBoolean(false);
+    private final Object labParentTeardownBarrierLock = new Object();
+    private long labParentTeardownBarrierSessionId;
+    private CountDownLatch labParentTeardownEntered = new CountDownLatch(0);
+    private CountDownLatch labParentTeardownRelease = new CountDownLatch(0);
+    private CountDownLatch labParentTeardownContender = new CountDownLatch(0);
     private static final class StreamState {
         final Object lock = new Object();
         final SimulatedExternalDisplayCompositor compositor = new SimulatedExternalDisplayCompositor();
@@ -116,6 +121,49 @@ public final class CompositorService extends Service {
                     }
                     latch = code == FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER ?
                             labTransferEntered : labTransferFinished;
+                }
+                boolean completed;
+                try { completed = latch.await(timeoutMs, TimeUnit.MILLISECONDS); }
+                catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    completed = false;
+                }
+                reply.writeNoException();
+                reply.writeInt(completed ? 1 : 0);
+                return true;
+            }
+            if (code == FrameIpcProtocol.LAB_ARM_PARENT_TEARDOWN_BARRIER) {
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                boolean accepted = armParentTeardownBarrier(ownerIdentity);
+                reply.writeNoException();
+                reply.writeInt(accepted ? 1 : 0);
+                return true;
+            }
+            if (code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_BARRIER ||
+                    code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_CONTENDER ||
+                    code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER) {
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                long timeoutMs = code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER ?
+                        0L : data.readLong();
+                if (timeoutMs < 0L || timeoutMs > 10000L) {
+                    reply.writeException(new IllegalArgumentException("lab teardown barrier timeout out of range"));
+                    return true;
+                }
+                CountDownLatch latch;
+                synchronized (labParentTeardownBarrierLock) {
+                    if (ownerIdentity == null || ownerIdentity.sessionId != labParentTeardownBarrierSessionId) {
+                        reply.writeNoException();
+                        reply.writeInt(0);
+                        return true;
+                    }
+                    if (code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER) {
+                        labParentTeardownRelease.countDown();
+                        reply.writeNoException();
+                        reply.writeInt(1);
+                        return true;
+                    }
+                    latch = code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_BARRIER ?
+                            labParentTeardownEntered : labParentTeardownContender;
                 }
                 boolean completed;
                 try { completed = latch.await(timeoutMs, TimeUnit.MILLISECONDS); }
@@ -368,6 +416,49 @@ public final class CompositorService extends Service {
         synchronized (streamsLock) { return type111Sessions.get(sessionId); }
     }
 
+    /** Arm an owner-only API test barrier; arbitrary UIDs are rejected by onTransact first. */
+    private boolean armParentTeardownBarrier(FrameStreamIdentity ownerIdentity) {
+        StreamState owner = findStream(ownerIdentity);
+        if (ownerIdentity == null || ownerIdentity.streamType != FrameStreamIdentity.TYPE110 ||
+                owner == null || !ownerIdentity.equals(owner.identity)) return false;
+        synchronized (streamsLock) {
+            if (closingSessions.contains(ownerIdentity.sessionId) ||
+                    !type111Sessions.containsKey(ownerIdentity.sessionId)) return false;
+        }
+        synchronized (labParentTeardownBarrierLock) {
+            labParentTeardownBarrierSessionId = ownerIdentity.sessionId;
+            labParentTeardownEntered = new CountDownLatch(1);
+            labParentTeardownRelease = new CountDownLatch(1);
+            labParentTeardownContender = new CountDownLatch(1);
+        }
+        return true;
+    }
+
+    private void pauseAtParentTeardownBarrier(long sessionId) {
+        CountDownLatch entered, release;
+        synchronized (labParentTeardownBarrierLock) {
+            if (sessionId != labParentTeardownBarrierSessionId) return;
+            entered = labParentTeardownEntered;
+            release = labParentTeardownRelease;
+        }
+        entered.countDown();
+        Log.i(TAG, "IPC_LAB_PARENT_TEARDOWN_BARRIER_ENTERED session_id=" + sessionId);
+        try {
+            if (!release.await(10000L, TimeUnit.MILLISECONDS))
+                Log.w(TAG, "IPC_LAB_PARENT_TEARDOWN_BARRIER_TIMEOUT session_id=" + sessionId);
+        } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+        synchronized (labParentTeardownBarrierLock) {
+            if (sessionId == labParentTeardownBarrierSessionId) labParentTeardownBarrierSessionId = 0L;
+        }
+    }
+
+    private void signalParentTeardownContender(long sessionId) {
+        synchronized (labParentTeardownBarrierLock) {
+            if (sessionId == labParentTeardownBarrierSessionId)
+                labParentTeardownContender.countDown();
+        }
+    }
+
     private void handleType111Capability(Parcel data, Parcel reply) {
         long sessionId = data.readLong();
         String uuid = data.readString();
@@ -415,12 +506,17 @@ public final class CompositorService extends Service {
             StreamState owner = streams.get(type110Owner.key());
             if (owner == null || !type110Owner.equals(owner.identity))
                 return "session_owner_stream_unregistered";
-            if (!type111Sessions.containsKey(sessionId) || closingSessions.contains(sessionId))
+            if (closingSessions.contains(sessionId)) {
+                signalParentTeardownContender(sessionId);
+                return "session_unavailable";
+            }
+            if (!type111Sessions.containsKey(sessionId))
                 return "session_unavailable";
             // Close admission before taking the child snapshot. Registrations inserted before
             // this point are captured below; later registrations fail under this same lock.
             closingSessions.add(sessionId);
         }
+        pauseAtParentTeardownBarrier(sessionId);
         Type111ControlPlane plane = controlPlane(sessionId);
         if (plane == null) return "session_unavailable";
         ArrayList<StreamState> ownedStates = new ArrayList<StreamState>();

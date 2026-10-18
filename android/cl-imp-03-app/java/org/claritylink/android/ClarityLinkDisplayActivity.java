@@ -1262,6 +1262,9 @@ public final class ClarityLinkDisplayActivity extends Activity
         final CountDownLatch done = new CountDownLatch(2);
         final boolean[] results = new boolean[] { false, false };
         final Throwable[] failures = new Throwable[2];
+        final Type111ControlClient control = new Type111ControlClient(compositorEndpoint);
+        if (!control.armLabParentTeardownBarrier(owner))
+            throw new IllegalStateException("parent_teardown_overlap_barrier_not_armed");
         for (int index = 0; index < 2; index++) {
             final int slot = index;
             new Thread(new Runnable() {
@@ -1277,14 +1280,27 @@ public final class ClarityLinkDisplayActivity extends Activity
                 }
             }, "ClarityLinkReentrantTeardown-" + index).start();
         }
-        if (!ready.await(5L, TimeUnit.SECONDS))
+        if (!ready.await(5L, TimeUnit.SECONDS)) {
+            start.countDown();
+            control.releaseLabParentTeardownBarrier(owner);
             throw new IllegalStateException("teardown_workers_not_ready");
+        }
         start.countDown();
+        boolean firstPaused = false;
+        boolean contenderRejectedWhilePaused = false;
+        try {
+            firstPaused = control.awaitLabParentTeardownBarrier(owner, false, 5000L);
+            contenderRejectedWhilePaused = firstPaused &&
+                    control.awaitLabParentTeardownBarrier(owner, true, 5000L);
+        } finally { control.releaseLabParentTeardownBarrier(owner); }
+        if (!firstPaused || !contenderRejectedWhilePaused) {
+            done.await(8L, TimeUnit.SECONDS);
+            throw new IllegalStateException("teardown_calls_did_not_overlap_admission_close");
+        }
         if (!done.await(8L, TimeUnit.SECONDS))
             throw new IllegalStateException("concurrent_parent_teardown_timeout");
         if (failures[0] != null || failures[1] != null || results[0] == results[1])
             throw new IllegalStateException("concurrent_parent_teardown_result_mismatch");
-        Type111ControlClient control = new Type111ControlClient(compositorEndpoint);
         if (control.parentTeardown(owner))
             throw new IllegalStateException("repeated_parent_teardown_changed_state");
         Type111ControlClient.StreamQuery query = control.queryType111Stream(owner);
@@ -1295,6 +1311,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             throw new IllegalStateException("reentrant_parent_teardown_left_resources");
         Log.i(TAG, "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS session_id=" + owner.sessionId +
                 " concurrent_calls=2 accepted_calls=1 rejected_calls=1 repeated_close_rejected=true " +
+                "overlap_barrier=first_paused_contender_rejected " +
                 "owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0");
     }
 
