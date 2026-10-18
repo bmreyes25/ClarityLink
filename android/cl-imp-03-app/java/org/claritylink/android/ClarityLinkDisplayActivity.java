@@ -69,6 +69,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_REATTACH_SESSION_ID = "type111_reattach_session_id";
     private static final String EXTRA_REATTACH_TEST = "type111_reattach_test";
     private static final String EXTRA_OWNER_DEATH_TEST = "owner_death_test";
+    private static final String EXTRA_REENTRANT_TEARDOWN_TEST = "reentrant_teardown_test";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
     private static final String LAB_CONFIRM = "CL_IMP_03_OFFLINE_EMULATOR_ONLY";
     private static final boolean PRODUCTION_HONDA_INTEGRATION_ENABLED = false;
@@ -157,6 +158,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private long lastType111SubmissionTimestampNs;
     private boolean type111ReattachTest;
     private boolean ownerDeathTest;
+    private boolean reentrantTeardownTest;
     private boolean type111RunStarted;
     private volatile Thread type111FixtureWorker;
     private volatile FixtureRunToken type111FixtureRunToken;
@@ -217,6 +219,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                 getIntent().getLongExtra(EXTRA_REATTACH_SESSION_ID, 0L);
         type111ReattachTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_REATTACH_TEST, false);
         ownerDeathTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_OWNER_DEATH_TEST, false);
+        reentrantTeardownTest = getIntent() != null &&
+                getIntent().getBooleanExtra(EXTRA_REENTRANT_TEARDOWN_TEST, false);
         recreation = state != null;
         showStatus("ClarityLink disabled candidate. No display is selected automatically.");
         log("ACTIVITY_READY api=" + Build.VERSION.SDK_INT + " pid=" + android.os.Process.myPid()
@@ -1198,6 +1202,15 @@ public final class ClarityLinkDisplayActivity extends Activity
                                 " valid_type110_and_type111_frames=true session_kept_open=true");
                         return;
                     }
+                    if (reentrantTeardownTest) {
+                        runReentrantParentTeardown(type110Identity, frameIpcClient.streamIdentity());
+                        main.post(new Runnable() {
+                            public void run() {
+                                stopOwnedDisplay("reentrant-parent-teardown-test-complete");
+                            }
+                        });
+                        return;
+                    }
                     if (runToken.isCancelled() || !active || closing) {
                         log("CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE parent_session_preserved=true");
                         return;
@@ -1236,6 +1249,58 @@ public final class ClarityLinkDisplayActivity extends Activity
             }
         }, "ClarityLinkType111FixtureToView");
         type111FixtureWorker.start();
+    }
+
+    /** Exercise actual Binder parent teardown concurrently, then verify repeat-close is inert. */
+    private void runReentrantParentTeardown(final FrameStreamIdentity owner,
+            final FrameStreamIdentity child) throws Exception {
+        if (owner == null || child == null || owner.streamType != FrameStreamIdentity.TYPE110 ||
+                child.streamType != FrameStreamIdentity.TYPE111 || owner.sessionId != child.sessionId)
+            throw new IllegalStateException("reentrant_teardown_identity_mismatch");
+        final CountDownLatch ready = new CountDownLatch(2);
+        final CountDownLatch start = new CountDownLatch(1);
+        final CountDownLatch done = new CountDownLatch(2);
+        final boolean[] results = new boolean[] { false, false };
+        final Throwable[] failures = new Throwable[2];
+        for (int index = 0; index < 2; index++) {
+            final int slot = index;
+            new Thread(new Runnable() {
+                public void run() {
+                    ready.countDown();
+                    try {
+                        if (!start.await(5L, TimeUnit.SECONDS))
+                            throw new IllegalStateException("teardown_start_barrier_timeout");
+                        results[slot] = new Type111ControlClient(compositorEndpoint)
+                                .parentTeardown(owner);
+                    } catch (Throwable failure) { failures[slot] = failure; }
+                    finally { done.countDown(); }
+                }
+            }, "ClarityLinkReentrantTeardown-" + index).start();
+        }
+        if (!ready.await(5L, TimeUnit.SECONDS))
+            throw new IllegalStateException("teardown_workers_not_ready");
+        start.countDown();
+        if (!done.await(8L, TimeUnit.SECONDS))
+            throw new IllegalStateException("concurrent_parent_teardown_timeout");
+        if (failures[0] != null || failures[1] != null || results[0] == results[1])
+            throw new IllegalStateException("concurrent_parent_teardown_result_mismatch");
+        Type111ControlClient control = new Type111ControlClient(compositorEndpoint);
+        if (control.parentTeardown(owner))
+            throw new IllegalStateException("repeated_parent_teardown_changed_state");
+        Type111ControlClient.StreamQuery query = control.queryType111Stream(owner);
+        Type111ControlClient.FrameStats ownerStats = control.queryFrameStats(owner);
+        Type111ControlClient.FrameStats childStats = control.queryFrameStats(child);
+        if (query == null || query.ownerValid || query.identity != null || query.sinkAttached ||
+                !zeroUnregistered(ownerStats) || !zeroUnregistered(childStats))
+            throw new IllegalStateException("reentrant_parent_teardown_left_resources");
+        Log.i(TAG, "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS session_id=" + owner.sessionId +
+                " concurrent_calls=2 accepted_calls=1 rejected_calls=1 repeated_close_rejected=true " +
+                "owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0");
+    }
+
+    private static boolean zeroUnregistered(Type111ControlClient.FrameStats stats) {
+        return stats != null && !stats.registered && stats.activePfdTransfers == 0 &&
+                stats.retainedFrameBytes == 0 && !stats.transferActive && stats.lastFrameId == 0L;
     }
 
     private byte[] type111Fixture(String name) throws Exception {

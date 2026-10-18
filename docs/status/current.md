@@ -1,7 +1,7 @@
 # Current project status
 
-**Updated:** 2026-10-17
-**Campaign:** Repository recovery and public-safe synchronization
+**Updated:** 2026-10-18
+**Campaign:** Final offline integration campaign
 **Current milestone:** CL-R4 — `IN_PROGRESS`; CL-R5 — `IN_PROGRESS`
 **Authoritative manifest:** [milestones.json](milestones.json)
 **Latest public-safe integration summaries:** [Type111 producer-process result](../../research/vehicle/test6a-t7-integration/30-cl-r4-producer-process-fault-result.md), [stream isolation](../../research/vehicle/test6a-t7-integration/26-cl-r4-stream-isolation-results.md), [presentation-control model](../../research/vehicle/test6a-t7-integration/25-cl-r5-presentation-control-model.md). Raw emulator receipts and private evidence are excluded from this publication candidate.
@@ -14,7 +14,7 @@
 | CL-R1 warning-preemption race | `API17_EMULATOR_VERIFIED` for deterministic Binder/Handler/View race interleavings and final-draw epoch gating. This is laboratory evidence, not Honda warning-priority validation. | [CL-R3 acceptance summary](../../research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md) |
 | CL-R2 API17 isolation and crash recovery | `API17_EMULATOR_VERIFIED`; system-owned crash-dialog handling was validated. A historical FinalizerWatchdog timeout did not recur; its original cause remains unknown. | [CL-R3 acceptance summary](../../research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md) |
 | CL-R3 Binder-to-View | `API17_EMULATOR_VERIFIED`; acceptance summary covers malformed frames, generations, pixel classification, warning interleavings, process death, crash recovery, and cleanup. No physical scanout is claimed. | [Final acceptance](../../research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md) |
-| CL-R4 dual-stream fixture isolation | `IN_PROGRESS`; Binder v3 identity, bounded dispatch, Type110 progress during Type111 saturation, fixture decoding, and Type111 producer-failure/recovery have laboratory evidence. Sink reconnection, Type110-only ownership, parent-authority process death, and reentrant teardown remain incomplete. | [Producer-process result](../../research/vehicle/test6a-t7-integration/30-cl-r4-producer-process-fault-result.md), [stream isolation results](../../research/vehicle/test6a-t7-integration/26-cl-r4-stream-isolation-results.md) |
+| CL-R4 dual-stream fixture isolation | `IN_PROGRESS`; producer failure/recovery, Type110-only sink failure, actual compositor-owner process death, and concurrent/repeated parent teardown have API17 evidence. The Type110-only run denied cross-UID operations 21/21 and cleared both streams. Reentrant teardown passed in both stream-registration orders with one commit, one rejected concurrent call, and zero retained PFD/bytes. The remaining CL-R4B matrix cases are not complete. | [Producer-process result](../../research/vehicle/test6a-t7-integration/30-cl-r4-producer-process-fault-result.md), [stream isolation results](../../research/vehicle/test6a-t7-integration/26-cl-r4-stream-isolation-results.md) |
 | CL-R5 Type111 control plane | `IN_PROGRESS`; a synthetic lab-only Android Binder model covers capability/setup, navigation eligibility, presentation, geometry, and VideoConfig against Binder v3 identity. It is not CarPlay wire negotiation or an authenticated Honda session. | [Type111 integration results](../../research/vehicle/test6a-t7-integration/27-cl-type111-major-integration-results.md), [presentation model](../../research/vehicle/test6a-t7-integration/25-cl-r5-presentation-control-model.md) |
 | CL-R6 Honda display output | `IN_PROGRESS`; an OEM-authorized output host is required. No supported arbitrary-frame interface has been established. | [Honda Type111 research plan](../research/honda-type111-research-plan.md) |
 | CL-R7 / CL-R8 | `PLANNED`; no vehicle or live iPhone operation is authorized. | [Development roadmap](../roadmap/final-development-plan.md) |
@@ -26,4 +26,4 @@ The publication candidate is a clean-history selection based on `origin/main`; i
 
 ## Next action
 
-Complete the API17 Type111 sink-reconnection and Type110-only failure ownership matrix, then validate parent-owner death and reentrant teardown. Honda authenticated Type111 and OEM output integration remain unproven and unauthorized.
+Complete the untested CL-R4B callback, registration-attack, queue-saturation/failure, and aggregate cleanup cases. Then finish the laboratory output-host integration. Honda authenticated Type111 and OEM output integration remain unproven and unauthorized.

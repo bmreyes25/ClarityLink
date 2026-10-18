@@ -11,10 +11,6 @@
   "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim.",
   "files": [
     {
-      "path": "AGENTS.md",
-      "sha256": "8ac103770d4a77bcfc56f9a517c612f1e0eb998c4ad27b0300679671fd33b757"
-    },
-    {
       "path": ".github/pull_request_template.md",
       "sha256": "926c2fb7b82dddc3a59a0018324fe659ceec6f3163551899354bccc7c08549ba"
     },
@@ -23,12 +19,20 @@
       "sha256": "600caf5bb2b69bc1cda90d33edf432f553029cd49429043286792e7979bf7522"
     },
     {
+      "path": "AGENTS.md",
+      "sha256": "8ac103770d4a77bcfc56f9a517c612f1e0eb998c4ad27b0300679671fd33b757"
+    },
+    {
       "path": "CONTRIBUTING.md",
       "sha256": "99687d9aa116c47a9652a57d61c6fbc93b02f6e499edc911ddab762275fc7bee"
     },
     {
       "path": "README.md",
       "sha256": "f73e6d0a6e9aea765390e4db96c85baf2162c1c121b928293eee2861707027eb"
+    },
+    {
+      "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
+      "sha256": "0b95beb01049c30ae54e656449a74c7e0356a642d4144aed1c23b53db99d0bf8"
     },
     {
       "path": "docs/README.md",
@@ -60,11 +64,15 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "3deb89efae24ad72bd26b61c5ad65e67597a1bc2e3038293fded2768cd3be26e"
+      "sha256": "11a5eb29ac711da9cf4c3969905511857e4d10af63a3a51098ac01f44c0dc749"
     },
     {
       "path": "docs/status/capabilities.md",
       "sha256": "f22cee48db5468f797cf76437031f3fbcdf26fc9bf0b915ac8114b5ca0f8d6ef"
+    },
+    {
+      "path": "docs/status/cl-r0-main-test-receipt.md",
+      "sha256": "1c691f4c00ee5d939e1fefa85d2ff3a0ea73b4db8b352715349545c8ed809007"
     },
     {
       "path": "docs/status/cl-r0-validation.md",
@@ -72,7 +80,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "7ea227fa8cabfdae4d3c81ecc18a3e55d48a209773bec523194df1ab730f155e"
+      "sha256": "a3dd8530fac1c92a0f9f646a016c392d3380adf7f03359bbfb91d4a53355bec8"
     },
     {
       "path": "docs/status/milestones.json",
@@ -81,6 +89,10 @@
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
       "sha256": "a19a1ff571de49514fac82b87ebfe7a0852cea0fe9586d4eea54add6f722aa24"
+    },
+    {
+      "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
+      "sha256": "45d5ca8aee343313522c461342a7c6c5a2ccfd0432d0ff629e05985354e6547b"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -128,7 +140,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "b29be2fdf5939e914553e4668687ebc41345c5da90611c771ffc39eed6035076"
+      "sha256": "a06931c21badb607bc191ba939d62eedbf2539a7bc6351831e15712eba725dc1"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -141,10 +153,6 @@
     {
       "path": "tools/verify_api17_pixel_content.swift",
       "sha256": "0718a20a0617e5cdacbbdf4fbdb4fb7999c230e79ee2c212ee065fdec8aaab45"
-    },
-    {
-      "path": "docs/status/cl-r0-main-test-receipt.md",
-      "sha256": "1c691f4c00ee5d939e1fefa85d2ff3a0ea73b4db8b352715349545c8ed809007"
     }
   ],
   "reviewed_head": "cb6ccd0c78bd6e6f3c63988cd99185f5d8a087c4",
@@ -163,5 +171,6 @@
   "cl_r4b_scope_refresh_note": "Pinned CL-R0 test and API17 build/runner blobs were refreshed for the CL-R4B Type110 owner failure contract and emulator harness. The CL-R4B versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
   "cl_r4b_owner_death_scope_refresh_note": "Updated the pinned API17 build and runner blobs for the guarded compositor-owner death test, cross-UID denial, and WindowManager cleanup proof. Exact-source ECC code and security re-review is recorded against the resulting commit; earlier review ranges and historical claims are unchanged.",
   "cl_r5_setup_order_receipt_note": "Refreshed the pinned API17 runner and integration contract to require a pre-replacement setup-order/process receipt, preserving Type111-first evidence before same-session View death recovery. Exact-source ECC review is tied to the resulting commit; historical review ranges remain unchanged.",
-  "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged."
+  "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
+  "cl_r4b_reentrant_teardown_scope_note": "Adds a guarded API17-only concurrent/repeated parent teardown scenario in both Type110-first and Type111-first setup orders. The test ties results to the live Binder session, requires one accepted concurrent teardown, one rejection, inert repeated close, one unregister per stream, zero retained resources, and records only ignored local emulator evidence. Exact-source ECC review is tied to the resulting commit."
 }
