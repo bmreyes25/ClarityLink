@@ -13,6 +13,11 @@ def test_api17_runner_can_exercise_first_order_and_same_session_view_replacement
     assert 'start_lab_activity_privileged type111_first_reattach' in runner
     assert '--ez type111_first_mode true --ez type111_reattach_test true' in runner
     assert 'start_lab_activity_privileged type111_reattach "$session_id"' in runner
+    assert 'setup_order=$expected_setup_order ' in runner
+    assert 'api17-initial-setup-order-$adb_port.txt' in runner
+    assert 'Initial API17 session did not prove setup_order=' in runner
+    assert 'initial_compositor_pid=$(printf' in runner
+    assert 'compositor_pid=$initial_compositor_pid' in runner
     assert 'CL_R4A_TYPE111_SINK_REPLACED ' in runner
     assert 'CL_R4A_VIEW_REATTACH_PASS' in runner
 

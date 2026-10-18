@@ -84,7 +84,7 @@
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
-      "sha256": "4f39ec9533a59753a558cb6902972baf475f1e728001f87485ac0bff0e8dd261"
+      "sha256": "7cb093dcce22eabcbfd4d6ec9ebbcc174bc8bf5e9b116594e64260d9e619381d"
     },
     {
       "path": "tests/jmcs/test_r6e_auth_transport.py",
@@ -128,7 +128,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "625f358df717d9ec155eaf6cf08a931278e63c286c28d1dfa8090b004deb1146"
+      "sha256": "3ee9dd2e944d5aaef36eb3926bbc074a61c12cb80ca4064efadf2acbf3a7e7ec"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -162,5 +162,6 @@
   "cl_r4a_scope_refresh_note": "The pinned blobs for the IPC contract test and API17 emulator runner were refreshed for CL-R4A. Their updated versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
   "cl_r4b_scope_refresh_note": "Pinned CL-R0 test and API17 build/runner blobs were refreshed for the CL-R4B Type110 owner failure contract and emulator harness. The CL-R4B versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged.",
   "cl_r4b_owner_death_scope_refresh_note": "Updated the pinned API17 build and runner blobs for the guarded compositor-owner death test, cross-UID denial, and WindowManager cleanup proof. Exact-source ECC code and security re-review is recorded against the resulting commit; earlier review ranges and historical claims are unchanged.",
+  "cl_r5_setup_order_receipt_note": "Refreshed the pinned API17 runner and integration contract to require a pre-replacement setup-order/process receipt, preserving Type111-first evidence before same-session View death recovery. Exact-source ECC review is tied to the resulting commit; historical review ranges remain unchanged.",
   "cl_r5_scope_refresh_note": "Pinned the CL-R5 API17 runner and added its integration contract test after the Type111-first same-session reattach harness was corrected. The R5 versions received separate read-only ECC code and security review; original CL-R0 review ranges and approval_claimed remain unchanged."
 }
