@@ -179,6 +179,9 @@ def test_api17_delayed_old_sink_callback_is_injected_only_after_fresh_owner_auth
     assert "labDelayedDeathIdentity.streamGeneration + 1L != currentIdentity.streamGeneration" in service
     assert "labDelayedDeathState != child" in service
     assert "labDelayedDeathState != state" in service
+    assert "labDelayedDeathRecipient != recipient" in service
+    assert "labDelayedDeathRecipient = state.deathRecipient" in service
+    assert "if (labDelayedDeathIdentity != null) return false" in service
     assert "pauseLabDelayedDeathCallback(" in service
     assert "release.await(120000L, TimeUnit.MILLISECONDS)" in service
     assert "release.countDown()" in service
