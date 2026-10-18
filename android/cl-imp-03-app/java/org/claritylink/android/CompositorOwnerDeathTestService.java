@@ -9,6 +9,7 @@ import android.content.ServiceConnection;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Process;
+import android.os.Build;
 import android.util.Log;
 
 import org.claritylink.renderer.DecodedFrame;
@@ -39,8 +40,8 @@ public final class CompositorOwnerDeathTestService extends Service {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (started) return START_NOT_STICKY;
         started = true;
-        if (intent == null) {
-            fail("missing_test_intent");
+        if (intent == null || Build.VERSION.SDK_INT != 17 || !isEmulator()) {
+            fail("api17_emulator_guard_rejected");
             return START_NOT_STICKY;
         }
         targetPid = intent.getIntExtra("target_pid", -1);
@@ -99,6 +100,8 @@ public final class CompositorOwnerDeathTestService extends Service {
                 Log.i(TAG, "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=" + targetPid +
                         " observer_pid=" + Process.myPid() + " session_id=" + ownerIdentity.sessionId +
                         " streams=110,111 valid_frames_previously_observed=true");
+                if (!service.isBinderAlive() || !isExactOwnedCompositorPid(targetPid))
+                    throw new IllegalStateException("compositor_process_changed_before_kill");
                 Process.killProcess(targetPid);
                 return;
             }
@@ -162,6 +165,13 @@ public final class CompositorOwnerDeathTestService extends Service {
             if (process.pid == pid && process.uid == Process.myUid() && expected.equals(process.processName))
                 return true;
         return false;
+    }
+
+    private static boolean isEmulator() {
+        String hardware = Build.HARDWARE == null ? "" : Build.HARDWARE.toLowerCase();
+        String fingerprint = Build.FINGERPRINT == null ? "" : Build.FINGERPRINT.toLowerCase();
+        return hardware.contains("goldfish") || hardware.contains("ranchu") ||
+                fingerprint.startsWith("generic") || fingerprint.contains("emulator");
     }
 
     private void fail(String reason) {

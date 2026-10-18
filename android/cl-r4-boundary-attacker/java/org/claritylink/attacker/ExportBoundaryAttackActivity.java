@@ -40,7 +40,8 @@ public final class ExportBoundaryAttackActivity extends Activity {
         attemptPrivateService("CompositorService");
         attemptPrivateService("Type111ProducerService");
         attemptPrivateService("Type110SinkFailureTestService");
-        if (attempted == 21 && denied == attempted) {
+        attemptPrivateService("CompositorOwnerDeathTestService");
+        if (attempted == 23 && denied == attempted) {
             Log.i(TAG, "CL_R4_CROSS_UID_ATTACKS_PASS uid=" + Process.myUid() +
                     " target_uid=" + appUid + " attempts=" + attempted + " denied=" + denied);
         } else {
@@ -92,13 +93,22 @@ public final class ExportBoundaryAttackActivity extends Activity {
     }
 
     private void attemptPrivateService(String simpleName) {
-        boolean destructiveHelper = "Type110SinkFailureTestService".equals(simpleName);
+        boolean destructiveHelper = "Type110SinkFailureTestService".equals(simpleName) ||
+                "CompositorOwnerDeathTestService".equals(simpleName);
         Intent target = new Intent().setComponent(new ComponentName(TARGET,
                 "org.claritylink.android." + simpleName));
         if (destructiveHelper) {
             target.putExtra("confirmation", "CL_R4B_OFFLINE_EMULATOR_ONLY");
-            target.putExtra("target_pid", getIntent().getIntExtra("attack_sink_pid", 1));
+            String pidKey = "CompositorOwnerDeathTestService".equals(simpleName) ?
+                    "attack_compositor_pid" : "attack_sink_pid";
+            target.putExtra("target_pid", getIntent().getIntExtra(pidKey, 1));
             target.putExtra("target_session_id", getIntent().getLongExtra("attack_session_id", 1L));
+            target.putExtra("session_id", getIntent().getLongExtra("attack_session_id", 1L));
+            target.putExtra("type110_connection_id", 11001L);
+            target.putExtra("type110_generation", getIntent().getLongExtra("attack_generation", 1L));
+            target.putExtra("type110_last_frame_id", getIntent().getLongExtra("attack_last_frame", 1L));
+            target.putExtra("type111_connection_id", 11101L);
+            target.putExtra("type111_generation", getIntent().getLongExtra("attack_generation", 1L) + 1L);
         }
         if (!destructiveHelper) {
             attempted++;

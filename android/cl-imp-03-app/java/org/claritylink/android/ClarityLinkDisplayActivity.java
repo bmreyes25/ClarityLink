@@ -1985,9 +1985,10 @@ public final class ClarityLinkDisplayActivity extends Activity
         SecondaryDisplayHost old = displayHost;
         displayHost = null;
         if (old != null) {
-            try { old.close(); }
+            boolean dismissed = false;
+            try { old.close(); dismissed = true; }
             catch (RuntimeException failure) { log("PRESENTATION_CLOSE_FAILED type=" + failure.getClass().getSimpleName()); }
-            log("PRESENTATION_DISMISS_REQUESTED reason=" + reason);
+            if (dismissed) log("PRESENTATION_DISMISS_REQUESTED reason=" + reason);
         }
         borrowedPresentationSurface = null;
         closeIpcSession();

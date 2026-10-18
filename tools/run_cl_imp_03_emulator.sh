@@ -276,7 +276,8 @@ assert_type110_probe_cross_uid_denied() {
   before_teardown=$(printf '%s\n' "$before_logs" | grep -F -c 'TYPE111_PARENT_TEARDOWN session_id=' || true)
   adb_local -s "$serial" shell am start -n "$attacker_package/$attacker_component" \
     --el attack_session_id "$1" --el attack_generation "$2" \
-    --el attack_last_frame "$3" --ei attack_sink_pid "$4" >/dev/null
+    --el attack_last_frame "$3" --ei attack_sink_pid "$4" \
+    --ei attack_compositor_pid "$5" >/dev/null
   wait_for 'CL_R4_CROSS_UID_ATTACKS_PASS'
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   after_teardown=$(printf '%s\n' "$logs" | grep -F -c 'TYPE111_PARENT_TEARDOWN session_id=' || true)
@@ -298,7 +299,16 @@ assert_type110_probe_cross_uid_denied() {
   [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_NOT_DENIED operation=bind_service component=Type110SinkFailureTestService' || true)" -eq 0 ] || {
     echo 'Separate-UID attacker bound the destructive Type110 failure helper.' >&2; exit 9;
   }
-  printf '%s\n' "$logs" | grep -F "CL_R4_CROSS_UID_ATTACKS_PASS uid=$attacker_uid target_uid=$app_uid attempts=21 denied=21" >/dev/null || {
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=service component=CompositorOwnerDeathTestService' || true)" -ge 1 ] || {
+    echo 'Separate-UID start of the compositor owner-death helper was not denied.' >&2; exit 9;
+  }
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_DENIED operation=bind_service component=CompositorOwnerDeathTestService' || true)" -ge 1 ] || {
+    echo 'Separate-UID bind of the compositor owner-death helper was not explicitly denied.' >&2; exit 9;
+  }
+  [ "$(printf '%s\n' "$logs" | grep -F -c 'ATTACK_NOT_DENIED operation=bind_service component=CompositorOwnerDeathTestService' || true)" -eq 0 ] || {
+    echo 'Separate-UID attacker bound the compositor owner-death helper.' >&2; exit 9;
+  }
+  printf '%s\n' "$logs" | grep -F "CL_R4_CROSS_UID_ATTACKS_PASS uid=$attacker_uid target_uid=$app_uid attempts=23 denied=23" >/dev/null || {
     echo 'Separate-UID attacker did not reject all probe/service operations.' >&2; exit 9;
   }
   echo "TYPE110_PROBE_CROSS_UID_DENIED attacker_uid=$attacker_uid app_uid=$app_uid sink_pid=$4 compositor_pid=$5"
@@ -570,6 +580,19 @@ if [ "$type111_mode" -eq 1 ]; then
     printf '%s\n' "$ready_line" | grep -F 'valid_type110_and_type111_frames=true session_kept_open=true' >/dev/null || {
       echo 'Parent-owner death lacks valid dual-stream frame evidence.' >&2; exit 9;
     }
+    adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' \
+      > "$campaign_evidence/api17-compositor-owner-death-window-before-$adb_port.txt"
+    awk -v package="$package" '
+      /Window #[0-9]+ Window/ {
+        if (matched && on_secondary) found=1
+        in_window=1; matched=($0 ~ package); on_secondary=0
+      }
+      in_window && matched && /mDisplayId=1/ {on_secondary=1}
+      /^$/ {if (matched && on_secondary) found=1; in_window=0}
+      END {if (matched && on_secondary) found=1; exit !found}
+    ' "$campaign_evidence/api17-compositor-owner-death-window-before-$adb_port.txt" || {
+      echo 'No app-owned secondary Presentation window was present before compositor death.' >&2; exit 9;
+    }
     adb_local -s "$serial" shell am startservice \
       -n "$package/org.claritylink.android.CompositorOwnerDeathTestService" \
       --es confirmation CL_R4B_OFFLINE_EMULATOR_ONLY \
@@ -615,6 +638,20 @@ if [ "$type111_mode" -eq 1 ]; then
     }
     adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' \
       > "$campaign_evidence/api17-compositor-owner-death-window-state-$adb_port.txt"
+    if printf '%s\n' "$owner_logs" | grep -F 'PRESENTATION_CLOSE_FAILED' >/dev/null; then
+      echo 'Activity reported a failed Presentation close after parent-owner death.' >&2; exit 9;
+    fi
+    if awk -v package="$package" '
+      /Window #[0-9]+ Window/ {
+        if (matched && on_secondary) found=1
+        in_window=1; matched=($0 ~ package); on_secondary=0
+      }
+      in_window && matched && /mDisplayId=1/ {on_secondary=1}
+      /^$/ {if (matched && on_secondary) found=1; in_window=0}
+      END {if (matched && on_secondary) found=1; exit !found}
+    ' "$campaign_evidence/api17-compositor-owner-death-window-state-$adb_port.txt"; then
+      echo 'App-owned secondary Presentation window remained after parent-owner death.' >&2; exit 9;
+    fi
     shasum -a 256 "$apk" "$campaign_evidence/api17-compositor-owner-death-logcat-$adb_port.txt" \
       > "$campaign_evidence/api17-compositor-owner-death-artifact-hashes-$adb_port.sha256"
     echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected registrations=0 pfd_transfers=0 retained_bytes=0 presentation=dismiss_requested evidence=$run_label/evidence"

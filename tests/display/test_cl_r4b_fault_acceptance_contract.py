@@ -89,6 +89,7 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
     assert 'expected.equals(process.processName)' in source
     assert "process.uid == Process.myUid()" in source
     assert "Process.killProcess(targetPid);" in source
+    assert "service.isBinderAlive() || !isExactOwnedCompositorPid(targetPid)" in source
     assert "query.compositorPid == targetPid" in source
     assert "!query.ownerValid" in source and "query.identity != null" in source
     assert "requireOldFrameRejected(service, ownerIdentity" in source
@@ -96,6 +97,8 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
     assert '"stream_identity_rejected".equals(reason[0])' in source
     assert "activePfdTransfers == 0" in source
     assert "retainedFrameBytes == 0" in source
+    assert "Build.VERSION.SDK_INT != 17 || !isEmulator()" in source
+    assert "private static boolean isEmulator()" in source
 
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert "--cl-r4b-parent-owner-death" in runner
@@ -106,6 +109,15 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
     assert "old_pid_absent=true owner_valid=false child_present=false" in runner
     assert "PRESENTATION_DISMISS_REQUESTED reason=ipc-remote-disconnected" in runner
     assert "owner-death-window-state-$adb_port.txt" in runner
+    assert "api17-compositor-owner-death-window-before-$adb_port.txt" in runner
+    assert "App-owned secondary Presentation window remained" in runner
+    assert "END {if (matched && on_secondary) found=1; exit !found}" in runner
+    assert "PRESENTATION_CLOSE_FAILED" in runner
+
+    attacker = (REPO / "android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java").read_text()
+    assert 'attemptPrivateService("CompositorOwnerDeathTestService")' in attacker
+    assert 'if (attempted == 23 && denied == attempted)' in attacker
+    assert '"CompositorOwnerDeathTestService".equals(simpleName)' in attacker
 
     build = (REPO / "tools/build_cl_imp_03_apks.sh").read_text()
     assert "CompositorOwnerDeathTestService.java" in build
