@@ -36,7 +36,7 @@ CASES = [
         "CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS",
         "CL_R4B_DELAYED_SINK_CALLBACK_PASS",
     ]),
-    ("CL-R4-07", "Generation, ownership, and replay attacks", "default", [
+    ("CL-R4-07", "Generation, ownership, and replay attacks", "owner-death", [
         "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS",
         "CL_R4_STREAM_GENERATION_ISOLATION_PASS",
         "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS",
@@ -61,7 +61,7 @@ CASES = [
 ]
 
 MODES = {
-    "default": None,
+    "default": "--cl-r4-type111",
     "reattach": "--cl-r4-type111-reattach",
     "type110-failure": "--cl-r4b-type110-failure",
     "owner-death": "--cl-r4b-parent-owner-death",
@@ -70,6 +70,7 @@ MODES = {
     "view-crash": "--cl-r4b-view-crash",
     "view-crash-queue": "--cl-r4b-view-crash-queue-saturated",
     "queue-parent-teardown": "--cl-r4b-reentrant-teardown-queue-saturated",
+    "producer-death-teardown": "--cl-r4b-producer-death-teardown",
 }
 
 REQUIRED_COMBINATIONS = [
@@ -93,6 +94,12 @@ PRIORITY_RUNS = {
         "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_PASS",
         "CL_R4B_REENTRANT_TEARDOWN_API17_PASS",
         "TYPE111_PARENT_TEARDOWN_COMPLETED",
+        "IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0",
+    ]),
+    "CL-R4B-P03": ("producer-death-teardown", [
+        "CL_R4B_PRODUCER_TEARDOWN_PRECONDITION_PASS",
+        "CL_R4B_PRODUCER_DEATH_DURING_TEARDOWN_PASS",
+        "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS",
         "IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0",
     ]),
 }
@@ -173,7 +180,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--resume", type=Path, help="resume an existing evidence directory")
     parser.add_argument("--retry-failed", action="store_true", help="rerun failed cases after diagnosis")
-    parser.add_argument("--only", action="append", help="run only named case IDs (repeatable)")
+    parser.add_argument("--only", action="append",
+                        help="run only named case or priority IDs (repeatable)")
     ns = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
@@ -238,13 +246,16 @@ def main() -> int:
         parser.error("built APK changed or disappeared; refusing to reuse checkpoint evidence")
 
     selected = set(ns.only or [case[0] for case in CASES])
-    known = {case[0] for case in CASES}
-    unknown = selected - known
+    known_cases = {case[0] for case in CASES}
+    known_combinations = {case_id for case_id, _name in REQUIRED_COMBINATIONS}
+    unknown = selected - known_cases - known_combinations
     if unknown:
-        parser.error("unknown case ID(s): " + ", ".join(sorted(unknown)))
+        parser.error("unknown case or priority ID(s): " + ", ".join(sorted(unknown)))
+    selected_cases = selected & known_cases
+    selected_combinations = (selected & known_combinations) if ns.only else known_combinations
     by_id = {case["id"]: case for case in checkpoint["cases"]}
     for case_id, name, mode, markers in CASES:
-        if case_id not in selected or case_id == "CL-R4-10":
+        if case_id not in selected_cases or case_id == "CL-R4-10":
             continue
         old = by_id.get(case_id)
         old_log = Path(old.get("log", "")) if old else Path()
@@ -354,6 +365,8 @@ def main() -> int:
                      "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS"))
     checkpoint["combinations"] = [priority[cid] for cid, _ in REQUIRED_COMBINATIONS]
     for combo_id, (mode, markers) in PRIORITY_RUNS.items():
+        if combo_id not in selected_combinations:
+            continue
         current = priority[combo_id]
         invalid_prior_evidence = False
         if current.get("status") == "PASS" and \

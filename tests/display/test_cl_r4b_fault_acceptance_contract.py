@@ -152,6 +152,39 @@ def test_acceptance_revalidates_unselected_cached_case_logs(tmp_path):
     assert not module.case_evidence_valid(record, ["REQUIRED_RECEIPT"], "other", "apk")
 
 
+def test_producer_process_death_is_observed_inside_parent_teardown_barrier():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    test = activity[activity.index("private void runReentrantParentTeardown"):
+                    activity.index("private void killType110SinkForTeardownRace")]
+    assert "EXTRA_PRODUCER_DEATH_DURING_TEARDOWN_TEST" in activity
+    assert "awaitViewFrameDrawn(activeGeneration, produced[produced.length - 1])" in test
+    assert "firstPaused" in test and "producerBinderDied.await(5L" in test
+    assert "parent_teardown_barrier_held=true admission_closed=true" in test
+    assert "processAbsent" in test and "CL_R4B_PRODUCER_DEATH_DURING_TEARDOWN_PASS" in test
+    assert "advanceNextFrameIdHint(frameIpcClient.nextFrameIdHint() + produced.length)" in test
+    assert "terminateData.writeLong(child.sessionId)" in test
+    service = (APP / "java/org/claritylink/android/Type111ProducerService.java").read_text()
+    assert "ownerPid != activeOwnerPid" in service and "sameIdentity(identity, activeIdentity)" in service
+    assert "terminationPending || endpoint == null" in service
+    assert "terminationPending = true" in service
+    assert "unbindTeardownProducer(teardownProducerConnection, teardownProducerBound)" in test
+    assert "--cl-r4b-producer-death-teardown" in shell
+    assert "P03 producer precondition or process-death receipts were absent or incomplete" in shell
+    assert "decoded_frames=([2-9]|[1-9][0-9]+) view_drawn=true" in shell
+    assert 'grep -F \'CL_R4B_PRODUCER_TEARDOWN_PRECONDITION_PASS \' | grep -E "session_id=$initial_session_generation([[:space:]]|$)"' in shell
+    assert "run only named case or priority IDs" in acceptance
+    assert "selected_combinations = (selected & known_combinations) if ns.only else known_combinations" in acceptance
+    assert "type111_reentrant_producer_death" in shell
+    assert '"CL-R4B-P03": ("producer-death-teardown"' in acceptance
+    assert '"CL_R4B_PRODUCER_DEATH_DURING_TEARDOWN_PASS"' in acceptance
+    assert '"default": "--cl-r4-type111"' in acceptance
+    assert '("CL-R4-07", "Generation, ownership, and replay attacks", "owner-death"' in acceptance
+    assert "Required owner-death runtime receipt missing" in shell
+    assert "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS" in shell
+
+
 def test_status_only_recovery_checks_only_new_live_log_lines():
     shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert shell.count('recovery_log_line_start=$(adb_local -s "$serial" logcat -d') == 2

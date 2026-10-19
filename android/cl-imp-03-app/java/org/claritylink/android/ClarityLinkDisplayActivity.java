@@ -75,6 +75,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_OWNER_DEATH_TEST = "owner_death_test";
     private static final String EXTRA_REENTRANT_TEARDOWN_TEST = "reentrant_teardown_test";
     private static final String EXTRA_QUEUE_SATURATED_TEARDOWN_TEST = "queue_saturated_teardown_test";
+    private static final String EXTRA_PRODUCER_DEATH_DURING_TEARDOWN_TEST =
+            "producer_death_during_teardown_test";
     private static final String EXTRA_DELAYED_DEATH_CALLBACK_TEST = "delayed_death_callback_test";
     private static final String EXTRA_SECURITY_LIVE_PRODUCER = "security_live_producer";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
@@ -169,6 +171,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean ownerDeathTest;
     private boolean reentrantTeardownTest;
     private boolean queueSaturatedTeardownTest;
+    private boolean producerDeathDuringTeardownTest;
     private volatile boolean reentrantTeardownInProgress;
     private boolean delayedDeathCallbackTest;
     private boolean type110SinkFailureTest;
@@ -328,6 +331,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                 getIntent().getBooleanExtra(EXTRA_REENTRANT_TEARDOWN_TEST, false);
         queueSaturatedTeardownTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_QUEUE_SATURATED_TEARDOWN_TEST, false);
+        producerDeathDuringTeardownTest = getIntent() != null &&
+                getIntent().getBooleanExtra(EXTRA_PRODUCER_DEATH_DURING_TEARDOWN_TEST, false);
         delayedDeathCallbackTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_DELAYED_DEATH_CALLBACK_TEST, false);
         type110SinkFailureTest = getIntent() != null &&
@@ -1817,6 +1822,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                     viewSink.queuedByteCount() + " queue_limit=" +
                     FrameViewSink.MAX_QUEUED_FRAMES + " handler_held=true");
         }
+        final String producerDescriptor = "org.claritylink.android.IType111LabProducer";
+        final IBinder[] teardownProducer = new IBinder[1];
+        final boolean[] teardownProducerBound = new boolean[1];
+        final boolean[] teardownBarrierArmed = new boolean[1];
         final CountDownLatch ready = new CountDownLatch(2);
         final CountDownLatch start = new CountDownLatch(1);
         final CountDownLatch done = new CountDownLatch(2);
@@ -1826,6 +1835,58 @@ public final class ClarityLinkDisplayActivity extends Activity
         final CountDownLatch transferDone = new CountDownLatch(1);
         final boolean[] transferAccepted = new boolean[] { true };
         final String[] transferReason = new String[] { "callback_missing" };
+        final CountDownLatch producerConnected = new CountDownLatch(1);
+        final CountDownLatch producerBinderDied = new CountDownLatch(1);
+        final ServiceConnection teardownProducerConnection = new ServiceConnection() {
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                teardownProducer[0] = service;
+                try {
+                    service.linkToDeath(new IBinder.DeathRecipient() {
+                        public void binderDied() {
+                            producerBinderDied.countDown();
+                            log("CL_R4B_PRODUCER_BINDER_DIED_DURING_TEARDOWN=true");
+                        }
+                    }, 0);
+                } catch (RemoteException alreadyDead) {
+                    producerBinderDied.countDown();
+                }
+                producerConnected.countDown();
+            }
+            public void onServiceDisconnected(ComponentName name) {
+                producerBinderDied.countDown();
+            }
+        };
+        try {
+        final int teardownProducerPid;
+        if (producerDeathDuringTeardownTest) {
+            try {
+                if (!bindService(new Intent(this, Type111ProducerService.class),
+                        teardownProducerConnection, Context.BIND_AUTO_CREATE))
+                    throw new IllegalStateException("teardown_producer_bind_failed");
+                teardownProducerBound[0] = true;
+                if (!producerConnected.await(5L, TimeUnit.SECONDS))
+                    throw new IllegalStateException("teardown_producer_bind_failed");
+                int startedPid = startIsolatedProducer(teardownProducer[0], producerDescriptor,
+                        child, frameIpcClient.nextFrameIdHint(), 20000000L, false);
+                long[] produced = awaitIsolatedProducerFrames(teardownProducer[0], producerDescriptor);
+                if (startedPid <= 0 || produced.length < 2 ||
+                        !awaitViewFrameDrawn(activeGeneration, produced[produced.length - 1]))
+                    throw new IllegalStateException("teardown_producer_precondition_frames_missing");
+                frameIpcClient.advanceNextFrameIdHint(frameIpcClient.nextFrameIdHint() + produced.length);
+                teardownProducerPid = startedPid;
+                Log.i(TAG, "CL_R4B_PRODUCER_TEARDOWN_PRECONDITION_PASS producer_pid=" +
+                        teardownProducerPid + " session_id=" + owner.sessionId +
+                        " decoded_frames=" + produced.length + " view_drawn=true");
+            } catch (Exception setupFailure) {
+                unbindTeardownProducer(teardownProducerConnection, teardownProducerBound);
+                throw setupFailure;
+            } catch (Error setupFailure) {
+                unbindTeardownProducer(teardownProducerConnection, teardownProducerBound);
+                throw setupFailure;
+            }
+        } else {
+            teardownProducerPid = -1;
+        }
         final DecodedFrame pendingFrame = new DecodedFrame(2, 2, 8,
                 fixtureTimestamp(9000000000L), 0, 0, 0, 2, 2,
                 ByteBuffer.wrap(new byte[] {
@@ -1844,11 +1905,15 @@ public final class ClarityLinkDisplayActivity extends Activity
                         transferDone.countDown();
                     }
                 }) || !controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER, child, 5000L))
-            throw new IllegalStateException("pending_teardown_pfd_barrier_not_reached");
+            {
+                throw new IllegalStateException("pending_teardown_pfd_barrier_not_reached");
+            }
         Log.i(TAG, "CL_R4B_TEARDOWN_PENDING_PFD_PASS session_id=" + owner.sessionId +
                 " stream_generation=" + child.streamGeneration + " transfer_active=true");
-        if (!control.armLabParentTeardownBarrier(owner))
+        if (!control.armLabParentTeardownBarrier(owner)) {
             throw new IllegalStateException("parent_teardown_overlap_barrier_not_armed");
+        }
+        teardownBarrierArmed[0] = true;
         for (int index = 0; index < 2; index++) {
             final int slot = index;
             new Thread(new Runnable() {
@@ -1866,14 +1931,11 @@ public final class ClarityLinkDisplayActivity extends Activity
         }
         if (!ready.await(5L, TimeUnit.SECONDS)) {
             start.countDown();
-            control.releaseLabParentTeardownBarrier(owner);
-            if (saturatedQueueControl != null) saturatedQueueControl.releaseForClose();
             throw new IllegalStateException("teardown_workers_not_ready");
         }
         start.countDown();
         boolean firstPaused = false;
         boolean contenderRejectedWhilePaused = false;
-        try {
             firstPaused = control.awaitLabParentTeardownBarrier(owner, false, 5000L);
             contenderRejectedWhilePaused = firstPaused &&
                     control.awaitLabParentTeardownBarrier(owner, true, 5000L);
@@ -1897,6 +1959,46 @@ public final class ClarityLinkDisplayActivity extends Activity
                         " old_generation=" + child.streamGeneration +
                         " proposed_generation=" + replacement.streamGeneration +
                         " replacement_unchanged=true");
+                if (producerDeathDuringTeardownTest) {
+                    Parcel terminateData = Parcel.obtain();
+                    Parcel terminateReply = Parcel.obtain();
+                    boolean terminateAccepted;
+                    int terminatedPid;
+                    try {
+                        terminateData.writeInterfaceToken(producerDescriptor);
+                        terminateData.writeLong(child.sessionId);
+                        terminateData.writeInt(child.streamType);
+                        terminateData.writeLong(child.connectionId);
+                        terminateData.writeLong(child.streamGeneration);
+                        terminateData.writeInt(child.outputId);
+                        teardownProducer[0].transact(IBinder.FIRST_CALL_TRANSACTION + 1,
+                                terminateData, terminateReply, 0);
+                        terminateReply.readException();
+                        terminateAccepted = terminateReply.readInt() != 0;
+                        terminatedPid = terminateReply.readInt();
+                    } finally { terminateReply.recycle(); terminateData.recycle(); }
+                    if (!terminateAccepted || terminatedPid != teardownProducerPid ||
+                            !producerBinderDied.await(5L, TimeUnit.SECONDS))
+                        throw new IllegalStateException("producer_death_during_parent_teardown_missing");
+                    ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+                    long deadline = SystemClock.elapsedRealtime() + 5000L;
+                    boolean processAbsent = false;
+                    while (manager != null && SystemClock.elapsedRealtime() < deadline) {
+                        List<ActivityManager.RunningAppProcessInfo> processes =
+                                manager.getRunningAppProcesses();
+                        processAbsent = processes != null;
+                        if (processes != null) for (ActivityManager.RunningAppProcessInfo process : processes)
+                            if (process.pid == teardownProducerPid) processAbsent = false;
+                        if (processAbsent) break;
+                        Thread.sleep(50L);
+                    }
+                    if (!processAbsent)
+                        throw new IllegalStateException("producer_process_still_present_after_teardown_death");
+                    Log.i(TAG, "CL_R4B_PRODUCER_DEATH_DURING_TEARDOWN_PASS producer_pid=" +
+                            teardownProducerPid + " binder_death_callback=true process_absent=true " +
+                            "parent_teardown_barrier_held=true admission_closed=true session_id=" +
+                            owner.sessionId);
+                }
                 if (!controlBarrier(FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER, child, 0L) ||
                         !controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED, child, 5000L) ||
                         !transferDone.await(5L, TimeUnit.SECONDS))
@@ -1912,10 +2014,6 @@ public final class ClarityLinkDisplayActivity extends Activity
                         "transfer_active=false");
                 killType110SinkForTeardownRace(owner);
             }
-        } finally {
-            control.releaseLabParentTeardownBarrier(owner);
-            if (saturatedQueueControl != null) saturatedQueueControl.releaseForClose();
-        }
         if (!firstPaused || !contenderRejectedWhilePaused) {
             done.await(8L, TimeUnit.SECONDS);
             throw new IllegalStateException("teardown_calls_did_not_overlap_admission_close");
@@ -1954,6 +2052,12 @@ public final class ClarityLinkDisplayActivity extends Activity
                 "pending_pfd_rejected=true registration_during_shutdown_rejected=true " +
                 "replacement_during_shutdown_rejected=true type110_died_during_shutdown=true " +
                 "post_exit_query_fenced=true process_exit_resource_receipt_required=true");
+        } finally {
+            start.countDown();
+            if (teardownBarrierArmed[0]) control.releaseLabParentTeardownBarrier(owner);
+            if (saturatedQueueControl != null) saturatedQueueControl.releaseForClose();
+            unbindTeardownProducer(teardownProducerConnection, teardownProducerBound);
+        }
     }
 
     /** Kill the real separate Type110 sink only after teardown has closed session admission. */
@@ -1977,6 +2081,13 @@ public final class ClarityLinkDisplayActivity extends Activity
             throw new IllegalStateException("type110_sink_did_not_die_during_teardown");
         Log.i(TAG, "CL_R4B_TEARDOWN_TYPE110_DEATH_PASS session_id=" + owner.sessionId +
                 " sink_pid=" + stats.pid + " binder_death_observed=true admission_already_closed=true");
+    }
+
+    private void unbindTeardownProducer(ServiceConnection connection, boolean[] bound) {
+        if (bound == null || !bound[0]) return;
+        try { unbindService(connection); }
+        catch (IllegalArgumentException ignored) { }
+        finally { bound[0] = false; }
     }
 
     private static boolean zeroUnregistered(Type111ControlClient.FrameStats stats) {
@@ -2084,6 +2195,11 @@ public final class ClarityLinkDisplayActivity extends Activity
             boolean killAccepted;
             try {
                 killData.writeInterfaceToken(descriptor);
+                killData.writeLong(queueIdentity.sessionId);
+                killData.writeInt(queueIdentity.streamType);
+                killData.writeLong(queueIdentity.connectionId);
+                killData.writeLong(queueIdentity.streamGeneration);
+                killData.writeInt(queueIdentity.outputId);
                 producerBinder[0].transact(IBinder.FIRST_CALL_TRANSACTION + 1, killData, killReply, 0);
                 killReply.readException();
                 killAccepted = killReply.readInt() != 0 && killReply.readInt() == oldPid;

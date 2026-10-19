@@ -19,6 +19,7 @@ type111_reattach=0
 type110_failure=0
 owner_death=0
 reentrant_teardown=0
+producer_death_during_teardown=0
 delayed_death_callback=0
 view_crash=0
 crash_with_saturated_queue=0
@@ -45,6 +46,11 @@ elif [ "${1:-}" = "--cl-r4b-reentrant-teardown-queue-saturated" ]; then
   type111_mode=1
   reentrant_teardown=1
   queue_saturated_teardown=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-producer-death-teardown" ]; then
+  type111_mode=1
+  reentrant_teardown=1
+  producer_death_during_teardown=1
   shift
 elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
@@ -469,7 +475,7 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
+    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_reentrant_producer_death|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
@@ -488,6 +494,7 @@ start_lab_activity_privileged() {
         type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true --ez hold_after_same_uid_attack true ;;
         type111_reentrant_teardown) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true ;;
         type111_reentrant_queue_saturated) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true --ez queue_saturated_teardown_test true ;;
+        type111_reentrant_producer_death) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true --ez producer_death_during_teardown_test true ;;
         type111_first_reentrant) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez reentrant_teardown_test true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez hold_after_same_uid_attack true ;;
         type111_first_reattach)
@@ -600,6 +607,8 @@ elif [ "$type111_mode" -eq 1 ]; then
   elif [ "$reentrant_teardown" -eq 1 ]; then
     if [ "$queue_saturated_teardown" -eq 1 ]; then
       start_lab_activity_privileged type111_reentrant_queue_saturated
+    elif [ "$producer_death_during_teardown" -eq 1 ]; then
+      start_lab_activity_privileged type111_reentrant_producer_death
     else
       start_lab_activity_privileged type111_reentrant_teardown
     fi
@@ -1118,6 +1127,15 @@ $owner_logs"
       "$campaign_evidence/api17-compositor-owner-death-processes-$adb_port.txt" \
       "$campaign_evidence/api17-compositor-owner-death-services-$adb_port.txt" \
       > "$campaign_evidence/api17-compositor-owner-death-artifact-hashes-$adb_port.sha256"
+    for marker in \
+      'CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS' \
+      'CL_R4_STREAM_GENERATION_ISOLATION_PASS' \
+      'CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS' \
+      'CL_R4B_OWNER_DEATH_FRESH_SESSION_RECOVERY_PASS'; do
+      receipt=$(printf '%s\n' "$owner_logs" | grep -F "$marker" | tail -1)
+      [ -n "$receipt" ] || { echo "Required owner-death runtime receipt missing: $marker" >&2; exit 9; }
+      printf '%s\n' "$receipt"
+    done
     echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected old_registrations_cleared_by_process_exit=true old_process_resources_reclaimed_by_exit=true presentation=dismiss_requested evidence=$run_label/evidence"
     owned || exit 7
     adb_local -s "$serial" shell am force-stop "$package"
@@ -1137,6 +1155,14 @@ $owner_logs"
     queue_pass_line=$(printf '%s\n' "$logs" | grep -F "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_PASS session_id=$initial_session_generation " | tail -1)
     teardown_completed_line=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$initial_session_generation " | tail -1)
     process_destroyed_line=$(printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' | tail -1)
+    if [ "$producer_death_during_teardown" -eq 1 ]; then
+      producer_precondition_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_PRODUCER_TEARDOWN_PRECONDITION_PASS ' | grep -E "session_id=$initial_session_generation([[:space:]]|$)" | tail -1)
+      producer_death_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_PRODUCER_DEATH_DURING_TEARDOWN_PASS ' | grep -E "session_id=$initial_session_generation([[:space:]]|$)" | tail -1)
+      printf '%s\n' "$producer_precondition_line" | grep -E 'producer_pid=[1-9][0-9]* .*decoded_frames=([2-9]|[1-9][0-9]+) view_drawn=true' >/dev/null &&
+        printf '%s\n' "$producer_death_line" | grep -F 'binder_death_callback=true process_absent=true parent_teardown_barrier_held=true admission_closed=true' >/dev/null || {
+          echo 'P03 producer precondition or process-death receipts were absent or incomplete.' >&2; exit 9;
+        }
+    fi
     if [ "$queue_saturated_teardown" -eq 1 ]; then
       printf '%s\n' "$queue_request_line" | grep -F 'queued_frames=3' | grep -F 'handler_held=true' >/dev/null &&
         printf '%s\n' "$queue_pass_line" | grep -F 'queue_frames_after=0 queue_bytes_after=0' \
@@ -1218,6 +1244,9 @@ $owner_logs"
       > "$campaign_evidence/api17-reentrant-teardown-artifact-hashes-$adb_port.sha256"
     if [ "$queue_saturated_teardown" -eq 1 ]; then
       printf '%s\n' "$queue_request_line" "$queue_pass_line"
+    fi
+    if [ "$producer_death_during_teardown" -eq 1 ]; then
+      printf '%s\n' "$producer_precondition_line" "$producer_death_line"
     fi
     printf '%s\n' "$teardown_completed_line" "$process_destroyed_line" "$pass_line"
     owned || exit 7
@@ -1477,6 +1506,18 @@ $owner_logs"
     "$crop_receipt" \
     "$repo/tools/verify_api17_padded_crop_content.swift" \
     > "$campaign_evidence/api17-type111-artifact-hashes-$adb_port.sha256"
+  for marker in \
+    'CL_R4_TYPE111_INFLIGHT_PRODUCER_DEATH_CLEANUP_PASS' \
+    'CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS' \
+    'CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS' \
+    'CL_R4_STREAM_GENERATION_ISOLATION_PASS' \
+    'CL_R4_QUEUE_PRODUCER_DEATH_SATURATED' \
+    'CL_R4_QUEUE_PRODUCER_DEATH_PASS' \
+    'CL_R4_API17_DUAL_STREAM_SATURATION_PASS'; do
+    receipt=$(printf '%s\n' "$logs" | grep -F "$marker" | tail -1)
+    [ -n "$receipt" ] || { echo "Required Type111 runtime receipt missing: $marker" >&2; exit 9; }
+    printf '%s\n' "$receipt"
+  done
   adb_local -s "$serial" shell am force-stop "$package"
   adb_local -s "$serial" uninstall "$package" >/dev/null
   adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
