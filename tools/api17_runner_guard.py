@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import os
 from pathlib import Path
 import re
@@ -10,6 +11,7 @@ import secrets
 import shutil
 import sys
 import tempfile
+import time
 
 
 OWNER_FILE = ".claritylink-run-owner"
@@ -138,6 +140,63 @@ def is_owned_adb_child(
     )
 
 
+def is_owned_adb_logcat_child(
+    expected_pid: int,
+    shell_pid: int,
+    observed_pid: int,
+    observed_parent_pid: int,
+    observed_executable: str,
+    expected_executable: str,
+    command_line: str,
+    port: int,
+    serial: str,
+) -> bool:
+    """Accept cleanup only for this shell's exact isolated-device logcat child."""
+    return (
+        expected_pid > 0
+        and expected_pid == observed_pid
+        and observed_parent_pid == shell_pid
+        and observed_executable == expected_executable
+        and f"-P {port}" in command_line
+        and f"-s {serial}" in command_line
+        and "logcat -s ClarityLinkCLIMP03:I *:S" in command_line
+    )
+
+
+def parse_adb_inventory(output: str) -> list[tuple[str, str]]:
+    """Retain every actual ADB serial/status pair, including offline/unauthorized."""
+    rows: list[tuple[str, str]] = []
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] != "List" and not fields[0].startswith("*"):
+            rows.append((fields[0], fields[1]))
+    return rows
+
+
+def emulator_inventory_is_safe(rows: list[tuple[str, str]], serial: str,
+                               exact_process_owned: bool) -> bool:
+    if not rows:
+        return True
+    return exact_process_owned and rows in [[(serial, "offline")], [(serial, "device")]]
+
+
+def hold_runner_lock(lock_path: Path, ready_path: Path, parent_pid: int) -> None:
+    """Serialize runs and exit if the owning shell dies, releasing the OS lock."""
+    lock_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with lock_path.open("a+") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        ready_path.write_text(f"pid={os.getpid()} parent_pid={parent_pid} acquired_at={time.time():.6f}\n")
+        os.chmod(ready_path, 0o600)
+        while True:
+            try:
+                if os.getppid() != parent_pid:
+                    return
+                os.kill(parent_pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.25)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
@@ -165,6 +224,26 @@ def main(argv: list[str] | None = None) -> int:
     child.add_argument("expected_executable")
     child.add_argument("command_line")
     child.add_argument("port", type=int)
+    logcat_child = commands.add_parser("check-adb-logcat-child")
+    logcat_child.add_argument("expected_pid", type=int)
+    logcat_child.add_argument("shell_pid", type=int)
+    logcat_child.add_argument("observed_pid", type=int)
+    logcat_child.add_argument("observed_parent_pid", type=int)
+    logcat_child.add_argument("observed_executable")
+    logcat_child.add_argument("expected_executable")
+    logcat_child.add_argument("command_line")
+    logcat_child.add_argument("port", type=int)
+    logcat_child.add_argument("serial")
+    inventory = commands.add_parser("parse-inventory")
+    inventory.add_argument("output", help="ADB devices output as one argument")
+    target = commands.add_parser("check-emulator-inventory")
+    target.add_argument("serial")
+    target.add_argument("output")
+    target.add_argument("--process-owned", action="store_true")
+    lock = commands.add_parser("hold-lock")
+    lock.add_argument("lock_path", type=Path)
+    lock.add_argument("ready_path", type=Path)
+    lock.add_argument("parent_pid", type=int)
     args = parser.parse_args(argv)
     try:
         if args.command == "resolve-build":
@@ -185,6 +264,22 @@ def main(argv: list[str] | None = None) -> int:
                 args.expected_executable, args.command_line, args.port,
             ):
                 raise GuardError("ADB process is not this run's direct foreground child")
+        elif args.command == "check-adb-logcat-child":
+            if not is_owned_adb_logcat_child(
+                args.expected_pid, args.shell_pid, args.observed_pid,
+                args.observed_parent_pid, args.observed_executable,
+                args.expected_executable, args.command_line, args.port, args.serial,
+            ):
+                raise GuardError("logcat process is not this run's direct isolated-ADB child")
+        elif args.command == "parse-inventory":
+            for serial, status in parse_adb_inventory(args.output):
+                print(f"{serial} {status}")
+        elif args.command == "check-emulator-inventory":
+            rows = parse_adb_inventory(args.output)
+            if not emulator_inventory_is_safe(rows, args.serial, args.process_owned):
+                raise GuardError("ADB inventory contains an unexpected or unowned target")
+        elif args.command == "hold-lock":
+            hold_runner_lock(args.lock_path, args.ready_path, args.parent_pid)
         return 0
     except (OSError, GuardError) as error:
         print("API17 runner safety guard: " + str(error), file=sys.stderr)

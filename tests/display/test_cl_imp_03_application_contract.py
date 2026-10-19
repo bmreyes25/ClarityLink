@@ -56,7 +56,9 @@ def test_surface_is_borrowed_from_presentation_and_renderer_is_released_on_lifec
 
 def test_emulator_runner_is_restricted_to_isolated_api17_and_uninstalls_only_lab_package():
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
-    assert "--one-device CL_IMP_03_NO_PHYSICAL_USB" in runner
+    assert "--one-device CL_IMP_03_NO_PHYSICAL_USB" not in runner
+    assert 'capture_unexpected_targets before_emulator_launch' in runner
+    assert 'capture_unexpected_targets emulator_boot' in runner
     assert '[ "$api:$release:$qemu" = "17:4.2.2:1" ]' in runner
     assert "install \"$apk\"" in runner
     assert 'uninstall "$package"' in runner

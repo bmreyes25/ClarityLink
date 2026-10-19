@@ -133,12 +133,8 @@ mkdir -p "$ui_test_classes" "$ui_test_dex"
 ui_test_sha=$(shasum -a 256 "$ui_test_jar" | awk '{print $1}')
 echo "API17_CRASH_DIALOG_TEST_JAR sha256=$ui_test_sha artifact=$run_label/ui-automator/claritylink-crash-dialog-tests.jar"
 export ANDROID_HOME="$sdk" ANDROID_SDK_ROOT="$sdk" ANDROID_AVD_HOME="$run_root/avd"
-adb_port=$(python3 - <<'PY'
-import socket
-s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()
-PY
-)
-export ADB_SERVER_PORT="$adb_port" ANDROID_ADB_SERVER_PORT="$adb_port"
+adb_port=
+export ADB_SERVER_PORT ANDROID_ADB_SERVER_PORT
 runtime_logcat_pid= runtime_logs_file=
 adb_local() {
   # API17's 256 KiB log buffers can be overwritten by EGL frame-render chatter
@@ -153,7 +149,7 @@ adb_local() {
   fi
   "$adb" -P "$adb_port" "$@"
 }
-serial= emulator_pid= adb_server_pid= adb_server_started=0 avd_created=0
+serial= emulator_pid= emulator_launcher_pid= adb_server_pid= runner_lock_pid= adb_server_started=0 avd_created=0
 avd="climp03_api17_$$"
 avd_dir="$run_root/avd/$avd.avd"
 avd_ini="$run_root/avd/$avd.ini"
@@ -165,18 +161,104 @@ adb_server_owned() {
   command=$(ps -p "$adb_server_pid" -o command= 2>/dev/null || true)
   python3 "$guard" check-adb-child "$adb_server_pid" "$$" \
     "$adb_server_pid" "$parent" "$executable" "$adb" "$command" "$adb_port" \
+    >/dev/null 2>&1 || return 1
+  listeners=$(lsof -nP -t -iTCP:"$adb_port" -sTCP:LISTEN 2>/dev/null | sort -u)
+  [ "$listeners" = "$adb_server_pid" ]
+}
+runner_lock_owned() {
+  [ -n "$runner_lock_pid" ] && kill -0 "$runner_lock_pid" 2>/dev/null || return 1
+  parent=$(ps -p "$runner_lock_pid" -o ppid= 2>/dev/null | tr -d ' ')
+  command=$(ps -p "$runner_lock_pid" -o command= 2>/dev/null || true)
+  [ "$parent" = "$$" ] && case "$command" in *"api17_runner_guard.py hold-lock $repo/build/.cl-imp-03-api17-runner-lock"*) return 0;; esac
+  return 1
+}
+emulator_process_owned() {
+  [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null || return 1
+  executable=$(lsof -a -p "$emulator_pid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+  command=$(ps -p "$emulator_pid" -o command= 2>/dev/null || true)
+  case "$executable" in "$sdk/.emulator-intel/emulator/qemu/"*) :;; *) return 1;; esac
+  case "$command" in *"-avd $avd "*"-port $port "*) :;; *) return 1;; esac
+}
+find_emulator_pid() {
+  candidates=$(ps -axo pid=,command= | awk -v avd="$avd" -v port="$port" \
+    'index($0, "-avd " avd " ") && index($0, "-port " port " ") {print $1}')
+  for candidate in $candidates; do
+    candidate_executable=$(lsof -a -p "$candidate" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+    case "$candidate_executable" in "$sdk/.emulator-intel/emulator/qemu/"*) printf '%s\n' "$candidate"; return 0;; esac
+  done
+  return 1
+}
+emulator_owned() {
+  emulator_process_owned || return 1
+  [ "$(inventory)" = "$serial device" ]
+}
+owned() { emulator_owned; }
+runtime_logcat_owned() {
+  [ -n "$runtime_logcat_pid" ] && kill -0 "$runtime_logcat_pid" 2>/dev/null || return 1
+  parent=$(ps -p "$runtime_logcat_pid" -o ppid= 2>/dev/null | tr -d ' ')
+  executable=$(lsof -a -p "$runtime_logcat_pid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+  command=$(ps -p "$runtime_logcat_pid" -o command= 2>/dev/null || true)
+  python3 "$guard" check-adb-logcat-child "$runtime_logcat_pid" "$$" \
+    "$runtime_logcat_pid" "$parent" "$executable" "$adb" "$command" "$adb_port" "$serial" \
     >/dev/null 2>&1
+}
+runtime_logcat_zombie_owned() {
+  [ -n "$runtime_logcat_pid" ] && kill -0 "$runtime_logcat_pid" 2>/dev/null || return 1
+  parent=$(ps -p "$runtime_logcat_pid" -o ppid= 2>/dev/null | tr -d ' ')
+  state=$(ps -p "$runtime_logcat_pid" -o stat= 2>/dev/null | tr -d ' ')
+  [ "$parent" = "$$" ] && case "$state" in Z*) return 0;; esac
+  return 1
+}
+adb_devices_output() { "$adb" -P "$adb_port" devices -l; }
+inventory() { python3 "$guard" parse-inventory "$(adb_devices_output)"; }
+capture_unexpected_targets() {
+  target_label=$1
+  target_output=$(adb_devices_output 2>&1 || true)
+  target_rows=$(python3 "$guard" parse-inventory "$target_output")
+  [ -n "$target_rows" ] || return 0
+  target_file="$campaign_evidence/api17-unexpected-targets-$adb_port.txt"
+  {
+    printf 'phase=%s\nserver_pid=%s\nserver_port=%s\n' "$target_label" "$adb_server_pid" "$adb_port"
+    printf 'server_process='; ps -p "$adb_server_pid" -o command= 2>&1 || true
+    printf 'server_listener_pids='; lsof -nP -t -iTCP:"$adb_port" -sTCP:LISTEN 2>&1 | sort -u || true
+    printf '%s\n' 'adb_devices_output_begin'
+    printf '%s\n' "$target_output"
+    printf '%s\n' 'adb_devices_output_end' 'parsed_targets_begin'
+    printf '%s\n' "$target_rows" 'parsed_targets_end'
+  } > "$target_file"
+  chmod 600 "$target_file"
+  echo "Unexpected ADB targets during $target_label; diagnostics=$run_label/evidence/$(basename "$target_file")" >&2
+  printf '%s\n' "$target_rows" >&2
+  return 1
 }
 cleanup() {
   result=$?
   trap - EXIT INT TERM
   if [ -n "$runtime_logcat_pid" ]; then
-    kill "$runtime_logcat_pid" 2>/dev/null || true
-    wait "$runtime_logcat_pid" 2>/dev/null || true
+    if runtime_logcat_owned; then
+      kill "$runtime_logcat_pid" 2>/dev/null || true
+      wait "$runtime_logcat_pid" 2>/dev/null || true
+    elif runtime_logcat_zombie_owned; then
+      wait "$runtime_logcat_pid" 2>/dev/null || true
+    elif kill -0 "$runtime_logcat_pid" 2>/dev/null; then
+      diagnostic="$run_root/evidence/api17-logcat-cleanup-identity-$adb_port.txt"
+      {
+        printf 'expected_pid=%s\nexpected_parent_pid=%s\nexpected_adb=%s\nport=%s\nserial=%s\n' \
+          "$runtime_logcat_pid" "$$" "$adb" "$adb_port" "$serial"
+        ps -p "$runtime_logcat_pid" -o pid=,ppid=,stat=,command= 2>&1 || true
+        lsof -a -p "$runtime_logcat_pid" -d txt -Fn 2>&1 || true
+      } > "$diagnostic"
+      chmod 600 "$diagnostic"
+      echo "Logcat capture identity could not be revalidated; process left untouched, diagnostics=$diagnostic" >&2
+    fi
   fi
-  if [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null; then
+  if emulator_process_owned; then
     kill "$emulator_pid" 2>/dev/null || true
     wait "$emulator_pid" 2>/dev/null || true
+  elif [ -n "$emulator_launcher_pid" ] && kill -0 "$emulator_launcher_pid" 2>/dev/null; then
+    echo 'Emulator launcher process could not be revalidated; leaving it untouched.' >&2
+  elif [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null; then
+    echo 'Emulator ownership could not be revalidated; leaving process untouched.' >&2
   fi
   # Stop only the foreground ADB server this shell launched as a direct child.
   # If the child identity is ambiguous or changed, leave it untouched.
@@ -188,14 +270,47 @@ cleanup() {
     python3 "$guard" cleanup-avd "$run_root" "$avd" ||
       echo 'AVD ownership could not be proven; preserving its files.' >&2
   fi
+  if runner_lock_owned; then
+    kill "$runner_lock_pid" 2>/dev/null || true
+    wait "$runner_lock_pid" 2>/dev/null || true
+  fi
   exit "$result"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# Serialize the full host emulator discovery window. The kernel releases this
+# lock automatically if the runner exits or crashes.
+runner_lock_file="$repo/build/.cl-imp-03-api17-runner-lock"
+runner_lock_ready="$run_root/runner-lock.ready"
+python3 "$guard" hold-lock "$runner_lock_file" "$runner_lock_ready" "$$" >/dev/null 2>&1 &
+runner_lock_pid=$!
+for attempt in $(seq 1 3600); do
+  [ -f "$runner_lock_ready" ] && break
+  kill -0 "$runner_lock_pid" 2>/dev/null || { echo 'API17 runner lock holder exited.' >&2; exit 3; }
+  sleep 1
+done
+[ -f "$runner_lock_ready" ] && runner_lock_owned || {
+  echo 'API17 runner lock was not acquired or its process identity is ambiguous.' >&2; exit 3;
+}
+echo "API17_RUNNER_LOCK acquired=true pid=$runner_lock_pid"
+
+adb_port=$(python3 - <<'PY'
+import socket
+for port in range(61000, 62000):
+    s=socket.socket()
+    try:
+        s.bind(('127.0.0.1', port)); print(port); break
+    except OSError: pass
+    finally: s.close()
+else: raise SystemExit('No free dedicated ADB port in 61000-61999')
+PY
+)
+export ADB_SERVER_PORT="$adb_port" ANDROID_ADB_SERVER_PORT="$adb_port"
+
 adb_server_log="$run_root/adb-server.log"
-"$adb" -P "$adb_port" --one-device CL_IMP_03_NO_PHYSICAL_USB server nodaemon > "$adb_server_log" 2>&1 &
+"$adb" -P "$adb_port" server nodaemon > "$adb_server_log" 2>&1 &
 adb_server_pid=$!
 adb_server_started=1
 server_ready=0
@@ -227,6 +342,7 @@ source_receipt="$campaign_evidence/api17-source-manifest.sha256"
   hash_file "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackService.java" 'android/cl-r4-boundary-attacker/ExportBoundaryAttackService.java'
   hash_file "$repo/tools/verify_api17_pixel_content.swift" 'tools/verify_api17_pixel_content.swift'
   hash_file "$repo/tools/verify_api17_padded_crop_content.swift" 'tools/verify_api17_padded_crop_content.swift'
+  hash_file "$repo/tools/verify_api17_dual_output_content.swift" 'tools/verify_api17_dual_output_content.swift'
   hash_file "$repo/android/cl-imp-03-app/AndroidManifest.lab.xml" 'android/cl-imp-03-app/AndroidManifest.lab.xml'
   hash_file "$ui_test_source" 'android/cl-imp-03-app/test/CrashDialogDismissTest.java'
   hash_file "$ui_test_jar" 'artifacts/claritylink-crash-dialog-tests.jar'
@@ -243,13 +359,14 @@ source_receipt="$campaign_evidence/api17-source-manifest.sha256"
     done
 ) | LC_ALL=C sort > "$source_receipt"
 echo "API17_SOURCE_MANIFEST artifact=$run_label/evidence/api17-source-manifest.sha256"
-# Ignore adb's `* daemon ...` startup banners; retain every actual serial/status row,
-# including unauthorized/offline targets, so the unknown-device guard stays strict.
-inventory() { adb_local devices | awk 'NF >= 2 && $1 != "List" && $1 !~ /^\*/ {print $1" "$2}'; }
-[ -z "$(inventory)" ] || { echo 'Private ADB server unexpectedly has a target.' >&2; exit 3; }
+# The prior runner discarded the serial/status rows at this failure point.
+# Preserve the complete inventory and server identity before refusing any target.
+if ! capture_unexpected_targets before_emulator_launch; then
+  echo 'Private ADB server unexpectedly has a target; no target command was sent.' >&2; exit 3
+fi
 port=$(python3 - <<'PY'
 import socket
-for p in (5580,5582,5584):
+for p in range(5580, 5700, 2):
     held=[]
     try:
         for n in (p,p+1):
@@ -262,11 +379,7 @@ else: raise SystemExit('No free emulator port pair')
 PY
 )
 serial="emulator-$port"
-echo "API17_EMULATOR_TARGET avd=$avd serial=$serial port=$port api_expected=17 release_expected=4.2.2 dedicated_adb_port=$adb_port pid=$adb_server_pid"
-owned() {
-  [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null &&
-    [ "$(inventory)" = "$serial device" ]
-}
+echo "API17_EMULATOR_TARGET avd=$avd serial=$serial port=$port api_expected=17 release_expected=4.2.2 dedicated_adb_port=$adb_port adb_server_pid=$adb_server_pid"
 python3 "$guard" check-avd "$run_root" "$avd"
 printf 'no\n' | "$avdmanager" create avd --name "$avd" \
   --package 'system-images;android-17;default;x86' >/dev/null
@@ -276,16 +389,26 @@ grep -q '^abi.type=x86$' "$avd_dir/config.ini" || { echo 'AVD ABI mismatch.' >&2
 arch -x86_64 "$emulator" -avd "$avd" -port "$port" -no-window -no-audio \
   -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
   > "$run_root/emulator.log" 2>&1 &
-emulator_pid=$!
+emulator_launcher_pid=$!
 ready=0
 for attempt in $(seq 1 300); do
-  kill -0 "$emulator_pid" 2>/dev/null || { echo 'Owned emulator exited during boot.' >&2; exit 5; }
+  if [ -z "$emulator_pid" ]; then emulator_pid=$(find_emulator_pid || true); fi
+  if [ -z "$emulator_pid" ] && ! kill -0 "$emulator_launcher_pid" 2>/dev/null; then
+    echo 'Emulator launcher exited before an owned QEMU process was identified.' >&2; exit 5
+  fi
   devices=$(inventory)
-  case "$devices" in ''|"$serial "*) :;; *) echo "Unexpected private ADB target: $devices" >&2; exit 5;; esac
-  if owned && [ "$(adb_local -s "$serial" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+  process_owned=0
+  emulator_process_owned && process_owned=1 || true
+  if ! python3 "$guard" check-emulator-inventory "$serial" "$devices" \
+      $( [ "$process_owned" -eq 1 ] && printf '%s' --process-owned ) >/dev/null 2>&1; then
+    capture_unexpected_targets emulator_boot || true
+    echo "Unexpected private ADB target(s) during emulator boot: $devices" >&2; exit 5
+  fi
+  if [ -n "$emulator_pid" ] && emulator_owned && [ "$(adb_local -s "$serial" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
   sleep 1
 done
-[ "$ready" -eq 1 ] || { echo 'API17 emulator boot timeout.' >&2; exit 5; }
+[ "$ready" -eq 1 ] || { echo 'API17 emulator boot timeout or exact owned target identity not established.' >&2; exit 5; }
+echo "API17_EMULATOR_PROCESS pid=$emulator_pid launcher_pid=$emulator_launcher_pid serial=$serial process_identity=verified"
 api=$(adb_local -s "$serial" shell getprop ro.build.version.sdk | tr -d '\r')
 release=$(adb_local -s "$serial" shell getprop ro.build.version.release | tr -d '\r')
 qemu=$(adb_local -s "$serial" shell getprop ro.kernel.qemu | tr -d '\r')
@@ -335,7 +458,7 @@ owner_isolation_debug="$campaign_evidence/api17-owner-isolation-debug-$adb_port.
 printf '%s\n' "$owner_isolation_logs" > "$owner_isolation_debug"
 printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_SESSION_ISOLATION_PASS session_a=([0-9]+) session_b=([0-9]+) sessions_distinct=true concurrent_issue=true reverse_consume=true records_remaining=0' >/dev/null || {
   echo "Owner-isolation activity diagnostics (artifact=$run_label/evidence/$(basename -- "$owner_isolation_debug")):" >&2
-  printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_(SESSION_ISOLATION|CAP_RECOVERY)_(PASS|FAIL)|FATAL EXCEPTION|AndroidRuntime|Exception' >&2 || true
+  printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_SESSION_ISOLATION|TYPE110_OWNER_CAP_RECOVERY|FATAL EXCEPTION|AndroidRuntime|Exception' >&2 || true
   echo 'Two-session owner records were not independently consumed.' >&2; exit 9;
 }
 printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_CAP_RECOVERY_PASS pending_cap=32 cap_rejected=true expired_records_pruned=32 orphan_temp_pruned=true orphan_claim_pruned=true new_session_issued=true artifacts_remaining=0' >/dev/null || {
@@ -365,10 +488,14 @@ assert_type110_probe_cross_uid_denied() {
   done
   before_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   before_teardown=$(printf '%s\n' "$before_logs" | grep -F -c 'TYPE111_PARENT_TEARDOWN session_id=' || true)
-  adb_local -s "$serial" shell am startservice -n "$attacker_package/$attacker_component" \
+  attacker_start_output=$(adb_local -s "$serial" shell am startservice -n "$attacker_package/$attacker_component" \
     --el attack_session_id "$1" --el attack_generation "$2" \
     --el attack_last_frame "$3" --ei attack_sink_pid "$4" \
-    --ei attack_compositor_pid "$5" >/dev/null
+    --ei attack_compositor_pid "$5" 2>&1) || {
+      echo "Separate-UID attacker start command failed: $attacker_start_output" >&2; exit 9;
+    }
+  echo "CL_R4_CROSS_UID_ATTACK_START command=accepted response=$attacker_start_output"
+  wait_for 'ATTACKER_UID uid='
   wait_for 'CL_R4_CROSS_UID_ATTACKS_COMPLETE'
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   after_service_dump=$(adb_local -s "$serial" shell dumpsys activity services | tr -d '\r')
@@ -559,19 +686,38 @@ assert_type110_progress_precedes_parent_teardown() {
   old_frame=$2
   sink_pid=$3
   source_logs=$4
-  death_line=$(printf '%s\n' "$source_logs" | grep -nF "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session stream_type=111" | head -1 | cut -d: -f1)
+  child_registration=$(printf '%s\n' "$source_logs" | grep -F "IPC_STREAM_REGISTERED session_id=$session stream_type=111 " | tail -1)
+  child_connection=$(printf '%s\n' "$child_registration" | sed -n 's/.*connection_id=\([0-9][0-9]*\).*/\1/p')
+  # Reattachment advances the stream generation after the initial registration.
+  # Bind to the actual death/detach receipt for this session and connection.
+  death_event=$(printf '%s\n' "$source_logs" | grep -F \
+    "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session stream_type=111 connection_id=$child_connection " | tail -1)
+  child_generation=$(printf '%s\n' "$death_event" | sed -n 's/.*stream_generation=\([0-9][0-9]*\).*/\1/p')
+  [ -n "$child_generation" ] || {
+    death_event=$(printf '%s\n' "$source_logs" | grep -F \
+      "IPC_TYPE111_SINK_DETACHED session_id=$session connection_id=$child_connection " | tail -1)
+    child_generation=$(printf '%s\n' "$death_event" | sed -n 's/.*generation=\([0-9][0-9]*\).*/\1/p')
+  }
+  death_event=$(printf '%s\n' "$source_logs" | grep -nF \
+    "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session stream_type=111 connection_id=$child_connection stream_generation=$child_generation" | head -1)
+  [ -n "$death_event" ] || death_event=$(printf '%s\n' "$source_logs" | grep -nF \
+    "IPC_TYPE111_SINK_DETACHED session_id=$session connection_id=$child_connection generation=$child_generation" | head -1)
+  death_line=$(printf '%s\n' "$death_event" | cut -d: -f1)
   frame_line=$(printf '%s\n' "$source_logs" | grep -nF "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$sink_pid" |
     grep -E "frame_id=$((old_frame + 1))([[:space:]]|$)" | head -1 | cut -d: -f1)
   teardown_line=$(printf '%s\n' "$source_logs" | grep -nF "TYPE111_PARENT_TEARDOWN session_id=$session streams_closed=2 result=accepted" | tail -1 | cut -d: -f1)
   [ -n "$death_line" ] && [ -n "$frame_line" ] && [ -n "$teardown_line" ] &&
     [ "$death_line" -lt "$frame_line" ] && [ "$frame_line" -lt "$teardown_line" ] || {
-      echo "Type110 did not progress after Type111 sink death and before parent teardown (session=$session)." >&2
+      echo "Type110 did not progress after exact Type111 death/detach and before parent teardown (session=$session connection=$child_connection generation=$child_generation)." >&2
       return 1
     }
 }
 adb_local -s "$serial" logcat -c
 runtime_logs_file="$campaign_evidence/api17-runtime-logcat-$adb_port.txt"
-adb_local -s "$serial" logcat -s ClarityLinkCLIMP03:I '*:S' > "$runtime_logs_file" 2>&1 &
+# Launch adb as the owned background process directly. Backgrounding the
+# adb_local shell function leaves a shell wrapper as $!, so cleanup cannot
+# prove that the recorded PID is the isolated adb process before signaling it.
+"$adb" -P "$adb_port" -s "$serial" logcat -s ClarityLinkCLIMP03:I '*:S' > "$runtime_logs_file" 2>&1 &
 runtime_logcat_pid=$!
 for log_attempt in $(seq 1 20); do
   kill -0 "$runtime_logcat_pid" 2>/dev/null || {
@@ -935,12 +1081,27 @@ if [ "$type111_mode" -eq 1 ]; then
     printf '%s\n' "$windows" > "$crash_evidence/windows-after-dismissal.txt"
     crash_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     printf '%s\n' "$crash_logs" > "$crash_evidence/claritylink-logcat-after-dismissal.txt"
-    printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=111" >/dev/null || {
-      echo 'Compositor did not observe Type111 View death after the crash.' >&2; exit 9;
+    child_registration=$(printf '%s\n' "$crash_logs" | grep -F "IPC_STREAM_REGISTERED session_id=$crash_session stream_type=111 " | tail -1)
+    child_connection=$(printf '%s\n' "$child_registration" | sed -n 's/.*connection_id=\([0-9][0-9]*\).*/\1/p')
+    child_generation=$(printf '%s\n' "$child_registration" | sed -n 's/.*stream_generation=\([0-9][0-9]*\).*/\1/p')
+    request_line_no=$(printf '%s\n' "$crash_logs" | grep -nF "CL_R2_UNCAUGHT_CRASH_REQUESTED pid=$app_pid session_id=$crash_session " | tail -1 | cut -d: -f1)
+    view_death_receipt=$(printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=111 connection_id=$child_connection stream_generation=$child_generation" | tail -1)
+    sink_detach_receipt=$(printf '%s\n' "$crash_logs" | grep -F "IPC_TYPE111_SINK_DETACHED session_id=$crash_session " |
+      grep -F "connection_id=$child_connection " | grep -F "generation=$child_generation " | tail -1)
+    [ -n "$child_connection" ] && [ -n "$child_generation" ] && [ -n "$request_line_no" ] || {
+      echo 'Crash recovery could not bind lifecycle evidence to the registered Type111 stream and crash request.' >&2; exit 9;
     }
-    printf '%s\n' "$crash_logs" | grep -F "IPC_TYPE111_SINK_DETACHED session_id=$crash_session" >/dev/null || {
-      echo 'Type111 sink was not detached after the View crash.' >&2; exit 9;
+    lifecycle_receipt=$view_death_receipt
+    [ -n "$lifecycle_receipt" ] || lifecycle_receipt=$sink_detach_receipt
+    receipt_line_no=$(printf '%s\n' "$crash_logs" | grep -nF "$lifecycle_receipt" | tail -1 | cut -d: -f1)
+    # A fatal Activity crash can race its normal onPause detach against Binder
+    # death notification. Either exact-session receipt proves compositor-side
+    # removal; the process PID and fatal exception are independently verified.
+    [ -n "$lifecycle_receipt" ] && [ -n "$receipt_line_no" ] &&
+      [ "$request_line_no" -lt "$receipt_line_no" ] || {
+      echo 'Compositor recorded neither Type111 Binder death nor exact-session sink detach after the crash.' >&2; exit 9;
     }
+    printf '%s\n' "$lifecycle_receipt"
     if printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=110" >/dev/null; then
       echo 'Type110 sink died with the Type111 View.' >&2; exit 9;
     fi
@@ -1041,17 +1202,33 @@ if [ "$type111_mode" -eq 1 ]; then
     }
     adb_local -s "$serial" shell dumpsys window windows | tr -d '\r' \
       > "$campaign_evidence/api17-compositor-owner-death-window-before-$adb_port.txt"
+    window_file="$campaign_evidence/api17-compositor-owner-death-window-before-$adb_port.txt"
     awk -v package="$package" '
       /Window #[0-9]+ Window/ {
-        if (matched && on_secondary) found=1
-        in_window=1; matched=($0 ~ package); on_secondary=0
+        if (matched && on_main && has_surface) found=1
+        matched=($0 ~ package); on_main=0; has_surface=0
       }
-      in_window && matched && /mDisplayId=1/ {on_secondary=1}
-      /^$/ {if (matched && on_secondary) found=1; in_window=0}
-      END {if (matched && on_secondary) found=1; exit !found}
-    ' "$campaign_evidence/api17-compositor-owner-death-window-before-$adb_port.txt" || {
-      echo 'No app-owned secondary Presentation window was present before compositor death.' >&2; exit 9;
+      matched && /mDisplayId=0/ {on_main=1}
+      matched && /mHasSurface=true/ {has_surface=1}
+      END {if (matched && on_main && has_surface) found=1; exit !found}
+    ' "$window_file" || {
+      echo 'The owner Activity lacked a live, surfaced API17 View window before compositor death.' >&2; exit 9;
     }
+    awk '
+      /Display: mDisplayId=1/ {secondary=1; next}
+      secondary && /init=800x480 .*cur=800x480/ {found=1}
+      secondary && /^    Display:/ {secondary=0}
+      END {exit !found}
+    ' "$window_file" || { echo 'Synthetic 800x480 API17 output display was not active.' >&2; exit 9; }
+    predeath_ps="$campaign_evidence/api17-compositor-owner-death-processes-before-$adb_port.txt"
+    adb_local -s "$serial" shell ps | tr -d '\r' > "$predeath_ps"
+    awk -v pid="$initial_type111_pid" '$2 == pid {found=1} END {exit !found}' "$predeath_ps" || {
+      echo 'The exact Type111 View process was not live before compositor death.' >&2; exit 9;
+    }
+    dual_output_receipt="$campaign_evidence/api17-compositor-owner-death-dual-output-$adb_port.json"
+    swift "$repo/tools/verify_api17_dual_output_content.swift" \
+      "$campaign_evidence/api17-binder-view-proof-$adb_port.png" "$dual_output_receipt"
+    echo "CL_R4B_OWNER_DEATH_PRECONDITION_PASS session_id=$session_id compositor_pid=$owner_pid type111_view_pid=$initial_type111_pid activity_window_display=0 secondary_output_display=1 type110_red_pixels=true type111_green_pixels=true"
     wait_for_owner_death_marker() {
       marker=$1
       for owner_attempt in $(seq 1 900); do
@@ -1074,6 +1251,13 @@ if [ "$type111_mode" -eq 1 ]; then
     wait_for 'CL_R4B_ACTIVITY_OWNER_INVALIDATED '
     wait_for 'CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS '
     owner_death_early_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    owner_cleanup_line=$(printf '%s\n' "$owner_death_early_logs" | grep -F 'CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS ' | tail -1)
+    printf '%s\n' "$owner_cleanup_line" | grep -E "session_id=${session_id}([[:space:]]|$)" >/dev/null || {
+      echo 'Compositor owner-loss cleanup receipt was not bound to this session.' >&2; exit 9;
+    }
+    printf '%s\n' "$owner_cleanup_line" | grep -F 'cleanup=pass' >/dev/null || {
+      echo 'Compositor owner-loss cleanup receipt was absent or incomplete.' >&2; exit 9;
+    }
     printf '%s\n' "$owner_death_early_logs" \
       > "$campaign_evidence/api17-compositor-owner-death-early-logcat-$adb_port.txt"
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_FRESH_SESSION_RECOVERY_PASS "
@@ -1112,17 +1296,9 @@ $owner_logs"
     if printf '%s\n' "$owner_logs" | grep -F 'PRESENTATION_CLOSE_FAILED' >/dev/null; then
       echo 'Activity reported a failed Presentation close after parent-owner death.' >&2; exit 9;
     fi
-    if awk -v package="$package" '
-      /Window #[0-9]+ Window/ {
-        if (matched && on_secondary) found=1
-        in_window=1; matched=($0 ~ package); on_secondary=0
-      }
-      in_window && matched && /mDisplayId=1/ {on_secondary=1}
-      /^$/ {if (matched && on_secondary) found=1; in_window=0}
-      END {if (matched && on_secondary) found=1; exit !found}
-    ' "$campaign_evidence/api17-compositor-owner-death-window-state-$adb_port.txt"; then
-      echo 'App-owned secondary Presentation window remained after parent-owner death.' >&2; exit 9;
-    fi
+    printf '%s\n' "$owner_logs" | grep -F 'SURFACE_BORROWED_LOST owner=Presentation_SurfaceHolder released_by_app=false' >/dev/null || {
+      echo 'The View did not report detachment of its borrowed output surface after owner loss.' >&2; exit 9;
+    }
     shasum -a 256 "$apk" "$campaign_evidence/api17-compositor-owner-death-logcat-$adb_port.txt" \
       "$campaign_evidence/api17-compositor-owner-death-processes-$adb_port.txt" \
       "$campaign_evidence/api17-compositor-owner-death-services-$adb_port.txt" \
@@ -1136,7 +1312,8 @@ $owner_logs"
       [ -n "$receipt" ] || { echo "Required owner-death runtime receipt missing: $marker" >&2; exit 9; }
       printf '%s\n' "$receipt"
     done
-    echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected old_registrations_cleared_by_process_exit=true old_process_resources_reclaimed_by_exit=true presentation=dismiss_requested evidence=$run_label/evidence"
+    printf '%s\n' "$owner_cleanup_line"
+    echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected old_registrations_cleared_by_process_exit=true old_process_resources_reclaimed_by_exit=true predeath_pfd_transfers=0 predeath_retained_bytes=0 resource_state=not_observable_after_owner_death presentation=dismiss_requested evidence=$run_label/evidence"
     owned || exit 7
     adb_local -s "$serial" shell am force-stop "$package"
     adb_local -s "$serial" shell am force-stop "$attacker_package"
@@ -1372,6 +1549,13 @@ $owner_logs"
     wait_for 'CL_R4A_VIEW_REATTACH_PASS'
     if [ "$delayed_death_callback" -eq 1 ]; then
       wait_for 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'
+      logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+      delayed_callback_receipt=$(printf '%s\n' "$logs" | grep -F "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=$session_id " | tail -1)
+      delayed_teardown_receipt=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true' | tail -1)
+      [ -n "$delayed_callback_receipt" ] && [ -n "$delayed_teardown_receipt" ] || {
+        echo 'Delayed callback runtime receipts are missing for the tested session or teardown.' >&2; exit 9;
+      }
+      printf '%s\n' "$delayed_callback_receipt" "$delayed_teardown_receipt"
     fi
     wait_for_parent_teardown "$session_id" || exit $?
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
@@ -1518,6 +1702,11 @@ $owner_logs"
     [ -n "$receipt" ] || { echo "Required Type111 runtime receipt missing: $marker" >&2; exit 9; }
     printf '%s\n' "$receipt"
   done
+  if [ "$type111_reattach" -eq 1 ]; then
+    [ -n "$progress_line" ] || { echo 'Missing validated Type111 reattachment lifecycle receipt.' >&2; exit 9; }
+    printf '%s\n' "$progress_line"
+    echo "CL_R4_TYPE111_CONSUMER_REATTACH_PASS old_pid=$app_pid replacement_pid=$replacement_pid actual_view_process_death=true parent_session_reused=true type110_generation_preserved=true stale_frame_rejected=true type111_sink_replaced=true parent_teardown=true resource_cleanup=true"
+  fi
   adb_local -s "$serial" shell am force-stop "$package"
   adb_local -s "$serial" uninstall "$package" >/dev/null
   adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'

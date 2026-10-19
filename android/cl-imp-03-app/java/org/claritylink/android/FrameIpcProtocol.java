@@ -40,6 +40,9 @@ final class FrameIpcProtocol {
     static final int PARENT_OPEN_AUTHORITY = 35;
     static final int FRAME_LAB_REVOKE_PARENT_AUTHORITY = 36;
     static final int FRAME_LAB_BIND_COMPOSITOR_EPOCH = 37;
+    static final int FRAME_LAB_PREPARE_OWNER_PID_REBIND = 44;
+    static final int FRAME_LAB_COMPLETE_OWNER_PID_REBIND = 45;
+    static final int FRAME_LAB_CANCEL_OWNER_PID_REBIND = 46;
     static final int TYPE110_PROBE_AUTHORIZE = 38;
     static final int TYPE110_PROBE_REGISTER = 39;
     static final int TYPE111_PRODUCER_AUTHORIZE = 40;

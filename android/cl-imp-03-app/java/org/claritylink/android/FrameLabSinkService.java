@@ -24,9 +24,13 @@ public final class FrameLabSinkService extends Service {
         boolean admitted = admission != null && admission.sessionId == requestedSession &&
                 consumeAdmission(admission.grant, requestedSession);
         if (!admitted && !(sink != null && sessionId == requestedSession)) {
+            boolean activeSessionPreserved = sink != null && sessionId > 0L;
             Log.e(TAG, "TYPE110_LAB_SINK_START_REJECTED reason=admission_required session_id=" +
-                    requestedSession);
-            stopSelf(startId);
+                    requestedSession + " active_session_preserved=" + activeSessionPreserved);
+            // A rejected later start request must not stop an already-authorized
+            // session. stopSelf(startId) can stop the service when this is the
+            // newest startId, even though an earlier start established the sink.
+            if (!activeSessionPreserved) stopSelf(startId);
             return START_NOT_STICKY;
         }
         if (!ensureSink(requestedSession)) {

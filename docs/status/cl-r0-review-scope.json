@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -16,7 +16,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "294035928ea4f2f46783f5b23778baf1c0e17e5c554db893c5c953a0a922de33"
+      "sha256": "d8fef8a9b44320900f61b19fed463ee23bb78a39a9313e9e116abbbf1ca75981"
     },
     {
       "path": "AGENTS.md",
@@ -28,23 +28,23 @@
     },
     {
       "path": "README.md",
-      "sha256": "f73e6d0a6e9aea765390e4db96c85baf2162c1c121b928293eee2861707027eb"
+      "sha256": "50ac114be2dbb04d5ffb8de2474bf1a0da06a8ed08fdb498dc357e8ca42d3ea5"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "12976a552dc95f972adf5efd23247d775a1f278a5560c77a30941bade53d7041"
+      "sha256": "f8eb6402921fba7274adeac05959e25b03cf3db9bd6a15a737a80a4f86126f66"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
-      "sha256": "ada80647d012683df96cc345216f303b1efd4c64225d3ebaf1b6118003dfb477"
+      "sha256": "d6c6c45232e5d1b9fab113c732ae17aecf20f57b6b2e578b24bce80f1a4c20fa"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java",
-      "sha256": "91bd9c5c8e29dc8c21e476eaeb0a0ec901b38f053e89f129eee864c4e3d888ba"
+      "sha256": "be931323bdf705afa68a33fee89f06b0b1084544958cab15d4abc9c8124b1d80"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/Type111ControlClient.java",
-      "sha256": "5d9dfb1efab78b4503bff6fea1a86abdb40dd9a83a0c02f51d53d4b9a713d7d2"
+      "sha256": "aee46660afaf8dfdd225229ca7ffda4ba167efb90a0ca69fddea504d9a2498b4"
     },
     {
       "path": "docs/README.md",
@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "c596329bce8a0d95ffcecf5c9ad4dfbe148aa4c909463ebe50528435ecc355ab"
+      "sha256": "c3dd6b79b16219231b2006862e26f3c67bd9208404feb6dacdf0efbcdee59157"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,19 +92,19 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "6145457225cb732559d5a3d339efd9f4f6ed37f83fa8fbd3b5324d1603763a5c"
+      "sha256": "3e308fae3035aa6c0380c0f1a591807e0b46d9882fc91257b4befa1fe0b7e6ea"
     },
     {
       "path": "docs/status/milestones.json",
-      "sha256": "5e48be468fda9a8170be8869a7ea3b697a748e5ff59d689acf944edbcf69cb42"
+      "sha256": "df6f67a6bbdb62111c44b8a89276a968936d7a4a3b9d2236ea2037da7ee32813"
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "d7098f3a9c9703a87f1ec94bbb235a4af415de1829683b05485c7e757c514e10"
+      "sha256": "923a98d1ad3f953a0f5e8e2f11271dcef121e5c85cba2b1cdaceff2f3d79724b"
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "d63517a2dad3f32094c2089a84a3a40013543d1988c36195a88840b366ebb975"
+      "sha256": "eb6f61cfdd919c2db344488a4544dc21d1f616f4d9aca7fc1a0556631bc66236"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -124,7 +124,7 @@
     },
     {
       "path": "tests/tools/test_api17_runner_guard.py",
-      "sha256": "bdfce9888563552e6ebffe373cb17fde5ccef2df350f005c2a03d568d1547c78"
+      "sha256": "30d4fd655acf0b50d9463a30b2abc9a1d5a27f4336260aa24e07e7f86aca91fe"
     },
     {
       "path": "tests/tools/test_repo_health_generated_evidence.py",
@@ -132,11 +132,11 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "5fbf154728abd7fa659bf797cd977e59a63ba19c70d674df0f4d87ab561f9c30"
+      "sha256": "0bbbc68567143597017e73d84c335803173073846dc124aef2e6c882fbee481a"
     },
     {
       "path": "tools/api17_runner_guard.py",
-      "sha256": "4c1113c17c649924e0216624a4f714118a2361ae6a6692521ec86c8d165cb50e"
+      "sha256": "54cd713011cd65418b6e55560097dab0167c4171181446eec0c42f38f0f061a5"
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "b0cdfcc805d8fd82a280a214c5d2a7824b2d1eafb1303736c3845eb353aed2da"
+      "sha256": "5eacc757ac7e62a199f560375eddbd33ae9d70a02d4d0c4bea42206126150b43"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -168,7 +168,7 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java",
-      "sha256": "cdb854cff08c91d221e13e79069f8088f7e807b2dbaac6b199f607826357b5df"
+      "sha256": "6afea47d9eca24729cf992dfb161bee37a3b621a8dda4e522e1068340150fe35"
     },
     {
       "path": "src/claritylink-renderer/android-api17/Display1OutputBackend.java",
@@ -180,7 +180,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_03_application_contract.py",
-      "sha256": "4d6fc5097f879ff3452b085aac8bd5a41bb53c0e2a5297caf93a0984814f48ad"
+      "sha256": "06090cb258529fe67a760cc85cf140277f730152f572a50992e7564be6a195e5"
     },
     {
       "path": "tests/display/test_cl_r4b_view_close_contract.py",

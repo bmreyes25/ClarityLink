@@ -114,7 +114,7 @@ def test_api17_reattach_harness_restarts_view_with_the_existing_parent_session()
 
     assert 'control.queryType111Stream(primaryIdentity)' in activity
     assert 'FrameIpcClient.replaceType111Sink(compositorEndpoint, primaryIdentity' in activity
-    assert '"stale_frame_rejected=true"' in activity
+    assert '"stale_frame_rejected=true stale_reason="' in activity
     assert '"CL_R4A_VIEW_REATTACH_PASS session_id="' in activity
     assert '" type110_generation=" + reattachType110Generation' in activity
     assert 'if (reattachSessionId > 0L && type111FixtureMode)' in activity

@@ -25,6 +25,14 @@ final class FrameLabSink extends Binder {
     private volatile long lastChecksum;
     private volatile int renderedFrames;
     private volatile int compositorPid;
+    private volatile int statsOwnerPid;
+    private IBinder statsOwnerToken;
+    private IBinder.DeathRecipient statsOwnerDeathRecipient;
+    private boolean ownerPidRebindPrepared;
+    private boolean statsOwnerPidQueriesBlocked;
+    private int pendingPreviousOwnerPid;
+    private int pendingReplacementOwnerPid;
+    private IBinder pendingOwnerPidRebindToken;
 
     FrameLabSink(Context context, FrameStreamIdentity identity) {
         if (context == null) throw new IllegalArgumentException("owner context required");
@@ -61,10 +69,14 @@ final class FrameLabSink extends Binder {
     }
 
     static Stats queryStats(IBinder remote) throws RemoteException {
+        return queryStats(remote, null);
+    }
+    static Stats queryStats(IBinder remote, IBinder ownerToken) throws RemoteException {
         if (remote == null || !remote.isBinderAlive()) return null;
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
             data.writeInterfaceToken(SINK_DESCRIPTOR);
+            data.writeStrongBinder(ownerToken);
             remote.transact(FrameIpcProtocol.FRAME_LAB_QUERY_STATS, data, reply, 0);
             reply.readException();
             return new Stats(reply.readInt(), reply.readLong(), reply.readLong(),
@@ -86,11 +98,17 @@ final class FrameLabSink extends Binder {
 
     static boolean revokeParentAuthority(IBinder remote, FrameStreamIdentity expected)
             throws RemoteException {
+        return revokeParentAuthority(remote, expected, null);
+    }
+
+    static boolean revokeParentAuthority(IBinder remote, FrameStreamIdentity expected,
+            IBinder expectedOwnerToken) throws RemoteException {
         if (remote == null || !remote.isBinderAlive() || expected == null) return false;
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
             data.writeInterfaceToken(SINK_DESCRIPTOR);
             writeIdentity(data, expected);
+            data.writeStrongBinder(expectedOwnerToken);
             remote.transact(FrameIpcProtocol.FRAME_LAB_REVOKE_PARENT_AUTHORITY, data, reply, 0);
             reply.readException();
             return reply.readInt() != 0;
@@ -98,15 +116,54 @@ final class FrameLabSink extends Binder {
     }
 
     static boolean bindCompositorEpoch(IBinder remote, FrameStreamIdentity expected,
-            IBinder compositor) throws RemoteException {
+            IBinder compositor, int ownerPid, IBinder ownerToken) throws RemoteException {
         if (remote == null || !remote.isBinderAlive() || expected == null ||
-                compositor == null || !compositor.isBinderAlive()) return false;
+                compositor == null || !compositor.isBinderAlive() || ownerPid <= 0 ||
+                ownerToken == null || !ownerToken.isBinderAlive()) return false;
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
             data.writeInterfaceToken(SINK_DESCRIPTOR);
             writeIdentity(data, expected);
             data.writeStrongBinder(compositor);
+            data.writeInt(ownerPid);
+            data.writeStrongBinder(ownerToken);
             remote.transact(FrameIpcProtocol.FRAME_LAB_BIND_COMPOSITOR_EPOCH, data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
+    static boolean prepareOwnerPidRebind(IBinder remote, FrameStreamIdentity expected, IBinder compositor,
+            int previousOwnerPid, int replacementOwnerPid, IBinder ownerToken) throws RemoteException {
+        return ownerPidRebindTransaction(remote, FrameIpcProtocol.FRAME_LAB_PREPARE_OWNER_PID_REBIND,
+                expected, compositor, previousOwnerPid, replacementOwnerPid, ownerToken);
+    }
+    static boolean completeOwnerPidRebind(IBinder remote, FrameStreamIdentity expected, IBinder compositor,
+            int previousOwnerPid, int replacementOwnerPid, IBinder ownerToken) throws RemoteException {
+        return ownerPidRebindTransaction(remote, FrameIpcProtocol.FRAME_LAB_COMPLETE_OWNER_PID_REBIND,
+                expected, compositor, previousOwnerPid, replacementOwnerPid, ownerToken);
+    }
+    static boolean cancelOwnerPidRebind(IBinder remote, FrameStreamIdentity expected, IBinder compositor,
+            int previousOwnerPid, int replacementOwnerPid, IBinder ownerToken) throws RemoteException {
+        return ownerPidRebindTransaction(remote, FrameIpcProtocol.FRAME_LAB_CANCEL_OWNER_PID_REBIND,
+                expected, compositor, previousOwnerPid, replacementOwnerPid, ownerToken);
+    }
+    private static boolean ownerPidRebindTransaction(IBinder remote, int transaction,
+            FrameStreamIdentity expected, IBinder compositor, int previousOwnerPid,
+            int replacementOwnerPid, IBinder ownerToken) throws RemoteException {
+        if (remote == null || !remote.isBinderAlive() || expected == null || compositor == null ||
+                !compositor.isBinderAlive() || previousOwnerPid <= 0 || replacementOwnerPid <= 0 ||
+                previousOwnerPid == replacementOwnerPid || ownerToken == null ||
+                !ownerToken.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(SINK_DESCRIPTOR);
+            writeIdentity(data, expected);
+            data.writeStrongBinder(compositor);
+            data.writeInt(previousOwnerPid);
+            data.writeInt(replacementOwnerPid);
+            data.writeStrongBinder(ownerToken);
+            remote.transact(transaction, data, reply, 0);
             reply.readException();
             return reply.readInt() != 0;
         } finally { reply.recycle(); data.recycle(); }
@@ -115,11 +172,23 @@ final class FrameLabSink extends Binder {
     @Override protected synchronized boolean onTransact(int code, Parcel data, Parcel reply, int flags)
             throws RemoteException {
         if (code == FrameIpcProtocol.FRAME_LAB_QUERY_STATS) {
-            if (Binder.getCallingUid() != Process.myUid()) {
+            data.enforceInterface(SINK_DESCRIPTOR);
+            IBinder suppliedOwnerToken = data.readStrongBinder();
+            int callerPid = Binder.getCallingPid();
+            boolean compositorCaller = isCompositorProcessCaller() && suppliedOwnerToken != null &&
+                    suppliedOwnerToken.isBinderAlive() &&
+                    (statsOwnerToken == null || statsOwnerToken == suppliedOwnerToken) &&
+                    (compositorEpoch == null || (compositorPid == callerPid &&
+                    compositorEpoch.isBinderAlive() && statsOwnerToken != null &&
+                    statsOwnerToken.isBinderAlive()));
+            boolean ownerCaller = callerPid > 0 && callerPid == statsOwnerPid &&
+                    !statsOwnerPidQueriesBlocked && statsOwnerToken != null &&
+                    statsOwnerToken.isBinderAlive() && suppliedOwnerToken == statsOwnerToken;
+            if (Binder.getCallingUid() != Process.myUid() || callerPid <= 0 ||
+                    (!compositorCaller && !ownerCaller)) {
                 reply.writeException(new SecurityException("lab output caller rejected"));
                 return true;
             }
-            data.enforceInterface(SINK_DESCRIPTOR);
             reply.writeNoException();
             reply.writeInt(renderedFrames);
             reply.writeLong(lastFrameId);
@@ -147,7 +216,9 @@ final class FrameLabSink extends Binder {
             }
             data.enforceInterface(SINK_DESCRIPTOR);
             FrameStreamIdentity expected = readIdentity(data);
-            boolean accepted = identity != null && identity.equals(expected);
+            IBinder expectedOwnerToken = data.readStrongBinder();
+            boolean tokenMatches = expectedOwnerToken == null || statsOwnerToken == expectedOwnerToken;
+            boolean accepted = identity != null && identity.equals(expected) && tokenMatches;
             if (accepted) clearIdentityAndCompositorEpoch();
             reply.writeNoException();
             reply.writeInt(accepted ? 1 : 0);
@@ -161,13 +232,35 @@ final class FrameLabSink extends Binder {
             data.enforceInterface(SINK_DESCRIPTOR);
             FrameStreamIdentity expected = readIdentity(data);
             final IBinder compositor = data.readStrongBinder();
+            final int ownerPid = data.readInt();
+            final IBinder ownerToken = data.readStrongBinder();
             boolean accepted = false;
-            if (identity != null && identity.equals(expected) && compositor != null &&
-                    compositor.isBinderAlive()) {
+            if (ownerPid > 0 && identity != null && identity.equals(expected) && compositor != null &&
+                    compositor.isBinderAlive() && ownerToken != null && ownerToken.isBinderAlive()) {
                 if (compositorEpoch == compositor && compositorDeathRecipient != null) {
-                    accepted = true;
+                    accepted = compositorPid == Binder.getCallingPid() && statsOwnerPid == ownerPid &&
+                            statsOwnerToken == ownerToken && ownerToken.isBinderAlive();
                 } else if (compositorEpoch == null || !compositorEpoch.isBinderAlive()) {
                     final FrameStreamIdentity boundIdentity = identity;
+                    final IBinder.DeathRecipient ownerRecipient = new IBinder.DeathRecipient() {
+                        public void binderDied() {
+                            synchronized (FrameLabSink.this) {
+                                if (statsOwnerToken == ownerToken) {
+                                    statsOwnerPid = 0;
+                                    if (identity != null && identity.sameStream(boundIdentity) &&
+                                            compositorEpoch == compositor) {
+                                        clearIdentityAndCompositorEpoch();
+                                        android.util.Log.i("ClarityLinkCLIMP03",
+                                                "TYPE110_OWNER_EPOCH_REVOKED session_id=" +
+                                                boundIdentity.sessionId +
+                                                " cause=owner_lifetime_token_death");
+                                    } else {
+                                        statsOwnerDeathRecipient = null;
+                                    }
+                                }
+                            }
+                        }
+                    };
                     final IBinder.DeathRecipient recipient = new IBinder.DeathRecipient() {
                         public void binderDied() {
                             synchronized (FrameLabSink.this) {
@@ -181,13 +274,81 @@ final class FrameLabSink extends Binder {
                             }
                         }
                     };
+                    boolean ownerLinked = false;
                     try {
+                        ownerToken.linkToDeath(ownerRecipient, 0);
+                        ownerLinked = true;
                         compositor.linkToDeath(recipient, 0);
                         compositorEpoch = compositor;
                         compositorDeathRecipient = recipient;
                         compositorPid = Binder.getCallingPid();
+                        statsOwnerPid = ownerPid;
+                        statsOwnerToken = ownerToken;
+                        statsOwnerDeathRecipient = ownerRecipient;
                         accepted = true;
-                    } catch (RemoteException deadCompositor) { }
+                    } catch (RemoteException deadBinder) {
+                        if (ownerLinked) {
+                            try { ownerToken.unlinkToDeath(ownerRecipient, 0); }
+                            catch (RuntimeException ignored) { }
+                        }
+                    }
+                }
+            }
+            reply.writeNoException();
+            reply.writeInt(accepted ? 1 : 0);
+            return true;
+        }
+        if (code == FrameIpcProtocol.FRAME_LAB_PREPARE_OWNER_PID_REBIND ||
+                code == FrameIpcProtocol.FRAME_LAB_COMPLETE_OWNER_PID_REBIND ||
+                code == FrameIpcProtocol.FRAME_LAB_CANCEL_OWNER_PID_REBIND) {
+            if (!isCompositorProcessCaller()) {
+                reply.writeException(new SecurityException("lab owner rebind caller rejected"));
+                return true;
+            }
+            data.enforceInterface(SINK_DESCRIPTOR);
+            FrameStreamIdentity expected = readIdentity(data);
+            IBinder compositor = data.readStrongBinder();
+            int previousOwnerPid = data.readInt();
+            int replacementOwnerPid = data.readInt();
+            IBinder ownerToken = data.readStrongBinder();
+            boolean identityValid = expected != null && expected.streamType == FrameStreamIdentity.TYPE110 &&
+                    expected.equals(identity) && compositor != null && compositor == compositorEpoch &&
+                    compositor.isBinderAlive() && compositorPid == Binder.getCallingPid() &&
+                    previousOwnerPid > 0 && replacementOwnerPid > 0 &&
+                    replacementOwnerPid != previousOwnerPid && statsOwnerToken == ownerToken &&
+                    ownerToken != null && ownerToken.isBinderAlive();
+            boolean accepted = false;
+            if (identityValid && code == FrameIpcProtocol.FRAME_LAB_PREPARE_OWNER_PID_REBIND) {
+                accepted = !ownerPidRebindPrepared && statsOwnerPid == previousOwnerPid;
+                if (accepted) {
+                    ownerPidRebindPrepared = true;
+                    statsOwnerPidQueriesBlocked = true;
+                    statsOwnerPid = replacementOwnerPid;
+                    pendingPreviousOwnerPid = previousOwnerPid;
+                    pendingReplacementOwnerPid = replacementOwnerPid;
+                    pendingOwnerPidRebindToken = ownerToken;
+                }
+            } else if (identityValid && ownerPidRebindPrepared &&
+                    pendingPreviousOwnerPid == previousOwnerPid &&
+                    pendingReplacementOwnerPid == replacementOwnerPid &&
+                    pendingOwnerPidRebindToken == ownerToken) {
+                if (code == FrameIpcProtocol.FRAME_LAB_COMPLETE_OWNER_PID_REBIND &&
+                        statsOwnerPid == replacementOwnerPid) {
+                    ownerPidRebindPrepared = false;
+                    statsOwnerPidQueriesBlocked = false;
+                    pendingPreviousOwnerPid = 0;
+                    pendingReplacementOwnerPid = 0;
+                    pendingOwnerPidRebindToken = null;
+                    accepted = true;
+                } else if (code == FrameIpcProtocol.FRAME_LAB_CANCEL_OWNER_PID_REBIND &&
+                        (statsOwnerPid == previousOwnerPid || statsOwnerPid == replacementOwnerPid)) {
+                    statsOwnerPid = previousOwnerPid;
+                    ownerPidRebindPrepared = false;
+                    statsOwnerPidQueriesBlocked = false;
+                    pendingPreviousOwnerPid = 0;
+                    pendingReplacementOwnerPid = 0;
+                    pendingOwnerPidRebindToken = null;
+                    accepted = true;
                 }
             }
             reply.writeNoException();
@@ -296,6 +457,20 @@ final class FrameLabSink extends Binder {
         compositorEpoch = null;
         compositorDeathRecipient = null;
         compositorPid = 0;
+        statsOwnerPid = 0;
+        ownerPidRebindPrepared = false;
+        statsOwnerPidQueriesBlocked = false;
+        pendingPreviousOwnerPid = 0;
+        pendingReplacementOwnerPid = 0;
+        pendingOwnerPidRebindToken = null;
+        IBinder oldOwnerToken = statsOwnerToken;
+        IBinder.DeathRecipient oldOwnerRecipient = statsOwnerDeathRecipient;
+        statsOwnerToken = null;
+        statsOwnerDeathRecipient = null;
+        if (oldOwnerToken != null && oldOwnerRecipient != null) {
+            try { oldOwnerToken.unlinkToDeath(oldOwnerRecipient, 0); }
+            catch (RuntimeException ignored) { }
+        }
         if (oldCompositor != null && oldRecipient != null) {
             try { oldCompositor.unlinkToDeath(oldRecipient, 0); }
             catch (RuntimeException ignored) { }

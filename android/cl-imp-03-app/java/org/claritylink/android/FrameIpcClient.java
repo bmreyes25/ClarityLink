@@ -1,6 +1,7 @@
 package org.claritylink.android;
 
 import android.os.IBinder;
+import android.os.Binder;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
@@ -15,6 +16,20 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Single-flight, bounded API17 Binder/pipe client for the project-owned compositor process. */
 final class FrameIpcClient {
     interface Callback { void complete(boolean accepted, String reason); }
+    static final class CleanupReceipt {
+        final boolean accepted, resourcesCleared;
+        final int activePfdTransfers, retainedFrameBytes, activeTransfers;
+        CleanupReceipt(boolean accepted, boolean resourcesCleared, int activePfdTransfers,
+                int retainedFrameBytes, int activeTransfers) {
+            this.accepted = accepted; this.resourcesCleared = resourcesCleared;
+            this.activePfdTransfers = activePfdTransfers;
+            this.retainedFrameBytes = retainedFrameBytes; this.activeTransfers = activeTransfers;
+        }
+        boolean isClean() {
+            return accepted && resourcesCleared && activePfdTransfers == 0 &&
+                    retainedFrameBytes == 0 && activeTransfers == 0;
+        }
+    }
 
     private final IBinder endpoint;
     private final FrameBackpressureGate frameGate = new FrameBackpressureGate();
@@ -22,8 +37,14 @@ final class FrameIpcClient {
     private volatile FrameStreamIdentity identity;
     private volatile boolean closed;
     private final AtomicLong nextFrameId = new AtomicLong(1L);
+    private final IBinder ownerLifetimeToken;
 
-    FrameIpcClient(IBinder endpoint) { this.endpoint = endpoint; }
+    FrameIpcClient(IBinder endpoint) { this(endpoint, new Binder()); }
+
+    FrameIpcClient(IBinder endpoint, IBinder ownerLifetimeToken) {
+        this.endpoint = endpoint;
+        this.ownerLifetimeToken = ownerLifetimeToken;
+    }
 
     /** Test-only producer reattachment to an existing Type110 registration after a peer dies. */
     static FrameIpcClient attachExistingType110(IBinder endpoint, FrameStreamIdentity streamIdentity,
@@ -85,7 +106,7 @@ final class FrameIpcClient {
         if (closed || streamIdentity == null || !streamIdentity.isValid() || viewSink == null ||
                 !endpoint.isBinderAlive()) return -1;
         if (streamIdentity.streamType == FrameStreamIdentity.TYPE110 &&
-                !openParentAuthority(endpoint, streamIdentity, viewSink)) return -1;
+                !openParentAuthority(endpoint, streamIdentity, viewSink, ownerLifetimeToken)) return -1;
         Parcel data = Parcel.obtain();
         Parcel reply = Parcel.obtain();
         try {
@@ -106,15 +127,22 @@ final class FrameIpcClient {
     /** Opens/reuses the lab parent authority without registering or activating a video stream. */
     static boolean openParentAuthority(IBinder endpoint, FrameStreamIdentity ownerIdentity,
             IBinder ownerSink) throws RemoteException {
+        return openParentAuthority(endpoint, ownerIdentity, ownerSink, new Binder());
+    }
+
+    static boolean openParentAuthority(IBinder endpoint, FrameStreamIdentity ownerIdentity,
+            IBinder ownerSink, IBinder ownerLifetimeToken) throws RemoteException {
         if (endpoint == null || !endpoint.isBinderAlive() || ownerIdentity == null ||
                 !ownerIdentity.isValid() || ownerIdentity.streamType != FrameStreamIdentity.TYPE110 ||
-                ownerSink == null || !ownerSink.isBinderAlive()) return false;
+                ownerSink == null || !ownerSink.isBinderAlive() || ownerLifetimeToken == null ||
+                !ownerLifetimeToken.isBinderAlive()) return false;
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
             data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
             data.writeInt(FrameIpcProtocol.VERSION);
             writeIdentity(data, ownerIdentity);
             data.writeStrongBinder(ownerSink);
+            data.writeStrongBinder(ownerLifetimeToken);
             endpoint.transact(FrameIpcProtocol.PARENT_OPEN_AUTHORITY, data, reply, 0);
             reply.readException();
             return reply.readInt() != 0;
@@ -248,6 +276,29 @@ final class FrameIpcClient {
             reply.readException();
         } catch (Exception ignored) {
             // Binder death also causes the bound service process to be reclaimed.
+        } finally {
+            activeGeneration = 0L;
+            reply.recycle(); data.recycle();
+        }
+    }
+
+    /** Ends an exact stream/session and reads the compositor's synchronous cleanup receipt. */
+    CleanupReceipt endWithCleanupReceipt(long generation) throws RemoteException {
+        if (closed || generation <= 0 || generation != activeGeneration) return null;
+        closed = true;
+        frameGate.close();
+        FrameStreamIdentity currentIdentity = identity;
+        if (currentIdentity == null || currentIdentity.streamGeneration != generation) return null;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
+            data.writeInt(FrameIpcProtocol.VERSION);
+            writeIdentity(data, currentIdentity);
+            endpoint.transact(FrameIpcProtocol.END, data, reply, 0);
+            reply.readException();
+            return new CleanupReceipt(reply.readInt() != 0, reply.readInt() != 0,
+                    reply.readInt(), reply.readInt(), reply.readInt());
         } finally {
             activeGeneration = 0L;
             reply.recycle(); data.recycle();

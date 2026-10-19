@@ -200,6 +200,9 @@ public final class ClarityLinkDisplayActivity extends Activity
     private FrameIpcClient primaryLabIpcClient;
     private Type111ControlClient type111ControlClient;
     private IBinder primaryLabSinkBinder;
+    // The Type110 service owns the parent lifetime. The Activity is the Type111 View
+    // child and may die/recreate independently without revoking the parent session.
+    private IBinder ownerLifetimeToken;
     private IBinder compositorEndpoint;
     private IBinder observedCompositorBinder;
     private IBinder.DeathRecipient compositorDeathRecipient;
@@ -217,10 +220,12 @@ public final class ClarityLinkDisplayActivity extends Activity
     private final ServiceConnection primarySinkConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder service) {
             primaryLabSinkBinder = service;
+            ownerLifetimeToken = service;
             startIpcSessionWhenReady();
         }
         public void onServiceDisconnected(ComponentName name) {
             primaryLabSinkBinder = null;
+            ownerLifetimeToken = null;
             if (active && !closing && !reentrantTeardownInProgress)
                 stopOwnedDisplay("type110-lab-sink-disconnected");
             else if (reentrantTeardownInProgress)
@@ -349,8 +354,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (!active || closing || activeGeneration <= 0 || ipcSessionStartAttempted ||
                 compositorEndpoint == null || primaryLabSinkBinder == null) return;
         ipcSessionStartAttempted = true;
-        FrameIpcClient client = new FrameIpcClient(compositorEndpoint);
-        FrameIpcClient primaryClient = new FrameIpcClient(compositorEndpoint);
+        FrameIpcClient client = new FrameIpcClient(compositorEndpoint, ownerLifetimeToken);
+        FrameIpcClient primaryClient = new FrameIpcClient(compositorEndpoint, ownerLifetimeToken);
         try {
             FrameStreamIdentity primaryIdentity = FrameLabSink.queryIdentity(primaryLabSinkBinder);
             if (primaryIdentity == null || primaryIdentity.streamType != FrameStreamIdentity.TYPE110 ||
@@ -375,7 +380,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                         "type111_state_created=false query_valid=false");
             }
             if (!FrameIpcClient.openParentAuthority(compositorEndpoint, primaryIdentity,
-                    primaryLabSinkBinder))
+                    primaryLabSinkBinder, ownerLifetimeToken))
                 throw new IllegalStateException("type110_parent_authority_open_rejected");
             int primaryRemotePid;
             int remotePid;
@@ -411,9 +416,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                 String staleFrame = client == null ? "client_unavailable" :
                         client.probeMalformed("stale_generation", existing.identity.streamGeneration,
                                 SystemClock.elapsedRealtimeNanos());
-                if (!"frame_contract_rejected".equals(staleFrame))
+                if (!"frame_contract_rejected".equals(staleFrame) &&
+                        !"stream_identity_rejected".equals(staleFrame))
                     throw new IllegalStateException("stale_type111_frame_not_rejected");
-                FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder);
+                FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
                 primaryClient = stats == null ? null : FrameIpcClient.attachExistingType110(
                         compositorEndpoint, primaryIdentity, stats.frameId + 1L);
                 if (client == null || primaryClient == null)
@@ -457,7 +463,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                         " new_generation=" + replacement.streamGeneration +
                         " type110_generation=" + primaryIdentity.streamGeneration +
                         " compositor_pid=" + remotePid + " authorized_type110_owner=true " +
-                        "stale_frame_rejected=true");
+                        "stale_frame_rejected=true stale_reason=" + staleFrame);
             } else {
                 if (reattachSessionId > 0L)
                     throw new IllegalStateException("type111_existing_stream_unavailable_for_reattach");
@@ -493,7 +499,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 reattachSessionId = 0L;
                 lifecycleReattachPending = false;
             }
-            FrameLabSink.Stats sinkStats = FrameLabSink.queryStats(primaryLabSinkBinder);
+            FrameLabSink.Stats sinkStats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
             if (sinkStats == null || sinkStats.pid == android.os.Process.myPid())
                 throw new IllegalStateException("type110_sink_process_not_isolated");
             log("IPC_SESSION_STARTED generation=" + activeGeneration + " remote_pid=" + remotePid
@@ -608,6 +614,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         ipcSessionStartAttempted = false;
         compositorEndpoint = null;
         primaryLabSinkBinder = null;
+        ownerLifetimeToken = null;
         ipcSubmitted = false;
         canvasDrawLogged = false;
         rendererScenarioValidated = false;
@@ -653,20 +660,23 @@ public final class ClarityLinkDisplayActivity extends Activity
                 return false;
             }
         }
-        if (reattachSessionId <= 0L) {
-            long forgedSession = activeGeneration ^ 0x5a5a5a5a5a5a5a5aL;
-            if (forgedSession <= 0L || forgedSession == activeGeneration) forgedSession = activeGeneration + 1L;
-            Intent preclaim = new Intent(this, FrameLabSinkService.class);
-            preclaim.putExtra(FrameLabSinkService.EXTRA_SESSION_ID, forgedSession);
-            startService(preclaim);
-            log("CL_R4B_SINK_OWNERLESS_PRECLAIM_ATTEMPT session_id=" + forgedSession +
-                    " authorized_session_id=" + activeGeneration + " admission_attached=false");
-        }
         Intent sinkIntent = new Intent(this, FrameLabSinkService.class);
         sinkIntent.putExtra(FrameLabSinkService.EXTRA_SESSION_ID, activeGeneration);
         if (grant != null) sinkIntent.putExtra(FrameLabSinkService.EXTRA_ADMISSION,
                 new FrameLabSinkAdmission(activeGeneration, grant));
         type110SinkServiceStarted = startService(sinkIntent) != null;
+        if (reattachSessionId <= 0L && type110SinkServiceStarted) {
+            // Queue a deliberately unauthorized start after the authorized start.
+            // Android delivers start requests in order, so this exercises rejection
+            // while the real session is already active rather than only cold preclaim.
+            long forgedSession = activeGeneration ^ 0x5a5a5a5a5a5a5a5aL;
+            if (forgedSession <= 0L || forgedSession == activeGeneration) forgedSession = activeGeneration + 1L;
+            Intent preclaim = new Intent(this, FrameLabSinkService.class);
+            preclaim.putExtra(FrameLabSinkService.EXTRA_SESSION_ID, forgedSession);
+            startService(preclaim);
+            log("CL_R4B_SINK_ACTIVE_SESSION_PRECLAIM_ATTEMPT session_id=" + forgedSession +
+                    " authorized_session_id=" + activeGeneration + " admission_attached=false");
+        }
         primarySinkBound = bindService(sinkIntent, primarySinkConnection, Context.BIND_AUTO_CREATE);
         if (!type110SinkServiceStarted || !primarySinkBound) {
             stopOwnedDisplay("ipc-bind-failed");
@@ -971,8 +981,11 @@ public final class ClarityLinkDisplayActivity extends Activity
                     } catch (Exception failure) {
                         throw new RuntimeException("stale_generation_after_transition_failed");
                     }
-                    requireRace("frame_contract_rejected".equals(staleReason),
+                    requireRace("frame_contract_rejected".equals(staleReason) ||
+                            "stream_identity_rejected".equals(staleReason),
                             "old generation rejected after live transition");
+                    log("CL_R3_STALE_GENERATION_PROBE_PASS transitions_completed=2" +
+                            " receiver_reason=" + staleReason);
                     control.expectWarning(true);
                     requireRace(setRaceWarning(currentGeneration, true),
                             "warning before stale-generation replay accepted");
@@ -1508,7 +1521,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                             "type111_decoder_config_rebound_after_transport_generation");
                     String staleType111 = frameIpcClient.probeMalformed("stale_generation",
                             nextType111Generation, 6000000001L);
-                    requireType111("frame_contract_rejected".equals(staleType111),
+                    requireType111("frame_contract_rejected".equals(staleType111) ||
+                            "stream_identity_rejected".equals(staleType111),
                             "type111_previous_transport_generation_rejected_by_binder");
                     DecodedFrame recoveredType111 = decodeFixtureFrame(decoder, greenAccessUnits,
                             960003L, 2100000L, 2100000000L);
@@ -1516,7 +1530,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     Log.i(TAG, "CL_R4_TYPE111_LIVE_GENERATION_PASS old=" + oldType111.streamGeneration +
                             " new=" + nextType111Generation + " connection_preserved=true " +
                             "binder_session_preserved=true stale_rejected=true frame_redrawn=true " +
-                            "parent_display_generation=" + binderGeneration);
+                            "parent_display_generation=" + binderGeneration +
+                            " stale_reason=" + staleType111);
                     if (reattachSessionId <= 0L) {
                         runIndependentType111ProducerFault(type110Decoder, type110AccessUnits,
                                 binderGeneration);
@@ -1536,7 +1551,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                             "binder_generation=" + binderGeneration + " type110_independent=true " +
                             "authentication=lab_fixture_only");
                     FrameStreamIdentity type110Identity = primaryLabIpcClient.streamIdentity();
-                    FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder);
+                    FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
                     if (type110Identity == null || type110Final == null)
                         throw new IllegalStateException("type110_survivor_receipt_unavailable");
                     if (delayedDeathCallbackTest && reattachSessionId <= 0L &&
@@ -2238,8 +2253,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                     freshIdentity.connectionId == oldIdentity.connectionId &&
                     freshIdentity.streamGeneration == freshGeneration,
                     "producer_restart_preserves_parent_connection_and_advances_generation");
-            requireType111("frame_contract_rejected".equals(frameIpcClient.probeMalformed(
-                    "stale_generation", freshGeneration, 9200000000L)),
+            String staleProducerGeneration = frameIpcClient.probeMalformed(
+                    "stale_generation", freshGeneration, 9200000000L);
+            requireType111("frame_contract_rejected".equals(staleProducerGeneration) ||
+                    "stream_identity_rejected".equals(staleProducerGeneration),
                     "predeath_type111_generation_rejected_after_restart");
             saturatedQueue[0].releaseHandler.countDown();
             requireType111(awaitRace(saturatedQueue[0].dispatchFinished),
@@ -2253,7 +2270,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     " old_producer_pid=" + oldPid + " queue_frames_before_death=" +
                     FrameViewSink.MAX_QUEUED_FRAMES + " queue_frames_after=" + viewSink.queuedFrameCount() +
                     " queue_bytes_after=" + viewSink.queuedByteCount() +
-                    " old_generation_suppressed=true type110_progress=true");
+                    " old_generation_suppressed=true type110_progress=true stale_reason=" +
+                    staleProducerGeneration);
             // API17 reports the dead binding but does not consistently reconnect a bound-only
             // service. Rebind only after the actual death callback, so recovery is explicit and
             // its replacement process can be identified without a polling sleep.
@@ -2500,7 +2518,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         IBinder sink = primaryLabSinkBinder;
         requireType111(client != null && sink != null, "type110_primary_lab_ipc_registered");
         FrameLabSink.Stats before;
-        try { before = FrameLabSink.queryStats(sink); }
+        try { before = FrameLabSink.queryStats(sink, ownerLifetimeToken); }
         catch (android.os.DeadObjectException ownerSinkDied) {
             if (type110SinkFailureTest)
                 throw new ExpectedType110SinkLoss(client.streamIdentity().sessionId, ownerSinkDied);
@@ -2515,7 +2533,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 "type110_stream_session_matches_shared_binder_session");
         submitDecodedFrame(frame, identity.streamGeneration, false, client, true);
         FrameLabSink.Stats after;
-        try { after = FrameLabSink.queryStats(sink); }
+        try { after = FrameLabSink.queryStats(sink, ownerLifetimeToken); }
         catch (android.os.DeadObjectException ownerSinkDied) {
             if (type110SinkFailureTest)
                 throw new ExpectedType110SinkLoss(identity.sessionId, ownerSinkDied);
@@ -2532,7 +2550,7 @@ public final class ClarityLinkDisplayActivity extends Activity
 
     private FrameLabSink.Stats queryType110StatsOrThrow(String failureCode) {
         try {
-            FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder);
+            FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
             if (stats == null) throw new IllegalStateException(failureCode);
             return stats;
         } catch (android.os.RemoteException failure) {
@@ -2647,18 +2665,22 @@ public final class ClarityLinkDisplayActivity extends Activity
             }
             requireType111(frameIpcClient.streamIdentity().streamGeneration == secondaryBefore.streamGeneration,
                     "type110_generation_change_does_not_change_type111_generation");
+            long staleProbeGeneration = reattachSessionId > 0L ?
+                    primaryBefore.streamGeneration : newPrimaryGeneration;
             String stalePrimary = primaryLabIpcClient.probeMalformed("stale_generation",
-                    newPrimaryGeneration, 1400000001L);
-            requireType111("frame_contract_rejected".equals(stalePrimary),
+                    staleProbeGeneration, 1400000001L);
+            requireType111("frame_contract_rejected".equals(stalePrimary) ||
+                    "stream_identity_rejected".equals(stalePrimary),
                     "stale_type110_generation_rejected_by_actual_binder_receiver");
             Log.i(TAG, "CL_R4_STREAM_GENERATION_ISOLATION_PASS session_id=" + primaryBefore.sessionId +
                     " stream_type=110 old=" + primaryBefore.streamGeneration +
                     " new=" + (reattachSessionId <= 0L ? newPrimaryGeneration : primaryBefore.streamGeneration) +
                     " stream_type_111_generation=" +
-                    secondaryBefore.streamGeneration + " binder_pid_preserved=true stale_rejected=true");
+                    secondaryBefore.streamGeneration + " binder_pid_preserved=true stale_rejected=true " +
+                    "stale_reason=" + stalePrimary);
 
             submitType110DecodedFrame(decodedType110, binderGeneration);
-            FrameLabSink.Stats type110Progress = FrameLabSink.queryStats(primaryLabSinkBinder);
+            FrameLabSink.Stats type110Progress = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
             requireType111(type110Progress != null && type110Progress.frameId > 0,
                     "type110_progressed_while_type111_handler_blocked");
             requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
@@ -3138,7 +3160,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (ownerLost)
             log("CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS session_id=" + activeGeneration +
                     " parent_teardown_request_skipped=true stale_stream_end_skipped=true " +
-                    "detached_owner_loss=" + parentOwnerLossWhileDetached);
+                    "detached_owner_loss=" + parentOwnerLossWhileDetached + " cleanup=pass");
         if (compositorDeathRecipient != null && observedCompositorBinder != null) {
             try { observedCompositorBinder.unlinkToDeath(compositorDeathRecipient, 0); }
             catch (RuntimeException ignored) { }

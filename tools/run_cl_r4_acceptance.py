@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -14,6 +15,8 @@ import time
 
 CASES = [
     ("CL-R4-01", "In-flight PFD producer death", "default", [
+        "CL_R4B_SINK_ACTIVE_SESSION_PRECLAIM_ATTEMPT",
+        "active_session_preserved=true",
         "CL_R4_TYPE111_INFLIGHT_PRODUCER_DEATH_CLEANUP_PASS",
         "CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS",
     ]),
@@ -158,6 +161,40 @@ def case_evidence_valid(case: dict, markers: list[str], source_hash: str,
             all(marker in content for marker in markers))
 
 
+def scenario_receipt(content: str, markers: list[str], head: str,
+                     source_hash: str, apk_hash: str, evidence_hash: str) -> dict:
+    lines = content.splitlines()
+    process_ids: dict[str, list[int]] = {}
+    for line in lines:
+        for key, value in re.findall(r"([A-Za-z_]*pid)=([0-9]+)", line):
+            normalized = key.lower()
+            values = process_ids.setdefault(normalized, [])
+            pid = int(value)
+            if pid not in values:
+                values.append(pid)
+    injections = [line.strip() for line in lines if re.search(
+        r"SATURAT|FAILURE_INJECT|INJECTION|_DEATH_REQUESTED|_CRASH_REQUESTED|CALLBACK_ENTERED", line, re.I)]
+    lifecycle = [line.strip() for line in lines if re.search(
+        r"DEATH_CALLBACK|PROCESS_DESTROYED|PROCESS_INVALIDATED|REATTACH|RECOVERY_PASS|"
+        r"GENERATION_PASS|SINK_DETACHED|OWNER_CLEANUP|TEARDOWN_COMPLETED|CALLBACK_POST", line, re.I)]
+    cleanup = [line.strip() for line in lines if re.search(
+        r"cleanup=pass|resources_cleared=true|active_pfd(?:_transfers)?=0|retained_(?:frame_)?bytes=0|"
+        r"retained_frame_bytes=0|queue_bytes_after=0|cleanup_pass", line, re.I)]
+    api17_executed = "API17_EMULATOR_PROCESS" in content and "serial=" in content
+    assertions = {marker: marker in content for marker in markers}
+    return {
+        "source_revision": {"git_head": head, "fingerprint_sha256": source_hash},
+        "apk_sha256": apk_hash,
+        "actual_api17_execution": "EXECUTED" if api17_executed else "NOT_EXECUTED",
+        "process_ids": process_ids,
+        "failure_injection": injections,
+        "observed_lifecycle": lifecycle,
+        "acceptance_assertions": assertions,
+        "resource_cleanup": cleanup,
+        "evidence_sha256": evidence_hash,
+    }
+
+
 def write_report(path: Path, data: dict) -> None:
     lines = ["# CL-R4 API17 acceptance", "", f"Overall: **{data.get('overall', 'NOT_RUN')}**", "",
              f"Source revision: `{data['source']['git_head']}`",
@@ -211,7 +248,11 @@ def main() -> int:
                        "fingerprint_sha256": source_hash, "files": source_files},
             "build": {"status": "NOT_RUN"},
             "apk_sha256": None,
-            "cases": [{"id": case_id, "name": name, "status": "NOT_RUN"}
+            "cases": [{"id": case_id, "name": name, "status": "NOT_RUN",
+                       "source_revision": {"git_head": head, "fingerprint_sha256": source_hash},
+                       "apk_sha256": None, "actual_api17_execution": "NOT_EXECUTED",
+                       "process_ids": {}, "failure_injection": [], "observed_lifecycle": [],
+                       "acceptance_assertions": {}, "resource_cleanup": [], "evidence_sha256": None}
                       for case_id, name, _mode, _markers in CASES],
             "mode_runs": {},
             "combinations": [{"id": case_id, "name": name, "status": "NOT_RUN",
@@ -310,11 +351,14 @@ def main() -> int:
         missing = [marker for marker in markers if marker not in output]
         status = "PASS" if code == 0 and not missing else (
             execution_status(code))
+        receipt = scenario_receipt(output, markers, head, source_hash,
+                                   checkpoint["apk_sha256"], mode_log_hash)
         by_id[case_id] = {"id": case_id, "name": name, "mode": mode, "status": status,
                           "exit_code": code, "missing_markers": missing,
                           "log": str(log_path), "source_sha256": source_hash,
                           "apk_sha256": checkpoint["apk_sha256"],
                           "evidence_log_sha256": mode_log_hash,
+                          **receipt,
                           "completed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
         checkpoint["cases"] = [by_id.get(item[0], {"id": item[0], "name": item[1],
                                                    "status": "NOT_RUN"}) for item in CASES]
