@@ -32,7 +32,7 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "4985bd52a24d48c1a1ff0e9e3c0d8a207f4848579ae08af4e4e1cc019572434c"
+      "sha256": "12976a552dc95f972adf5efd23247d775a1f278a5560c77a30941bade53d7041"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
@@ -104,7 +104,7 @@
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "7a9d91aeb7e6a3a1db49faf4216f8b7c062a7ba83005fce3f64e1acd870bea6f"
+      "sha256": "d63517a2dad3f32094c2089a84a3a40013543d1988c36195a88840b366ebb975"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "6a2c108c34d9ce136904fa3bd6dc21575d4339ed70cb2ecadbc8c879f0cae1d8"
+      "sha256": "b0cdfcc805d8fd82a280a214c5d2a7824b2d1eafb1303736c3845eb353aed2da"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
