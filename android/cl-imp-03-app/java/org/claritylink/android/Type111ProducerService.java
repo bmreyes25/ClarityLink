@@ -33,6 +33,9 @@ public final class Type111ProducerService extends Service {
     private volatile CountDownLatch runFinished = new CountDownLatch(1);
     private final long[] submittedTimestamps = new long[4];
     private int submittedCount;
+    private int activeOwnerPid = -1;
+    private FrameStreamIdentity activeIdentity;
+    private boolean terminationPending;
 
     private final IBinder control = new Binder() {
         @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
@@ -64,12 +67,13 @@ public final class Type111ProducerService extends Service {
             }
             if (code == TERMINATE_PRODUCER) {
                 int ownerPid = Binder.getCallingPid();
+                FrameStreamIdentity identity = data.dataAvail() >= 32 ? readIdentity(data) : null;
                 if (!isAuthorizedViewCaller(ownerPid)) {
                     Log.w(TAG, "TYPE111_PRODUCER_CONTROL_REJECT operation=terminate caller_pid=" + ownerPid);
                     reply.writeNoException(); reply.writeInt(0); reply.writeInt(Process.myPid());
                     return true;
                 }
-                boolean accepted = running || completed;
+                final boolean accepted = requestTermination(ownerPid, identity);
                 reply.writeNoException();
                 reply.writeInt(accepted ? 1 : 0);
                 reply.writeInt(Process.myPid());
@@ -123,7 +127,7 @@ public final class Type111ProducerService extends Service {
     private synchronized boolean startProducer(final IBinder endpoint, final IBinder sink,
             final FrameStreamIdentity identity, final long nextFrameId, final long firstPtsUs,
             final int ownerPid, final boolean expandFirstFrameForTransferTest) {
-        if (running || endpoint == null || sink == null || identity == null ||
+        if (running || terminationPending || endpoint == null || sink == null || identity == null ||
                 identity.streamType != FrameStreamIdentity.TYPE111 ||
                 identity.outputId != FrameStreamIdentity.OUTPUT_SECONDARY_VIEW ||
                 !identity.isValid() || nextFrameId <= 0 || nextFrameId == Long.MAX_VALUE ||
@@ -134,9 +138,11 @@ public final class Type111ProducerService extends Service {
             submittedCount = 0;
             runFinished = new CountDownLatch(1);
         }
+        activeOwnerPid = ownerPid;
+        activeIdentity = identity;
         final FrameIpcClient client = FrameIpcClient.attachExistingType111(
                 endpoint, identity, nextFrameId);
-        if (client == null) return false;
+        if (client == null) { activeOwnerPid = -1; activeIdentity = null; return false; }
         running = true;
         Log.i(TAG, "TYPE111_PRODUCER_START pid=" + Process.myPid() + " session_id=" +
                 identity.sessionId + " connection_id=" + identity.connectionId +
@@ -155,6 +161,13 @@ public final class Type111ProducerService extends Service {
             rollbackProducerStart();
             throw startupFailure;
         }
+        return true;
+    }
+
+    private synchronized boolean requestTermination(int ownerPid, FrameStreamIdentity identity) {
+        if (terminationPending || ownerPid != activeOwnerPid || !sameIdentity(identity, activeIdentity) ||
+                !(running || completed)) return false;
+        terminationPending = true;
         return true;
     }
 
@@ -303,5 +316,11 @@ public final class Type111ProducerService extends Service {
     private static FrameStreamIdentity readIdentity(Parcel data) {
         return new FrameStreamIdentity(data.readLong(), data.readInt(), data.readLong(),
                 data.readLong(), data.readInt());
+    }
+
+    private static boolean sameIdentity(FrameStreamIdentity left, FrameStreamIdentity right) {
+        return left != null && right != null && left.sessionId == right.sessionId &&
+                left.streamType == right.streamType && left.connectionId == right.connectionId &&
+                left.streamGeneration == right.streamGeneration && left.outputId == right.outputId;
     }
 }

@@ -168,8 +168,9 @@ public final class Type110ProgressProbeService extends Service {
                 throw new IllegalStateException("type110_fixture_has_no_initial_idr");
             decoder = new Api17BufferH264Decoder(32, 32, 990001L, config);
             DecodedFrame frame = null;
+            long firstTimestampUs = System.nanoTime() / 1000L + 1000L;
             for (int i = 0; i < 16 && frame == null; i++)
-                frame = decoder.decode(units[i % units.length], 5000000L + i * 100000L,
+                frame = decoder.decode(units[i % units.length], firstTimestampUs + i * 100L,
                         990001L, 3000L);
             if (frame == null || frame.presentationTimeNs <= 1400000000L)
                 throw new IllegalStateException("post_death_type110_decode_missing_or_stale");

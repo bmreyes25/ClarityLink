@@ -1,11 +1,13 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-17",
-  "current_campaign": "CL-R4 fault closure and security",
+  "updated": "2026-10-19",
+  "current_campaign": "CL-R4 reliability completion and public-source publication",
   "current_milestone": "CL-R4",
   "current_milestone_state": "IN_PROGRESS",
   "next_technical_milestone": "CL-R4",
   "safeForHonda": false,
+  "hardware_validation_state": "NOT_STARTED",
+  "license_state": "NO_LICENSE_SELECTED",
   "milestones": [
     {
       "id": "CL-R0",
@@ -42,9 +44,11 @@
     },
     {
       "id": "CL-R4",
-      "title": "Connect Type111 fixture video to View",
+      "title": "Complete Type111 fixture reliability acceptance",
       "state": "IN_PROGRESS",
       "evidence": [
+        "tools/run_cl_r4_acceptance.py",
+        "docs/status/current.md",
         "research/vehicle/test6a-t7-integration/27-cl-type111-major-integration-results.md",
         "research/vehicle/test6a-t7-integration/26-cl-r4-stream-isolation-results.md",
         "research/vehicle/test6a-t7-integration/28-type111-process-isolation-runtime.md",
@@ -69,24 +73,25 @@
     },
     {
       "id": "CL-R6",
-      "title": "Establish safe Honda display integration contract",
+      "title": "Establish supported Honda display integration contract",
       "state": "IN_PROGRESS",
       "evidence": []
     },
     {
       "id": "CL-R7",
-      "title": "Complete separately authorized hardware validation",
-      "state": "PLANNED",
+      "title": "End-to-end Type110/Type111 laboratory demonstration",
+      "state": "COMPLETE",
       "evidence": [
-        "docs/safety/vehicle-testing.md"
+        "tools/run_cl_r7_lab.sh",
+        "docs/status/current.md"
       ]
     },
     {
       "id": "CL-R8",
-      "title": "Validate integrated navigation behavior",
+      "title": "Separately authorized Honda hardware and integrated navigation validation",
       "state": "PLANNED",
       "evidence": [
-        "docs/roadmap/final-development-plan.md"
+        "docs/safety/vehicle-testing.md"
       ]
     }
   ]

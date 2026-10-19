@@ -135,12 +135,11 @@ public final class SameUidRegistrationAttackTestService extends Service {
         Type111ControlClient.StreamQuery before = control.queryType111Stream(owner);
         Type111ControlClient.FrameStats ownerBefore = control.queryFrameStats(owner);
         Type111ControlClient.FrameStats childBefore = control.queryFrameStats(child);
-        FrameLabSink.Stats sinkBefore = FrameLabSink.queryStats(ownerSink);
+        boolean sinkStatsDeniedBefore = sinkStatsDenied(ownerSink);
         FrameStreamIdentity sinkIdentityBefore = FrameLabSink.queryIdentity(ownerSink);
-        if (before == null || !before.ownerValid || !before.sinkAttached || !child.equals(before.identity) ||
-                ownerBefore == null || !ownerBefore.registered || childBefore == null ||
-                !childBefore.registered || sinkBefore == null || !owner.equals(sinkIdentityBefore))
-            throw new IllegalStateException("authorized_before_state_missing");
+        if (!queryDenied(before) || !statsDenied(ownerBefore) || !statsDenied(childBefore) ||
+                !sinkStatsDeniedBefore || !owner.equals(sinkIdentityBefore))
+            throw new IllegalStateException("same_uid_query_disclosure_not_blocked");
         ProducerState producerBefore = queryProducer();
         if (producerBefore.pid <= 0) throw new IllegalStateException("producer_not_live_before_attack");
 
@@ -150,8 +149,8 @@ public final class SameUidRegistrationAttackTestService extends Service {
         try {
             writeIdentity(probeData, owner);
             writeIdentity(probeData, child);
-            probeData.writeLong(sinkBefore.frameId);
-            probeData.writeInt(sinkBefore.pid);
+            probeData.writeLong(1L);
+            probeData.writeInt(1);
             if (!probeEndpoint.transact(FrameIpcProtocol.TYPE110_PROBE_AUTHORIZE,
                     probeData, probeReply, 0)) throw new IllegalStateException("probe_authorize_transaction_missing");
             probeReply.readException();
@@ -187,7 +186,7 @@ public final class SameUidRegistrationAttackTestService extends Service {
                 child.withGeneration(child.streamGeneration + 1L), new Binder());
         boolean teardown = control.parentTeardown(owner);
         boolean end = rawEnd(owner);
-        boolean producerStart = rawProducerStart(owner, child, childBefore.lastFrameId + 1L);
+        boolean producerStart = rawProducerStart(owner, child, 1L);
         boolean producerStop = rawProducerStop();
         boolean transferArm = rawBarrier(FrameIpcProtocol.LAB_ARM_TRANSFER_BARRIER, child, null);
         boolean transferWait = rawBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER, child, null);
@@ -219,7 +218,7 @@ public final class SameUidRegistrationAttackTestService extends Service {
         Type111ControlClient.StreamQuery after = control.queryType111Stream(owner);
         Type111ControlClient.FrameStats ownerAfter = control.queryFrameStats(owner);
         Type111ControlClient.FrameStats childAfter = control.queryFrameStats(child);
-        FrameLabSink.Stats sinkAfter = FrameLabSink.queryStats(ownerSink);
+        boolean sinkStatsDeniedAfter = sinkStatsDenied(ownerSink);
         FrameStreamIdentity sinkIdentityAfter = FrameLabSink.queryIdentity(ownerSink);
         ProducerState producerAfter = queryProducer();
         if (probeAuthorizationAccepted || authority || unauthorizedAdmission != null || !directSinkMutationDenied || invalidOwner || capability || duplicateOwner ||
@@ -230,14 +229,13 @@ public final class SameUidRegistrationAttackTestService extends Service {
                 transferArm || transferWait || transferFinishedWait || transferRelease || teardownArm ||
                 teardownWait || teardownContenderWait || teardownRelease || delayedArm || delayedFire ||
                 frameAccepted[0] || !"frame_caller_not_authorized".equals(frameReason[0]) ||
-                after == null || !after.ownerValid || !after.sinkAttached || !child.equals(after.identity) ||
-                !same(ownerBefore, ownerAfter) || !same(childBefore, childAfter) ||
-                sinkAfter == null || sinkBefore.frames != sinkAfter.frames ||
-                sinkBefore.frameId != sinkAfter.frameId || sinkBefore.checksum != sinkAfter.checksum ||
+                !queryDenied(after) || !statsDenied(ownerAfter) || !statsDenied(childAfter) ||
+                !sinkStatsDeniedAfter ||
                 !owner.equals(sinkIdentityAfter))
             throw new IllegalStateException("same_uid_attack_mutated_authorized_state");
         Log.i(TAG, "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS caller_uid=" + Process.myUid() +
-                " caller_pid=" + Process.myPid() + " owner_pid=" + before.compositorPid +
+                " caller_pid=" + Process.myPid() + " owner_query_denied=true stream_stats_denied=true " +
+                "process_identity_hidden=true sink_stats_denied=true " +
                 " session_id=" + owner.sessionId + " authority_open_rejected=true invalid_owner_rejected=true " +
                 "capability_rejected=true wrong_session_rejected=true wrong_stream_type_rejected=true " +
                 "ownerless_sink_admission_rejected=true forged_session_id=" + forgedSessionId + " " +
@@ -253,6 +251,25 @@ public final class SameUidRegistrationAttackTestService extends Service {
                 " frame_rejected=true reason=" + frameReason[0] +
                 " before_after_state_equal=true " +
                 "authorized_owner_and_generations_preserved=true");
+    }
+
+    private static boolean queryDenied(Type111ControlClient.StreamQuery query) {
+        return query != null && !query.authorized && !query.ownerValid && !query.sinkAttached &&
+                query.identity == null && query.compositorPid == 0;
+    }
+
+    private static boolean statsDenied(Type111ControlClient.FrameStats stats) {
+        return stats != null && !stats.authorized && !stats.registered && stats.activePfdTransfers == 0 &&
+                stats.retainedFrameBytes == 0 && !stats.transferActive && stats.lastFrameId == 0L;
+    }
+
+    private static boolean sinkStatsDenied(IBinder sink) throws RemoteException {
+        try {
+            FrameLabSink.queryStats(sink);
+            return false;
+        } catch (SecurityException denied) {
+            return true;
+        }
     }
 
     private boolean rawSinkGenerationMutationDenied(IBinder sink, FrameStreamIdentity identity,
@@ -376,13 +393,6 @@ public final class SameUidRegistrationAttackTestService extends Service {
         data.writeLong(identity.sessionId); data.writeInt(identity.streamType);
         data.writeLong(identity.connectionId); data.writeLong(identity.streamGeneration);
         data.writeInt(identity.outputId);
-    }
-
-    private boolean same(Type111ControlClient.FrameStats left, Type111ControlClient.FrameStats right) {
-        return left != null && right != null && left.registered == right.registered &&
-                left.activePfdTransfers == right.activePfdTransfers &&
-                left.retainedFrameBytes == right.retainedFrameBytes &&
-                left.transferActive == right.transferActive && left.lastFrameId == right.lastFrameId;
     }
 
     private final CountDownLatch frameDone = new CountDownLatch(1);

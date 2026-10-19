@@ -169,6 +169,12 @@ def test_recovery_probe_is_bound_to_the_exact_type111_death_identity():
     assert "deadIdentity = state.sink == registeredSink ? state.identity : registeredIdentity;" in compositor
     assert "takeType110RecoveryForDeath(deadIdentity)" in compositor
     assert "authorizeType110PostDeathProbe(recovery)" in compositor
+    lifecycle_detach = compositor[compositor.index("private boolean detachType111Sink(FrameStreamIdentity ownerIdentity,"):
+                                   compositor.index("private boolean replaceType111Sink(", compositor.index("private boolean detachType111Sink(FrameStreamIdentity ownerIdentity,"))]
+    assert "closingSessions.contains(childIdentity.sessionId)" in lifecycle_detach
+    assert "Type110LabProbeOwnership.Record recovery = takeType110RecoveryForDeath(childIdentity);" in lifecycle_detach
+    assert "if (recovery != null) authorizeType110PostDeathProbe(recovery);" in lifecycle_detach
+    assert "after_type111_sink_loss=true" in compositor
     assert "TYPE110_PROBE_AUTHORIZE" in compositor
     assert "frameIpcClient.streamIdentity()" in activity
     assert "registerType110Recovery(identity," in activity
@@ -189,9 +195,10 @@ def test_recovery_probe_is_bound_to_the_exact_type111_death_identity():
     assert "FrameStreamIdentity ownerIdentity;" in compositor
     assert "authority.ownerIdentity = state.identity" in compositor
     assert "isSessionOwnerCaller(identity.sessionId)" in compositor
-    assert "authorizedOwnerRebind" in compositor
-    assert "oldOwnerProcessGone" in compositor
+    assert "existing.ownerLifetimeToken == ownerToken" in compositor
     assert "existing.ownerProcess.equals(callerProcess)" in compositor
+    assert "authorizedOwnerRebind" not in compositor
+    assert "oldOwnerProcessGone" not in compositor
 
 
 def test_type110_owner_epoch_death_callback_survives_stream_generation_advance():
@@ -236,9 +243,15 @@ def test_process_name_binder_lookups_are_outside_compositor_lock_and_revalidated
                        compositor.index("private boolean isAuthorizedParentCaller(")]
     producer = compositor[compositor.index("private boolean authorizeType111Producer("):
                           compositor.index("private String processNameForPid(")]
-    assert "processNameForPid(existingOwnerPid)" in owner
-    assert owner.index("processNameForPid(existingOwnerPid)") < owner.rindex(
+    assert "processVerifiedAbsent(existingOwnerPid, existingOwnerProcess)" in owner
+    assert owner.index("processVerifiedAbsent(existingOwnerPid, existingOwnerProcess)") < owner.rindex(
         "synchronized (streamsLock)")
+    presence = compositor[compositor.index("private boolean processVerifiedAbsent("):
+                          compositor.index("private boolean isSessionOwnerCaller(")]
+    assert "manager == null) return false" in presence
+    assert "processes == null) return false" in presence
+    assert 'expectedProcessName.equals(process.processName)' in presence
+    assert 'getPackageName() + ":type111_view").equals(expectedProcessName)' in presence
     assert "existing == existingSnapshot" in owner
     assert "existing.ownerPid == existingOwnerPid" in owner
     assert "processNameForPid(priorPid)" in producer
@@ -310,8 +323,9 @@ def test_same_uid_api17_registration_matrix_sends_raw_invalid_binder_identities(
     assert "compositor.transact(FrameIpcProtocol.BEGIN" in attacker
     assert "writeIdentity(probeData, owner)" in attacker
     assert "writeIdentity(probeData, child)" in attacker
-    assert "probeData.writeLong(sinkBefore.frameId)" in attacker
-    assert "probeData.writeInt(sinkBefore.pid)" in attacker
+    assert "probeData.writeLong(1L)" in attacker
+    assert "probeData.writeInt(1)" in attacker
+    assert "sinkStatsDeniedBefore" in attacker and "sinkStatsDeniedAfter" in attacker
 
 
 def test_expected_type110_sink_loss_stops_fixture_with_parent_owner_cleanup_reason():
@@ -363,6 +377,8 @@ def test_api17_runner_uses_internal_probe_and_gracefully_stops_owned_services():
     assert "TYPE110_PROBE_OWNER_RECORD_ISSUED" in (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     assert 'stopService(new Intent(this, FrameLabSinkService.class))' in probe
     assert 'stopService(new Intent(this, CompositorService.class))' in probe
+    assert "long firstTimestampUs = System.nanoTime() / 1000L + 1000L;" in probe
+    assert "firstTimestampUs + i * 100L" in probe
     cleanup = runner[runner.index("complete_probe_session_and_stop_isolated_package()"):
                     runner.index("adb_local -s \"$serial\" logcat -c", runner.index("complete_probe_session_and_stop_isolated_package()"))]
     assert "TYPE110_LAB_SINK_DESTROYED" in cleanup
@@ -576,7 +592,7 @@ def test_pipe_streams_own_their_descriptors_exactly_once():
     assert "new FileInputStream(descriptor.getFileDescriptor())" not in service
 
 
-def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership():
+def test_v4_binder_contract_preserves_stream_identity_and_authorizes_queries():
     identity = (APP / "java/org/claritylink/android/FrameStreamIdentity.java").read_text()
     protocol = (APP / "java/org/claritylink/android/FrameIpcProtocol.java").read_text()
     client = (APP / "java/org/claritylink/android/FrameIpcClient.java").read_text()
@@ -585,8 +601,9 @@ def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership()
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     lab_sink = (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
 
-    assert "static final int VERSION = 3" in protocol
-    assert "Version 2 is intentionally rejected" in protocol
+    assert "static final int VERSION = 4" in protocol
+    assert "Version 3 added mandatory" in protocol
+    assert "Version 4 adds" in protocol and "explicit authorization bits" in protocol
     for field in ("sessionId", "streamType", "connectionId", "streamGeneration", "outputId"):
         assert field in identity
         assert field in client and field in service
@@ -598,10 +615,12 @@ def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership()
     assert "synchronized boolean onTransact" not in service
     assert "forwardToViewSink(state, identity" in service
     assert "state.retainedFrameBytes" in service
+    assert "reply.writeInt(authorized ? 1 : 0)" in service
+    assert "final boolean authorized" in (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
     assert "MAX_QUEUED_FRAME_BYTES" in sink
     assert "writeIdentity(data, currentIdentity)" in client
     assert "FrameLabSinkService.class" in activity
-    assert "FrameLabSink.queryStats(primaryLabSinkBinder)" in activity
+    assert "FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken)" in activity
     assert "primaryClient.begin(primaryIdentity, primaryLabSinkBinder)" in activity
     assert "primary_lab_recorded" in lab_sink
 
@@ -614,12 +633,18 @@ def test_type110_sink_preclaim_requires_compositor_one_use_admission():
     assert "reason=admission_required" in service
     assert "if (sink != null && sessionId == requestedSession) return sink" in service
     assert "TYPE110_LAB_SINK_BIND_REJECTED reason=admission_required" in service
+    assert "if (!activeSessionPreserved) stopSelf(startId);" in service
+    assert "A rejected later start request must not stop an already-authorized" in service
     assert "TYPE110_SINK_ADMISSION_CONSUME" in compositor
     assert "isAuthorizedParentCaller(callerPid)" in compositor
     assert "TYPE110_SINK_ADMISSION_ISSUED" in compositor
     assert "TYPE110_SINK_ADMISSION_CONSUMED" in compositor
     assert "requestType110SinkAdmission(compositor, activeGeneration)" in activity
-    assert "CL_R4B_SINK_OWNERLESS_PRECLAIM_ATTEMPT" in activity
+    assert "CL_R4B_SINK_ACTIVE_SESSION_PRECLAIM_ATTEMPT" in activity
+    assert activity.index("type110SinkServiceStarted = startService(sinkIntent)") < activity.index(
+        "CL_R4B_SINK_ACTIVE_SESSION_PRECLAIM_ATTEMPT")
+    assert "boolean activeSessionPreserved = sink != null && sessionId > 0L;" in service
+    assert '" active_session_preserved=" + activeSessionPreserved' in service
     assert "isBoundCompositorCaller()" in (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
     assert "direct_type110_sink_generation_mutation_rejected=true" in (
         APP / "java/org/claritylink/android/SameUidRegistrationAttackTestService.java").read_text()

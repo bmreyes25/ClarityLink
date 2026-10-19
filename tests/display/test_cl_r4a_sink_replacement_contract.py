@@ -5,12 +5,12 @@ ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "android/cl-imp-03-app/java/org/claritylink/android"
 
 
-def test_sink_replacement_is_version3_owner_authorized_and_identity_checked():
+def test_sink_replacement_is_version4_owner_authorized_and_identity_checked():
     protocol = (APP / "FrameIpcProtocol.java").read_text()
     client = (APP / "FrameIpcClient.java").read_text()
     service = (APP / "CompositorService.java").read_text()
 
-    assert "static final int VERSION = 3;" in protocol
+    assert "static final int VERSION = 4;" in protocol
     assert "TYPE111_REPLACE_SINK = 25" in protocol
     assert "FrameIpcProtocol.TYPE111_REPLACE_SINK" in client
     assert "type110Owner.streamType != FrameStreamIdentity.TYPE110" in client
@@ -114,7 +114,7 @@ def test_api17_reattach_harness_restarts_view_with_the_existing_parent_session()
 
     assert 'control.queryType111Stream(primaryIdentity)' in activity
     assert 'FrameIpcClient.replaceType111Sink(compositorEndpoint, primaryIdentity' in activity
-    assert '"stale_frame_rejected=true"' in activity
+    assert '"stale_frame_rejected=true stale_reason="' in activity
     assert '"CL_R4A_VIEW_REATTACH_PASS session_id="' in activity
     assert '" type110_generation=" + reattachType110Generation' in activity
     assert 'if (reattachSessionId > 0L && type111FixtureMode)' in activity

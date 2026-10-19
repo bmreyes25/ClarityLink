@@ -10,27 +10,47 @@ final class Type111ControlClient {
 
     Type111ControlClient(IBinder endpoint) { this.endpoint = endpoint; }
 
+    boolean registerOwnerDeathQueryObserver(final FrameStreamIdentity owner, int observerPid,
+            IBinder observerToken)
+            throws RemoteException {
+        if (owner == null || !owner.isValid() || owner.streamType != FrameStreamIdentity.TYPE110)
+            return false;
+        if (observerPid <= 0 || observerToken == null || !observerToken.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain(), reply = Parcel.obtain();
+        try {
+            header(data); writeIdentity(data, owner);
+            data.writeInt(observerPid);
+            data.writeStrongBinder(observerToken);
+            endpoint.transact(FrameIpcProtocol.LAB_REGISTER_OWNER_DEATH_QUERY_OBSERVER,
+                    data, reply, 0);
+            reply.readException();
+            return reply.readInt() != 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     static final class StreamQuery {
+        final boolean authorized;
         final boolean ownerValid;
         final boolean sinkAttached;
         final FrameStreamIdentity identity;
         final int compositorPid;
-        StreamQuery(boolean ownerValid, boolean sinkAttached, FrameStreamIdentity identity,
+        StreamQuery(boolean authorized, boolean ownerValid, boolean sinkAttached, FrameStreamIdentity identity,
                 int compositorPid) {
-            this.ownerValid = ownerValid; this.sinkAttached = sinkAttached;
+            this.authorized = authorized; this.ownerValid = ownerValid; this.sinkAttached = sinkAttached;
             this.identity = identity; this.compositorPid = compositorPid;
         }
     }
 
     static final class FrameStats {
+        final boolean authorized;
         final boolean registered;
         final int activePfdTransfers;
         final int retainedFrameBytes;
         final boolean transferActive;
         final long lastFrameId;
-        FrameStats(boolean registered, int activePfdTransfers, int retainedFrameBytes,
+        FrameStats(boolean authorized, boolean registered, int activePfdTransfers, int retainedFrameBytes,
                 boolean transferActive, long lastFrameId) {
-            this.registered = registered;
+            this.authorized = authorized; this.registered = registered;
             this.activePfdTransfers = activePfdTransfers;
             this.retainedFrameBytes = retainedFrameBytes;
             this.transferActive = transferActive;
@@ -45,7 +65,8 @@ final class Type111ControlClient {
             header(data); writeIdentity(data, identity);
             endpoint.transact(FrameIpcProtocol.FRAME_LAB_QUERY_STATS, data, reply, 0);
             reply.readException();
-            return new FrameStats(reply.readInt() != 0, reply.readInt(), reply.readInt(),
+            boolean authorized = reply.readInt() != 0;
+            return new FrameStats(authorized, reply.readInt() != 0, reply.readInt(), reply.readInt(),
                     reply.readInt() != 0, reply.readLong());
         } finally { reply.recycle(); data.recycle(); }
     }
@@ -58,12 +79,13 @@ final class Type111ControlClient {
             header(data); writeIdentity(data, type110Owner);
             endpoint.transact(FrameIpcProtocol.TYPE111_QUERY_STREAM, data, reply, 0);
             reply.readException();
+            boolean authorized = reply.readInt() != 0;
             boolean ownerValid = reply.readInt() != 0;
             boolean present = reply.readInt() != 0;
             boolean sinkAttached = reply.readInt() != 0;
             FrameStreamIdentity identity = present ? readIdentity(reply) : null;
             int pid = reply.readInt();
-            return new StreamQuery(ownerValid, sinkAttached, identity, pid);
+            return new StreamQuery(authorized, ownerValid, sinkAttached, identity, pid);
         } finally { reply.recycle(); data.recycle(); }
     }
 
