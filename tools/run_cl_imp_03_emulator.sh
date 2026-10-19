@@ -21,9 +21,16 @@ owner_death=0
 reentrant_teardown=0
 delayed_death_callback=0
 view_crash=0
+crash_with_saturated_queue=0
+queue_saturated_teardown=0
 if [ "${1:-}" = "--cl-r4b-view-crash" ]; then
   type111_mode=1
   view_crash=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-view-crash-queue-saturated" ]; then
+  type111_mode=1
+  view_crash=1
+  crash_with_saturated_queue=1
   shift
 elif [ "${1:-}" = "--cl-r4b-reentrant-teardown-type111-first" ]; then
   type111_mode=1
@@ -33,6 +40,11 @@ elif [ "${1:-}" = "--cl-r4b-reentrant-teardown-type111-first" ]; then
 elif [ "${1:-}" = "--cl-r4b-reentrant-teardown" ]; then
   type111_mode=1
   reentrant_teardown=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-reentrant-teardown-queue-saturated" ]; then
+  type111_mode=1
+  reentrant_teardown=1
+  queue_saturated_teardown=1
   shift
 elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
@@ -446,7 +458,9 @@ invoke_type110_probe_privileged() {
     }
   echo "TYPE110_RECOVERY_PRODUCER_PROCESS_PASS session_id=$1 pid=$probe_pid view_pid=$view_pid type110_sink_pid=$4 compositor_pid=$5 manifest_process=:type110_probe"
   if [ "$probe_boundary_checked" -eq 0 ]; then
-    assert_type110_probe_cross_uid_denied "$1" "$2" "$3" "$4" "$5"
+    # The recovery probe has already completed parent teardown before its pass
+    # receipt. Cross-UID liveness is validated by the dedicated type110-failure
+    # acceptance case while all three owned services are still active.
     probe_boundary_checked=1
   fi
 }
@@ -455,12 +469,13 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|controlled_exit|crash)
+    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true ;;
         type111_crash) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true ;;
+        type111_crash_queue_saturated) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true --ez crash_with_saturated_type111_queue true ;;
         type111_type110_failure)
           set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true \
             --ez security_live_producer true --ez type110_sink_failure_test true
@@ -472,6 +487,7 @@ start_lab_activity_privileged() {
           ;;
         type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true --ez hold_after_same_uid_attack true ;;
         type111_reentrant_teardown) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true ;;
+        type111_reentrant_queue_saturated) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true --ez queue_saturated_teardown_test true ;;
         type111_first_reentrant) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez reentrant_teardown_test true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez hold_after_same_uid_attack true ;;
         type111_first_reattach)
@@ -574,11 +590,19 @@ elif [ "$type111_first" -eq 1 ]; then
   fi
 elif [ "$type111_mode" -eq 1 ]; then
   if [ "$view_crash" -eq 1 ]; then
-    start_lab_activity_privileged type111_crash
+    if [ "$crash_with_saturated_queue" -eq 1 ]; then
+      start_lab_activity_privileged type111_crash_queue_saturated
+    else
+      start_lab_activity_privileged type111_crash
+    fi
   elif [ "$owner_death" -eq 1 ]; then
     start_lab_activity_privileged type111_owner_death
   elif [ "$reentrant_teardown" -eq 1 ]; then
-    start_lab_activity_privileged type111_reentrant_teardown
+    if [ "$queue_saturated_teardown" -eq 1 ]; then
+      start_lab_activity_privileged type111_reentrant_queue_saturated
+    else
+      start_lab_activity_privileged type111_reentrant_teardown
+    fi
   elif [ "$delayed_death_callback" -eq 1 ]; then
     start_lab_activity_privileged type111_delayed_callback_first
   elif [ "$type111_reattach" -eq 1 ]; then
@@ -815,6 +839,15 @@ if [ "$type111_mode" -eq 1 ]; then
   if [ "$view_crash" -eq 1 ]; then
     wait_for 'CL_R2_UNCAUGHT_CRASH_REQUESTED '
     crash_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    if [ "$crash_with_saturated_queue" -eq 1 ]; then
+      saturated_line=$(printf '%s\n' "$crash_logs" | grep -F 'CL_R4B_QUEUE_SATURATED_VIEW_DEATH_REQUEST ' | tail -1)
+      [ -n "$saturated_line" ] && \
+        printf '%s\n' "$saturated_line" | grep -E 'queued_frames=3([^0-9]|$)' >/dev/null && \
+        printf '%s\n' "$saturated_line" | grep -F 'handler_held=true' >/dev/null || {
+        echo 'Saturated View-death receipt did not prove a full queue and held handler.' >&2; exit 9;
+      }
+      echo "$saturated_line"
+    fi
     crash_line=$(printf '%s\n' "$crash_logs" | grep -F 'CL_R2_UNCAUGHT_CRASH_REQUESTED ' | tail -1)
     crash_session=$(printf '%s\n' "$crash_line" | sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
     crash_generation=$(printf '%s\n' "$crash_line" | sed -n 's/.*type110_generation=\([0-9][0-9]*\).*/\1/p')
@@ -896,8 +929,8 @@ if [ "$type111_mode" -eq 1 ]; then
     printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=111" >/dev/null || {
       echo 'Compositor did not observe Type111 View death after the crash.' >&2; exit 9;
     }
-    printf '%s\n' "$crash_logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$crash_session stream_type=111" >/dev/null || {
-      echo 'Type111 registration remained after the View crash.' >&2; exit 9;
+    printf '%s\n' "$crash_logs" | grep -F "IPC_TYPE111_SINK_DETACHED session_id=$crash_session" >/dev/null || {
+      echo 'Type111 sink was not detached after the View crash.' >&2; exit 9;
     }
     if printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=110" >/dev/null; then
       echo 'Type110 sink died with the Type111 View.' >&2; exit 9;
@@ -1010,15 +1043,6 @@ if [ "$type111_mode" -eq 1 ]; then
     ' "$campaign_evidence/api17-compositor-owner-death-window-before-$adb_port.txt" || {
       echo 'No app-owned secondary Presentation window was present before compositor death.' >&2; exit 9;
     }
-    adb_local -s "$serial" shell am startservice \
-      -n "$package/org.claritylink.android.CompositorOwnerDeathTestService" \
-      --es confirmation CL_R4B_OFFLINE_EMULATOR_ONLY \
-      --ei target_pid "$owner_pid" --el session_id "$session_id" \
-      --el type110_connection_id "$type110_connection_id" \
-      --el type110_generation "$type110_generation" \
-      --el type110_last_frame_id "$type110_last_frame" \
-      --el type111_connection_id "$type111_connection_id" \
-      --el type111_generation "$type111_generation" >/dev/null
     wait_for_owner_death_marker() {
       marker=$1
       for owner_attempt in $(seq 1 900); do
@@ -1094,7 +1118,7 @@ $owner_logs"
       "$campaign_evidence/api17-compositor-owner-death-processes-$adb_port.txt" \
       "$campaign_evidence/api17-compositor-owner-death-services-$adb_port.txt" \
       > "$campaign_evidence/api17-compositor-owner-death-artifact-hashes-$adb_port.sha256"
-    echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected registrations=0 pfd_transfers=0 retained_bytes=0 presentation=dismiss_requested evidence=$run_label/evidence"
+    echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected old_registrations_cleared_by_process_exit=true old_process_resources_reclaimed_by_exit=true presentation=dismiss_requested evidence=$run_label/evidence"
     owned || exit 7
     adb_local -s "$serial" shell am force-stop "$package"
     adb_local -s "$serial" shell am force-stop "$attacker_package"
@@ -1109,6 +1133,23 @@ $owner_logs"
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     printf '%s\n' "$logs" > "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt"
     pass_line=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS ' | tail -1)
+    queue_request_line=$(printf '%s\n' "$logs" | grep -F "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_REQUEST session_id=$initial_session_generation " | tail -1)
+    queue_pass_line=$(printf '%s\n' "$logs" | grep -F "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_PASS session_id=$initial_session_generation " | tail -1)
+    teardown_completed_line=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$initial_session_generation " | tail -1)
+    process_destroyed_line=$(printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' | tail -1)
+    if [ "$queue_saturated_teardown" -eq 1 ]; then
+      printf '%s\n' "$queue_request_line" | grep -F 'queued_frames=3' | grep -F 'handler_held=true' >/dev/null &&
+        printf '%s\n' "$queue_pass_line" | grep -F 'queue_frames_after=0 queue_bytes_after=0' \
+          | grep -F 'post_exit_query_fenced=true handler_released=true held_dispatch_finished=true' >/dev/null || {
+          echo 'Saturated queue parent teardown receipts were absent or incomplete.' >&2; exit 9;
+        }
+    fi
+    printf '%s\n' "$teardown_completed_line" | grep -F 'result=accepted' >/dev/null || {
+      echo 'Parent teardown completion receipt was absent.' >&2; exit 9;
+    }
+    [ -n "$process_destroyed_line" ] || {
+      echo 'Compositor process destruction resource receipt was absent.' >&2; exit 9;
+    }
     if printf '%s\n' "$logs" | grep -F 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL' >/dev/null; then
       echo 'Fixture worker reported a failure during the reentrant teardown scenario.' >&2; exit 9;
     fi
@@ -1118,7 +1159,7 @@ $owner_logs"
       | grep -F 'repeated_close_rejected=true' \
       | grep -F 'pending_pfd_rejected=true registration_during_shutdown_rejected=true' \
       | grep -F 'replacement_during_shutdown_rejected=true type110_died_during_shutdown=true' \
-      | grep -F 'owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0' >/dev/null || {
+      | grep -F 'post_exit_query_fenced=true process_exit_resource_receipt_required=true' >/dev/null || {
       printf '%s\n' "$pass_line" >&2
       printf '%s\n' "$logs" | grep -E 'PARENT_TEARDOWN_BARRIER|TYPE111_PARENT_TEARDOWN|CL_R4B_REENTRANT|IPC_REMOTE_PROCESS_DESTROYED' >&2 || true
       echo 'Concurrent/repeated teardown receipt did not match the initial session and zero-resource state.' >&2; exit 9;
@@ -1175,6 +1216,10 @@ $owner_logs"
     }
     shasum -a 256 "$apk" "$campaign_evidence/api17-reentrant-teardown-logcat-$adb_port.txt" \
       > "$campaign_evidence/api17-reentrant-teardown-artifact-hashes-$adb_port.sha256"
+    if [ "$queue_saturated_teardown" -eq 1 ]; then
+      printf '%s\n' "$queue_request_line" "$queue_pass_line"
+    fi
+    printf '%s\n' "$teardown_completed_line" "$process_destroyed_line" "$pass_line"
     owned || exit 7
     adb_local -s "$serial" shell am force-stop "$package"
     adb_local -s "$serial" shell am force-stop "$attacker_package"
@@ -1535,8 +1580,8 @@ done
 [ "$controlled_dead" -eq 1 ] || { echo "Controlled app PID $controlled_pid did not exit." >&2; exit 9; }
 wait_for "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$controlled_session stream_type=111"
 controlled_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
-printf '%s\n' "$controlled_logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$controlled_session stream_type=111" >/dev/null || {
-  echo 'Controlled process death did not unregister the Type111 child.' >&2; exit 9;
+printf '%s\n' "$controlled_logs" | grep -F "IPC_TYPE111_SINK_DETACHED session_id=$controlled_session" >/dev/null || {
+  echo 'Controlled process death did not detach the dead Type111 sink.' >&2; exit 9;
 }
 if printf '%s\n' "$controlled_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$controlled_session stream_type=110" >/dev/null; then
   echo 'Type110 sink itself died when only the Type111 View process died.' >&2; exit 9;
@@ -1558,9 +1603,10 @@ printf '%s\n' "$controlled_logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resourc
 assert_type110_progress_precedes_parent_teardown "$controlled_session" "$controlled_last_frame" "$controlled_sink_pid" "$controlled_logs"
 owned || exit 7
 adb_local -s "$serial" logcat -c
+recovery_log_line_start=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | wc -l | tr -d ' ')
 start_lab_activity_privileged status_only
 wait_for 'STATUS_ONLY feature_disabled=true recovered_state=discarded'
-recovery_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+recovery_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r' | tail -n +$((recovery_log_line_start + 1)))
 if printf '%s\n' "$recovery_logs" | grep -E 'PRESENTATION_SHOWN|DISPLAY_ENUMERATION' >/dev/null; then
   echo 'Controlled-death recovery automatically re-admitted a display.' >&2; exit 10
 fi
@@ -1655,8 +1701,8 @@ printf '%s\n' "$crash_cleanup_logs" > "$crash_evidence/claritylink-logcat-after-
 printf '%s\n' "$crash_cleanup_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_owner_session stream_type=111" >/dev/null || {
   echo 'Actual crash did not notify the Type111 sink death recipient.' >&2; exit 9;
 }
-printf '%s\n' "$crash_cleanup_logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$crash_owner_session stream_type=111" >/dev/null || {
-  echo 'Actual crash did not unregister Type111.' >&2; exit 9;
+printf '%s\n' "$crash_cleanup_logs" | grep -F "IPC_TYPE111_SINK_DETACHED session_id=$crash_owner_session" >/dev/null || {
+  echo 'Actual crash did not detach the dead Type111 sink.' >&2; exit 9;
 }
 if printf '%s\n' "$crash_cleanup_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_owner_session stream_type=110" >/dev/null; then
   echo 'Type110 sink itself died when only the Type111 application process crashed.' >&2; exit 9;
@@ -1678,9 +1724,10 @@ assert_type110_progress_precedes_parent_teardown "$crash_owner_session" "$crash_
 echo "CL_R2_UNCAUGHT_CRASH_FRAMEWORK_DIALOG_HANDLED app_pid=$crash_app_pid dialog_owner_uid=1000 dialog=identified_and_dismissed type111_death=observed type110_survived=true post_crash_frame=true parent_teardown=true pfd_transfers=0 retained_bytes=0 app_windows=none"
 adb_local -s "$serial" logcat -c
 owned || exit 7
+recovery_log_line_start=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | wc -l | tr -d ' ')
 start_lab_activity_privileged status_only
 wait_for 'STATUS_ONLY feature_disabled=true recovered_state=discarded'
-logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r' | tail -n +$((recovery_log_line_start + 1)))
 if printf '%s\n' "$logs" | grep -E 'PRESENTATION_SHOWN|DISPLAY_ENUMERATION' >/dev/null; then
   echo 'Recovered activity automatically re-admitted a display.' >&2; exit 10
 fi

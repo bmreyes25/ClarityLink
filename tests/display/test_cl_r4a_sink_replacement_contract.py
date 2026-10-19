@@ -5,12 +5,12 @@ ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "android/cl-imp-03-app/java/org/claritylink/android"
 
 
-def test_sink_replacement_is_version3_owner_authorized_and_identity_checked():
+def test_sink_replacement_is_version4_owner_authorized_and_identity_checked():
     protocol = (APP / "FrameIpcProtocol.java").read_text()
     client = (APP / "FrameIpcClient.java").read_text()
     service = (APP / "CompositorService.java").read_text()
 
-    assert "static final int VERSION = 3;" in protocol
+    assert "static final int VERSION = 4;" in protocol
     assert "TYPE111_REPLACE_SINK = 25" in protocol
     assert "FrameIpcProtocol.TYPE111_REPLACE_SINK" in client
     assert "type110Owner.streamType != FrameStreamIdentity.TYPE110" in client

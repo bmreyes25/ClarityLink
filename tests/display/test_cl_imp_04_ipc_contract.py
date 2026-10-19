@@ -363,6 +363,8 @@ def test_api17_runner_uses_internal_probe_and_gracefully_stops_owned_services():
     assert "TYPE110_PROBE_OWNER_RECORD_ISSUED" in (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     assert 'stopService(new Intent(this, FrameLabSinkService.class))' in probe
     assert 'stopService(new Intent(this, CompositorService.class))' in probe
+    assert "long firstTimestampUs = System.nanoTime() / 1000L + 1000L;" in probe
+    assert "firstTimestampUs + i * 100L" in probe
     cleanup = runner[runner.index("complete_probe_session_and_stop_isolated_package()"):
                     runner.index("adb_local -s \"$serial\" logcat -c", runner.index("complete_probe_session_and_stop_isolated_package()"))]
     assert "TYPE110_LAB_SINK_DESTROYED" in cleanup
@@ -576,7 +578,7 @@ def test_pipe_streams_own_their_descriptors_exactly_once():
     assert "new FileInputStream(descriptor.getFileDescriptor())" not in service
 
 
-def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership():
+def test_v4_binder_contract_preserves_stream_identity_and_authorizes_queries():
     identity = (APP / "java/org/claritylink/android/FrameStreamIdentity.java").read_text()
     protocol = (APP / "java/org/claritylink/android/FrameIpcProtocol.java").read_text()
     client = (APP / "java/org/claritylink/android/FrameIpcClient.java").read_text()
@@ -585,8 +587,9 @@ def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership()
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     lab_sink = (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
 
-    assert "static final int VERSION = 3" in protocol
-    assert "Version 2 is intentionally rejected" in protocol
+    assert "static final int VERSION = 4" in protocol
+    assert "Version 3 added mandatory" in protocol
+    assert "Version 4 adds" in protocol and "explicit authorization bits" in protocol
     for field in ("sessionId", "streamType", "connectionId", "streamGeneration", "outputId"):
         assert field in identity
         assert field in client and field in service
@@ -598,6 +601,8 @@ def test_v3_binder_contract_preserves_stream_identity_and_per_stream_ownership()
     assert "synchronized boolean onTransact" not in service
     assert "forwardToViewSink(state, identity" in service
     assert "state.retainedFrameBytes" in service
+    assert "reply.writeInt(authorized ? 1 : 0)" in service
+    assert "final boolean authorized" in (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
     assert "MAX_QUEUED_FRAME_BYTES" in sink
     assert "writeIdentity(data, currentIdentity)" in client
     assert "FrameLabSinkService.class" in activity

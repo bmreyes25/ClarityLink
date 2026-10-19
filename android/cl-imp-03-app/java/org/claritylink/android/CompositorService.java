@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -143,6 +144,9 @@ public final class CompositorService extends Service {
         Type110LabProbeOwnership.Record pendingType110Recovery;
         int authorizedType111ProducerPid;
         FrameStreamIdentity authorizedType111ProducerIdentity;
+        int authorizedOwnerDeathObserverPid;
+        IBinder ownerDeathObserverToken;
+        IBinder.DeathRecipient ownerDeathObserverDeathRecipient;
         ParentAuthority(FrameStreamIdentity ownerIdentity, IBinder ownerSink, long epoch, int ownerPid,
                 String ownerProcess) {
             this.ownerIdentity = ownerIdentity;
@@ -197,6 +201,59 @@ public final class CompositorService extends Service {
             int version = data.readInt();
             if (version != FrameIpcProtocol.VERSION) {
                 reply.writeException(new IllegalArgumentException("unsupported IPC version"));
+                return true;
+            }
+            if (code == FrameIpcProtocol.LAB_REGISTER_OWNER_DEATH_QUERY_OBSERVER) {
+                final FrameStreamIdentity ownerIdentity = readIdentity(data);
+                final int observerPid = data.readInt();
+                final IBinder observerToken = data.readStrongBinder();
+                boolean observerRole = Build.VERSION.SDK_INT == 17 && observerPid > 0 &&
+                        (getPackageName() + ":owner_death_test").equals(processNameForPid(observerPid));
+                boolean ownerCaller = ownerIdentity != null &&
+                        isSessionOwnerCaller(ownerIdentity.sessionId);
+                boolean accepted = false;
+                synchronized (streamsLock) {
+                    ParentAuthority authority = ownerIdentity == null ? null :
+                            parentAuthorities.get(ownerIdentity.sessionId);
+                    StreamState owner = ownerIdentity == null ? null : streams.get(ownerIdentity.key());
+                    if (observerRole && ownerIdentity != null &&
+                            ownerIdentity.streamType == FrameStreamIdentity.TYPE110 &&
+                            ownerCaller && authority != null &&
+                            owner != null && ownerIdentity.equals(owner.identity) &&
+                            type111Sessions.containsKey(ownerIdentity.sessionId) &&
+                            authority.authorizedOwnerDeathObserverPid == 0 &&
+                            observerToken != null && observerToken.isBinderAlive()) {
+                        final ParentAuthority registeredAuthority = authority;
+                        IBinder.DeathRecipient deathRecipient = new IBinder.DeathRecipient() {
+                            public void binderDied() {
+                                synchronized (streamsLock) {
+                                    if (parentAuthorities.get(ownerIdentity.sessionId) == registeredAuthority &&
+                                            registeredAuthority.ownerDeathObserverToken == observerToken) {
+                                        registeredAuthority.authorizedOwnerDeathObserverPid = 0;
+                                        registeredAuthority.ownerDeathObserverToken = null;
+                                        registeredAuthority.ownerDeathObserverDeathRecipient = null;
+                                    }
+                                }
+                            }
+                        };
+                        try {
+                            observerToken.linkToDeath(deathRecipient, 0);
+                            if (observerToken.isBinderAlive()) {
+                                authority.ownerDeathObserverToken = observerToken;
+                                authority.ownerDeathObserverDeathRecipient = deathRecipient;
+                                authority.authorizedOwnerDeathObserverPid = observerPid;
+                                accepted = true;
+                            } else {
+                                observerToken.unlinkToDeath(deathRecipient, 0);
+                            }
+                        } catch (RemoteException deadObserver) { accepted = false; }
+                    }
+                }
+                reply.writeNoException(); reply.writeInt(accepted ? 1 : 0);
+                Log.i(TAG, "OWNER_DEATH_QUERY_OBSERVER_REGISTER session_id=" +
+                        (ownerIdentity == null ? 0L : ownerIdentity.sessionId) +
+                        " grant_caller_pid=" + Binder.getCallingPid() +
+                        " observer_pid=" + observerPid + " accepted=" + accepted);
                 return true;
             }
             if (code == FrameIpcProtocol.LAB_ARM_TRANSFER_BARRIER) {
@@ -341,9 +398,11 @@ public final class CompositorService extends Service {
             }
             if (code == FrameIpcProtocol.FRAME_LAB_QUERY_STATS) {
                 FrameStreamIdentity identity = readIdentity(data);
-                StreamState state = findStream(identity);
-                boolean matches = state != null && identity.equals(state.identity);
+                boolean authorized = identity != null && isAuthorizedSessionQueryCaller(identity.sessionId);
+                StreamState state = authorized ? findStream(identity) : null;
+                boolean matches = authorized && state != null && identity.equals(state.identity);
                 reply.writeNoException();
+                reply.writeInt(authorized ? 1 : 0);
                 reply.writeInt(matches ? 1 : 0);
                 reply.writeInt(matches ? state.activePfdTransfers.get() : 0);
                 reply.writeInt(matches ? state.retainedFrameBytes.get() : 0);
@@ -584,12 +643,14 @@ public final class CompositorService extends Service {
             }
             if (code == FrameIpcProtocol.TYPE111_QUERY_STREAM) {
                 FrameStreamIdentity ownerIdentity = readIdentity(data);
+                boolean authorized = ownerIdentity != null &&
+                        isAuthorizedSessionQueryCaller(ownerIdentity.sessionId);
                 FrameStreamIdentity childIdentity = null;
                 boolean sinkAttached = false;
                 boolean ownerValid = false;
                 synchronized (streamsLock) {
                     StreamState owner = ownerIdentity == null ? null : streams.get(ownerIdentity.key());
-                    ownerValid = owner != null && ownerIdentity.streamType == FrameStreamIdentity.TYPE110 &&
+                    ownerValid = authorized && owner != null && ownerIdentity.streamType == FrameStreamIdentity.TYPE110 &&
                             ownerIdentity.equals(owner.identity) && !closingSessions.contains(ownerIdentity.sessionId);
                     if (ownerValid && type111Sessions.containsKey(ownerIdentity.sessionId)) {
                         for (StreamState current : streams.values()) {
@@ -603,11 +664,12 @@ public final class CompositorService extends Service {
                     } else ownerValid = false;
                 }
                 reply.writeNoException();
+                reply.writeInt(authorized ? 1 : 0);
                 reply.writeInt(ownerValid ? 1 : 0);
                 reply.writeInt(childIdentity == null ? 0 : 1);
                 reply.writeInt(sinkAttached ? 1 : 0);
                 if (childIdentity != null) writeIdentity(reply, childIdentity);
-                reply.writeInt(Process.myPid());
+                reply.writeInt(authorized ? Process.myPid() : 0);
                 return true;
             }
             if (code == FrameIpcProtocol.TYPE111_DETACH_SINK) {
@@ -1071,6 +1133,29 @@ public final class CompositorService extends Service {
 
     private boolean isSessionOwnerCaller(long sessionId) {
         return isSessionOwnerCaller(sessionId, false);
+    }
+
+    /** Session queries require the exact process PID bound to this live parent authority. */
+    private boolean isAuthorizedSessionQueryCaller(long sessionId) {
+        final int callerPid = Binder.getCallingPid();
+        // A live, exact owner may inspect cleanup state while teardown is in progress.
+        // Once the parent authority is dead, the same query fails closed.
+        boolean authorized = isSessionOwnerCaller(sessionId, true);
+        if (!authorized) {
+            String callerProcess = processNameForPid(callerPid);
+            boolean observerRole = (getPackageName() + ":owner_death_test").equals(callerProcess);
+            synchronized (streamsLock) {
+                ParentAuthority authority = parentAuthorities.get(sessionId);
+                authorized = authority != null && !authority.dead &&
+                        authority.authorizedOwnerDeathObserverPid == callerPid &&
+                        observerRole && authority.ownerDeathObserverToken != null &&
+                        authority.ownerDeathObserverToken.isBinderAlive();
+            }
+        }
+        if (!authorized) Log.w(TAG, "IPC_SESSION_QUERY_REJECT session_id=" + sessionId +
+                " caller_uid=" + Binder.getCallingUid() + " caller_pid=" + callerPid +
+                " reason=caller_not_bound_to_session_owner");
+        return authorized;
     }
 
     /** Shutdown may still need the exact owner to release and observe a test-only held transfer. */

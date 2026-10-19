@@ -328,6 +328,14 @@ final class FrameIpcClient {
     FrameStreamIdentity streamIdentity() { return identity; }
     long nextFrameIdHint() { return nextFrameId.get(); }
 
+    void advanceNextFrameIdHint(long minimumNextFrameId) {
+        if (minimumNextFrameId <= 0 || minimumNextFrameId == Long.MAX_VALUE) return;
+        long current = nextFrameId.get();
+        while (current < minimumNextFrameId &&
+                !nextFrameId.compareAndSet(current, minimumNextFrameId))
+            current = nextFrameId.get();
+    }
+
     private static void writeIdentity(Parcel data, FrameStreamIdentity streamIdentity) {
         data.writeLong(streamIdentity.sessionId);
         data.writeInt(streamIdentity.streamType);

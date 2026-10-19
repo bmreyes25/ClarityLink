@@ -46,7 +46,11 @@ public final class Type110OwnerIsolationTestActivity extends Activity {
             a.join(3000L);
             b.join(3000L);
             if (a.isAlive() || b.isAlive() || failures[0] != null || failures[1] != null ||
-                    !issued[0] || !issued[1]) throw new IllegalStateException("concurrent_issue_failed");
+                    !issued[0] || !issued[1])
+                throw new IllegalStateException("concurrent_issue_failed issued_a=" + issued[0] +
+                        " issued_b=" + issued[1] + " a_alive=" + a.isAlive() +
+                        " b_alive=" + b.isAlive() + " failure_a=" + failureName(failures[0]) +
+                        " failure_b=" + failureName(failures[1]));
             if (!Type110LabProbeOwnership.hasPending(this, deathA) ||
                     !Type110LabProbeOwnership.hasPending(this, deathB))
                 throw new IllegalStateException("session_record_overwritten");
@@ -158,5 +162,10 @@ public final class Type110OwnerIsolationTestActivity extends Activity {
                 }
             }
         }, "cl-owner-issue-" + index);
+    }
+
+    private static String failureName(Throwable failure) {
+        return failure == null ? "none" : failure.getClass().getSimpleName() + ":" +
+                String.valueOf(failure.getMessage());
     }
 }

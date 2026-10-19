@@ -3,10 +3,9 @@ package org.claritylink.android;
 /** Versioned private Binder protocol used only by the project-owned lab processes. */
 final class FrameIpcProtocol {
     static final String DESCRIPTOR = "org.claritylink.android.IClarityLinkCompositor";
-    // Version 3 adds mandatory session/stream/output identity to all frame and
-    // generation transactions. Version 2 is intentionally rejected because it
-    // cannot disambiguate a multi-stream frame owner.
-    static final int VERSION = 3;
+    // Version 3 added mandatory session/stream/output identity. Version 4 adds
+    // explicit authorization bits to stream and frame-stat query replies.
+    static final int VERSION = 4;
     static final int BEGIN = 1;
     static final int FRAME = 2;
     static final int END = 3;
@@ -46,6 +45,7 @@ final class FrameIpcProtocol {
     static final int TYPE111_PRODUCER_AUTHORIZE = 40;
     static final int TYPE110_SINK_ADMISSION = 41;
     static final int VIEW_CLOSE = 42;
+    static final int LAB_REGISTER_OWNER_DEATH_QUERY_OBSERVER = 43;
     static final int TYPE110_SINK_ADMISSION_CONSUME = 1;
     static final int FRAME_LAB_QUERY_IDENTITY = 26;
     static final int PIXEL_FORMAT_RGBA_8888 = 1;

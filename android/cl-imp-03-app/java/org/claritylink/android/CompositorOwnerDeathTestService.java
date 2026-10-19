@@ -27,6 +27,7 @@ public final class CompositorOwnerDeathTestService extends Service {
     private static final String CONFIRMATION = "CL_R4B_OFFLINE_EMULATOR_ONLY";
     private final Handler handler = new Handler();
     private final Object lifecycleLock = new Object();
+    private final IBinder ownerDeathQueryToken = new Binder();
     private volatile IBinder endpoint;
     private volatile boolean ownerDeathRequested;
     private volatile boolean endpointDisconnected;
@@ -41,7 +42,7 @@ public final class CompositorOwnerDeathTestService extends Service {
     private long oldOwnerLastFrame;
     private ServiceConnection connection;
 
-    @Override public IBinder onBind(Intent intent) { return null; }
+    @Override public IBinder onBind(Intent intent) { return ownerDeathQueryToken; }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (started) return START_NOT_STICKY;
@@ -138,11 +139,20 @@ public final class CompositorOwnerDeathTestService extends Service {
         try {
             Type111ControlClient control = new Type111ControlClient(service);
             Type111ControlClient.StreamQuery query = control.queryType111Stream(ownerIdentity);
+            if (!ownerDeathRequested && (query == null || query.compositorPid <= 0)) {
+                long grantDeadline = SystemClock.elapsedRealtime() + 10000L;
+                while (!ownerDeathRequested && SystemClock.elapsedRealtime() < grantDeadline &&
+                        (query == null || query.compositorPid <= 0)) {
+                    Thread.sleep(50L);
+                    query = control.queryType111Stream(ownerIdentity);
+                }
+            }
             if (query == null) throw new IllegalStateException("owner_query_missing");
             if (!ownerDeathRequested) {
-                if (query.compositorPid != targetPid || !query.ownerValid || query.identity == null ||
+                if (!query.authorized || query.compositorPid != targetPid || !query.ownerValid || query.identity == null ||
                         !childIdentity.equals(query.identity) || !query.sinkAttached)
                     throw new IllegalStateException("live_parent_precondition_mismatch");
+                awaitPredeathResourceCleanup(control);
                 ownerDeathRequested = true;
                 Log.i(TAG, "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=" + targetPid +
                         " observer_pid=" + Process.myPid() + " session_id=" + ownerIdentity.sessionId +
@@ -152,27 +162,59 @@ public final class CompositorOwnerDeathTestService extends Service {
                 Process.killProcess(targetPid);
                 return;
             }
-            if (!ownerDeathObserved || query.compositorPid == targetPid || query.ownerValid ||
-                    query.identity != null || query.sinkAttached)
+            if (!ownerDeathObserved || query.authorized || query.compositorPid != 0 ||
+                    query.ownerValid || query.identity != null || query.sinkAttached)
                 throw new IllegalStateException("restarted_owner_retained_old_session");
-            Type111ControlClient.FrameStats type110 = control.queryFrameStats(ownerIdentity);
-            Type111ControlClient.FrameStats type111 = control.queryFrameStats(childIdentity);
-            if (!zeroUnregistered(type110) || !zeroUnregistered(type111))
-                throw new IllegalStateException("stale_owner_resource_state_present");
             requireOldFrameRejected(service, ownerIdentity, oldOwnerLastFrame + 1L);
             requireOldFrameRejected(service, childIdentity, 1L);
-            verifyFreshSessionRecovery(service, query.compositorPid);
+            int freshCompositorPid = currentOwnedCompositorPid();
+            if (freshCompositorPid <= 0 || freshCompositorPid == targetPid)
+                throw new IllegalStateException("fresh_compositor_process_identity_missing");
+            verifyFreshSessionRecovery(service, freshCompositorPid);
             Log.i(TAG, "CL_R4B_PARENT_OWNER_DEATH_PASS old_pid=" + targetPid +
-                    " new_pid=" + query.compositorPid + " session_id=" + ownerIdentity.sessionId +
+                    " new_pid=" + freshCompositorPid + " session_id=" + ownerIdentity.sessionId +
                     " binder_disconnected=true owner_valid=false child_present=false " +
                     "stale_type110_frame_rejected=true stale_type111_frame_rejected=true " +
-                    "registrations=0 pfd_transfers=0 retained_bytes=0 transfer_active=false " +
-                    "last_frame_ids=0");
+                    "predeath_pfd_transfers=0 predeath_retained_bytes=0 " +
+                    "resource_state=not_observable_after_owner_death old_session_query_denied=true " +
+                    "fresh_session_resources=zero");
             finishOnce();
         } catch (Throwable failure) {
             fail("observer_check_failed:" + failure.getClass().getSimpleName() + ":" +
                     String.valueOf(failure.getMessage()));
         }
+    }
+
+    private void awaitPredeathResourceCleanup(Type111ControlClient control) throws Exception {
+        long deadline = SystemClock.elapsedRealtime() + 5000L;
+        Type111ControlClient.FrameStats owner = null, child = null;
+        while (SystemClock.elapsedRealtime() < deadline) {
+            owner = control.queryFrameStats(ownerIdentity);
+            child = control.queryFrameStats(childIdentity);
+            if (owner == null || child == null || !owner.authorized || !child.authorized)
+                throw new IllegalStateException("predeath_resource_query_unauthorized");
+            if (owner.activePfdTransfers == 0 && child.activePfdTransfers == 0 &&
+                    owner.retainedFrameBytes == 0 && child.retainedFrameBytes == 0 &&
+                    !owner.transferActive && !child.transferActive) return;
+            Thread.sleep(25L);
+        }
+        throw new IllegalStateException("predeath_resources_not_released owner_pfd=" +
+                (owner == null ? -1 : owner.activePfdTransfers) + " child_pfd=" +
+                (child == null ? -1 : child.activePfdTransfers) + " owner_bytes=" +
+                (owner == null ? -1 : owner.retainedFrameBytes) + " child_bytes=" +
+                (child == null ? -1 : child.retainedFrameBytes));
+    }
+
+    private int currentOwnedCompositorPid() {
+        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        if (manager == null) return 0;
+        java.util.List<ActivityManager.RunningAppProcessInfo> processes =
+                manager.getRunningAppProcesses();
+        if (processes == null) return 0;
+        String expected = getPackageName() + ":compositor";
+        for (ActivityManager.RunningAppProcessInfo process : processes)
+            if (process.uid == Process.myUid() && expected.equals(process.processName)) return process.pid;
+        return 0;
     }
 
     /** Replays old identities against the new owner, then registers and tears down a fresh session. */
@@ -314,7 +356,7 @@ public final class CompositorOwnerDeathTestService extends Service {
     }
 
     private static boolean zeroUnregistered(Type111ControlClient.FrameStats stats) {
-        return stats != null && !stats.registered && stats.activePfdTransfers == 0 &&
+        return stats != null && stats.authorized && !stats.registered && stats.activePfdTransfers == 0 &&
                 stats.retainedFrameBytes == 0 && !stats.transferActive && stats.lastFrameId == 0L;
     }
 

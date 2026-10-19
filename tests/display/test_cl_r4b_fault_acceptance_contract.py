@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import importlib.util
 import xml.etree.ElementTree as ET
 
 
@@ -110,6 +112,59 @@ def test_type111_producer_thread_start_failure_rolls_back_wait_state():
     assert "runFinished.countDown();" in rollback
 
 
+def test_acceptance_runs_cross_uid_attack_while_owned_services_are_live():
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert '("CL-R4-09", "Cross-UID security", "type110-failure"' in acceptance
+    probe = shell[shell.index("invoke_type110_probe_privileged() {"):shell.index("start_lab_activity_privileged() {",
+                                                                 shell.index("invoke_type110_probe_privileged() {"))]
+    assert "parent teardown before its pass" in probe
+    assert "assert_type110_probe_cross_uid_denied \"$1\" \"$2\"" not in probe
+    assert "assert_type110_probe_cross_uid_denied \"$session_id\"" in shell
+
+
+def test_acceptance_checkpoint_hashes_logs_and_rejects_source_drift():
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert '"evidence_log_sha256"' in acceptance
+    assert "cached_log_valid" in acceptance
+    assert "old_log_valid" in acceptance
+    assert "final_source_hash, _final_source_files = fingerprint(repo)" in acceptance
+    assert '"source_changed_during_run"' in acceptance
+    assert "final_source_hash == source_hash" in acceptance
+    assert '"phase": "cl_r7_regression"' in acceptance
+    assert "post_r7_source_hash != source_hash" in acceptance
+    assert 'return "BLOCKED" if exit_code in (2, 5, 7, 8) else "FAIL"' in acceptance
+    assert acceptance.count('cached_mode.get("source_sha256") == source_hash') == 2
+
+
+def test_acceptance_revalidates_unselected_cached_case_logs(tmp_path):
+    path = REPO / "tools/run_cl_r4_acceptance.py"
+    spec = importlib.util.spec_from_file_location("cl_r4_acceptance", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    log = tmp_path / "case.log"
+    log.write_text("REQUIRED_RECEIPT\n")
+    record = {"source_sha256": "source", "apk_sha256": "apk", "log": str(log),
+              "evidence_log_sha256": hashlib.sha256(log.read_bytes()).hexdigest()}
+    assert module.case_evidence_valid(record, ["REQUIRED_RECEIPT"], "source", "apk")
+    log.write_text("tampered\n")
+    assert not module.case_evidence_valid(record, ["REQUIRED_RECEIPT"], "source", "apk")
+    assert not module.case_evidence_valid(record, ["REQUIRED_RECEIPT"], "other", "apk")
+
+
+def test_status_only_recovery_checks_only_new_live_log_lines():
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert shell.count('recovery_log_line_start=$(adb_local -s "$serial" logcat -d') == 2
+    assert shell.count('tail -n +$((recovery_log_line_start + 1))') == 2
+
+
+def test_warning_preemption_case_runs_the_reattached_type111_fixture():
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert '("CL-R4-11", "Warning preemption", "reattach"' in acceptance
+    assert '"CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS"' in acceptance
+    assert '"CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS"' in acceptance
+
+
 def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_restart():
     manifest = ET.parse(APP / "AndroidManifest.lab.xml").getroot()
     activity = next(item for item in manifest.find("application").findall("service")
@@ -134,8 +189,8 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
     assert "process.uid == Process.myUid()" in source
     assert "Process.killProcess(targetPid);" in source
     assert "service.isBinderAlive() || !isExactOwnedCompositorPid(targetPid)" in source
-    assert "query.compositorPid == targetPid" in source
-    assert "!query.ownerValid" in source and "query.identity != null" in source
+    assert "query.compositorPid != targetPid" in source
+    assert "query.ownerValid || query.identity != null" in source
     assert "requireOldFrameRejected(service, ownerIdentity" in source
     assert "requireOldFrameRejected(service, childIdentity" in source
     assert '"stream_identity_rejected".equals(reason[0])' in source
@@ -196,7 +251,8 @@ def test_compositor_owner_restart_rejects_persisted_session_and_registers_fresh_
     assert "PROVISIONAL_PARENT_AUTHORITY_TIMEOUT_MS = 30000L" in compositor
     assert "provisional_authority_timeout" in compositor
     assert "authority.provisional = false" in compositor
-    assert "verifyFreshSessionRecovery(service, query.compositorPid)" in observer
+    assert "verifyFreshSessionRecovery(service, freshCompositorPid)" in observer
+    assert "currentOwnedCompositorPid()" in observer
     assert "old_type110_identity_re_registered_after_owner_restart" in observer
     assert "old_session_capability_re_registered_after_owner_restart" in observer
     assert "fresh_type110_session_registration_failed" in observer
@@ -259,7 +315,7 @@ def test_parent_identity_is_revoked_on_session_end_and_compositor_process_death(
     assert 'context.getPackageName() + ":compositor"' in sink
 
 
-def test_api17_same_uid_sibling_attack_compares_authorized_state_before_and_after():
+def test_api17_same_uid_sibling_attack_cannot_query_session_or_mutate_state():
     source = (APP / "java/org/claritylink/android/SameUidRegistrationAttackTestService.java").read_text()
     manifest = ET.parse(APP / "AndroidManifest.lab.xml").getroot()
     service = next(item for item in manifest.find("application").findall("service")
@@ -267,7 +323,10 @@ def test_api17_same_uid_sibling_attack_compares_authorized_state_before_and_afte
                    "org.claritylink.android.SameUidRegistrationAttackTestService")
     assert service.get(ANDROID + "process") == ":registration_attacker"
     assert service.get(ANDROID + "exported") == "false"
-    assert '"authorized_before_state_missing"' in source
+    assert '"same_uid_query_disclosure_not_blocked"' in source
+    assert "queryDenied(before)" in source and "statsDenied(ownerBefore)" in source
+    assert "!queryDenied(after)" in source and "!statsDenied(ownerAfter)" in source
+    assert "process_identity_hidden=true" in source
     assert "boolean authority = FrameIpcClient.openParentAuthority" in source
     assert "boolean capability = control.registerLabCapability" in source
     assert "boolean teardown = control.parentTeardown" in source
@@ -286,6 +345,40 @@ def test_api17_same_uid_sibling_attack_compares_authorized_state_before_and_afte
     assert "same_uid_attack_mutated_authorized_state" in source
     assert "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS" in source
     compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    stats_query = compositor[compositor.index("if (code == FrameIpcProtocol.FRAME_LAB_QUERY_STATS) {"):
+                             compositor.index("if (code == FrameIpcProtocol.BEGIN) {")]
+    stream_query = compositor[compositor.index("if (code == FrameIpcProtocol.TYPE111_QUERY_STREAM) {"):
+                              compositor.index("if (code == FrameIpcProtocol.TYPE111_DETACH_SINK) {")]
+    assert "isAuthorizedSessionQueryCaller(identity.sessionId)" in stats_query
+    assert "reply.writeInt(authorized ? 1 : 0)" in stats_query
+    assert "isAuthorizedSessionQueryCaller(ownerIdentity.sessionId)" in stream_query
+    assert "reply.writeInt(authorized ? 1 : 0)" in stream_query
+    assert "authorized ? Process.myPid() : 0" in stream_query
+    query_auth = compositor[compositor.index("private boolean isAuthorizedSessionQueryCaller"):
+                            compositor.index("/** Shutdown may still need", compositor.index(
+                                "private boolean isAuthorizedSessionQueryCaller"))]
+    assert "isSessionOwnerCaller(sessionId, true)" in query_auth
+    assert "inspect cleanup state while teardown is in progress" in query_auth
+    assert "caller_not_bound_to_session_owner" in query_auth
+    observer_registration = compositor[compositor.index(
+        "if (code == FrameIpcProtocol.LAB_REGISTER_OWNER_DEATH_QUERY_OBSERVER) {"):
+        compositor.index("if (code == FrameIpcProtocol.FRAME_LAB_QUERY_STATS)")]
+    assert 'getPackageName() + ":owner_death_test"' in observer_registration
+    assert "isSessionOwnerCaller(ownerIdentity.sessionId)" in observer_registration
+    assert "final int observerPid = data.readInt()" in observer_registration
+    assert "authorizedOwnerDeathObserverPid == 0" in observer_registration
+    assert "authorizedOwnerDeathObserverPid == callerPid" in query_auth
+    assert "observerToken.linkToDeath" in observer_registration
+    assert "ownerDeathObserverToken.isBinderAlive()" in query_auth
+    assert '":owner_death_test").equals(callerProcess)' in query_auth
+    assert query_auth.index("processNameForPid(callerPid)") < query_auth.index("synchronized (streamsLock)")
+    assert "isSessionOwnerCaller(ownerIdentity.sessionId)" in observer_registration
+    owner_grant = activity[activity.index("private void startOwnerDeathQueryObserver"):
+                           activity.index("private void runReentrantParentTeardown")]
+    assert "startService(observer)" in owner_grant
+
+
+    assert "registerOwnerDeathQueryObserver(owner, observerPid, token[0])" in owner_grant
     barrier_blocks = {}
     for handler in ("LAB_ARM_TRANSFER_BARRIER", "LAB_WAIT_TRANSFER_BARRIER",
                     "LAB_ARM_PARENT_TEARDOWN_BARRIER", "LAB_WAIT_PARENT_TEARDOWN_BARRIER",
@@ -315,6 +408,18 @@ def test_api17_same_uid_sibling_attack_compares_authorized_state_before_and_afte
     assert "cause=owner_authority_revoked" in compositor
     assert "SameUidRegistrationAttackTestService.java" in (REPO / "tools/build_cl_imp_03_apks.sh").read_text()
     assert "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS" in (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+
+
+def test_owner_death_cleanup_receipt_does_not_confuse_denial_with_zero_resource_stats():
+    control = (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
+    owner = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
+    assert "final boolean authorized" in control
+    assert "!ownerDeathObserved || query.authorized || query.compositorPid != 0" in owner
+    assert "awaitPredeathResourceCleanup(control)" in owner
+    assert "resource_state=not_observable_after_owner_death" in owner
+    post_death = owner[owner.index("if (!ownerDeathObserved"):owner.index(
+        "requireOldFrameRejected(service, ownerIdentity")]
+    assert "queryFrameStats(ownerIdentity)" not in post_death
 
 
 def test_parent_owner_loss_cancels_activity_fixture_worker():
@@ -362,7 +467,7 @@ def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verif
     assert "releaseLabParentTeardownBarrier(owner)" in activity
     assert "results[0] == results[1]" in activity
     assert "repeated_parent_teardown_changed_state" in activity
-    assert "reentrant_parent_teardown_left_resources" in activity
+    assert "reentrant_parent_teardown_query_not_fenced_after_exit" in activity
     assert "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS" in activity
     assert "overlap_barrier=first_paused_contender_rejected" in activity
     assert "pauseAtParentTeardownBarrier(sessionId)" in service
@@ -469,6 +574,25 @@ def test_api17_producer_wait_retries_only_bounded_unfinished_binder_replies():
 
 def test_api17_crash_recovery_uses_live_decoded_type111_and_preserves_type110():
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    assert "primaryStats = ensureType110RecoveryFrame(primaryIdentity, primaryStats);" in activity
+    recovery_receipt = activity[activity.index("private FrameLabSink.Stats ensureType110RecoveryFrame"):
+                               activity.index("/** Holds the Type111 Handler at a known frame")]
+    assert "submitForReceipt(primaryLabIpcClient" in recovery_receipt
+    assert '"accepted".equals(receipt)' in recovery_receipt
+    assert "verified.frameId <= currentStats.frameId" in recovery_receipt
+    assert "CL_R2_TYPE110_RECOVERY_FRAME_READY" in recovery_receipt
+    fixture = activity[activity.index("private DecodedFrame syntheticType110RecoveryFrame"):
+                       activity.index("/** Holds the Type111 Handler at a known frame")]
+    assert "return new DecodedFrame(2, 2, 8, timestampNs, 0, 0, 0, 2, 2," in fixture
+    assert "ByteBuffer.wrap(rgba)" in fixture
+    warning_race = activity[activity.index("private void startBinderWarningRace"):
+                            activity.index("private void startDiagnosticRun")]
+    crash_branch = warning_race[warning_race.index("if (crashAfterFirstFrame) {"):
+                                warning_race.index("if (controlledExitAfterValidation) {")]
+    controlled_exit_branch = warning_race[warning_race.index("if (controlledExitAfterValidation) {"):]
+    for branch in (crash_branch, controlled_exit_branch):
+        assert branch.index("ensureType110RecoveryFrame(primaryIdentity, primaryStats)") < \
+            branch.index("issueType110ProbeOwnership(primaryIdentity, primaryStats)")
     producer_loop = activity[activity.index("for (int index = 0; index < 8 && blueOutputs < 4"):
                               activity.index("requireType111(blueOutputs >= 2")]
     assert "submitDecodedFrame(frame, binderGeneration" in producer_loop
@@ -491,6 +615,10 @@ def test_api17_crash_recovery_uses_live_decoded_type111_and_preserves_type110():
     assert "type111_crash) set -- \"$@\" --ez type111_fixture_mode true --ez crash_after_first_frame true ;;" in runner
     assert "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS" in runner
     assert 'IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=111' in runner
+    assert 'IPC_TYPE111_SINK_DETACHED session_id=$crash_session' in runner
+    assert 'IPC_STREAM_UNREGISTERED session_id=$crash_session stream_type=111' not in runner
+    assert 'IPC_TYPE111_SINK_DETACHED session_id=$controlled_session' in runner
+    assert 'IPC_STREAM_UNREGISTERED session_id=$controlled_session stream_type=111' not in runner
     assert "CL_R2_UNCAUGHT_CRASH_REQUESTED pid=\\([0-9][0-9]*\\) session_id=" in runner
     assert 'index($0, "): FATAL EXCEPTION:")' in runner
     assert 'if (line == pid) fatal=1' in runner
@@ -504,3 +632,63 @@ def test_api17_crash_recovery_uses_live_decoded_type111_and_preserves_type110():
     crash_flow = runner[runner.index("if [ \"$view_crash\" -eq 1 ]; then"):
                         runner.index("wait_for 'TYPE110_LAB_SINK_START_REJECTED")]
     assert crash_flow.index("probe_boundary_checked=1") < crash_flow.index("invoke_type110_probe_privileged")
+
+
+def test_saturated_type111_view_queue_is_present_when_actual_view_process_crashes():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    crash_at = activity.index("if (crashAfterFirstFrame) {", activity.index(
+        "for (int index = 0; index < 8 && blueOutputs < 4"))
+    crash_block = activity[crash_at:activity.index("byte[] greenFixture", crash_at)]
+    assert "crashWithSaturatedQueue" in crash_block
+    assert "fillType111QueueForProducerFailure(binderGeneration)" in crash_block
+    assert "CL_R4B_QUEUE_SATURATED_VIEW_DEATH_REQUEST" in crash_block
+    assert crash_block.index("viewSink.queuedFrameCount()") < crash_block.index(
+        "requestType111CrashAfterDecodedFrame()")
+
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "--cl-r4b-view-crash-queue-saturated" in runner
+    assert "type111_crash_queue_saturated" in runner
+    assert "--ez crash_with_saturated_type111_queue true" in runner
+    assert 'CL_R4B_QUEUE_SATURATED_VIEW_DEATH_REQUEST' in (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+
+
+def test_saturated_type111_view_queue_is_cleaned_by_parent_teardown():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    teardown = activity[activity.index("private void runReentrantParentTeardown"):
+                        activity.index("/** Kill the real separate Type110 sink", activity.index(
+                            "private void runReentrantParentTeardown"))]
+    assert "queueSaturatedTeardownTest" in teardown
+    assert "fillType111QueueForProducerFailure(child.streamGeneration)" in teardown
+    assert "parent_teardown_starts_with_saturated_view_queue" in teardown
+    assert "saturated_parent_teardown_resources_retained" in teardown
+    assert "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_PASS" in teardown
+    assert "saturatedQueueControl.releaseForClose()" in teardown
+    assert "saturatedQueueControl.dispatchFinished.await" in teardown
+    assert "held_dispatch_finished=true" in teardown
+    assert teardown.index("fillType111QueueForProducerFailure") < teardown.index(
+        "LAB_ARM_TRANSFER_BARRIER")
+
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "--cl-r4b-reentrant-teardown-queue-saturated" in runner
+    assert "type111_reentrant_queue_saturated" in runner
+    assert "--ez queue_saturated_teardown_test true" in runner
+    assert "queue_request_line=$(printf '%s\\n' \"$logs\" | grep -F \"CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_REQUEST" in runner
+    assert 'post_exit_query_fenced=true handler_released=true held_dispatch_finished=true' in runner
+    assert 'printf \'%s\\n\' "$teardown_completed_line" "$process_destroyed_line" "$pass_line"' in runner
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert '"CL-R4B-P02"' in acceptance
+    assert "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_PASS" in acceptance
+
+
+def test_type111_queue_fixture_advances_past_restarted_producer_frame_ids():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    restart = activity[activity.index("long restartedProducerFirstFrameId"):
+                       activity.index('Log.i(TAG, "CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS')]
+    assert "frameIpcClient.advanceNextFrameIdHint(restartedProducerFirstFrameId +" in restart
+    assert "restartedFrames.length" in restart
+    queue_helper = activity[activity.index("private FrameViewSink.TestControl fillType111QueueForProducerFailure"):
+                            activity.index("private static DecodedFrame queueSaturationFrame")]
+    assert "submitForReceipt(frameIpcClient, firstFrame, generation)" in queue_helper
+    client = (APP / "java/org/claritylink/android/FrameIpcClient.java").read_text()
+    assert "void advanceNextFrameIdHint(long minimumNextFrameId)" in client
+    assert "nextFrameId.compareAndSet(current, minimumNextFrameId)" in client

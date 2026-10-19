@@ -1,6 +1,7 @@
 package org.claritylink.android;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Context;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -65,6 +66,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_MODE = "mode";
     private static final String EXTRA_CONFIRM = "emulator_only_confirmation";
     private static final String EXTRA_CRASH = "crash_after_first_frame";
+    private static final String EXTRA_CRASH_SATURATED_QUEUE = "crash_with_saturated_type111_queue";
     private static final String EXTRA_CONTROLLED_EXIT = "controlled_exit_after_validation";
     private static final String EXTRA_TYPE111_FIXTURE = "type111_fixture_mode";
     private static final String EXTRA_TYPE111_FIRST = "type111_first_mode";
@@ -72,6 +74,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_REATTACH_TEST = "type111_reattach_test";
     private static final String EXTRA_OWNER_DEATH_TEST = "owner_death_test";
     private static final String EXTRA_REENTRANT_TEARDOWN_TEST = "reentrant_teardown_test";
+    private static final String EXTRA_QUEUE_SATURATED_TEARDOWN_TEST = "queue_saturated_teardown_test";
     private static final String EXTRA_DELAYED_DEATH_CALLBACK_TEST = "delayed_death_callback_test";
     private static final String EXTRA_SECURITY_LIVE_PRODUCER = "security_live_producer";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
@@ -154,6 +157,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean closing;
     private boolean recreation;
     private boolean crashAfterFirstFrame;
+    private boolean crashWithSaturatedQueue;
     private boolean controlledExitAfterValidation;
     private boolean type111FixtureMode;
     private boolean type111FirstMode;
@@ -164,6 +168,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean type111ReattachTest;
     private boolean ownerDeathTest;
     private boolean reentrantTeardownTest;
+    private boolean queueSaturatedTeardownTest;
     private volatile boolean reentrantTeardownInProgress;
     private boolean delayedDeathCallbackTest;
     private boolean type110SinkFailureTest;
@@ -173,6 +178,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private volatile Thread type111FixtureWorker;
     private volatile FixtureRunToken type111FixtureRunToken;
     private boolean compositorBound;
+    private ServiceConnection ownerDeathObserverConnection;
+    private boolean ownerDeathObserverBound;
     private boolean ipcSessionReady;
     private boolean ipcSubmitted;
     private boolean canvasDrawLogged;
@@ -319,6 +326,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         ownerDeathTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_OWNER_DEATH_TEST, false);
         reentrantTeardownTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_REENTRANT_TEARDOWN_TEST, false);
+        queueSaturatedTeardownTest = getIntent() != null &&
+                getIntent().getBooleanExtra(EXTRA_QUEUE_SATURATED_TEARDOWN_TEST, false);
         delayedDeathCallbackTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_DELAYED_DEATH_CALLBACK_TEST, false);
         type110SinkFailureTest = getIntent() != null &&
@@ -554,6 +563,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (active || displayHost != null) stopOwnedDisplay("replace");
         Bundle launch = getIntent() == null ? null : getIntent().getExtras();
         crashAfterFirstFrame = launch != null && launch.getBoolean(EXTRA_CRASH, false);
+        crashWithSaturatedQueue = launch != null && launch.getBoolean(EXTRA_CRASH_SATURATED_QUEUE, false);
         controlledExitAfterValidation = launch != null && launch.getBoolean(EXTRA_CONTROLLED_EXIT, false);
         DisplayDiscovery discovery;
         List<DisplayDiscovery.Info> inventory;
@@ -985,6 +995,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                                 "uncaught_crash_type110_receipt_unavailable");
                         if (primaryIdentity == null)
                             throw new IllegalStateException("uncaught_crash_type110_receipt_unavailable");
+                        primaryStats = ensureType110RecoveryFrame(primaryIdentity, primaryStats);
                         issueType110ProbeOwnership(primaryIdentity, primaryStats);
                         log("CL_R2_UNCAUGHT_CRASH_REQUESTED pid=" + android.os.Process.myPid() +
                                 " session_id=" + primaryIdentity.sessionId +
@@ -1007,6 +1018,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                                 "controlled_exit_type110_receipt_unavailable");
                         if (primaryIdentity == null)
                             throw new IllegalStateException("controlled_exit_type110_receipt_unavailable");
+                        primaryStats = ensureType110RecoveryFrame(primaryIdentity, primaryStats);
                         issueType110ProbeOwnership(primaryIdentity, primaryStats);
                         log("CL_R2_CONTROLLED_PROCESS_EXIT_REQUESTED pid=" + android.os.Process.myPid() +
                                 " session_id=" + primaryIdentity.sessionId +
@@ -1354,6 +1366,15 @@ public final class ClarityLinkDisplayActivity extends Activity
                     Log.i(TAG, "CL_R4_TYPE110_FIXTURE_FRAME_PASS timing=before_type111_reset " +
                             "decoder_generation=970001 binder_generation=" + binderGeneration);
                     if (crashAfterFirstFrame) {
+                        if (crashWithSaturatedQueue) {
+                            fillType111QueueForProducerFailure(binderGeneration);
+                            Log.i(TAG, "CL_R4B_QUEUE_SATURATED_VIEW_DEATH_REQUEST " +
+                                    "session_id=" + binderGeneration + " view_pid=" +
+                                    android.os.Process.myPid() + " queued_frames=" +
+                                    viewSink.queuedFrameCount() + " queued_bytes=" +
+                                    viewSink.queuedByteCount() + " queue_limit=" +
+                                    FrameViewSink.MAX_QUEUED_FRAMES + " handler_held=true");
+                        }
                         requestType111CrashAfterDecodedFrame();
                         return;
                     }
@@ -1526,6 +1547,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                             " type110_sink_pid=" + type110Final.pid +
                             " type111_sink_pid=" + android.os.Process.myPid());
                     if (ownerDeathTest) {
+                        startOwnerDeathQueryObserver(type110Identity,
+                                frameIpcClient.streamIdentity(), type110Final);
                         Log.i(TAG, "CL_R4B_OWNER_SESSION_READY session_id=" + type110Identity.sessionId +
                                 " type110_connection_id=" + type110Identity.connectionId +
                                 " type110_generation=" + type110Identity.streamGeneration +
@@ -1585,8 +1608,13 @@ public final class ClarityLinkDisplayActivity extends Activity
                 } catch (Throwable failure) {
                     reentrantTeardownInProgress = false;
                     Log.e(TAG, "CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL", failure);
-                    if (!runToken.isCancelled())
-                        closeType111Lab("type111_fixture_failed");
+                    if (!runToken.isCancelled()) {
+                        try {
+                            closeType111Lab("type111_fixture_failed");
+                        } catch (Throwable cleanupFailure) {
+                            Log.e(TAG, "CL_R4_TYPE111_FIXTURE_FAILURE_CLEANUP_FAIL", cleanupFailure);
+                        }
+                    }
                     else log("CL_R4A_FIXTURE_FAILURE_IGNORED_AFTER_VIEW_DETACH parent_session_preserved=true");
                 } finally {
                     if (decoder != null) decoder.close();
@@ -1618,11 +1646,21 @@ public final class ClarityLinkDisplayActivity extends Activity
                 stats.frameId + " type110_sink_pid=" + stats.pid + " compositor_pid=" +
                 compositorRemotePid + " type111_generation=" + child.streamGeneration +
                 " decoded_type111_frame_drawn=true");
-        main.post(new Runnable() {
-            public void run() {
-                throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
-            }
-        });
+        if (crashWithSaturatedQueue) {
+            // Queue saturation deliberately holds the View dispatch thread. Crash from a
+            // separate uncaught thread so the process death does not wait for that queue.
+            new Thread(new Runnable() {
+                public void run() {
+                    throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
+                }
+            }, "ClarityLinkSaturatedViewCrashProbe").start();
+        } else {
+            main.post(new Runnable() {
+                public void run() {
+                    throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
+                }
+            });
+        }
     }
 
     private void startSameUidRegistrationAttack(FrameStreamIdentity ownerIdentity,
@@ -1705,12 +1743,80 @@ public final class ClarityLinkDisplayActivity extends Activity
     }
 
     /** Exercise actual Binder parent teardown concurrently, then verify repeat-close is inert. */
+    /** The live session owner grants only this protected observer process access to one session. */
+    private void startOwnerDeathQueryObserver(final FrameStreamIdentity owner,
+            FrameStreamIdentity child, FrameLabSink.Stats type110Stats) throws Exception {
+        if (owner == null || child == null || type110Stats == null ||
+                owner.streamType != FrameStreamIdentity.TYPE110 ||
+                child.streamType != FrameStreamIdentity.TYPE111 || owner.sessionId != child.sessionId)
+            throw new IllegalStateException("owner_death_observer_session_identity_invalid");
+        Intent observer = new Intent(this, CompositorOwnerDeathTestService.class);
+        observer.putExtra("confirmation", "CL_R4B_OFFLINE_EMULATOR_ONLY");
+        observer.putExtra("target_pid", compositorRemotePid);
+        observer.putExtra("session_id", owner.sessionId);
+        observer.putExtra("type110_connection_id", owner.connectionId);
+        observer.putExtra("type110_generation", owner.streamGeneration);
+        observer.putExtra("type110_last_frame_id", type110Stats.frameId);
+        observer.putExtra("type111_connection_id", child.connectionId);
+        observer.putExtra("type111_generation", child.streamGeneration);
+        if (startService(observer) == null)
+            throw new IllegalStateException("owner_death_observer_start_rejected");
+
+        final CountDownLatch connected = new CountDownLatch(1);
+        final IBinder[] token = new IBinder[1];
+        ServiceConnection connection = new ServiceConnection() {
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                token[0] = service;
+                connected.countDown();
+            }
+            public void onServiceDisconnected(ComponentName name) { }
+        };
+        if (!bindService(observer, connection, Context.BIND_AUTO_CREATE))
+            throw new IllegalStateException("owner_death_observer_bind_rejected");
+        ownerDeathObserverConnection = connection;
+        ownerDeathObserverBound = true;
+        if (!connected.await(10L, TimeUnit.SECONDS) || token[0] == null ||
+                !token[0].isBinderAlive())
+            throw new IllegalStateException("owner_death_observer_token_unavailable");
+
+        String observerProcess = getPackageName() + ":owner_death_test";
+        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        long deadline = SystemClock.elapsedRealtime() + 5000L;
+        int observerPid = 0;
+        while (manager != null && SystemClock.elapsedRealtime() < deadline) {
+            List<ActivityManager.RunningAppProcessInfo> processes = manager.getRunningAppProcesses();
+            if (processes != null) for (ActivityManager.RunningAppProcessInfo process : processes)
+                if (observerProcess.equals(process.processName) && process.uid == android.os.Process.myUid())
+                    observerPid = process.pid;
+            if (observerPid > 0) break;
+            Thread.sleep(50L);
+        }
+        if (observerPid <= 0 || !new Type111ControlClient(compositorEndpoint)
+                .registerOwnerDeathQueryObserver(owner, observerPid, token[0]))
+            throw new IllegalStateException("owner_death_observer_session_grant_rejected");
+        Log.i(TAG, "CL_R4B_OWNER_DEATH_QUERY_OBSERVER_SESSION_GRANT session_id=" +
+                owner.sessionId + " observer_pid=" + observerPid +
+                " token_alive=true exact_session_owner=true");
+    }
+
     private void runReentrantParentTeardown(final FrameStreamIdentity owner,
             final FrameStreamIdentity child) throws Exception {
         reentrantTeardownInProgress = true;
         if (owner == null || child == null || owner.streamType != FrameStreamIdentity.TYPE110 ||
                 child.streamType != FrameStreamIdentity.TYPE111 || owner.sessionId != child.sessionId)
             throw new IllegalStateException("reentrant_teardown_identity_mismatch");
+        final FrameViewSink.TestControl saturatedQueueControl = queueSaturatedTeardownTest
+                ? fillType111QueueForProducerFailure(child.streamGeneration) : null;
+        if (queueSaturatedTeardownTest) {
+            saturatedQueueControl.expectDispatchCount(1);
+            requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
+                    "parent_teardown_starts_with_saturated_view_queue");
+            Log.i(TAG, "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_REQUEST session_id=" +
+                    owner.sessionId + " view_pid=" + android.os.Process.myPid() +
+                    " queued_frames=" + viewSink.queuedFrameCount() + " queued_bytes=" +
+                    viewSink.queuedByteCount() + " queue_limit=" +
+                    FrameViewSink.MAX_QUEUED_FRAMES + " handler_held=true");
+        }
         final CountDownLatch ready = new CountDownLatch(2);
         final CountDownLatch start = new CountDownLatch(1);
         final CountDownLatch done = new CountDownLatch(2);
@@ -1761,6 +1867,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (!ready.await(5L, TimeUnit.SECONDS)) {
             start.countDown();
             control.releaseLabParentTeardownBarrier(owner);
+            if (saturatedQueueControl != null) saturatedQueueControl.releaseForClose();
             throw new IllegalStateException("teardown_workers_not_ready");
         }
         start.countDown();
@@ -1805,13 +1912,19 @@ public final class ClarityLinkDisplayActivity extends Activity
                         "transfer_active=false");
                 killType110SinkForTeardownRace(owner);
             }
-        } finally { control.releaseLabParentTeardownBarrier(owner); }
+        } finally {
+            control.releaseLabParentTeardownBarrier(owner);
+            if (saturatedQueueControl != null) saturatedQueueControl.releaseForClose();
+        }
         if (!firstPaused || !contenderRejectedWhilePaused) {
             done.await(8L, TimeUnit.SECONDS);
             throw new IllegalStateException("teardown_calls_did_not_overlap_admission_close");
         }
         if (!done.await(8L, TimeUnit.SECONDS))
             throw new IllegalStateException("concurrent_parent_teardown_timeout");
+        if (saturatedQueueControl != null &&
+                !saturatedQueueControl.dispatchFinished.await(5L, TimeUnit.SECONDS))
+            throw new IllegalStateException("saturated_teardown_held_dispatch_did_not_finish");
         if (failures[0] != null || failures[1] != null || results[0] == results[1])
             throw new IllegalStateException("concurrent_parent_teardown_result_mismatch");
         if (control.parentTeardown(owner))
@@ -1819,16 +1932,28 @@ public final class ClarityLinkDisplayActivity extends Activity
         Type111ControlClient.StreamQuery query = control.queryType111Stream(owner);
         Type111ControlClient.FrameStats ownerStats = control.queryFrameStats(owner);
         Type111ControlClient.FrameStats childStats = control.queryFrameStats(child);
-        if (query == null || query.ownerValid || query.identity != null || query.sinkAttached ||
-                !zeroUnregistered(ownerStats) || !zeroUnregistered(childStats))
-            throw new IllegalStateException("reentrant_parent_teardown_left_resources");
+        if (query == null || query.authorized || query.ownerValid || query.identity != null ||
+                query.sinkAttached || ownerStats == null || ownerStats.authorized ||
+                childStats == null || childStats.authorized)
+            throw new IllegalStateException("reentrant_parent_teardown_query_not_fenced_after_exit");
+        if (queueSaturatedTeardownTest) {
+            int queueFramesAfter = viewSink.queuedFrameCount();
+            int queueBytesAfter = viewSink.queuedByteCount();
+            if (queueFramesAfter != 0 || queueBytesAfter != 0)
+                throw new IllegalStateException("saturated_parent_teardown_resources_retained");
+            Log.i(TAG, "CL_R4B_QUEUE_SATURATED_PARENT_TEARDOWN_PASS session_id=" +
+                    owner.sessionId + " queue_frames_before=" + FrameViewSink.MAX_QUEUED_FRAMES +
+                    " queue_frames_after=" + queueFramesAfter + " queue_bytes_after=" +
+                    queueBytesAfter + " post_exit_query_fenced=true " +
+                    "handler_released=true held_dispatch_finished=true");
+        }
         reentrantTeardownInProgress = false;
         Log.i(TAG, "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS session_id=" + owner.sessionId +
                 " concurrent_calls=2 accepted_calls=1 rejected_calls=1 repeated_close_rejected=true " +
                 "overlap_barrier=first_paused_contender_rejected " +
                 "pending_pfd_rejected=true registration_during_shutdown_rejected=true " +
                 "replacement_during_shutdown_rejected=true type110_died_during_shutdown=true " +
-                "owner_valid=false child_present=false pfd_transfers=0 retained_bytes=0");
+                "post_exit_query_fenced=true process_exit_resource_receipt_required=true");
     }
 
     /** Kill the real separate Type110 sink only after teardown has closed session admission. */
@@ -2042,10 +2167,15 @@ public final class ClarityLinkDisplayActivity extends Activity
                     "restarted_producer_has_new_process_identity");
             requireType111(new Type111ControlClient(compositorEndpoint).videoConfig(
                     freshIdentity, 32, 32) > 0, "video_config_rebound_for_fresh_generation");
+            long restartedProducerFirstFrameId = frameIpcClient.nextFrameIdHint();
             startIsolatedProducer(freshProducerBinder, descriptor, freshIdentity,
-                    frameIpcClient.nextFrameIdHint(), 10000000L, false);
+                    restartedProducerFirstFrameId, 10000000L, false);
             long[] restartedFrames = awaitIsolatedProducerFrames(freshProducerBinder, descriptor);
             requireType111(restartedFrames.length >= 2, "restarted_producer_decoded_two_h264_frames");
+            frameIpcClient.advanceNextFrameIdHint(restartedProducerFirstFrameId +
+                    restartedFrames.length);
+            lastType111SubmissionTimestampNs = Math.max(lastType111SubmissionTimestampNs,
+                    restartedFrames[restartedFrames.length - 1]);
             requireType111(awaitViewFrameDrawn(binderGeneration,
                     restartedFrames[restartedFrames.length - 1]),
                     "restarted_type111_producer_latest_frame_drawn");
@@ -2067,7 +2197,18 @@ public final class ClarityLinkDisplayActivity extends Activity
     }
 
     private FrameViewSink.TestControl fillType111QueueForProducerFailure(long generation) throws Exception {
-        long baseTimestamp = fixtureTimestamp(6000000000L);
+        long drainDeadline = android.os.SystemClock.elapsedRealtime() + 5000L;
+        while (viewSink.queuedFrameCount() != 0 &&
+                android.os.SystemClock.elapsedRealtime() < drainDeadline) Thread.sleep(10L);
+        requireType111(viewSink.queuedFrameCount() == 0 && viewSink.queuedByteCount() == 0,
+                "producer_failure_queue_starts_from_empty_accounting");
+        // The producer-death subcase can already have advanced this generation past 10 s.
+        // Leave a full frame interval after the last accepted producer timestamp. A
+        // one-nanosecond increment passes local monotonic bookkeeping but can still
+        // be rejected by the downstream frame contract after producer recovery.
+        long baseTimestamp = Math.max(fixtureTimestamp(10000000000L),
+                lastType111SubmissionTimestampNs + 100000000L);
+        lastType111SubmissionTimestampNs = baseTimestamp;
         FrameViewSink.TestControl control = new FrameViewSink.TestControl();
         control.pauseHandlerAt(baseTimestamp);
         control.expectDispatchCount(FrameViewSink.MAX_QUEUED_FRAMES);
@@ -2081,6 +2222,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             DecodedFrame pending = queueSaturationFrame(timestamp);
             requireType111("accepted".equals(submitForReceipt(frameIpcClient, pending, generation)),
                     "additional_producer_failure_queue_frame_accepted_" + index);
+            lastType111SubmissionTimestampNs = timestamp;
         }
         requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
                 "producer_failure_queue_capacity_reached");
@@ -2205,10 +2347,11 @@ public final class ClarityLinkDisplayActivity extends Activity
             data.writeInt(identity.outputId);
             compositorEndpoint.transact(FrameIpcProtocol.FRAME_LAB_QUERY_STATS, data, reply, 0);
             reply.readException();
+            boolean authorized = reply.readInt() != 0;
             boolean matches = reply.readInt() != 0;
             int[] stats = new int[] { reply.readInt(), reply.readInt(), reply.readInt() };
             long lastFrameId = reply.readLong();
-            if (!matches || lastFrameId > Integer.MAX_VALUE)
+            if (!authorized || !matches || lastFrameId > Integer.MAX_VALUE)
                 throw new IllegalStateException("type111_transfer_stats_identity_invalid");
             return new int[] { stats[0], stats[1], stats[2], (int) lastFrameId };
         } finally { reply.recycle(); data.recycle(); }
@@ -2285,14 +2428,58 @@ public final class ClarityLinkDisplayActivity extends Activity
             FrameLabSink.Stats stats) {
         FrameStreamIdentity expectedType111Death = frameIpcClient == null ? null :
                 frameIpcClient.streamIdentity();
-        if (stats == null || type111ControlClient == null ||
+        if (stats == null || type111ControlClient == null || expectedType111Death == null ||
                 !type111ControlClient.registerType110Recovery(identity,
-                        expectedType111Death, stats.frameId, stats.pid))
-            throw new IllegalStateException("type110_probe_owner_record_not_issued");
+                        expectedType111Death, stats.frameId, stats.pid)) {
+            throw new IllegalStateException("type110_probe_owner_record_not_issued" +
+                    " owner=" + identity + " type110_frame=" + (stats == null ? 0L : stats.frameId) +
+                    " type110_sink_pid=" + (stats == null ? 0 : stats.pid) +
+                    " control_client=" + (type111ControlClient != null) +
+                    " expected_type111=" + expectedType111Death);
+        }
         log("TYPE110_PROBE_OWNER_RECORD_ISSUED session_id=" + identity.sessionId +
                 " connection_id=" + identity.connectionId +
                 " stream_generation=" + identity.streamGeneration +
                 " output_id=" + identity.outputId + " owner=compositor_memory_receipt");
+    }
+
+    /** Establishes a live Type110 frame receipt before crash recovery is armed. */
+    private FrameLabSink.Stats ensureType110RecoveryFrame(FrameStreamIdentity identity,
+            FrameLabSink.Stats currentStats) {
+        if (currentStats != null && currentStats.frameId > 0L) return currentStats;
+        if (identity == null || !identity.isValid() ||
+                identity.streamType != FrameStreamIdentity.TYPE110 || primaryLabIpcClient == null)
+            throw new IllegalStateException("type110_recovery_fixture_identity_unavailable");
+        final String receipt;
+        try {
+            receipt = submitForReceipt(primaryLabIpcClient,
+                    syntheticType110RecoveryFrame(Math.max(1L, System.nanoTime())),
+                    identity.streamGeneration);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("type110_recovery_fixture_interrupted", interrupted);
+        }
+        if (!"accepted".equals(receipt))
+            throw new IllegalStateException("type110_recovery_fixture_frame_rejected:" + receipt);
+        FrameLabSink.Stats verified = queryType110StatsOrThrow(
+                "type110_recovery_fixture_receipt_unavailable");
+        if (verified.frameId <= currentStats.frameId || verified.pid <= 0)
+            throw new IllegalStateException("type110_recovery_fixture_frame_not_recorded");
+        Log.i(TAG, "CL_R2_TYPE110_RECOVERY_FRAME_READY session_id=" + identity.sessionId +
+                " frame_id=" + verified.frameId + " sink_pid=" + verified.pid +
+                " fixture=synthetic_lab_only");
+        return verified;
+    }
+
+    private DecodedFrame syntheticType110RecoveryFrame(long timestampNs) {
+        byte[] rgba = new byte[] {
+                (byte) 0xff, 0, 0, (byte) 0xff,
+                (byte) 0xff, 0, 0, (byte) 0xff,
+                (byte) 0xff, 0, 0, (byte) 0xff,
+                (byte) 0xff, 0, 0, (byte) 0xff
+        };
+        return new DecodedFrame(2, 2, 8, timestampNs, 0, 0, 0, 2, 2,
+                ByteBuffer.wrap(rgba));
     }
 
     /** Holds the Type111 Handler at a known frame, fills its View queue, then verifies Type110 progress. */
@@ -2876,6 +3063,12 @@ public final class ClarityLinkDisplayActivity extends Activity
     @Override protected void onDestroy() {
         if (active || displayHost != null || renderer != null)
             closeViewAttachmentPreservingParent("activity-destroy");
+        if (ownerDeathObserverBound && ownerDeathObserverConnection != null) {
+            try { unbindService(ownerDeathObserverConnection); }
+            catch (IllegalArgumentException ignored) { }
+            ownerDeathObserverBound = false;
+            ownerDeathObserverConnection = null;
+        }
         super.onDestroy();
     }
 
