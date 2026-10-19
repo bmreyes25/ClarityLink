@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "50ac114be2dbb04d5ffb8de2474bf1a0da06a8ed08fdb498dc357e8ca42d3ea5"
+      "sha256": "2653ea532bb27cd69a81226bf44898b022b71a6850efd0edcfbd269ce44e06be"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
@@ -92,7 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "3e308fae3035aa6c0380c0f1a591807e0b46d9882fc91257b4befa1fe0b7e6ea"
+      "sha256": "a21a4fa94e39cebdff8c57cf61fefc2936b312a703d22eda3f8a211c3ee5cc62"
     },
     {
       "path": "docs/status/milestones.json",
