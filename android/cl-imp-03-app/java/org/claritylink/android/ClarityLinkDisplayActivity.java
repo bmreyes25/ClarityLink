@@ -1353,6 +1353,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                     submitType110DecodedFrame(type110BeforeReset, binderGeneration);
                     Log.i(TAG, "CL_R4_TYPE110_FIXTURE_FRAME_PASS timing=before_type111_reset " +
                             "decoder_generation=970001 binder_generation=" + binderGeneration);
+                    if (crashAfterFirstFrame) {
+                        requestType111CrashAfterDecodedFrame();
+                        return;
+                    }
 
                     byte[] greenFixture = type111Fixture("type111-green-64x64.h264.b64");
                     byte[] greenConfig = Api17SurfaceH264Decoder.extractCodecConfig(greenFixture);
@@ -1592,6 +1596,33 @@ public final class ClarityLinkDisplayActivity extends Activity
             }
         }, "ClarityLinkType111FixtureToView");
         type111FixtureWorker.start();
+    }
+
+    /** Crash only after a decoded Type111 frame crossed Binder/PFD and reached the live View. */
+    private void requestType111CrashAfterDecodedFrame() {
+        FrameStreamIdentity owner = primaryLabIpcClient == null ? null :
+                primaryLabIpcClient.streamIdentity();
+        FrameLabSink.Stats stats = queryType110StatsOrThrow("type111_crash_type110_receipt_unavailable");
+        FrameStreamIdentity child = frameIpcClient == null ? null : frameIpcClient.streamIdentity();
+        if (owner == null || child == null || !owner.isValid() || !child.isValid() ||
+                owner.streamType != FrameStreamIdentity.TYPE110 ||
+                child.streamType != FrameStreamIdentity.TYPE111 ||
+                child.sessionId != owner.sessionId ||
+                stats.frameId <= 0L || stats.pid <= 0)
+            throw new IllegalStateException("type111_crash_requires_live_dual_streams");
+        issueType110ProbeOwnership(owner, stats);
+        crashAfterFirstFrame = false;
+        Log.i(TAG, "CL_R2_UNCAUGHT_CRASH_REQUESTED pid=" + android.os.Process.myPid() +
+                " session_id=" + owner.sessionId + " type110_connection_id=" + owner.connectionId +
+                " type110_generation=" + owner.streamGeneration + " type110_last_frame_id=" +
+                stats.frameId + " type110_sink_pid=" + stats.pid + " compositor_pid=" +
+                compositorRemotePid + " type111_generation=" + child.streamGeneration +
+                " decoded_type111_frame_drawn=true");
+        main.post(new Runnable() {
+            public void run() {
+                throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
+            }
+        });
     }
 
     private void startSameUidRegistrationAttack(FrameStreamIdentity ownerIdentity,
