@@ -284,11 +284,33 @@ def test_api17_same_uid_sibling_attack_compares_authorized_state_before_and_afte
     assert "same_uid_attack_mutated_authorized_state" in source
     assert "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS" in source
     compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    barrier_blocks = {}
     for handler in ("LAB_ARM_TRANSFER_BARRIER", "LAB_WAIT_TRANSFER_BARRIER",
                     "LAB_ARM_PARENT_TEARDOWN_BARRIER", "LAB_WAIT_PARENT_TEARDOWN_BARRIER",
                     "LAB_ARM_DELAYED_SINK_DEATH_CALLBACK", "LAB_FIRE_DELAYED_SINK_DEATH_CALLBACK"):
         block = compositor[compositor.index("if (code == FrameIpcProtocol." + handler):]
-        assert "isSessionOwnerCaller" in block[:500]
+        next_handler = block.find("if (code == FrameIpcProtocol.", 1)
+        if next_handler >= 0:
+            block = block[:next_handler]
+        barrier_blocks[handler] = block
+        assert "isSessionOwnerCaller" in block
+    wait_block = barrier_blocks["LAB_WAIT_TRANSFER_BARRIER"]
+    assert "ownerMayDrainDuringShutdown" in wait_block
+    assert "code == FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER ||\n                        code == FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED" in wait_block
+    assert "code == FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER" not in wait_block[
+        wait_block.index("boolean ownerMayDrainDuringShutdown"):wait_block.index("if (identity == null")]
+    assert "ownerMayDrainDuringShutdown" not in barrier_blocks["LAB_ARM_TRANSFER_BARRIER"]
+    assert "ownerMayDrainDuringShutdown" not in barrier_blocks["LAB_ARM_TRANSFER_BARRIER"]
+    assert "ownerMayDrainDuringShutdown" not in barrier_blocks["LAB_ARM_PARENT_TEARDOWN_BARRIER"]
+    assert "ownerMayDrainDuringShutdown" not in barrier_blocks["LAB_ARM_DELAYED_SINK_DEATH_CALLBACK"]
+    parent_barrier_block = barrier_blocks["LAB_WAIT_PARENT_TEARDOWN_BARRIER"]
+    assert "ownerMayDrainDuringShutdown" in parent_barrier_block
+    assert "code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_BARRIER ||\n" in parent_barrier_block
+    assert "code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_CONTENDER ||\n" in parent_barrier_block
+    assert "code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER" in parent_barrier_block
+    assert "isSessionOwnerCaller(ownerIdentity.sessionId,\n                        ownerMayDrainDuringShutdown)" in parent_barrier_block
+    assert "releaseParentTeardownBarrierOnOwnerLoss(expected.ownerIdentity.sessionId)" in compositor
+    assert "cause=owner_authority_revoked" in compositor
     assert "SameUidRegistrationAttackTestService.java" in (REPO / "tools/build_cl_imp_03_apks.sh").read_text()
     assert "CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS" in (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
 
@@ -312,6 +334,15 @@ def test_parent_owner_loss_cancels_activity_fixture_worker():
     assert "if (!ownerLost && control != null && type110Owner != null)" in close
     assert "if (!ownerLost && client != null) client.end(activeGeneration)" in close
     assert "if (!ownerLost && primaryClient != null) primaryClient.end(activeGeneration)" in close
+
+
+def test_parent_teardown_request_receipt_distinguishes_pending_close_completion():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    assert '"TYPE111_PARENT_TEARDOWN_REQUEST session_id="' in compositor
+    assert '"accepted_pending".equals(reason)' in compositor
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "TYPE111_PARENT_TEARDOWN_REQUEST session_id=$initial_session_generation" in runner
+    assert "result=accepted(_pending)?$" in runner
 
 
 def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verifies_empty_state():
@@ -341,7 +372,8 @@ def test_api17_reentrant_teardown_uses_bounded_concurrent_binder_calls_and_verif
     assert "--cl-r4b-reentrant-teardown-type111-first" in runner
     assert "accepted_calls=1 rejected_calls=1" in runner
     assert "overlap_barrier=first_paused_contender_rejected" in runner
-    assert "Expected one parent teardown commit" in runner
+    assert "Expected one accepted parent teardown request" in runner
+    assert "TYPE111_PARENT_TEARDOWN_REQUEST session_id=$initial_session_generation" in runner
     assert "Stream $stream_type unregister count was" in runner
     assert "frameIpcClient.submit(pendingFrame" in activity
     assert "LAB_ARM_TRANSFER_BARRIER" in activity

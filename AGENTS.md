@@ -2,6 +2,14 @@
 
 These rules apply to every Codex campaign in this repository.
 
+## Autonomous Milestone Completion Policy
+
+- Establish acceptance criteria before implementation, then keep working after ordinary test failures, races, emulator timeouts, and review findings. Investigate root causes, add regression coverage, correct defects, and rerun affected checks instead of stopping at the first failure.
+- Do not claim PASS without the required runtime evidence. Do not weaken mandatory tests or replace runtime proof with simulation or static validation.
+- Commit each verified, public-safe development unit continuously. Obtain separate read-only ECC code and security reviews, resolve actionable findings, and publish through the protected-main pull-request workflow when authorized.
+- Stop only for a specific external blocker that prevents authorized progress; state the blocker and evidence while continuing independent work.
+- Retain all project safety restrictions, including no Honda or live-iPhone operations and `safeForHonda() == false`.
+
 ## Campaign start and closeout
 
 - At campaign start, record the repository path, local `HEAD`, branch, `git status --short --branch`, untracked source files, unpublished commits, and the `origin` GitHub state relevant to the work.

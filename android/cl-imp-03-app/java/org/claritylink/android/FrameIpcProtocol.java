@@ -45,6 +45,7 @@ final class FrameIpcProtocol {
     static final int TYPE110_PROBE_REGISTER = 39;
     static final int TYPE111_PRODUCER_AUTHORIZE = 40;
     static final int TYPE110_SINK_ADMISSION = 41;
+    static final int VIEW_CLOSE = 42;
     static final int TYPE110_SINK_ADMISSION_CONSUME = 1;
     static final int FRAME_LAB_QUERY_IDENTITY = 26;
     static final int PIXEL_FORMAT_RGBA_8888 = 1;

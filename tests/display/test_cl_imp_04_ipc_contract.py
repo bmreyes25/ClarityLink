@@ -35,8 +35,8 @@ def test_frame_sink_releases_both_queue_budgets_after_allocation_failure():
     assert frame_creation.count("queuedFrames.decrementAndGet()") >= 2
     dispatch = source[source.index("final boolean queued;"):source.index("if (queued) {")]
     assert "catch (OutOfMemoryError exhausted)" in dispatch
-    assert "queuedBytes.addAndGet(-payloadBytes)" in dispatch
-    assert "queuedFrames.decrementAndGet()" in dispatch
+    assert "pending.releaseAccounting()" in dispatch
+    assert "if (!accounted.compareAndSet(true, false)) return;" in source
 
 
 def test_type110_lab_sink_survives_type111_view_process_death():
@@ -124,7 +124,8 @@ def test_type110_progress_probe_is_private_and_uses_one_shot_owner_record():
     client = (APP / "java/org/claritylink/android/Type111ControlClient.java").read_text()
     service = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
     assert "parentTeardown(final FrameStreamIdentity type110Owner)" in client
-    assert "teardownType111Session(readIdentity(data))" in service
+    assert "FrameStreamIdentity ownerIdentity = readIdentity(data)" in service
+    assert "String reason = teardownType111Session(ownerIdentity)" in service
     assert "session_owner_stream_unregistered" in service
     assert "!type110Owner.equals(owner.identity)" in service
     assert "stopService(" not in probe[probe.index("catch (Throwable failure)"):]

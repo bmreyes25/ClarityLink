@@ -54,7 +54,9 @@ public final class Type111ProducerService extends Service {
                 FrameStreamIdentity identity = readIdentity(data);
                 long nextFrameId = data.readLong();
                 long firstPtsUs = data.readLong();
-                boolean accepted = startProducer(endpoint, sink, identity, nextFrameId, firstPtsUs, ownerPid);
+                boolean expandFirstFrameForTransferTest = data.dataAvail() > 0 && data.readInt() != 0;
+                boolean accepted = startProducer(endpoint, sink, identity, nextFrameId, firstPtsUs,
+                        ownerPid, expandFirstFrameForTransferTest);
                 reply.writeNoException();
                 reply.writeInt(accepted ? 1 : 0);
                 reply.writeInt(Process.myPid());
@@ -120,7 +122,7 @@ public final class Type111ProducerService extends Service {
 
     private synchronized boolean startProducer(final IBinder endpoint, final IBinder sink,
             final FrameStreamIdentity identity, final long nextFrameId, final long firstPtsUs,
-            final int ownerPid) {
+            final int ownerPid, final boolean expandFirstFrameForTransferTest) {
         if (running || endpoint == null || sink == null || identity == null ||
                 identity.streamType != FrameStreamIdentity.TYPE111 ||
                 identity.outputId != FrameStreamIdentity.OUTPUT_SECONDARY_VIEW ||
@@ -143,7 +145,8 @@ public final class Type111ProducerService extends Service {
                 " sink_binder_alive=" + sink.isBinderAlive());
         try {
             new Thread(new Runnable() {
-                public void run() { decodeAndSubmit(client, identity, firstPtsUs); }
+                public void run() { decodeAndSubmit(client, identity, firstPtsUs,
+                        expandFirstFrameForTransferTest); }
             }, "ClarityLinkType111IsolatedProducer").start();
         } catch (RuntimeException startupFailure) {
             rollbackProducerStart();
@@ -192,7 +195,8 @@ public final class Type111ProducerService extends Service {
         runFinished.countDown();
     }
 
-    private void decodeAndSubmit(FrameIpcClient client, FrameStreamIdentity identity, long firstPtsUs) {
+    private void decodeAndSubmit(FrameIpcClient client, FrameStreamIdentity identity, long firstPtsUs,
+            boolean expandFirstFrameForTransferTest) {
         Api17BufferH264Decoder decoder = null;
         try {
             byte[] encoded = readFixture("type111-blue-32x32.h264.b64");
@@ -208,6 +212,15 @@ public final class Type111ProducerService extends Service {
                 DecodedFrame frame = decoder.decode(accessUnits[index % accessUnits.length], firstPtsUs +
                         index * 100000L, decoderGeneration, 3000L);
                 if (frame == null) continue;
+                if (expandFirstFrameForTransferTest && submitted == 0) {
+                    int sourceWidth = frame.width;
+                    int sourceHeight = frame.height;
+                    frame = expandFrameForTransferTest(frame);
+                    Log.i(TAG, "TYPE111_PRODUCER_TRANSFER_TEST_FRAME_EXPANDED pid=" + Process.myPid() +
+                            " source=" + sourceWidth + "x" + sourceHeight +
+                            " transfer=" + frame.width + "x" + frame.height +
+                            " bytes=" + frame.byteSize());
+                }
                 final CountDownLatch complete = new CountDownLatch(1);
                 final boolean[] accepted = new boolean[1];
                 final String[] reason = new String[] { "callback_missing" };
@@ -247,6 +260,30 @@ public final class Type111ProducerService extends Service {
             completed = true;
             runFinished.countDown();
         }
+    }
+
+    private static DecodedFrame expandFrameForTransferTest(DecodedFrame source) throws Exception {
+        final int scale = 8;
+        final int width = source.width * scale;
+        final int height = source.height * scale;
+        final int rowStride = width * 4;
+        ByteArrayOutputStream encoded = new ByteArrayOutputStream(source.byteSize());
+        source.writeRgbaTo(encoded);
+        byte[] input = encoded.toByteArray();
+        byte[] output = new byte[rowStride * height];
+        for (int y = 0; y < height; y++) {
+            int sourceY = y / scale;
+            for (int x = 0; x < width; x++) {
+                int sourceOffset = sourceY * source.rowStride + (x / scale) * 4;
+                int outputOffset = y * rowStride + x * 4;
+                output[outputOffset] = input[sourceOffset];
+                output[outputOffset + 1] = input[sourceOffset + 1];
+                output[outputOffset + 2] = input[sourceOffset + 2];
+                output[outputOffset + 3] = input[sourceOffset + 3];
+            }
+        }
+        return new DecodedFrame(width, height, rowStride, source.presentationTimeNs,
+                source.rotationDegrees, 0, 0, width, height, java.nio.ByteBuffer.wrap(output));
     }
 
     private byte[] readFixture(String name) throws Exception {
