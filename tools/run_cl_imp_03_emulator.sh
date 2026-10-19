@@ -306,7 +306,11 @@ for owner_attempt in $(seq 1 30); do
   printf '%s\n' "$owner_isolation_logs" | grep -F 'TYPE110_OWNER_SESSION_ISOLATION_PASS ' >/dev/null && break
   sleep 1
 done
+owner_isolation_debug="$campaign_evidence/api17-owner-isolation-debug-$adb_port.txt"
+printf '%s\n' "$owner_isolation_logs" > "$owner_isolation_debug"
 printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_SESSION_ISOLATION_PASS session_a=([0-9]+) session_b=([0-9]+) sessions_distinct=true concurrent_issue=true reverse_consume=true records_remaining=0' >/dev/null || {
+  echo "Owner-isolation activity diagnostics (artifact=$run_label/evidence/$(basename -- "$owner_isolation_debug")):" >&2
+  printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_(SESSION_ISOLATION|CAP_RECOVERY)_(PASS|FAIL)|FATAL EXCEPTION|AndroidRuntime|Exception' >&2 || true
   echo 'Two-session owner records were not independently consumed.' >&2; exit 9;
 }
 printf '%s\n' "$owner_isolation_logs" | grep -E 'TYPE110_OWNER_CAP_RECOVERY_PASS pending_cap=32 cap_rejected=true expired_records_pruned=32 orphan_temp_pruned=true orphan_claim_pruned=true new_session_issued=true artifacts_remaining=0' >/dev/null || {
@@ -589,6 +593,21 @@ wait_for() {
   printf '%s\n' "$logs" >&2
   return 1
 }
+wait_for_parent_teardown() {
+  session=$1
+  for attempt in $(seq 1 180); do
+    owned || { echo 'Owned emulator changed while waiting for parent teardown completion.' >&2; return 7; }
+    logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    if printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session streams_closed=2 result=accepted" >/dev/null ||
+       printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$session result=accepted late_close_resolution=true" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for completed parent teardown: session_id=$session" >&2
+  printf '%s\n' "$logs" | grep -E 'TYPE111_PARENT_TEARDOWN|IPC_VIEW_SINK_CLOSE' >&2 || true
+  return 1
+}
 if [ "$decoder_only" -eq 1 ]; then
   start_lab_activity_privileged decoder
   wait_for 'CLIMP08_API17_MEDIACODEC_PASS'
@@ -785,7 +804,13 @@ fi
 if [ "$type111_mode" -eq 1 ]; then
   wait_for 'TYPE110_LAB_SINK_START_REJECTED reason=admission_required session_id='
   wait_for 'CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS'
-  if [ "$probe_boundary_checked" -eq 0 ]; then
+  if [ "$probe_boundary_checked" -eq 0 ] && [ "$reentrant_teardown" -eq 1 ]; then
+    # The combined producer-recovery fixture has already unbound its producer by
+    # this point. Cross-UID live-service fidelity is exercised separately by the
+    # default API17 run using the same APK; do not count a stopped service as proof.
+    probe_boundary_checked=1
+    echo 'CL_R4B_REENTRANT_CROSS_UID_NOT_RUN=true separate_final_source_test_required=true'
+  elif [ "$probe_boundary_checked" -eq 0 ]; then
     attack_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     attack_session_line=$(printf '%s\n' "$attack_logs" | grep -F 'IPC_SESSION_STARTED generation=' | head -1)
     attack_type110_line=$(printf '%s\n' "$attack_logs" | grep -F 'IPC_STREAM_REGISTERED ' |
@@ -976,6 +1001,9 @@ $owner_logs"
       | grep -F 'binder_death_observed=true admission_already_closed=true' >/dev/null || {
       echo 'Actual Type110 sink process death was not observed during parent teardown.' >&2; exit 9;
     }
+    printf '%s\n' "$logs" | grep -F "IPC_LAB_PARENT_TEARDOWN_BARRIER_RELEASED session_id=$initial_session_generation cause=owner_authority_revoked" >/dev/null || {
+      echo 'Owner revocation did not release the bounded teardown test gate.' >&2; exit 9;
+    }
     printf '%s\n' "$logs" | grep -F "CL_R4B_TEARDOWN_REGISTRATION_REJECTED session_id=$initial_session_generation " \
       | grep -F 'current_registration_preserved=true active_pfd=1' >/dev/null || {
       echo 'Type111 stream registration race was not rejected without changing the in-flight registration.' >&2; exit 9;
@@ -992,9 +1020,9 @@ $owner_logs"
       | grep -F 'reason=session_closing' | grep -F 'active_pfd_transfers=0' >/dev/null || {
       echo 'Compositor did not reject the pending frame after teardown admission closed.' >&2; exit 9;
     }
-    teardown_count=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$initial_session_generation " \
-      | grep -F 'result=accepted' | wc -l | tr -d ' ')
-    [ "$teardown_count" -eq 1 ] || { echo "Expected one parent teardown commit; observed $teardown_count." >&2; exit 9; }
+    teardown_request_count=$(printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_REQUEST session_id=$initial_session_generation " \
+      | grep -E 'result=accepted(_pending)?$' | wc -l | tr -d ' ')
+    [ "$teardown_request_count" -eq 1 ] || { echo "Expected one accepted parent teardown request; observed $teardown_request_count." >&2; exit 9; }
     for stream_type in 110 111; do
       unregister_count=$(printf '%s\n' "$logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$initial_session_generation " \
         | grep -F "stream_type=$stream_type " | wc -l | tr -d ' ')
@@ -1133,9 +1161,10 @@ $owner_logs"
     if [ "$delayed_death_callback" -eq 1 ]; then
       wait_for 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'
     fi
+    wait_for_parent_teardown "$session_id" || exit $?
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt"
-    printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown=accepted' >/dev/null || {
+    printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown_request=accepted' >/dev/null || {
       echo 'Reattached Activity receipt did not match the expected owner-authorized teardown.' >&2
       printf '%s\n' "$logs" | grep -F 'CL_R4A_VIEW_REATTACH_PASS ' >&2 || true
       echo "expected_session_id=$session_id expected_type110_generation=$type110_generation" >&2
@@ -1177,9 +1206,10 @@ $owner_logs"
       echo 'No post-death Type110 frame was accepted over Binder.' >&2; exit 9;
     }
   fi
-  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null || {
-    echo 'Parent teardown did not close the remaining Type110 child stream.' >&2; exit 9;
-  }
+  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN session_id=$session_id streams_closed=2 result=accepted" >/dev/null ||
+    printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$session_id result=accepted late_close_resolution=true" >/dev/null || {
+      echo 'Parent teardown did not complete for the remaining Type110 child stream.' >&2; exit 9;
+    }
   for stream_type in 110 111; do
     if [ "$type111_reattach" -eq 1 ] && [ "$stream_type" -eq 111 ]; then
       printf '%s\n' "$logs" | grep -F "IPC_TYPE111_SINK_REPLACED session_id=$session_id " >/dev/null || {
@@ -1516,4 +1546,8 @@ for attempt in $(seq 1 10); do
 done
 [ -z "$remaining" ] || { echo 'Emulator app package remains after bounded uninstall verification.' >&2; exit 11; }
 adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
-echo "CL_IMP_03_LAB_RUNTIME_STAGES_PASS api=$api release=$release install=pass cross_uid_probe_denied=pass admission=pass canvas_draw=pass separate_process_ipc=pass crash_recovery=pass uninstall=pass cl_r3_acceptance=PASS malformed_binder=pass generation_transition=pass pixel_content=pass"
+if [ "$reentrant_teardown" -eq 1 ]; then
+  echo "CL_IMP_03_LAB_RUNTIME_STAGES_PASS api=$api release=$release install=pass cross_uid_probe_denied=NOT_RUN admission=pass canvas_draw=pass separate_process_ipc=pass crash_recovery=pass uninstall=pass cl_r3_acceptance=PASS malformed_binder=pass generation_transition=pass pixel_content=pass"
+else
+  echo "CL_IMP_03_LAB_RUNTIME_STAGES_PASS api=$api release=$release install=pass cross_uid_probe_denied=pass admission=pass canvas_draw=pass separate_process_ipc=pass crash_recovery=pass uninstall=pass cl_r3_acceptance=PASS malformed_binder=pass generation_transition=pass pixel_content=pass"
+fi

@@ -22,8 +22,17 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CountDownLatch;
@@ -40,6 +49,10 @@ public final class CompositorService extends Service {
     private static final int MAX_ACTIVE_PARENT_SESSIONS = 8;
     private static final long PROVISIONAL_PARENT_AUTHORITY_TIMEOUT_MS = 30000L;
     private static final int SESSION_REPLAY_BLOOM_BYTES = 32768;
+    private static final long VIEW_CLOSE_TIMEOUT_MS = 1000L;
+    private static final int MAX_VIEW_CLOSE_ATTEMPTS = 3;
+    private static final long VIEW_CLOSE_RETRY_DELAY_MS = 100L;
+    private static final int MAX_PENDING_VIEW_CLOSES = MAX_ACTIVE_PARENT_SESSIONS * 2;
     private static final String SESSION_REPLAY_BLOOM = "session_replay_bloom_v1";
     private static final String SESSION_REPLAY_ISSUED_COUNT = "session_replay_issued_count_v1";
     private final Object streamsLock = new Object();
@@ -47,8 +60,22 @@ public final class CompositorService extends Service {
     private final Map<Long, Type111ControlPlane> type111Sessions = new HashMap<Long, Type111ControlPlane>();
     private final Map<Long, ParentAuthority> parentAuthorities = new HashMap<Long, ParentAuthority>();
     private final Map<Long, SinkAdmissionGrant> sinkAdmissionGrants = new HashMap<Long, SinkAdmissionGrant>();
+    private final Set<IBinder> pendingViewCloses = Collections.newSetFromMap(
+            new IdentityHashMap<IBinder, Boolean>());
+    private final ThreadPoolExecutor viewCloseExecutor = new ThreadPoolExecutor(2, 2, 0L,
+            TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(MAX_PENDING_VIEW_CLOSES - 2),
+            new java.util.concurrent.ThreadFactory() {
+                private final AtomicInteger sequence = new AtomicInteger();
+                @Override public Thread newThread(Runnable task) {
+                    Thread worker = new Thread(task, "ClarityLink-view-close-" + sequence.incrementAndGet());
+                    worker.setDaemon(true);
+                    return worker;
+                }
+            }, new ThreadPoolExecutor.AbortPolicy());
     /** Sessions currently closing; retired IDs are tracked by the bounded replay window below. */
     private final java.util.HashSet<Long> closingSessions = new java.util.HashSet<Long>();
+    /** Parent teardowns remain fenced until every exact child sink close is acknowledged or dead. */
+    private final java.util.HashSet<Long> pendingParentTeardowns = new java.util.HashSet<Long>();
     /** Recent session IDs survive compositor death; replay protection retains the latest 256 IDs. */
     private final java.util.HashSet<Long> persistedSessionIds = new java.util.HashSet<Long>();
     /** Unordered IDs from the prior preference schema are retained intact; their age is unknown. */
@@ -94,6 +121,7 @@ public final class CompositorService extends Service {
         FrameStreamIdentity identity;
         IBinder sink;
         IBinder.DeathRecipient deathRecipient;
+        volatile boolean closing;
         volatile long lastFrameId;
         StreamState(FrameStreamIdentity identity, IBinder sink) {
             this.identity = identity;
@@ -194,7 +222,11 @@ public final class CompositorService extends Service {
                     code == FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER ||
                     code == FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED) {
                 FrameStreamIdentity identity = readIdentity(data);
-                if (identity == null || !isSessionOwnerCaller(identity.sessionId)) {
+                boolean ownerMayDrainDuringShutdown =
+                        code == FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER ||
+                        code == FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED;
+                if (identity == null || !isSessionOwnerCaller(identity.sessionId,
+                        ownerMayDrainDuringShutdown)) {
                     reply.writeNoException(); reply.writeInt(0); return true;
                 }
                 long timeoutMs = code == FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER ?
@@ -260,7 +292,12 @@ public final class CompositorService extends Service {
                     code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_CONTENDER ||
                     code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER) {
                 FrameStreamIdentity ownerIdentity = readIdentity(data);
-                if (ownerIdentity == null || !isSessionOwnerCaller(ownerIdentity.sessionId)) {
+                boolean ownerMayDrainDuringShutdown =
+                        code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_BARRIER ||
+                        code == FrameIpcProtocol.LAB_WAIT_PARENT_TEARDOWN_CONTENDER ||
+                        code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER;
+                if (ownerIdentity == null || !isSessionOwnerCaller(ownerIdentity.sessionId,
+                        ownerMayDrainDuringShutdown)) {
                     reply.writeNoException(); reply.writeInt(0); return true;
                 }
                 long timeoutMs = code == FrameIpcProtocol.LAB_RELEASE_PARENT_TEARDOWN_BARRIER ?
@@ -530,8 +567,12 @@ public final class CompositorService extends Service {
                 return true;
             }
             if (code == FrameIpcProtocol.TYPE111_PARENT_TEARDOWN) {
-                String reason = teardownType111Session(readIdentity(data));
+                FrameStreamIdentity ownerIdentity = readIdentity(data);
+                String reason = teardownType111Session(ownerIdentity);
                 writeControlReply(reply, reason);
+                if ("accepted".equals(reason) || "accepted_pending".equals(reason))
+                    Log.i(TAG, "TYPE111_PARENT_TEARDOWN_REQUEST session_id=" +
+                            ownerIdentity.sessionId + " result=" + reason);
                 return true;
             }
             if (code == FrameIpcProtocol.TYPE111_QUERY_STREAM) {
@@ -1022,12 +1063,18 @@ public final class CompositorService extends Service {
     }
 
     private boolean isSessionOwnerCaller(long sessionId) {
+        return isSessionOwnerCaller(sessionId, false);
+    }
+
+    /** Shutdown may still need the exact owner to release and observe a test-only held transfer. */
+    private boolean isSessionOwnerCaller(long sessionId, boolean allowClosingForDrain) {
         final int callerPid = Binder.getCallingPid();
         final ParentAuthority expected;
         synchronized (streamsLock) {
             expected = parentAuthorities.get(sessionId);
             if (expected == null || expected.dead || expected.ownerPid != callerPid ||
-                    !expected.ownerSink.isBinderAlive() || closingSessions.contains(sessionId)) return false;
+                    !expected.ownerSink.isBinderAlive() ||
+                    (!allowClosingForDrain && closingSessions.contains(sessionId))) return false;
         }
         // The owner PID is not a capability: API17 may reuse it after the Activity process dies.
         // Resolve the recorded role without holding streamsLock, then fence against authority
@@ -1036,7 +1083,8 @@ public final class CompositorService extends Service {
         synchronized (streamsLock) {
             ParentAuthority current = parentAuthorities.get(sessionId);
             return current == expected && !current.dead && current.ownerPid == callerPid &&
-                    current.ownerSink.isBinderAlive() && !closingSessions.contains(sessionId);
+                    current.ownerSink.isBinderAlive() &&
+                    (allowClosingForDrain || !closingSessions.contains(sessionId));
         }
     }
 
@@ -1102,21 +1150,27 @@ public final class CompositorService extends Service {
         synchronized (streamsLock) {
             if (parentAuthorities.get(expected.ownerIdentity.sessionId) != expected) return;
             closingSessions.add(expected.ownerIdentity.sessionId);
+            pendingParentTeardowns.add(expected.ownerIdentity.sessionId);
             parentAuthorities.remove(expected.ownerIdentity.sessionId);
             if (expected.provisionalExpiry != null) authorityHandler.removeCallbacks(expected.provisionalExpiry);
             plane = type111Sessions.remove(expected.ownerIdentity.sessionId);
             for (StreamState state : streams.values())
                 if (state.identity.sessionId == expected.ownerIdentity.sessionId) owned.add(state);
         }
+        releaseParentTeardownBarrierOnOwnerLoss(expected.ownerIdentity.sessionId);
         for (StreamState state : owned) {
             FrameStreamIdentity identity;
             synchronized (state.lock) { identity = state.identity; }
             if (identity != null) unregisterStreamState(state, identity);
         }
         if (plane != null) plane.parentTeardown();
+        boolean completed = finishPendingParentTeardown(expected.ownerIdentity.sessionId);
+        if (!completed) {
+            Log.w(TAG, "TYPE111_PARENT_TEARDOWN_PENDING session_id=" +
+                    expected.ownerIdentity.sessionId + " streams_pending=" +
+                    countSessionStreams(expected.ownerIdentity.sessionId) + " reason=owner_revoked");
+        }
         synchronized (streamsLock) {
-            activeSessionIds.remove(expected.ownerIdentity.sessionId);
-            closingSessions.remove(expected.ownerIdentity.sessionId);
             synchronized (labDelayedDeathLock) {
                 if (labDelayedDeathIdentity != null &&
                         labDelayedDeathIdentity.sessionId == expected.ownerIdentity.sessionId) {
@@ -1135,6 +1189,16 @@ public final class CompositorService extends Service {
         Log.i(TAG, "TYPE110_PARENT_AUTHORITY_REVOKED session_id=" +
                 expected.ownerIdentity.sessionId + " owner_epoch=" + expected.epoch +
                 " streams_closed=" + owned.size() + " cause=" + cause);
+    }
+
+    /** Owner loss must not strand a test-only teardown gate after authority is revoked. */
+    private void releaseParentTeardownBarrierOnOwnerLoss(long sessionId) {
+        synchronized (labParentTeardownBarrierLock) {
+            if (sessionId != labParentTeardownBarrierSessionId) return;
+            labParentTeardownRelease.countDown();
+            Log.i(TAG, "IPC_LAB_PARENT_TEARDOWN_BARRIER_RELEASED session_id=" + sessionId +
+                    " cause=owner_authority_revoked");
+        }
     }
 
     /** Arm an owner-only API test barrier; arbitrary UIDs are rejected by onTransact first. */
@@ -1357,6 +1421,7 @@ public final class CompositorService extends Service {
             // Close admission before taking the child snapshot. Registrations inserted before
             // this point are captured below; later registrations fail under this same lock.
             closingSessions.add(sessionId);
+            pendingParentTeardowns.add(sessionId);
         }
         pauseAtParentTeardownBarrier(sessionId);
         Type111ControlPlane plane = controlPlane(sessionId);
@@ -1374,13 +1439,43 @@ public final class CompositorService extends Service {
                 unregisterStream(identity);
             }
         }
-        if (plane != null) plane.parentTeardown();
+        if (!finishPendingParentTeardown(sessionId)) {
+            Log.w(TAG, "TYPE111_PARENT_TEARDOWN_PENDING session_id=" + sessionId +
+                    " streams_pending=" + countSessionStreams(sessionId) +
+                    " reason=view_close_unacknowledged");
+            // Teardown admission is already closed and every captured stream has been
+            // revoked. A false Binder result here would make callers retry or report a
+            // failed teardown even though this exact lifecycle is fenced and its bounded
+            // close is still resolving. Report request acceptance while keeping the
+            // separate completion receipt for callers that need proof of final cleanup.
+            return "accepted_pending";
+        }
+        Log.i(TAG, "TYPE111_PARENT_TEARDOWN session_id=" + sessionId +
+                " streams_closed=" + owned.size() + " result=accepted");
+        return "accepted";
+    }
+
+    private int countSessionStreams(long sessionId) {
+        synchronized (streamsLock) {
+            int count = 0;
+            for (StreamState state : streams.values())
+                if (state.identity.sessionId == sessionId) count++;
+            return count;
+        }
+    }
+
+    private boolean finishPendingParentTeardown(long sessionId) {
+        Type111ControlPlane plane;
         ParentAuthority authority;
         synchronized (streamsLock) {
-            type111Sessions.remove(sessionId);
+            if (!pendingParentTeardowns.contains(sessionId)) return false;
+            for (StreamState state : streams.values())
+                if (state.identity.sessionId == sessionId) return false;
+            plane = type111Sessions.remove(sessionId);
             authority = parentAuthorities.remove(sessionId);
             activeSessionIds.remove(sessionId);
             closingSessions.remove(sessionId);
+            pendingParentTeardowns.remove(sessionId);
             synchronized (labDelayedDeathLock) {
                 if (labDelayedDeathIdentity != null && labDelayedDeathIdentity.sessionId == sessionId) {
                     labDelayedDeathRelease.countDown();
@@ -1399,14 +1494,15 @@ public final class CompositorService extends Service {
             try { authority.ownerSink.unlinkToDeath(authority.deathRecipient, 0); }
             catch (RuntimeException ignored) { }
         }
-        Log.i(TAG, "TYPE111_PARENT_TEARDOWN session_id=" + sessionId +
-                " streams_closed=" + owned.size() + " result=accepted");
-        return "accepted";
+        if (plane != null) plane.parentTeardown();
+        Log.i(TAG, "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=" + sessionId +
+                " result=accepted late_close_resolution=true");
+        return true;
     }
 
     private static void writeControlReply(Parcel reply, String reason) {
         reply.writeNoException();
-        reply.writeInt("accepted".equals(reason) ? 1 : 0);
+        reply.writeInt(("accepted".equals(reason) || "accepted_pending".equals(reason)) ? 1 : 0);
         reply.writeString(reason);
     }
 
@@ -1432,6 +1528,7 @@ public final class CompositorService extends Service {
         Log.i(TAG, "IPC_REMOTE_PROCESS_DESTROYED resources_cleared=" + streams.isEmpty() +
                 " active_pfd_transfers=" + activePfdTransfers.get() +
                 " retained_frame_bytes=" + retainedFrameBytes.get());
+        viewCloseExecutor.shutdown();
         super.onDestroy();
     }
 
@@ -1479,7 +1576,7 @@ public final class CompositorService extends Service {
         String rejection = "frame_contract_rejected";
         boolean sessionClosing;
         synchronized (streamsLock) { sessionClosing = closingSessions.contains(identity.sessionId); }
-        boolean contractValid = !sessionClosing && descriptor != null && identity.equals(state.identity) &&
+        boolean contractValid = !sessionClosing && !state.closing && descriptor != null && identity.equals(state.identity) &&
                 !state.compositor.warningVisible() &&
                 timestampNs > state.compositor.lastTimestampNs() &&
                 pixelFormat == FrameIpcProtocol.PIXEL_FORMAT_RGBA_8888 &&
@@ -1820,7 +1917,7 @@ public final class CompositorService extends Service {
         synchronized (streamsLock) {
             StreamState owner = streams.get(ownerIdentity.key());
             ParentAuthority authority = parentAuthorities.get(ownerIdentity.sessionId);
-            if (authority == null || authority.ownerPid != Binder.getCallingPid() ||
+            if (authority == null || authority.ownerPid != Binder.getCallingPid() || state.closing ||
                     owner == null || !ownerIdentity.equals(owner.identity) ||
                     closingSessions.contains(oldIdentity.sessionId)) return false;
         }
@@ -1835,7 +1932,7 @@ public final class CompositorService extends Service {
         synchronized (state.lock) {
             synchronized (deathGate) {
                 synchronized (streamsLock) {
-                    boolean stillCurrent = streams.get(oldIdentity.key()) == state &&
+                    boolean stillCurrent = streams.get(oldIdentity.key()) == state && !state.closing &&
                             oldIdentity.equals(state.identity) &&
                             !closingSessions.contains(oldIdentity.sessionId) &&
                             streams.get(ownerIdentity.key()) != null &&
@@ -1949,6 +2046,24 @@ public final class CompositorService extends Service {
     }
 
     private boolean unregisterStreamState(StreamState state, FrameStreamIdentity identity) {
+        IBinder sinkToClose = null;
+        synchronized (state.lock) {
+            synchronized (streamsLock) {
+                if (streams.get(identity.key()) != state || !identity.equals(state.identity))
+                    return false;
+                state.closing = true;
+                if (identity.streamType == FrameStreamIdentity.TYPE111) sinkToClose = state.sink;
+            }
+        }
+        // Keep the exact registration fenced until the View acknowledges closure or Binder
+        // reports death. A timeout is not evidence that queued UI work was released.
+        if (sinkToClose != null && sinkToClose.isBinderAlive()) {
+            if (!closeViewSink(state, sinkToClose, identity)) return false;
+        }
+        return removeStreamRegistrationIfCurrent(state, identity);
+    }
+
+    private boolean removeStreamRegistrationIfCurrent(StreamState state, FrameStreamIdentity identity) {
         synchronized (state.lock) {
             synchronized (streamsLock) {
                 if (streams.get(identity.key()) != state || !identity.equals(state.identity))
@@ -1959,6 +2074,7 @@ public final class CompositorService extends Service {
                     catch (RuntimeException ignored) { }
                 }
                 state.sink = null;
+                state.closing = true;
                 streams.remove(identity.key());
                 if (identity.streamType == FrameStreamIdentity.TYPE110 &&
                         !type111Sessions.containsKey(identity.sessionId))
@@ -1973,6 +2089,104 @@ public final class CompositorService extends Service {
                 " stream_type=" + identity.streamType + " connection_id=" + identity.connectionId +
                 " active_pfd_transfers=" + state.activePfdTransfers.get());
         return true;
+    }
+
+    private boolean closeViewSink(final StreamState state, final IBinder sink,
+            final FrameStreamIdentity identity) {
+        return closeViewSink(state, sink, identity, 1, true);
+    }
+
+    private boolean closeViewSink(final StreamState state, final IBinder sink,
+            final FrameStreamIdentity identity, final int attempt, final boolean waitForResult) {
+        if (sink == null || !sink.isBinderAlive()) {
+            removeStreamRegistrationIfCurrent(state, identity);
+            finishPendingParentTeardown(identity.sessionId);
+            return true;
+        }
+        synchronized (pendingViewCloses) {
+            if (pendingViewCloses.contains(sink)) {
+                Log.w(TAG, "IPC_VIEW_SINK_CLOSE_ALREADY_PENDING session_id=" + identity.sessionId +
+                        " generation=" + identity.streamGeneration);
+                return false;
+            }
+            if (pendingViewCloses.size() >= MAX_PENDING_VIEW_CLOSES) {
+                Log.w(TAG, "IPC_VIEW_SINK_CLOSE_CAPACITY_REACHED session_id=" + identity.sessionId +
+                        " generation=" + identity.streamGeneration);
+                return false;
+            }
+            pendingViewCloses.add(sink);
+        }
+        FutureTask<Boolean> close = new FutureTask<Boolean>(new Callable<Boolean>() {
+            @Override public Boolean call() throws Exception {
+                Parcel data = Parcel.obtain();
+                Parcel reply = Parcel.obtain();
+                try {
+                    data.writeInterfaceToken("org.claritylink.android.IClarityLinkViewFrameSink");
+                    data.writeInt(FrameIpcProtocol.VERSION);
+                    writeIdentity(data, identity);
+                    if (!sink.transact(FrameIpcProtocol.VIEW_CLOSE, data, reply, 0)) return Boolean.FALSE;
+                    reply.readException();
+                    return Boolean.valueOf(reply.readInt() != 0);
+                } finally {
+                    reply.recycle();
+                    data.recycle();
+                }
+            }
+        }) {
+            @Override protected void done() {
+                synchronized (pendingViewCloses) { pendingViewCloses.remove(sink); }
+                boolean acknowledged = false;
+                try { acknowledged = get().booleanValue() || !sink.isBinderAlive(); }
+                catch (Exception ignored) { acknowledged = !sink.isBinderAlive(); }
+                if (acknowledged) {
+                    removeStreamRegistrationIfCurrent(state, identity);
+                    finishPendingParentTeardown(identity.sessionId);
+                } else if (attempt < MAX_VIEW_CLOSE_ATTEMPTS && authorityHandler != null) {
+                    scheduleViewCloseRetry(state, sink, identity, attempt);
+                } else if (sink.isBinderAlive()) {
+                    Log.e(TAG, "IPC_VIEW_SINK_CLOSE_UNRESOLVED session_id=" + identity.sessionId +
+                            " generation=" + identity.streamGeneration + " attempts=" + attempt +
+                            " recovery=owner_or_sink_restart_required");
+                }
+            }
+        };
+        try {
+            viewCloseExecutor.execute(close);
+        } catch (RejectedExecutionException full) {
+            synchronized (pendingViewCloses) { pendingViewCloses.remove(sink); }
+            Log.w(TAG, "IPC_VIEW_SINK_CLOSE_REJECTED session_id=" + identity.sessionId +
+                    " generation=" + identity.streamGeneration + " reason=bounded_executor_full");
+            if (attempt < MAX_VIEW_CLOSE_ATTEMPTS) scheduleViewCloseRetry(state, sink, identity, attempt);
+            return false;
+        }
+        if (!waitForResult) return true;
+        try {
+            boolean accepted = close.get(VIEW_CLOSE_TIMEOUT_MS, TimeUnit.MILLISECONDS).booleanValue();
+            Log.i(TAG, "IPC_VIEW_SINK_CLOSE session_id=" + identity.sessionId +
+                    " generation=" + identity.streamGeneration + " accepted=" + accepted +
+                    " timeout_ms=" + VIEW_CLOSE_TIMEOUT_MS);
+            return accepted;
+        } catch (TimeoutException timeout) {
+            Log.w(TAG, "IPC_VIEW_SINK_CLOSE_TIMEOUT session_id=" + identity.sessionId +
+                    " generation=" + identity.streamGeneration + " resolution=retain_fenced_identity");
+            return false;
+        } catch (Exception failure) {
+            boolean dead = !sink.isBinderAlive();
+            Log.w(TAG, "IPC_VIEW_SINK_CLOSE_FAILED session_id=" + identity.sessionId +
+                    " generation=" + identity.streamGeneration + " binder_dead=" + dead +
+                    " type=" + failure.getClass().getSimpleName());
+            return dead;
+        }
+    }
+
+    private void scheduleViewCloseRetry(final StreamState state, final IBinder sink,
+            final FrameStreamIdentity identity, final int attempt) {
+        if (authorityHandler == null || attempt >= MAX_VIEW_CLOSE_ATTEMPTS) return;
+        authorityHandler.postDelayed(new Runnable() {
+            @Override public void run() {
+                closeViewSink(state, sink, identity, attempt + 1, false);
+            }
+        }, VIEW_CLOSE_RETRY_DELAY_MS * attempt);
     }
 
     private static FrameStreamIdentity readIdentity(Parcel data) {

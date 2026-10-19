@@ -14,8 +14,12 @@ import org.claritylink.renderer.FrameDispatchGate;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 
@@ -58,6 +62,10 @@ final class FrameViewSink extends Binder {
 
         void expectDispatchCount(int count) { dispatchFinished = new CountDownLatch(count); }
         void dispatchFinished() { dispatchFinished.countDown(); }
+        void releaseForClose() {
+            releaseHandler.countDown();
+            releaseView.countDown();
+        }
 
         void warningApplied(boolean visible) {
             (visible ? warningApplied : warningCleared).countDown();
@@ -105,8 +113,11 @@ final class FrameViewSink extends Binder {
     private final Target target;
     private final AtomicInteger queuedFrames = new AtomicInteger();
     private final AtomicInteger queuedBytes = new AtomicInteger();
+    private final Object pendingDispatchLock = new Object();
+    private final Set<PendingDispatch> pendingDispatches = new HashSet<PendingDispatch>();
     private final FrameDispatchGate dispatchGate = new FrameDispatchGate();
     private volatile FrameStreamIdentity identity;
+    private volatile FrameStreamIdentity lastClosedIdentity;
     private volatile long generation;
     private volatile long lastFrameId;
     private volatile long lastTimestampNs = -1L;
@@ -115,6 +126,7 @@ final class FrameViewSink extends Binder {
 
     FrameDispatchGate dispatchGate() { return dispatchGate; }
     int queuedFrameCount() { return queuedFrames.get(); }
+    int queuedByteCount() { return queuedBytes.get(); }
 
     void setDispatchProbe(DispatchProbe probe) { dispatchProbe = probe; }
 
@@ -134,6 +146,7 @@ final class FrameViewSink extends Binder {
         if (!dispatchGate.begin(value.streamGeneration))
             throw new IllegalStateException("dispatch gate already active");
         identity = value;
+        lastClosedIdentity = null;
         generation = value.streamGeneration;
         lastFrameId = 0L;
         lastTimestampNs = -1L;
@@ -151,8 +164,12 @@ final class FrameViewSink extends Binder {
 
     synchronized void close(long value) {
         if (generation == value) {
+            lastClosedIdentity = identity;
             dispatchGate.end(value);
             closed = true;
+            DispatchProbe probe = dispatchProbe;
+            if (probe instanceof TestControl) ((TestControl) probe).releaseForClose();
+            cancelPendingDispatches();
             generation = 0L;
             identity = null;
             lastFrameId = 0L;
@@ -163,7 +180,7 @@ final class FrameViewSink extends Binder {
     @Override protected synchronized boolean onTransact(int code, Parcel data, final Parcel reply, int flags)
             throws RemoteException {
         if (code != FrameIpcProtocol.VIEW_FRAME && code != FrameIpcProtocol.VIEW_WARNING &&
-                code != FrameIpcProtocol.VIEW_CHANGE_GENERATION)
+                code != FrameIpcProtocol.VIEW_CHANGE_GENERATION && code != FrameIpcProtocol.VIEW_CLOSE)
             return super.onTransact(code, data, reply, flags);
         if (Binder.getCallingUid() != Process.myUid()) {
             reply.writeException(new SecurityException("view frame caller rejected"));
@@ -171,6 +188,21 @@ final class FrameViewSink extends Binder {
         }
         data.enforceInterface(DESCRIPTOR);
         int version = data.readInt();
+        if (code == FrameIpcProtocol.VIEW_CLOSE) {
+            FrameStreamIdentity requestIdentity = readIdentity(data);
+            boolean currentMatch = version == FrameIpcProtocol.VERSION && identity != null &&
+                    identity.equals(requestIdentity) && generation == requestIdentity.streamGeneration;
+            boolean duplicateMatch = version == FrameIpcProtocol.VERSION && lastClosedIdentity != null &&
+                    lastClosedIdentity.equals(requestIdentity) && closed && generation == 0L;
+            if (currentMatch) close(requestIdentity.streamGeneration);
+            reply.writeNoException();
+            reply.writeInt(currentMatch || duplicateMatch ? 1 : 0);
+            Log.i(TAG, "BINDER_VIEW_STREAM_CLOSE session_id=" + requestIdentity.sessionId +
+                    " stream_type=" + requestIdentity.streamType + " generation=" +
+                    requestIdentity.streamGeneration + " accepted=" + (currentMatch || duplicateMatch) +
+                    " queued_frames=" + queuedFrames.get() + " queued_bytes=" + queuedBytes.get());
+            return true;
+        }
         if (code == FrameIpcProtocol.VIEW_CHANGE_GENERATION) {
             FrameStreamIdentity requestIdentity = readIdentity(data);
             long oldGeneration = requestIdentity.streamGeneration;
@@ -321,37 +353,14 @@ final class FrameViewSink extends Binder {
             reply.writeString("frame_allocation_rejected");
             return true;
         }
+        final PendingDispatch pending = new PendingDispatch(frame, frameGeneration, frameId,
+                timestampNs, dispatchEpoch, payloadBytes);
+        synchronized (pendingDispatchLock) { pendingDispatches.add(pending); }
         final boolean queued;
         try {
-            queued = ui.post(new Runnable() {
-                public void run() {
-                    try {
-                        DispatchProbe probe = dispatchProbe;
-                        if (probe != null) probe.beforeDispatch(frameGeneration, frameId, timestampNs);
-                        if (!closed && generation == frameGeneration &&
-                                dispatchGate.mayDispatch(frameGeneration, dispatchEpoch)) {
-                            boolean accepted = target.enqueue(frame, frameGeneration, frameId, dispatchEpoch);
-                            if (accepted) Log.i(TAG, "BINDER_FRAME_QUEUED_FOR_VIEW generation=" +
-                                    frameGeneration + " frame_id=" + frameId + " timestamp_ns=" +
-                                    timestampNs + " bytes=" + payloadBytes);
-                            else Log.i(TAG, "BINDER_FRAME_VIEW_REJECTED generation=" + frameGeneration +
-                                    " frame_id=" + frameId + " reason=view_not_ready");
-                        } else {
-                            Log.i(TAG, "BINDER_FRAME_DROPPED generation=" + frameGeneration +
-                                    " frame_id=" + frameId + " reason=warning_or_stale_epoch");
-                        }
-                    } finally {
-                        queuedBytes.addAndGet(-payloadBytes);
-                        queuedFrames.decrementAndGet();
-                        DispatchProbe completedProbe = dispatchProbe;
-                        if (completedProbe instanceof TestControl)
-                            ((TestControl) completedProbe).dispatchFinished();
-                    }
-                }
-            });
+            queued = ui.post(pending);
         } catch (OutOfMemoryError exhausted) {
-            queuedBytes.addAndGet(-payloadBytes);
-            queuedFrames.decrementAndGet();
+            pending.releaseAccounting();
             reply.writeNoException();
             reply.writeInt(0);
             reply.writeString("frame_dispatch_allocation_rejected");
@@ -361,13 +370,58 @@ final class FrameViewSink extends Binder {
             lastFrameId = frameId;
             lastTimestampNs = timestampNs;
         } else {
-            queuedBytes.addAndGet(-payloadBytes);
-            queuedFrames.decrementAndGet();
+            pending.releaseAccounting();
         }
         reply.writeNoException();
         reply.writeInt(queued ? 1 : 0);
         reply.writeString(queued ? "queued" : "ui_dispatch_rejected");
         return true;
+    }
+
+    private final class PendingDispatch implements Runnable {
+        private final DecodedFrame frame;
+        private final long frameGeneration, frameId, timestampNs, dispatchEpoch;
+        private final int payloadBytes;
+        private final AtomicBoolean accounted = new AtomicBoolean(true);
+        PendingDispatch(DecodedFrame frame, long generation, long frameId, long timestampNs,
+                long dispatchEpoch, int payloadBytes) {
+            this.frame = frame; this.frameGeneration = generation; this.frameId = frameId;
+            this.timestampNs = timestampNs; this.dispatchEpoch = dispatchEpoch;
+            this.payloadBytes = payloadBytes;
+        }
+        @Override public void run() {
+            try {
+                DispatchProbe probe = dispatchProbe;
+                if (probe != null) probe.beforeDispatch(frameGeneration, frameId, timestampNs);
+                if (!closed && generation == frameGeneration &&
+                        dispatchGate.mayDispatch(frameGeneration, dispatchEpoch)) {
+                    boolean accepted = target.enqueue(frame, frameGeneration, frameId, dispatchEpoch);
+                    if (accepted) Log.i(TAG, "BINDER_FRAME_QUEUED_FOR_VIEW generation=" +
+                            frameGeneration + " frame_id=" + frameId + " timestamp_ns=" +
+                            timestampNs + " bytes=" + payloadBytes);
+                    else Log.i(TAG, "BINDER_FRAME_VIEW_REJECTED generation=" + frameGeneration +
+                            " frame_id=" + frameId + " reason=view_not_ready");
+                } else Log.i(TAG, "BINDER_FRAME_DROPPED generation=" + frameGeneration +
+                        " frame_id=" + frameId + " reason=warning_or_stale_epoch");
+            } finally {
+                releaseAccounting();
+                DispatchProbe probe = dispatchProbe;
+                if (probe instanceof TestControl) ((TestControl) probe).dispatchFinished();
+            }
+        }
+        void cancel() { ui.removeCallbacks(this); releaseAccounting(); }
+        void releaseAccounting() {
+            if (!accounted.compareAndSet(true, false)) return;
+            synchronized (pendingDispatchLock) { pendingDispatches.remove(this); }
+            queuedBytes.addAndGet(-payloadBytes);
+            queuedFrames.decrementAndGet();
+        }
+    }
+
+    private void cancelPendingDispatches() {
+        ArrayList<PendingDispatch> pending;
+        synchronized (pendingDispatchLock) { pending = new ArrayList<PendingDispatch>(pendingDispatches); }
+        for (PendingDispatch dispatch : pending) dispatch.cancel();
     }
 
     private static byte[] readPayload(ParcelFileDescriptor descriptor, int expected) throws IOException {

@@ -1437,7 +1437,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                                 " type110_generation_after_fixture=" + type110Identity.streamGeneration +
                                 " type111_generation=" + frameIpcClient.streamIdentity().streamGeneration +
                                 " type110_last_frame_id=" + reattachedType110Stats.frameId +
-                                " stale_frame_rejected=true parent_teardown=accepted");
+                                " stale_frame_rejected=true parent_teardown_request=accepted");
                         stopOwnedDisplay("reattach-test-complete");
                     } else {
                         android.os.Process.killProcess(android.os.Process.myPid());
@@ -1718,6 +1718,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         final boolean[] producerBound = new boolean[1];
         final ServiceConnection[] recoveryConnection = new ServiceConnection[1];
         final boolean[] recoveryBound = new boolean[1];
+        final FrameViewSink.TestControl[] saturatedQueue = new FrameViewSink.TestControl[1];
         final CountDownLatch firstConnection = new CountDownLatch(1);
         final CountDownLatch death = new CountDownLatch(1);
         ServiceConnection connection = new ServiceConnection() {
@@ -1739,7 +1740,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             FrameStreamIdentity before = frameIpcClient.streamIdentity();
             FrameLabSink.Stats type110Before = queryType110StatsOrThrow("type110_stats_before_producer_death");
             int oldPid = startIsolatedProducer(producerBinder[0], descriptor, before,
-                    frameIpcClient.nextFrameIdHint(), 9000000L);
+                    frameIpcClient.nextFrameIdHint(), 9000000L, false);
             requireType111(oldPid > 0 && oldPid != android.os.Process.myPid() &&
                     oldPid != compositorRemotePid && oldPid != type110Before.pid,
                     "producer_view_compositor_type110_processes_are_distinct");
@@ -1754,14 +1755,30 @@ public final class ClarityLinkDisplayActivity extends Activity
                     " compositor_pid=" + compositorRemotePid + " type110_sink_pid=" + type110Before.pid +
                     " binder_v3=true decoder=MediaCodec");
 
-            requireType111(controlBarrier(FrameIpcProtocol.LAB_ARM_TRANSFER_BARRIER, before, 0L),
+            FrameStreamIdentity queueBaseIdentity = frameIpcClient.streamIdentity();
+            long queueGeneration = queueBaseIdentity.streamGeneration + 1L;
+            requireType111(frameIpcClient.replaceGeneration(queueBaseIdentity.streamGeneration, queueGeneration),
+                    "producer_failure_queue_generation_is_fresh");
+            FrameStreamIdentity queueIdentity = frameIpcClient.streamIdentity();
+            requireType111(new Type111ControlClient(compositorEndpoint).videoConfig(
+                    queueIdentity, 64, 64) > 0, "producer_failure_queue_video_configured");
+            long drawnBeforeFailure = renderer == null ? -1L : renderer.contentView().drawnTimestampNs();
+            saturatedQueue[0] = fillType111QueueForProducerFailure(queueIdentity.streamGeneration);
+            requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
+                    "producer_failure_starts_with_saturated_view_queue");
+            Log.i(TAG, "CL_R4_QUEUE_PRODUCER_DEATH_SATURATED session_id=" + binderGeneration +
+                    " queued_frames=" + viewSink.queuedFrameCount() + " queued_bytes=" +
+                    viewSink.queuedByteCount() + " limit_frames=" + FrameViewSink.MAX_QUEUED_FRAMES +
+                    " producer_pid=" + oldPid);
+
+            requireType111(controlBarrier(FrameIpcProtocol.LAB_ARM_TRANSFER_BARRIER, queueIdentity, 0L),
                     "arm_actual_inflight_pfd_barrier");
-            requireType111(startIsolatedProducer(producerBinder[0], descriptor, before,
-                    frameIpcClient.nextFrameIdHint(), 11000000L) == oldPid,
+            requireType111(startIsolatedProducer(producerBinder[0], descriptor, queueIdentity,
+                    frameIpcClient.nextFrameIdHint(), 11000000L, true) == oldPid,
                     "producer_second_decode_run_started_in_same_process");
-            requireType111(controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER, before, 10000L),
+            requireType111(controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER, queueIdentity, 10000L),
                     "compositor_holds_live_type111_pfd_before_read");
-            int[] heldStats = queryType111TransferStats(before);
+            int[] heldStats = queryType111TransferStats(queueIdentity);
             requireType111(heldStats[0] == 1 && heldStats[1] == 0 && heldStats[2] == 1,
                     "inflight_pfd_is_owned_and_counted_before_producer_death");
             FrameLabSink.Stats type110DuringBlocked = queryType110StatsOrThrow(
@@ -1786,11 +1803,11 @@ public final class ClarityLinkDisplayActivity extends Activity
             } finally { killReply.recycle(); killData.recycle(); }
             requireType111(killAccepted && awaitRace(death),
                     "actual_type111_producer_death_and_binder_callback");
-            requireType111(controlBarrier(FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER, before, 0L),
+            requireType111(controlBarrier(FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER, queueIdentity, 0L),
                     "release_compositor_after_producer_process_death");
-            requireType111(controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED, before, 10000L),
+            requireType111(controlBarrier(FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED, queueIdentity, 10000L),
                     "inflight_transfer_finishes_after_pipe_writer_death");
-            int[] cleanedStats = queryType111TransferStats(before);
+            int[] cleanedStats = queryType111TransferStats(queueIdentity);
             requireType111(cleanedStats[0] == 0 && cleanedStats[1] == 0 && cleanedStats[2] == 0 &&
                     cleanedStats[3] == heldStats[3],
                     "inflight_pfd_eof_cleanup_without_accepting_partial_frame");
@@ -1821,6 +1838,19 @@ public final class ClarityLinkDisplayActivity extends Activity
             requireType111("frame_contract_rejected".equals(frameIpcClient.probeMalformed(
                     "stale_generation", freshGeneration, 9200000000L)),
                     "predeath_type111_generation_rejected_after_restart");
+            saturatedQueue[0].releaseHandler.countDown();
+            requireType111(awaitRace(saturatedQueue[0].dispatchFinished),
+                    "queued_predeath_frames_finish_after_generation_fence");
+            requireType111(viewSink.queuedFrameCount() == 0 && viewSink.queuedByteCount() == 0,
+                    "producer_death_queue_frames_and_bytes_reclaimed");
+            requireType111(renderer == null || renderer.contentView().drawnTimestampNs() == drawnBeforeFailure,
+                    "predeath_queued_frames_suppressed_after_generation_change");
+            viewSink.setDispatchProbe(null);
+            Log.i(TAG, "CL_R4_QUEUE_PRODUCER_DEATH_PASS session_id=" + binderGeneration +
+                    " old_producer_pid=" + oldPid + " queue_frames_before_death=" +
+                    FrameViewSink.MAX_QUEUED_FRAMES + " queue_frames_after=" + viewSink.queuedFrameCount() +
+                    " queue_bytes_after=" + viewSink.queuedByteCount() +
+                    " old_generation_suppressed=true type110_progress=true");
             // API17 reports the dead binding but does not consistently reconnect a bound-only
             // service. Rebind only after the actual death callback, so recovery is explicit and
             // its replacement process can be identified without a polling sleep.
@@ -1851,7 +1881,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             requireType111(new Type111ControlClient(compositorEndpoint).videoConfig(
                     freshIdentity, 32, 32) > 0, "video_config_rebound_for_fresh_generation");
             startIsolatedProducer(freshProducerBinder, descriptor, freshIdentity,
-                    frameIpcClient.nextFrameIdHint(), 10000000L);
+                    frameIpcClient.nextFrameIdHint(), 10000000L, false);
             long[] restartedFrames = awaitIsolatedProducerFrames(freshProducerBinder, descriptor);
             requireType111(restartedFrames.length >= 2, "restarted_producer_decoded_two_h264_frames");
             requireType111(awaitViewFrameDrawn(binderGeneration,
@@ -1863,6 +1893,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     " new_generation=" + freshIdentity.streamGeneration + " stale_rejected=true " +
                     "type110_progress_after_death=true h264_decoded=true binder_pfd=true view_draw=true");
         } finally {
+            if (saturatedQueue[0] != null) saturatedQueue[0].releaseHandler.countDown();
+            viewSink.setDispatchProbe(null);
             if (producerBound[0]) {
                 try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
             }
@@ -1872,8 +1904,50 @@ public final class ClarityLinkDisplayActivity extends Activity
         }
     }
 
+    private FrameViewSink.TestControl fillType111QueueForProducerFailure(long generation) throws Exception {
+        long baseTimestamp = fixtureTimestamp(6000000000L);
+        FrameViewSink.TestControl control = new FrameViewSink.TestControl();
+        control.pauseHandlerAt(baseTimestamp);
+        control.expectDispatchCount(FrameViewSink.MAX_QUEUED_FRAMES);
+        viewSink.setDispatchProbe(control);
+        DecodedFrame firstFrame = queueSaturationFrame(baseTimestamp);
+        requireType111("accepted".equals(submitForReceipt(frameIpcClient, firstFrame, generation)),
+                "first_producer_failure_queue_frame_accepted");
+        requireType111(awaitRace(control.handlerEntered), "producer_failure_queue_handler_held");
+        for (int index = 1; index < FrameViewSink.MAX_QUEUED_FRAMES; index++) {
+            long timestamp = baseTimestamp + index * 100000000L;
+            DecodedFrame pending = queueSaturationFrame(timestamp);
+            requireType111("accepted".equals(submitForReceipt(frameIpcClient, pending, generation)),
+                    "additional_producer_failure_queue_frame_accepted_" + index);
+        }
+        requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
+                "producer_failure_queue_capacity_reached");
+        long overflowTimestamp = baseTimestamp +
+                FrameViewSink.MAX_QUEUED_FRAMES * 100000000L;
+        DecodedFrame overflow = queueSaturationFrame(overflowTimestamp);
+        requireType111("frame_dispatch_queue_full".equals(
+                submitForReceipt(frameIpcClient, overflow, generation)),
+                "producer_failure_queue_overflow_rejected");
+        return control;
+    }
+
+    private static DecodedFrame queueSaturationFrame(long timestampNs) {
+        final int width = 64, height = 64, rowStride = width * 4;
+        byte[] pixels = new byte[rowStride * height];
+        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
+            int offset = y * rowStride + x * 4;
+            pixels[offset] = 0;
+            pixels[offset + 1] = (byte) 160;
+            pixels[offset + 2] = (byte) 255;
+            pixels[offset + 3] = (byte) 255;
+        }
+        return new DecodedFrame(width, height, rowStride, timestampNs, 0,
+                0, 0, width, height, ByteBuffer.wrap(pixels));
+    }
+
     private int startIsolatedProducer(IBinder producer, String descriptor,
-            FrameStreamIdentity identity, long nextFrameId, long firstPtsUs) throws Exception {
+            FrameStreamIdentity identity, long nextFrameId, long firstPtsUs,
+            boolean expandFirstFrameForTransferTest) throws Exception {
         Parcel data = Parcel.obtain();
         Parcel reply = Parcel.obtain();
         try {
@@ -1887,6 +1961,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             data.writeInt(identity.outputId);
             data.writeLong(nextFrameId);
             data.writeLong(firstPtsUs + fixtureTimestampOffsetNs / 1000L);
+            data.writeInt(expandFirstFrameForTransferTest ? 1 : 0);
             producer.transact(IBinder.FIRST_CALL_TRANSACTION, data, reply, 0);
             reply.readException();
             boolean accepted = reply.readInt() != 0;
