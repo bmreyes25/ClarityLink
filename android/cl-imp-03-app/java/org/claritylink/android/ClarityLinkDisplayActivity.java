@@ -112,6 +112,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             else view.onHostResumed(activeGeneration);
             FrameViewSink.TestControl control = warningRaceControl;
             if (control != null) control.warningApplied(visible);
+            labWarningHostState = visible ? 1 : 2;
             return true;
         }
 
@@ -184,6 +185,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private FrameSource syntheticDiagnosticSource;
     private FrameViewSink.TestControl warningRaceControl;
     private boolean warningRaceStarted;
+    private volatile int labWarningHostState;
     private FrameIpcClient frameIpcClient;
     private FrameIpcClient primaryLabIpcClient;
     private Type111ControlClient type111ControlClient;
@@ -1045,8 +1047,50 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean setRaceWarning(long generation, boolean visible) {
         FrameIpcClient client = frameIpcClient;
         if (client == null) return false;
+        labWarningHostState = 0;
         try { return client.setWarningVisible(generation, visible); }
         catch (android.os.RemoteException failure) { return false; }
+    }
+
+    private boolean awaitLabWarningHostState(boolean visible) {
+        int expected = visible ? 1 : 2;
+        for (int attempt = 0; attempt < 100; attempt++) {
+            if (labWarningHostState == expected) return true;
+            try { Thread.sleep(50L); }
+            catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private void submitDecodedFrameExpectWarningReject(DecodedFrame frame, long generation) {
+        final CountDownLatch completed = new CountDownLatch(1);
+        final boolean[] accepted = new boolean[] { true };
+        final String[] reason = new String[] { "missing_callback" };
+        FrameIpcClient client = frameIpcClient;
+        requireType111(client != null && client.submit(frame, generation,
+                new FrameIpcClient.Callback() {
+                    public void complete(boolean value, String rejection) {
+                        accepted[0] = value;
+                        reason[0] = rejection;
+                        completed.countDown();
+                    }
+                }), "warning_blocked_decoded_frame_transfer_started");
+        requireType111(awaitRace(completed) && !accepted[0] &&
+                "frame_contract_rejected".equals(reason[0]),
+                "warning_blocked_decoded_frame_rejected_at_receiver");
+        ClarityLinkContentView view = renderer == null ? null : renderer.contentView();
+        requireType111(view != null && !view.hasDisplayedFrame() &&
+                view.drawnTimestampNs() != frame.presentationTimeNs,
+                "warning_blocked_decoded_pixels_withdrawn");
+        FrameStreamIdentity identity = client == null ? null : client.streamIdentity();
+        Log.i(TAG, "CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS session_id=" +
+                (identity == null ? 0L : identity.sessionId) + " stream_generation=" +
+                (identity == null ? 0L : identity.streamGeneration) + " reattached=" +
+                (reattachSessionId > 0L) + " timestamp_ns=" + frame.presentationTimeNs +
+                " rejected=true pixels_withdrawn=true");
     }
 
     private void requireNoRaceFrameDrawn(long... timestamps) {
@@ -1092,6 +1136,49 @@ public final class ClarityLinkDisplayActivity extends Activity
                 " drawn_generation=" + (currentView == null ? -1 : currentView.drawnGeneration()) +
                 " drawn_timestamp=" + (currentView == null ? -1 : currentView.drawnTimestampNs()));
         return false;
+    }
+
+    /** Applies only geometry admitted by the matching active Type111 control identity. */
+    private boolean applyOutputGeometry(final RendererViewport.Bounds viewArea,
+            final RendererViewport.Bounds safeArea, final FrameStreamIdentity identity) {
+        if (viewArea == null || safeArea == null || identity == null ||
+                identity.streamType != FrameStreamIdentity.TYPE111 ||
+                identity.sessionId != activeGeneration) return false;
+        final RendererViewport viewport;
+        try {
+            viewport = new RendererViewport(viewArea, safeArea,
+                    java.util.Collections.<RendererViewport.Bounds>emptyList(),
+                    RendererViewport.SYNTHETIC_TEST_ONLY);
+        } catch (IllegalArgumentException invalid) { return false; }
+        final Display1OutputBackend expectedRenderer = renderer;
+        final long expectedGeneration = activeGeneration;
+        if (expectedRenderer == null) return false;
+        final CountDownLatch completed = new CountDownLatch(1);
+        final boolean[] applied = new boolean[] { false };
+        main.post(new Runnable() {
+            public void run() {
+                try {
+                    FrameStreamIdentity current = frameIpcClient == null ? null :
+                            frameIpcClient.streamIdentity();
+                    if (active && !closing && renderer == expectedRenderer &&
+                            activeGeneration == expectedGeneration && current != null &&
+                            current.equals(identity)) {
+                        expectedRenderer.setRendererViewport(viewport);
+                        applied[0] = true;
+                        log("CL_R6_OUTPUT_GEOMETRY_APPLIED session_id=" + identity.sessionId +
+                                " generation=" + identity.streamGeneration + " view_area=" +
+                                viewArea.left + "," + viewArea.top + "," + viewArea.right + "," +
+                                viewArea.bottom + " safe_area=" + safeArea.left + "," + safeArea.top +
+                                "," + safeArea.right + "," + safeArea.bottom);
+                    }
+                } finally { completed.countDown(); }
+            }
+        });
+        try { return completed.await(5L, TimeUnit.SECONDS) && applied[0]; }
+        catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private static void requireRace(boolean result, String description) {
@@ -1170,6 +1257,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                             "type111_view_area_accepted");
                     requireType111(control.geometry(controlIdentity, new int[] { 16, 16, 784, 464 }, true),
                             "type111_safe_area_accepted");
+                    requireType111(applyOutputGeometry(
+                            new RendererViewport.Bounds(0, 0, 800, 480),
+                            new RendererViewport.Bounds(16, 16, 784, 464), controlIdentity),
+                            "accepted_view_and_safe_areas_applied_to_live_output");
                     requireType111(control.presentation(controlIdentity, "showUI", null),
                             "type111_map_ui_selected");
                     requireType111(!control.navigation(controlIdentity, "unknown", true, false),
@@ -1262,6 +1353,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                     submitType110DecodedFrame(type110BeforeReset, binderGeneration);
                     Log.i(TAG, "CL_R4_TYPE110_FIXTURE_FRAME_PASS timing=before_type111_reset " +
                             "decoder_generation=970001 binder_generation=" + binderGeneration);
+                    if (crashAfterFirstFrame) {
+                        requestType111CrashAfterDecodedFrame();
+                        return;
+                    }
 
                     byte[] greenFixture = type111Fixture("type111-green-64x64.h264.b64");
                     byte[] greenConfig = Api17SurfaceH264Decoder.extractCodecConfig(greenFixture);
@@ -1312,6 +1407,46 @@ public final class ClarityLinkDisplayActivity extends Activity
                             captureType111Proof("type111-green-frame-" + greenOutputs + ".png");
                     }
                     requireType111(greenOutputs >= 2, "multiple_green_video_frames_decoded_and_drawn");
+                    DecodedFrame warningBlocked = decodeFixtureFrame(decoder, greenAccessUnits,
+                            960003L, 1500000L, 1500000000L);
+                    int[] blockedRgb = readDecodedCenterRgb(warningBlocked);
+                    requireType111(blockedRgb[1] > blockedRgb[0],
+                            "warning_blocked_fixture_is_real_decoded_type111_video");
+                    FrameStreamIdentity warningIdentity = frameIpcClient == null ? null :
+                            frameIpcClient.streamIdentity();
+                    requireType111(warningIdentity != null && warningIdentity.isValid() &&
+                            warningIdentity.streamType == FrameStreamIdentity.TYPE111 &&
+                            warningIdentity.sessionId == activeGeneration,
+                            "decoded_warning_identity_is_current_type111_session");
+                    long warningGeneration = warningIdentity.streamGeneration;
+                    requireType111(setRaceWarning(warningGeneration, true),
+                            "factory_warning_preemption_admitted_for_live_type111_stream");
+                    requireType111(awaitLabWarningHostState(true),
+                            "factory_warning_applied_to_live_output_host");
+                    ClarityLinkContentView warningView = renderer == null ? null : renderer.contentView();
+                    requireType111(warningView != null && !warningView.hasDisplayedFrame(),
+                            "factory_warning_withdrew_current_type111_pixels");
+                    submitDecodedFrameExpectWarningReject(warningBlocked, warningGeneration);
+                    requireType111(setRaceWarning(warningGeneration, false),
+                            "factory_warning_clear_admitted_for_live_type111_stream");
+                    requireType111(awaitLabWarningHostState(false),
+                            "eligible_type111_presentation_restored_after_warning");
+                    DecodedFrame warningRecovery = decodeFixtureFrame(decoder, greenAccessUnits,
+                            960003L, 1800000L, 1800000000L);
+                    int[] warningRecoveryRgb = readDecodedCenterRgb(warningRecovery);
+                    requireType111(warningRecoveryRgb[1] > warningRecoveryRgb[0],
+                            "warning_recovery_is_real_decoded_type111_video");
+                    submitDecodedFrame(warningRecovery, binderGeneration, false);
+                    captureType111Proof("type111-warning-restored-frame.png");
+                    FrameStreamIdentity recoveredIdentity = frameIpcClient == null ? null :
+                            frameIpcClient.streamIdentity();
+                    requireType111(warningIdentity.equals(recoveredIdentity),
+                            "warning_did_not_change_type111_stream_identity");
+                    Log.i(TAG, "CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS session_id=" +
+                            warningIdentity.sessionId + " stream_generation=" + warningGeneration +
+                            " reattached=" + (reattachSessionId > 0L) + " " +
+                            "factory_warning=true decoded_frame_rejected=true fresh_decoded_frame_drawn=true " +
+                            "type110_transport_preserved=true");
                     requireType111(backpressureVerified, "bounded_queue_backpressure_verified");
                     DecodedFrame type110AfterReset = decodeFixtureFrame(type110Decoder,
                             type110AccessUnits, 970001L, 1200000L, 1100000000L);
@@ -1350,7 +1485,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     requireType111("frame_contract_rejected".equals(staleType111),
                             "type111_previous_transport_generation_rejected_by_binder");
                     DecodedFrame recoveredType111 = decodeFixtureFrame(decoder, greenAccessUnits,
-                            960003L, 1600000L, 1500000000L);
+                            960003L, 2100000L, 2100000000L);
                     submitDecodedFrame(recoveredType111, binderGeneration, false);
                     Log.i(TAG, "CL_R4_TYPE111_LIVE_GENERATION_PASS old=" + oldType111.streamGeneration +
                             " new=" + nextType111Generation + " connection_preserved=true " +
@@ -1461,6 +1596,33 @@ public final class ClarityLinkDisplayActivity extends Activity
             }
         }, "ClarityLinkType111FixtureToView");
         type111FixtureWorker.start();
+    }
+
+    /** Crash only after a decoded Type111 frame crossed Binder/PFD and reached the live View. */
+    private void requestType111CrashAfterDecodedFrame() {
+        FrameStreamIdentity owner = primaryLabIpcClient == null ? null :
+                primaryLabIpcClient.streamIdentity();
+        FrameLabSink.Stats stats = queryType110StatsOrThrow("type111_crash_type110_receipt_unavailable");
+        FrameStreamIdentity child = frameIpcClient == null ? null : frameIpcClient.streamIdentity();
+        if (owner == null || child == null || !owner.isValid() || !child.isValid() ||
+                owner.streamType != FrameStreamIdentity.TYPE110 ||
+                child.streamType != FrameStreamIdentity.TYPE111 ||
+                child.sessionId != owner.sessionId ||
+                stats.frameId <= 0L || stats.pid <= 0)
+            throw new IllegalStateException("type111_crash_requires_live_dual_streams");
+        issueType110ProbeOwnership(owner, stats);
+        crashAfterFirstFrame = false;
+        Log.i(TAG, "CL_R2_UNCAUGHT_CRASH_REQUESTED pid=" + android.os.Process.myPid() +
+                " session_id=" + owner.sessionId + " type110_connection_id=" + owner.connectionId +
+                " type110_generation=" + owner.streamGeneration + " type110_last_frame_id=" +
+                stats.frameId + " type110_sink_pid=" + stats.pid + " compositor_pid=" +
+                compositorRemotePid + " type111_generation=" + child.streamGeneration +
+                " decoded_type111_frame_drawn=true");
+        main.post(new Runnable() {
+            public void run() {
+                throw new RuntimeException("CL-IMP-03 emulator-only crash recovery probe");
+            }
+        });
     }
 
     private void startSameUidRegistrationAttack(FrameStreamIdentity ownerIdentity,

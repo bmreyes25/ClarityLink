@@ -90,6 +90,9 @@ def test_renderer_viewport_is_synthetic_bounded_and_clips_protected_regions():
     assert "SYNTHETIC_TEST_ONLY" in viewport
     assert "MAX_PROTECTED_REGIONS = 32" in viewport
     assert "protectedRegions.size() > MAX_PROTECTED_REGIONS" in viewport
+    assert "this(new Bounds(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT), safeArea" in viewport
+    assert "safe area must fit inside the ViewArea" in viewport
+    assert "canvas.clipRect(scaled(viewArea, viewWidth, viewHeight))" in viewport
     assert "Region.Op.DIFFERENCE" in viewport
     assert "scaledSafeArea" in viewport and "scaledSafeArea" in renderer
     assert "right > LOGICAL_WIDTH" in viewport
@@ -98,6 +101,24 @@ def test_renderer_viewport_is_synthetic_bounded_and_clips_protected_regions():
     assert "canvas.rotate(rotation, centerX, centerY)" in renderer
     assert "viewport.clip(canvas, viewWidth, viewHeight)" in renderer
     assert "MAX_RGBA_BYTES" in renderer
+
+
+def test_accepted_type111_geometry_is_fenced_into_live_api17_output_view():
+    activity = (REPO / "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    backend = (REPO / "src/claritylink-renderer/android-api17/Display1OutputBackend.java").read_text()
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "accepted_view_and_safe_areas_applied_to_live_output" in activity
+    assert "current.equals(identity)" in activity
+    assert "expectedRenderer.setRendererViewport(viewport)" in activity
+    assert "public void setRendererViewport(RendererViewport viewport)" in backend
+    assert "current.setRendererViewport(viewport)" in backend
+    assert "wait_for 'CL_R6_OUTPUT_GEOMETRY_APPLIED'" in runner
+    assert "wait_for 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS'" in runner
+    assert "wait_for 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS'" in runner
+    assert "submitDecodedFrameExpectWarningReject(warningBlocked, warningGeneration)" in activity
+    assert "warning_blocked_fixture_is_real_decoded_type111_video" in activity
+    assert "fresh_decoded_frame_drawn=true" in activity
+    assert "960003L, 2100000L, 2100000000L" in activity
 
 
 def test_cl_imp_09_probe_checks_crop_geometry_warning_and_fresh_resume():

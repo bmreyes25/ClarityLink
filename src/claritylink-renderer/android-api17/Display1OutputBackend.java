@@ -41,7 +41,7 @@ public final class Display1OutputBackend {
     private final Viewport viewport;
     private long generation;
     private long attachmentGeneration;
-    private final RendererViewport rendererViewport;
+    private RendererViewport rendererViewport;
     private FrameLayout root;
     private ClarityLinkContentView view;
 
@@ -110,6 +110,16 @@ public final class Display1OutputBackend {
         requireUiThread();
         ClarityLinkContentView current = view;
         if (current != null) current.clearFrame();
+    }
+
+    /** Applies an accepted synthetic Type111 ViewArea/SafeArea update to the live View. */
+    public void setRendererViewport(RendererViewport viewport) {
+        requireUiThread();
+        if (viewport == null) throw new IllegalArgumentException("viewport required");
+        ClarityLinkContentView current = view;
+        if (current == null) throw new IllegalStateException("not attached");
+        current.setRendererViewport(viewport);
+        rendererViewport = viewport;
     }
 
     /** Updates frame identity without detaching or recreating the backend or View. */

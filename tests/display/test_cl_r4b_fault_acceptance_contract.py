@@ -90,6 +90,8 @@ def test_type110_failure_launches_live_type111_producer_and_preserves_api17_rece
     assert 'runtime_logs_file="$campaign_evidence/api17-runtime-logcat-$adb_port.txt"' in runner
     assert 'adb_local -s "$serial" logcat -s ClarityLinkCLIMP03:I' in runner
     assert 'cat "$runtime_logs_file"' in runner
+    assert '[ "${6:-}" = "ClarityLinkCLIMP03:I" ]' in runner
+    assert '[ "${7:-}" = "*:S" ]' in runner
     assert "--cl-r4b-type110-failure-type111-first" in runner
     assert "start_lab_activity_privileged type111_first_type110_failure" in runner
 
@@ -463,3 +465,42 @@ def test_api17_producer_wait_retries_only_bounded_unfinished_binder_replies():
     assert "if (finished)" in wait
     assert "isolated_producer_did_not_finish_within_bounded_waits" in wait
     assert "Thread.sleep" not in wait
+
+
+def test_api17_crash_recovery_uses_live_decoded_type111_and_preserves_type110():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    producer_loop = activity[activity.index("for (int index = 0; index < 8 && blueOutputs < 4"):
+                              activity.index("requireType111(blueOutputs >= 2")]
+    assert "submitDecodedFrame(frame, binderGeneration" in producer_loop
+    type110_frame = activity[activity.index('"CL_R4_TYPE110_FIXTURE_FRAME_PASS timing=before_type111_reset'):
+                             activity.index('byte[] greenFixture = type111Fixture')]
+    assert "requestType111CrashAfterDecodedFrame();" in type110_frame
+    crash = activity[activity.index("private void requestType111CrashAfterDecodedFrame()"):
+                     activity.index("private void startSameUidRegistrationAttack")]
+    assert "primaryLabIpcClient.streamIdentity()" in crash
+    assert "frameIpcClient.streamIdentity()" in crash
+    assert "!owner.isValid() || !child.isValid()" in crash
+    assert "owner.streamType != FrameStreamIdentity.TYPE110" in crash
+    assert "child.sessionId != owner.sessionId" in crash
+    assert "issueType110ProbeOwnership(owner, stats)" in crash
+    assert "decoded_type111_frame_drawn=true" in crash
+    assert "CL-IMP-03 emulator-only crash recovery probe" in crash
+
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert "--cl-r4b-view-crash" in runner
+    assert "type111_crash) set -- \"$@\" --ez type111_fixture_mode true --ez crash_after_first_frame true ;;" in runner
+    assert "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS" in runner
+    assert 'IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=111' in runner
+    assert "CL_R2_UNCAUGHT_CRASH_REQUESTED pid=\\([0-9][0-9]*\\) session_id=" in runner
+    assert 'index($0, "): FATAL EXCEPTION:")' in runner
+    assert 'if (line == pid) fatal=1' in runner
+    assert 'if (line == pid) exception=1' in runner
+    assert 'package=org.claritylink.independentdisplay.lab fatal=FATAL_EXCEPTION' in runner
+    assert 'matched-fatal-record.txt' in runner
+    assert 'hierarchy-before-dismissal.xml' in runner and 'windows-after-dismissal.txt' in runner
+    assert 'processes-after-dismissal.txt' in runner
+    assert 'TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$crash_sink_pid' in runner
+    assert 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' in runner
+    crash_flow = runner[runner.index("if [ \"$view_crash\" -eq 1 ]; then"):
+                        runner.index("wait_for 'TYPE110_LAB_SINK_START_REJECTED")]
+    assert crash_flow.index("probe_boundary_checked=1") < crash_flow.index("invoke_type110_probe_privileged")

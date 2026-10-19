@@ -16,7 +16,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "600caf5bb2b69bc1cda90d33edf432f553029cd49429043286792e7979bf7522"
+      "sha256": "294035928ea4f2f46783f5b23778baf1c0e17e5c554db893c5c953a0a922de33"
     },
     {
       "path": "AGENTS.md",
@@ -32,11 +32,11 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "7fc22d4219847162c7ffc8b171bd8b993c6e9732625b764257417ba97e0837a8"
+      "sha256": "12976a552dc95f972adf5efd23247d775a1f278a5560c77a30941bade53d7041"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
-      "sha256": "13404711098be5d31eba05b2f10c08e6f3ac76432db35cc90059a3d19d9ca194"
+      "sha256": "ada80647d012683df96cc345216f303b1efd4c64225d3ebaf1b6118003dfb477"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java",
@@ -104,7 +104,7 @@
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "7a9d91aeb7e6a3a1db49faf4216f8b7c062a7ba83005fce3f64e1acd870bea6f"
+      "sha256": "d63517a2dad3f32094c2089a84a3a40013543d1988c36195a88840b366ebb975"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -132,7 +132,7 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "9175d502cdf25c09c0b09759c64aacc7e33ba74eeeb884686fbea5cf3269c796"
+      "sha256": "5fbf154728abd7fa659bf797cd977e59a63ba19c70d674df0f4d87ab561f9c30"
     },
     {
       "path": "tools/api17_runner_guard.py",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "56064f5904045f35dc343d7f5015a1e14075690245227f088add2fc4876c0c92"
+      "sha256": "b0cdfcc805d8fd82a280a214c5d2a7824b2d1eafb1303736c3845eb353aed2da"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -169,6 +169,26 @@
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java",
       "sha256": "cdb854cff08c91d221e13e79069f8088f7e807b2dbaac6b199f607826357b5df"
+    },
+    {
+      "path": "src/claritylink-renderer/android-api17/Display1OutputBackend.java",
+      "sha256": "fc2a112edd860a4aa746c0ba2bb14b38f9c38dbe28e75c8c320ff90f7ef1367c"
+    },
+    {
+      "path": "src/claritylink-renderer/android-api17/RendererViewport.java",
+      "sha256": "b8a6c2afe053c7dfcd5f9170987814b4c6d4e4a5e2e6dd72a3c60090ee558498"
+    },
+    {
+      "path": "tests/display/test_cl_imp_03_application_contract.py",
+      "sha256": "4d6fc5097f879ff3452b085aac8bd5a41bb53c0e2a5297caf93a0984814f48ad"
+    },
+    {
+      "path": "tests/display/test_cl_r4b_view_close_contract.py",
+      "sha256": "3a9abaac085ab8fa5f0ae265d87ec9a788ce427fa804543784cfc18ccf0a712d"
+    },
+    {
+      "path": "tools/run_cl_r7_lab.sh",
+      "sha256": "0cb15a22a74931fb6b3b3109f0ba18ecb025e9bfa90432adc8e5aba8204700ca"
     }
   ],
   "reviewed_head": "cb6ccd0c78bd6e6f3c63988cd99185f5d8a087c4",
@@ -195,5 +215,6 @@
   "cl_r4b_overnight06_owner_binding_scope_note": "Pinned the API17 owner-death observer binding-race correction, bounded producer wait, and focused contract tests. Read-only ECC code/security reviews first found duplicate observer verification and a finish/rebind binding leak, then security review found the disconnect receipt was cleared during rebind. The corrections use a lifecycle lock, connection identity and one-shot verification, plus a persistent ownerDeathObserved receipt; targeted re-review of source diff SHA 8e845737cd915072f334f66eb8baba460ef638fe2f8ca4b6f3db5a84a523efd0 found no actionable findings. Final-source API17 owner-death, reentrant teardown, and delayed Binder callback fixtures passed. A separate Type110-only failure fixture timed out waiting for the compositor death callback and is not counted as passing. Runtime artifacts remain local/ignored.",
   "cl_r4b_type110_death_diagnostic_refresh_note": "Added bounded API17 sink-PID exit verification and preserved process, filtered logcat, and service diagnostics on PID/callback timeout. Three fresh Android 4.2.2 runs observed sink PID exit, the real compositor Binder death callback, both stream invalidations, and zero reported active PFD transfers/retained bytes. The earlier Overnight 06 callback timeout has no preserved PID/log artifacts, so its cause remains unresolved and is not claimed fixed. Exact working-tree diff SHA 2cc2ab197091ce3936c7f1ab6d97bfe15012f6e0b52e152c898341899f363b21 received separate ECC code and security re-review with no actionable findings; configured suite: 1224 passed, 29 skipped.",
   "cl_r4b_security_closure_02_scope_refresh_note": "The pinned blobs for the previously listed files changed by CL-R4B Security Closure 02 were refreshed after separate read-only ECC code and security review of exact source diff SHA-256 1c388dcd3223a944769be5e2b21e1ad1d21c116e911fbe8c3a0bd232df1e9a09, committed as 6217ee0f8e433b5bb8f11a2f7e007fb97741a186. The original CL-R0 source_snapshot, review ranges, and approval_claimed=false remain unchanged; this note records a later exact-source review and does not retroactively claim CL-R0 approval.",
-  "cl_r4b_final_acceptance_03_scope_refresh_note": "Pinned the changed CL-R4B teardown lifecycle files at the exact committed source snapshot f4b6225dc53cd207400d8f9af64af7f2c65302d4. Separate ECC code and security reviewers reviewed that commit against parent 4dbe3fde3880c7726c792ec4cdb61bafb7fc3afc with no actionable findings; exact commit diff SHA-256 c4ccdc5fbfe4599236a4326612e50860f1cbe6c1a4d55074d259f30a2a812a99. The CL-R4B reentrant teardown API17 run passed on build08; standard Type111/API17 recovery, rendering, and cross-UID live-service checks passed on the same source. Original CL-R0 review ranges and approval_claimed=false remain unchanged."
+  "cl_r4b_final_acceptance_03_scope_refresh_note": "Pinned the changed CL-R4B teardown lifecycle files at the exact committed source snapshot f4b6225dc53cd207400d8f9af64af7f2c65302d4. Separate ECC code and security reviewers reviewed that commit against parent 4dbe3fde3880c7726c792ec4cdb61bafb7fc3afc with no actionable findings; exact commit diff SHA-256 c4ccdc5fbfe4599236a4326612e50860f1cbe6c1a4d55074d259f30a2a812a99. The CL-R4B reentrant teardown API17 run passed on build08; standard Type111/API17 recovery, rendering, and cross-UID live-service checks passed on the same source. Original CL-R0 review ranges and approval_claimed=false remain unchanged.",
+  "cl_r7_scope_refresh_note": "Refreshed the pinned CL-R0 source blobs for the CL-R6 geometry integration, decoded-Type111 warning withdrawal/recovery, API17 two-order runner, and parent-owner fencing fix. The exact implementation diff SHA-256 is f46ad54a9a45f9c8fa86665153f27771fb8f6ca6c826438bdb10574543041e1b. Separate read-only ECC code and security reviews found no outstanding actionable findings after corrections. The configured suite passed (1256 passed, 18 skipped), and the isolated API17 command passed both setup orders. This refresh preserves the historical CL-R0 source snapshot, review ranges, and approval_claimed=false."
 }

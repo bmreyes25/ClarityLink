@@ -20,7 +20,12 @@ type110_failure=0
 owner_death=0
 reentrant_teardown=0
 delayed_death_callback=0
-if [ "${1:-}" = "--cl-r4b-reentrant-teardown-type111-first" ]; then
+view_crash=0
+if [ "${1:-}" = "--cl-r4b-view-crash" ]; then
+  type111_mode=1
+  view_crash=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-reentrant-teardown-type111-first" ]; then
   type111_mode=1
   type111_first=1
   reentrant_teardown=1
@@ -122,7 +127,9 @@ adb_local() {
   # before a later lifecycle assertion reads them. Keep a live, app-tag-only
   # receipt for this owned emulator and use it for every historical `logcat -d`.
   if [ -n "$runtime_logs_file" ] && [ "${1:-}" = "-s" ] &&
-      [ "${3:-}" = "logcat" ] && [ "${4:-}" = "-d" ]; then
+      [ "${3:-}" = "logcat" ] && [ "${4:-}" = "-d" ] &&
+      [ "${5:-}" = "-s" ] && [ "${6:-}" = "ClarityLinkCLIMP03:I" ] &&
+      [ "${7:-}" = "*:S" ]; then
     cat "$runtime_logs_file"
     return 0
   fi
@@ -448,11 +455,12 @@ start_lab_activity_privileged() {
   scenario=$1
   reattach_session_arg=${2:-}
   case "$scenario" in
-    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|controlled_exit|crash)
+    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true ;;
+        type111_crash) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true ;;
         type111_type110_failure)
           set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true \
             --ez security_live_producer true --ez type110_sink_failure_test true
@@ -565,7 +573,9 @@ elif [ "$type111_first" -eq 1 ]; then
     start_lab_activity_privileged type111_first
   fi
 elif [ "$type111_mode" -eq 1 ]; then
-  if [ "$owner_death" -eq 1 ]; then
+  if [ "$view_crash" -eq 1 ]; then
+    start_lab_activity_privileged type111_crash
+  elif [ "$owner_death" -eq 1 ]; then
     start_lab_activity_privileged type111_owner_death
   elif [ "$reentrant_teardown" -eq 1 ]; then
     start_lab_activity_privileged type111_reentrant_teardown
@@ -802,6 +812,120 @@ if [ "$type110_failure" -eq 1 ]; then
 fi
 
 if [ "$type111_mode" -eq 1 ]; then
+  if [ "$view_crash" -eq 1 ]; then
+    wait_for 'CL_R2_UNCAUGHT_CRASH_REQUESTED '
+    crash_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    crash_line=$(printf '%s\n' "$crash_logs" | grep -F 'CL_R2_UNCAUGHT_CRASH_REQUESTED ' | tail -1)
+    crash_session=$(printf '%s\n' "$crash_line" | sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
+    crash_generation=$(printf '%s\n' "$crash_line" | sed -n 's/.*type110_generation=\([0-9][0-9]*\).*/\1/p')
+    crash_last_frame=$(printf '%s\n' "$crash_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
+    crash_sink_pid=$(printf '%s\n' "$crash_line" | sed -n 's/.*type110_sink_pid=\([0-9][0-9]*\).*/\1/p')
+    crash_compositor_pid=$(printf '%s\n' "$crash_line" | sed -n 's/.*compositor_pid=\([0-9][0-9]*\).*/\1/p')
+    app_pid=$(printf '%s\n' "$crash_line" | sed -n \
+      's/.*CL_R2_UNCAUGHT_CRASH_REQUESTED pid=\([0-9][0-9]*\) session_id=.*/\1/p')
+    [ -n "$crash_session" ] && [ -n "$crash_generation" ] && [ -n "$crash_last_frame" ] &&
+      [ -n "$crash_sink_pid" ] && [ -n "$crash_compositor_pid" ] && [ -n "$app_pid" ] || {
+      echo 'Type111 crash receipt omitted live session/process identity.' >&2; exit 9;
+    }
+    printf '%s\n' "$crash_line" | grep -F 'decoded_type111_frame_drawn=true' >/dev/null || {
+      echo 'Crash was not preceded by a decoded Type111 frame rendered to the View.' >&2; exit 9;
+    }
+    crash_dialog_seen=0
+    for crash_attempt in $(seq 1 30); do
+      crash_log=$(adb_local -s "$serial" logcat -d -s AndroidRuntime:E '*:S' | tr -d '\r')
+      if printf '%s\n' "$crash_log" | grep -F 'CL-IMP-03 emulator-only crash recovery probe' >/dev/null; then
+        crash_dialog_seen=1; break
+      fi
+      sleep 1
+    done
+    [ "$crash_dialog_seen" -eq 1 ] || { echo 'API17 did not record the expected uncaught Type111 View crash.' >&2; exit 9; }
+    fatal_record=$(printf '%s\n' "$crash_log" | awk -v pid="$app_pid" '
+      index($0, "AndroidRuntime(") && index($0, "): FATAL EXCEPTION:") {
+        line=$0; sub(/^.*AndroidRuntime\([[:space:]]*/, "", line); sub(/\).*/, "", line)
+        if (line == pid) fatal=1
+      }
+      index($0, "AndroidRuntime(") && index($0, "CL-IMP-03 emulator-only crash recovery probe") {
+        line=$0; sub(/^.*AndroidRuntime\([[:space:]]*/, "", line); sub(/\).*/, "", line)
+        if (line == pid) exception=1
+      }
+      END { if (fatal && exception) print "pid=" pid " package=org.claritylink.independentdisplay.lab fatal=FATAL_EXCEPTION expected_exception=present" }
+    ')
+    [ -n "$fatal_record" ] || {
+      echo "Fatal exception did not belong to requested app PID $app_pid and package $package." >&2; exit 9;
+    }
+    crash_evidence="$campaign_evidence/api17-r4b-crash-$adb_port"
+    mkdir -p "$crash_evidence"
+    printf '%s\n' "$crash_log" > "$crash_evidence/logcat.txt"
+    printf '%s\n' "$fatal_record" > "$crash_evidence/matched-fatal-record.txt"
+    windows=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r')
+    printf '%s\n' "$windows" > "$crash_evidence/windows-before-dismissal.txt"
+    adb_local -s "$serial" shell uiautomator dump /data/local/tmp/claritylink-crash-hierarchy.xml >/dev/null
+    adb_local -s "$serial" pull /data/local/tmp/claritylink-crash-hierarchy.xml "$crash_evidence/hierarchy-before-dismissal.xml" >/dev/null
+    grep -F 'Unfortunately, ClarityLink Display Lab has stopped.' "$crash_evidence/hierarchy-before-dismissal.xml" >/dev/null || {
+      echo 'The system crash dialog was not identified before dismissal.' >&2; exit 9;
+    }
+    printf '%s\n' "$windows" | grep -F 'Application Error' >/dev/null &&
+      printf '%s\n' "$windows" | grep -F 'mOwnerUid=1000' >/dev/null || {
+      echo 'Crash dialog is not confirmed as a system-owned Application Error.' >&2; exit 9;
+    }
+    owned || exit 7
+    dialog_output=$(adb_local -s "$serial" shell uiautomator runtest "$ui_test_remote" -c org.claritylink.test.CrashDialogDismissTest 2>&1 | tr -d '\r') || {
+      printf '%s\n' "$dialog_output" >&2; exit 9;
+    }
+    printf '%s\n' "$dialog_output" > "$crash_evidence/uiautomator-dismissal.txt"
+    printf '%s\n' "$dialog_output" | grep -E 'OK \(1 test\)' >/dev/null || {
+      echo 'UiAutomator did not confirm exact crash-dialog dismissal.' >&2; exit 9;
+    }
+    clean=0
+    for clean_attempt in $(seq 1 30); do
+      owned || exit 7
+      ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
+      windows=$(adb_local -s "$serial" shell dumpsys window windows | tr -d '\r')
+      if ! printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2==pid {found=1} END {exit !found}' &&
+          ! printf '%s\n' "$windows" | grep -F "mOwnerUid=$app_uid" >/dev/null &&
+          ! printf '%s\n' "$windows" | grep -F 'Application Error' >/dev/null; then
+        clean=1; break
+      fi
+      sleep 1
+    done
+    [ "$clean" -eq 1 ] || { echo 'Crash process, owned window, or system error dialog remained after dismissal.' >&2; exit 9; }
+    printf '%s\n' "$ps_snapshot" > "$crash_evidence/processes-after-dismissal.txt"
+    printf '%s\n' "$windows" > "$crash_evidence/windows-after-dismissal.txt"
+    crash_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$crash_logs" > "$crash_evidence/claritylink-logcat-after-dismissal.txt"
+    printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=111" >/dev/null || {
+      echo 'Compositor did not observe Type111 View death after the crash.' >&2; exit 9;
+    }
+    printf '%s\n' "$crash_logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$crash_session stream_type=111" >/dev/null || {
+      echo 'Type111 registration remained after the View crash.' >&2; exit 9;
+    }
+    if printf '%s\n' "$crash_logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$crash_session stream_type=110" >/dev/null; then
+      echo 'Type110 sink died with the Type111 View.' >&2; exit 9;
+    fi
+    # Cross-UID lifecycle coverage is its own API17 matrix case. This crash mode
+    # intentionally does not keep the producer service artificially bound.
+    probe_boundary_checked=1
+    invoke_type110_probe_privileged "$crash_session" "$crash_generation" "$crash_last_frame" "$crash_sink_pid" "$crash_compositor_pid"
+    complete_probe_session_and_stop_isolated_package
+    crash_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    printf '%s\n' "$crash_logs" > "$crash_evidence/claritylink-logcat-after-parent-teardown.txt"
+    printf '%s\n' "$crash_logs" | grep -F "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$crash_sink_pid" |
+      grep -E "frame_id=$((crash_last_frame + 1))([[:space:]]|$)" >/dev/null || {
+      echo 'Type110 did not progress after the Type111 View crash.' >&2; exit 9;
+    }
+    printf '%s\n' "$crash_logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' >/dev/null || {
+      echo 'Crash recovery did not finish with zero PFD/frame ownership.' >&2; exit 9;
+    }
+    assert_type110_progress_precedes_parent_teardown "$crash_session" "$crash_last_frame" "$crash_sink_pid" "$crash_logs"
+    shasum -a 256 "$apk" "$crash_evidence/logcat.txt" "$crash_evidence/matched-fatal-record.txt" \
+      "$crash_evidence/windows-before-dismissal.txt" "$crash_evidence/hierarchy-before-dismissal.xml" \
+      "$crash_evidence/uiautomator-dismissal.txt" "$crash_evidence/processes-after-dismissal.txt" \
+      "$crash_evidence/windows-after-dismissal.txt" "$crash_evidence/claritylink-logcat-after-dismissal.txt" \
+      "$crash_evidence/claritylink-logcat-after-parent-teardown.txt" \
+      > "$crash_evidence/artifact-hashes.sha256"
+    echo "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS session_id=$crash_session view_pid=$app_pid type111_death=observed type110_survived=true post_crash_frame=true resources=zero evidence=$run_label/evidence"
+    exit 0
+  fi
   wait_for 'TYPE110_LAB_SINK_START_REJECTED reason=admission_required session_id='
   wait_for 'CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS'
   if [ "$probe_boundary_checked" -eq 0 ] && [ "$reentrant_teardown" -eq 1 ]; then
@@ -834,6 +958,20 @@ if [ "$type111_mode" -eq 1 ]; then
   wait_for 'CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS'
   wait_for 'CL_R4_TYPE111_DECODER_FAULT_RECOVERY_PASS'
   wait_for 'CL_R5_API17_CONTROL_VALIDATION_PASS'
+  wait_for 'CL_R6_OUTPUT_GEOMETRY_APPLIED'
+  wait_for 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS'
+  wait_for 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS'
+  warning_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  warning_block_receipt=$(printf '%s\n' "$warning_logs" |
+    grep -F 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS ' | tail -1)
+  warning_recovery_receipt=$(printf '%s\n' "$warning_logs" |
+    grep -F 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS ' | tail -1)
+  [ -n "$warning_block_receipt" ] && [ -n "$warning_recovery_receipt" ] || {
+    echo 'Decoded Type111 warning receipts were not retained in runtime logs.' >&2; exit 9;
+  }
+  if [ "$type111_reattach" -eq 0 ]; then
+    printf '%s\n' "$warning_block_receipt" "$warning_recovery_receipt"
+  fi
   wait_for 'CL_R5_API17_PRESENTATION_LIFETIME_PASS'
   wait_for 'CL_R4_API17_DUAL_STREAM_SATURATION_PASS'
   wait_for 'CL_R4_TYPE111_LIVE_GENERATION_PASS'
@@ -1163,6 +1301,19 @@ $owner_logs"
     fi
     wait_for_parent_teardown "$session_id" || exit $?
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    warning_block_receipt=$(printf '%s\n' "$logs" |
+      grep -F 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS ' | tail -1)
+    warning_recovery_receipt=$(printf '%s\n' "$logs" |
+      grep -F 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS ' | tail -1)
+    printf '%s\n' "$warning_block_receipt" | grep -F "session_id=$session_id " |
+      grep -F 'reattached=true' >/dev/null &&
+      printf '%s\n' "$warning_recovery_receipt" | grep -F "session_id=$session_id " |
+      grep -F 'reattached=true' >/dev/null || {
+        echo 'Replacement Activity did not produce current-session decoded Type111 warning receipts.' >&2
+        printf '%s\n' "$warning_block_receipt" "$warning_recovery_receipt" >&2
+        exit 9;
+      }
+    printf '%s\n' "$warning_block_receipt" "$warning_recovery_receipt"
     printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt"
     printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown_request=accepted' >/dev/null || {
       echo 'Reattached Activity receipt did not match the expected owner-authorized teardown.' >&2
