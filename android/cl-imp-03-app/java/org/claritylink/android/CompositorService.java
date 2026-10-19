@@ -2037,6 +2037,16 @@ public final class CompositorService extends Service {
                         " cause=owner_sink_death streams_closed=2");
                 return true;
             }
+            if ("accepted_pending".equals(teardown)) {
+                Log.i(TAG, "TYPE110_OWNER_SESSION_INVALIDATED session_id=" + identity.sessionId +
+                        " cause=owner_sink_death streams_closed=pending admission_closed=true");
+                return true;
+            }
+            // The owner callback must not fall through to a stream-only unregister when
+            // teardown failed. A still-registered Type111 child requires its parent fence.
+            Log.e(TAG, "TYPE110_OWNER_DEATH_TEARDOWN_REJECTED session_id=" + identity.sessionId +
+                    " teardown_result=" + teardown + " owner_only_unregister=false");
+            return false;
         }
         return unregisterStreamIfCurrent(state, identity);
     }

@@ -91,6 +91,20 @@ def test_view_close_cancels_pending_frame_accounting_once():
     assert "queuedFrames.decrementAndGet()" in sink
 
 
+def test_owner_death_keeps_parent_fence_when_child_close_is_pending_or_rejected():
+    compositor = (APP / "CompositorService.java").read_text()
+    method = compositor[compositor.index("private boolean endStreamIfCurrent"):
+                        compositor.index("private boolean unregisterStreamIfCurrent")]
+
+    pending = method.index('if ("accepted_pending".equals(teardown))')
+    pending_return = method.index("return true;", pending)
+    rejected = method.index("TYPE110_OWNER_DEATH_TEARDOWN_REJECTED", pending_return)
+    rejected_return = method.index("return false;", rejected)
+    owner_only_fallback = method.index("return unregisterStreamIfCurrent(state, identity);")
+    assert pending_return < rejected < rejected_return < owner_only_fallback
+    assert "owner_only_unregister=false" in method
+
+
 def test_producer_queue_failure_uses_current_generation_and_forces_partial_test_transfer():
     activity = (APP / "ClarityLinkDisplayActivity.java").read_text()
     producer = (APP / "Type111ProducerService.java").read_text()
