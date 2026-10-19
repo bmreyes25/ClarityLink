@@ -835,6 +835,19 @@ if [ "$type111_mode" -eq 1 ]; then
   wait_for 'CL_R4_TYPE111_DECODER_FAULT_RECOVERY_PASS'
   wait_for 'CL_R5_API17_CONTROL_VALIDATION_PASS'
   wait_for 'CL_R6_OUTPUT_GEOMETRY_APPLIED'
+  wait_for 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS'
+  wait_for 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS'
+  warning_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  warning_block_receipt=$(printf '%s\n' "$warning_logs" |
+    grep -F 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS ' | tail -1)
+  warning_recovery_receipt=$(printf '%s\n' "$warning_logs" |
+    grep -F 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS ' | tail -1)
+  [ -n "$warning_block_receipt" ] && [ -n "$warning_recovery_receipt" ] || {
+    echo 'Decoded Type111 warning receipts were not retained in runtime logs.' >&2; exit 9;
+  }
+  if [ "$type111_reattach" -eq 0 ]; then
+    printf '%s\n' "$warning_block_receipt" "$warning_recovery_receipt"
+  fi
   wait_for 'CL_R5_API17_PRESENTATION_LIFETIME_PASS'
   wait_for 'CL_R4_API17_DUAL_STREAM_SATURATION_PASS'
   wait_for 'CL_R4_TYPE111_LIVE_GENERATION_PASS'
@@ -1164,6 +1177,19 @@ $owner_logs"
     fi
     wait_for_parent_teardown "$session_id" || exit $?
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    warning_block_receipt=$(printf '%s\n' "$logs" |
+      grep -F 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS ' | tail -1)
+    warning_recovery_receipt=$(printf '%s\n' "$logs" |
+      grep -F 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS ' | tail -1)
+    printf '%s\n' "$warning_block_receipt" | grep -F "session_id=$session_id " |
+      grep -F 'reattached=true' >/dev/null &&
+      printf '%s\n' "$warning_recovery_receipt" | grep -F "session_id=$session_id " |
+      grep -F 'reattached=true' >/dev/null || {
+        echo 'Replacement Activity did not produce current-session decoded Type111 warning receipts.' >&2
+        printf '%s\n' "$warning_block_receipt" "$warning_recovery_receipt" >&2
+        exit 9;
+      }
+    printf '%s\n' "$warning_block_receipt" "$warning_recovery_receipt"
     printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-reattach-logcat-$adb_port.txt"
     printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | grep -F "type110_generation=$type110_generation" | grep -F 'parent_teardown_request=accepted' >/dev/null || {
       echo 'Reattached Activity receipt did not match the expected owner-authorized teardown.' >&2

@@ -113,6 +113,12 @@ def test_accepted_type111_geometry_is_fenced_into_live_api17_output_view():
     assert "public void setRendererViewport(RendererViewport viewport)" in backend
     assert "current.setRendererViewport(viewport)" in backend
     assert "wait_for 'CL_R6_OUTPUT_GEOMETRY_APPLIED'" in runner
+    assert "wait_for 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS'" in runner
+    assert "wait_for 'CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS'" in runner
+    assert "submitDecodedFrameExpectWarningReject(warningBlocked, warningGeneration)" in activity
+    assert "warning_blocked_fixture_is_real_decoded_type111_video" in activity
+    assert "fresh_decoded_frame_drawn=true" in activity
+    assert "960003L, 2100000L, 2100000000L" in activity
 
 
 def test_cl_imp_09_probe_checks_crop_geometry_warning_and_fresh_resume():

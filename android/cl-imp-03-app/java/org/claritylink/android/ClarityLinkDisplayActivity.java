@@ -112,6 +112,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             else view.onHostResumed(activeGeneration);
             FrameViewSink.TestControl control = warningRaceControl;
             if (control != null) control.warningApplied(visible);
+            labWarningHostState = visible ? 1 : 2;
             return true;
         }
 
@@ -184,6 +185,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private FrameSource syntheticDiagnosticSource;
     private FrameViewSink.TestControl warningRaceControl;
     private boolean warningRaceStarted;
+    private volatile int labWarningHostState;
     private FrameIpcClient frameIpcClient;
     private FrameIpcClient primaryLabIpcClient;
     private Type111ControlClient type111ControlClient;
@@ -1045,8 +1047,50 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean setRaceWarning(long generation, boolean visible) {
         FrameIpcClient client = frameIpcClient;
         if (client == null) return false;
+        labWarningHostState = 0;
         try { return client.setWarningVisible(generation, visible); }
         catch (android.os.RemoteException failure) { return false; }
+    }
+
+    private boolean awaitLabWarningHostState(boolean visible) {
+        int expected = visible ? 1 : 2;
+        for (int attempt = 0; attempt < 100; attempt++) {
+            if (labWarningHostState == expected) return true;
+            try { Thread.sleep(50L); }
+            catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private void submitDecodedFrameExpectWarningReject(DecodedFrame frame, long generation) {
+        final CountDownLatch completed = new CountDownLatch(1);
+        final boolean[] accepted = new boolean[] { true };
+        final String[] reason = new String[] { "missing_callback" };
+        FrameIpcClient client = frameIpcClient;
+        requireType111(client != null && client.submit(frame, generation,
+                new FrameIpcClient.Callback() {
+                    public void complete(boolean value, String rejection) {
+                        accepted[0] = value;
+                        reason[0] = rejection;
+                        completed.countDown();
+                    }
+                }), "warning_blocked_decoded_frame_transfer_started");
+        requireType111(awaitRace(completed) && !accepted[0] &&
+                "frame_contract_rejected".equals(reason[0]),
+                "warning_blocked_decoded_frame_rejected_at_receiver");
+        ClarityLinkContentView view = renderer == null ? null : renderer.contentView();
+        requireType111(view != null && !view.hasDisplayedFrame() &&
+                view.drawnTimestampNs() != frame.presentationTimeNs,
+                "warning_blocked_decoded_pixels_withdrawn");
+        FrameStreamIdentity identity = client == null ? null : client.streamIdentity();
+        Log.i(TAG, "CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS session_id=" +
+                (identity == null ? 0L : identity.sessionId) + " stream_generation=" +
+                (identity == null ? 0L : identity.streamGeneration) + " reattached=" +
+                (reattachSessionId > 0L) + " timestamp_ns=" + frame.presentationTimeNs +
+                " rejected=true pixels_withdrawn=true");
     }
 
     private void requireNoRaceFrameDrawn(long... timestamps) {
@@ -1359,6 +1403,46 @@ public final class ClarityLinkDisplayActivity extends Activity
                             captureType111Proof("type111-green-frame-" + greenOutputs + ".png");
                     }
                     requireType111(greenOutputs >= 2, "multiple_green_video_frames_decoded_and_drawn");
+                    DecodedFrame warningBlocked = decodeFixtureFrame(decoder, greenAccessUnits,
+                            960003L, 1500000L, 1500000000L);
+                    int[] blockedRgb = readDecodedCenterRgb(warningBlocked);
+                    requireType111(blockedRgb[1] > blockedRgb[0],
+                            "warning_blocked_fixture_is_real_decoded_type111_video");
+                    FrameStreamIdentity warningIdentity = frameIpcClient == null ? null :
+                            frameIpcClient.streamIdentity();
+                    requireType111(warningIdentity != null && warningIdentity.isValid() &&
+                            warningIdentity.streamType == FrameStreamIdentity.TYPE111 &&
+                            warningIdentity.sessionId == activeGeneration,
+                            "decoded_warning_identity_is_current_type111_session");
+                    long warningGeneration = warningIdentity.streamGeneration;
+                    requireType111(setRaceWarning(warningGeneration, true),
+                            "factory_warning_preemption_admitted_for_live_type111_stream");
+                    requireType111(awaitLabWarningHostState(true),
+                            "factory_warning_applied_to_live_output_host");
+                    ClarityLinkContentView warningView = renderer == null ? null : renderer.contentView();
+                    requireType111(warningView != null && !warningView.hasDisplayedFrame(),
+                            "factory_warning_withdrew_current_type111_pixels");
+                    submitDecodedFrameExpectWarningReject(warningBlocked, warningGeneration);
+                    requireType111(setRaceWarning(warningGeneration, false),
+                            "factory_warning_clear_admitted_for_live_type111_stream");
+                    requireType111(awaitLabWarningHostState(false),
+                            "eligible_type111_presentation_restored_after_warning");
+                    DecodedFrame warningRecovery = decodeFixtureFrame(decoder, greenAccessUnits,
+                            960003L, 1800000L, 1800000000L);
+                    int[] warningRecoveryRgb = readDecodedCenterRgb(warningRecovery);
+                    requireType111(warningRecoveryRgb[1] > warningRecoveryRgb[0],
+                            "warning_recovery_is_real_decoded_type111_video");
+                    submitDecodedFrame(warningRecovery, binderGeneration, false);
+                    captureType111Proof("type111-warning-restored-frame.png");
+                    FrameStreamIdentity recoveredIdentity = frameIpcClient == null ? null :
+                            frameIpcClient.streamIdentity();
+                    requireType111(warningIdentity.equals(recoveredIdentity),
+                            "warning_did_not_change_type111_stream_identity");
+                    Log.i(TAG, "CL_R6_DECODED_TYPE111_WARNING_RECOVERY_PASS session_id=" +
+                            warningIdentity.sessionId + " stream_generation=" + warningGeneration +
+                            " reattached=" + (reattachSessionId > 0L) + " " +
+                            "factory_warning=true decoded_frame_rejected=true fresh_decoded_frame_drawn=true " +
+                            "type110_transport_preserved=true");
                     requireType111(backpressureVerified, "bounded_queue_backpressure_verified");
                     DecodedFrame type110AfterReset = decodeFixtureFrame(type110Decoder,
                             type110AccessUnits, 970001L, 1200000L, 1100000000L);
@@ -1397,7 +1481,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     requireType111("frame_contract_rejected".equals(staleType111),
                             "type111_previous_transport_generation_rejected_by_binder");
                     DecodedFrame recoveredType111 = decodeFixtureFrame(decoder, greenAccessUnits,
-                            960003L, 1600000L, 1500000000L);
+                            960003L, 2100000L, 2100000000L);
                     submitDecodedFrame(recoveredType111, binderGeneration, false);
                     Log.i(TAG, "CL_R4_TYPE111_LIVE_GENERATION_PASS old=" + oldType111.streamGeneration +
                             " new=" + nextType111Generation + " connection_preserved=true " +

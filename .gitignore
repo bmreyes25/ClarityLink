@@ -38,6 +38,7 @@
 !/native/**
 /tools/*
 !/tools/README.md
+!/tools/run_cl_r7_lab.sh
 !/tools/check_repo_health.py
 !/tools/repo_health_public_images.json
 !/tools/check_r7e1_target_diag_artifact.py
