@@ -1094,6 +1094,49 @@ public final class ClarityLinkDisplayActivity extends Activity
         return false;
     }
 
+    /** Applies only geometry admitted by the matching active Type111 control identity. */
+    private boolean applyOutputGeometry(final RendererViewport.Bounds viewArea,
+            final RendererViewport.Bounds safeArea, final FrameStreamIdentity identity) {
+        if (viewArea == null || safeArea == null || identity == null ||
+                identity.streamType != FrameStreamIdentity.TYPE111 ||
+                identity.sessionId != activeGeneration) return false;
+        final RendererViewport viewport;
+        try {
+            viewport = new RendererViewport(viewArea, safeArea,
+                    java.util.Collections.<RendererViewport.Bounds>emptyList(),
+                    RendererViewport.SYNTHETIC_TEST_ONLY);
+        } catch (IllegalArgumentException invalid) { return false; }
+        final Display1OutputBackend expectedRenderer = renderer;
+        final long expectedGeneration = activeGeneration;
+        if (expectedRenderer == null) return false;
+        final CountDownLatch completed = new CountDownLatch(1);
+        final boolean[] applied = new boolean[] { false };
+        main.post(new Runnable() {
+            public void run() {
+                try {
+                    FrameStreamIdentity current = frameIpcClient == null ? null :
+                            frameIpcClient.streamIdentity();
+                    if (active && !closing && renderer == expectedRenderer &&
+                            activeGeneration == expectedGeneration && current != null &&
+                            current.equals(identity)) {
+                        expectedRenderer.setRendererViewport(viewport);
+                        applied[0] = true;
+                        log("CL_R6_OUTPUT_GEOMETRY_APPLIED session_id=" + identity.sessionId +
+                                " generation=" + identity.streamGeneration + " view_area=" +
+                                viewArea.left + "," + viewArea.top + "," + viewArea.right + "," +
+                                viewArea.bottom + " safe_area=" + safeArea.left + "," + safeArea.top +
+                                "," + safeArea.right + "," + safeArea.bottom);
+                    }
+                } finally { completed.countDown(); }
+            }
+        });
+        try { return completed.await(5L, TimeUnit.SECONDS) && applied[0]; }
+        catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
     private static void requireRace(boolean result, String description) {
         if (!result) throw new RuntimeException("warning_race_" + description.replace(' ', '_'));
     }
@@ -1170,6 +1213,10 @@ public final class ClarityLinkDisplayActivity extends Activity
                             "type111_view_area_accepted");
                     requireType111(control.geometry(controlIdentity, new int[] { 16, 16, 784, 464 }, true),
                             "type111_safe_area_accepted");
+                    requireType111(applyOutputGeometry(
+                            new RendererViewport.Bounds(0, 0, 800, 480),
+                            new RendererViewport.Bounds(16, 16, 784, 464), controlIdentity),
+                            "accepted_view_and_safe_areas_applied_to_live_output");
                     requireType111(control.presentation(controlIdentity, "showUI", null),
                             "type111_map_ui_selected");
                     requireType111(!control.navigation(controlIdentity, "unknown", true, false),

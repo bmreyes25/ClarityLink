@@ -227,6 +227,8 @@ public final class CompositorService extends Service {
                         code == FrameIpcProtocol.LAB_WAIT_TRANSFER_FINISHED;
                 if (identity == null || !isSessionOwnerCaller(identity.sessionId,
                         ownerMayDrainDuringShutdown)) {
+                    Log.w(TAG, "IPC_LAB_TRANSFER_BARRIER_WAIT_REJECT reason=owner_authority code=" +
+                            code + " session_id=" + (identity == null ? 0L : identity.sessionId));
                     reply.writeNoException(); reply.writeInt(0); return true;
                 }
                 long timeoutMs = code == FrameIpcProtocol.LAB_RELEASE_TRANSFER_BARRIER ?
@@ -238,6 +240,8 @@ public final class CompositorService extends Service {
                 CountDownLatch latch;
                 synchronized (labTransferBarrierLock) {
                     if (!identity.equals(labTransferBarrierIdentity)) {
+                        Log.w(TAG, "IPC_LAB_TRANSFER_BARRIER_WAIT_REJECT reason=identity code=" +
+                                code + " session_id=" + identity.sessionId);
                         reply.writeNoException();
                         reply.writeInt(0);
                         return true;
@@ -257,6 +261,9 @@ public final class CompositorService extends Service {
                     Thread.currentThread().interrupt();
                     completed = false;
                 }
+                if (code == FrameIpcProtocol.LAB_WAIT_TRANSFER_BARRIER)
+                    Log.i(TAG, "IPC_LAB_TRANSFER_BARRIER_WAIT_RESULT session_id=" + identity.sessionId +
+                            " completed=" + completed + " timeout_ms=" + timeoutMs);
                 reply.writeNoException();
                 reply.writeInt(completed ? 1 : 0);
                 return true;
