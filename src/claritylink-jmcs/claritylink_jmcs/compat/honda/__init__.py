@@ -2,10 +2,13 @@
 
 from .setup import HondaStaticType110Adapter, EvidenceRequired
 from .display_boundary import DisplayEvidenceGap, HondaDisplayBoundaryGate
+from .hondahack_boundary import HondaHackEvidenceGap, HondaHackFrameAdmissionGate
 
 __all__ = [
     "HondaStaticType110Adapter",
     "EvidenceRequired",
     "DisplayEvidenceGap",
     "HondaDisplayBoundaryGate",
+    "HondaHackEvidenceGap",
+    "HondaHackFrameAdmissionGate",
 ]
