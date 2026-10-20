@@ -183,7 +183,7 @@ These questions are external dependencies only; the report is complete without a
 
 ## 13. Offline tests and validation
 
-No new code or lifecycle model was justified. CL-HH-02 already models geometry; CL-HH-03 already models view observations; earlier API17 and lifecycle milestones cover synthetic renderer behavior. Additional synthetic tests cannot prove Honda's private Binder semantics, warning priority, or crash restoration. No tests were run for this report-only change.
+No new code or lifecycle model was justified. CL-HH-02 already models geometry; CL-HH-03 already models view observations; earlier API17 and lifecycle milestones cover synthetic renderer behavior. Additional synthetic tests cannot prove Honda's private Binder semantics, warning priority, or crash restoration. No new targeted tests were added; the existing offline test suite ran in PR CI and passed.
 
 Publication checks still required: Markdown/link/whitespace review, public-safety review, separate ECC code and security review. No Honda, ADB, iPhone, CAN, installation, framebuffer, Xposed, or firmware operation was performed.
 
