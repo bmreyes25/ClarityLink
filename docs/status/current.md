@@ -4,9 +4,9 @@
 
 **Campaign:** CL-R4 reliability completion and public-source publication
 
-**Verified online main before this campaign's publication:** `dd7be19a068eb318e72814e0e0907361975a9c51`
+**Verified online main after PR #38 merge:** `fadcdad7654683c6c94ba341ab77d47843e14863`
 
-**Reliability PR:** [#38](https://github.com/bmreyes25/ClarityLink/pull/38), open; no approving GitHub review recorded at the latest check
+**Reliability PR:** [#38](https://github.com/bmreyes25/ClarityLink/pull/38), merged 2026-10-20 as `fadcdad7654683c6c94ba341ab77d47843e14863`
 
 **Authoritative manifest:** [milestones.json](milestones.json)
 
@@ -35,7 +35,7 @@ The configured offline suite passed **1,289 tests, 29 skipped**, plus three self
 
 ## Publication and review
 
-PR #37 is merged. PR #38 contains the current CL-R4 implementation; the final local changes still need to be committed and pushed, then checked on the updated PR head. At the last GitHub check, CI and CodeQL were green for the previous PR #38 head, but no approving human review was recorded. Do not merge without the required review authorization.
+PR #37 and PR #38 are merged. PR #38 merged as `fadcdad7654683c6c94ba341ab77d47843e14863`; the merged head was `425193360f36b23ae9ac9f5b8b092503e3d50449`. Offline CI and all configured CodeQL analyses passed on that head. The final-source acceptance results and public documentation are present on online `main`.
 
 Generated emulator screenshots, runtime logs, APKs, and acceptance receipts are ignored local evidence, not public source. Historical research and worktrees remain preserved; private Honda research is not part of this publication.
 
@@ -45,6 +45,6 @@ No genuine Honda Type111 capability advertisement, SETUP handler, authenticated 
 
 ## Next actions
 
-1. Complete ECC follow-up, commit the reviewed public-safe implementation and status updates, and push them to PR #38.
-2. Refresh the PR checks against the new exact head and obtain the required human GitHub approval before merging through repository rules.
-3. After publication, investigate documented, authorized Honda receiver and Display 1 contracts. Keep production integration disabled until those contracts are verified.
+1. Investigate documented, authorized Honda receiver contracts for Type111 capability, SETUP, session authority, and stream delegation.
+2. Investigate a supported Honda-owned Display 1 frame-admission interface, including ownership, geometry, warning precedence, and restoration.
+3. Keep production integration disabled until OEM contracts are verified and safety gates are independently reviewed.
