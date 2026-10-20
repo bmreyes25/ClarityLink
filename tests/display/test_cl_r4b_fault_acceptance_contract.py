@@ -185,6 +185,37 @@ def test_producer_process_death_is_observed_inside_parent_teardown_barrier():
     assert "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS" in shell
 
 
+def test_actual_view_process_death_is_injected_at_parent_teardown_barrier():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    test = activity[activity.index("private void runReentrantParentTeardown"):
+                    activity.index("private void killType110SinkForTeardownRace")]
+    assert "EXTRA_VIEW_DEATH_DURING_TEARDOWN_TEST" in activity
+    assert "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_BARRIER_HELD" in test
+    assert "activePfdTransfers != 1" in test
+    assert "view_death_teardown_runner_did_not_kill_view" not in test
+    assert "--cl-r4b-view-death-teardown" in shell
+    assert 'expected_view_process="$package:type111_view"' in shell
+    assert 'shell ps | tr -d \'\\r\' > "$before_ps"' in shell
+    assert 'kill_command="kill -KILL' in shell
+    assert 'remote_kill_command="run-as $package sh -c' in shell
+    assert 'shell "$remote_kill_command" 2>&1) || {' in shell
+    assert "CL_R4B_REMOTE_VIEW_KILL_STATUS=0" in shell
+    assert 'host_identity_checked=true package_uid_signal=true' in shell
+    assert 'printf \'%s\\n\' "$held"' in shell
+    assert 'TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$held_session result=accepted" | tail -1' in shell
+    assert 'TYPE111_PARENT_TEARDOWN_RESOURCES session_id=$held_session remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0" | tail -1' in shell
+    assert 'CL_R4B_VIEW_DEATH_KILL_COMMAND_ACCEPTED' in shell
+    assert 'new CountDownLatch(1).await();' in test
+    assert 'await(12000L, TimeUnit.MILLISECONDS)' not in test
+    assert 'view_pid" = "$initial_type111_pid"' in shell
+    assert 'held_type110_pid" = "$initial_type110_sink_pid"' in shell
+    assert "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_API17_PASS" in shell
+    assert '"CL-R4B-P04": ("view-death-teardown"' in acceptance
+    assert '"IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0"' in acceptance
+
+
 def test_status_only_recovery_checks_only_new_live_log_lines():
     shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert shell.count('recovery_log_line_start=$(adb_local -s "$serial" logcat -d') == 2

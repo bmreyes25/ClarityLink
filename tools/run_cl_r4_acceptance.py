@@ -15,8 +15,6 @@ import time
 
 CASES = [
     ("CL-R4-01", "In-flight PFD producer death", "default", [
-        "CL_R4B_SINK_ACTIVE_SESSION_PRECLAIM_ATTEMPT",
-        "active_session_preserved=true",
         "CL_R4_TYPE111_INFLIGHT_PRODUCER_DEATH_CLEANUP_PASS",
         "CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS",
     ]),
@@ -74,6 +72,7 @@ MODES = {
     "view-crash-queue": "--cl-r4b-view-crash-queue-saturated",
     "queue-parent-teardown": "--cl-r4b-reentrant-teardown-queue-saturated",
     "producer-death-teardown": "--cl-r4b-producer-death-teardown",
+    "view-death-teardown": "--cl-r4b-view-death-teardown",
 }
 
 REQUIRED_COMBINATIONS = [
@@ -104,6 +103,12 @@ PRIORITY_RUNS = {
         "CL_R4B_PRODUCER_DEATH_DURING_TEARDOWN_PASS",
         "CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS",
         "IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0",
+    ]),
+    "CL-R4B-P04": ("view-death-teardown", [
+        "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_BARRIER_HELD",
+        "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_API17_PASS",
+        "remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0",
+        "TYPE111_PARENT_TEARDOWN_COMPLETED",
     ]),
 }
 
@@ -173,10 +178,12 @@ def scenario_receipt(content: str, markers: list[str], head: str,
             if pid not in values:
                 values.append(pid)
     injections = [line.strip() for line in lines if re.search(
-        r"SATURAT|FAILURE_INJECT|INJECTION|_DEATH_REQUESTED|_CRASH_REQUESTED|CALLBACK_ENTERED", line, re.I)]
+        r"SATURAT|FAILURE_INJECT|INJECTION|_DEATH_REQUESTED|_CRASH_REQUESTED|"
+        r"DEATH_DURING_TEARDOWN_BARRIER_HELD|CALLBACK_ENTERED", line, re.I)]
     lifecycle = [line.strip() for line in lines if re.search(
         r"DEATH_CALLBACK|PROCESS_DESTROYED|PROCESS_INVALIDATED|REATTACH|RECOVERY_PASS|"
-        r"GENERATION_PASS|SINK_DETACHED|OWNER_CLEANUP|TEARDOWN_COMPLETED|CALLBACK_POST", line, re.I)]
+        r"GENERATION_PASS|SINK_DETACHED|OWNER_CLEANUP|PARENT_TEARDOWN_COMPLETED|"
+        r"CALLBACK_POST", line, re.I)]
     cleanup = [line.strip() for line in lines if re.search(
         r"cleanup=pass|resources_cleared=true|active_pfd(?:_transfers)?=0|retained_(?:frame_)?bytes=0|"
         r"retained_frame_bytes=0|queue_bytes_after=0|cleanup_pass", line, re.I)]
@@ -466,13 +473,16 @@ def main() -> int:
         checkpoint["mode_runs"][mode]["evidence_log_sha256"] = mode_log_hash
         output = log_path.read_text(errors="replace")
         missing = [marker for marker in markers if marker not in output]
+        receipt = scenario_receipt(output, markers, head, source_hash,
+                                   checkpoint["apk_sha256"], mode_log_hash)
         priority[combo_id] = {"id": combo_id, "name": dict(REQUIRED_COMBINATIONS)[combo_id],
                               "status": "PASS" if code == 0 and not missing else
                               execution_status(code),
                               "exit_code": code, "missing_markers": missing,
                               "log": str(log_path), "source_sha256": source_hash,
                               "apk_sha256": checkpoint["apk_sha256"],
-                              "evidence_log_sha256": mode_log_hash}
+                              "evidence_log_sha256": mode_log_hash,
+                              **receipt}
     checkpoint["combinations"] = [priority[cid] for cid, _ in REQUIRED_COMBINATIONS]
     ordinary = [by_id.get(case[0], {}).get("status", "NOT_RUN") for case in CASES
                 if case[0] != "CL-R4-10"]

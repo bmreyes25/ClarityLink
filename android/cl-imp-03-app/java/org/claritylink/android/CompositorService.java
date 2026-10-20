@@ -1799,6 +1799,13 @@ public final class CompositorService extends Service {
             catch (RuntimeException ignored) { }
         }
         if (plane != null) plane.parentTeardown();
+        int remainingStreams = countSessionStreams(sessionId);
+        int activeTransfers = activePfdTransfers.get();
+        int retainedBytes = retainedFrameBytes.get();
+        Log.i(TAG, "TYPE111_PARENT_TEARDOWN_RESOURCES session_id=" + sessionId +
+                " remaining_streams=" + remainingStreams +
+                " active_pfd_transfers=" + activeTransfers +
+                " retained_frame_bytes=" + retainedBytes);
         Log.i(TAG, "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=" + sessionId +
                 " result=accepted late_close_resolution=true");
         return true;

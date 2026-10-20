@@ -77,6 +77,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private static final String EXTRA_QUEUE_SATURATED_TEARDOWN_TEST = "queue_saturated_teardown_test";
     private static final String EXTRA_PRODUCER_DEATH_DURING_TEARDOWN_TEST =
             "producer_death_during_teardown_test";
+    private static final String EXTRA_VIEW_DEATH_DURING_TEARDOWN_TEST =
+            "view_death_during_teardown_test";
     private static final String EXTRA_DELAYED_DEATH_CALLBACK_TEST = "delayed_death_callback_test";
     private static final String EXTRA_SECURITY_LIVE_PRODUCER = "security_live_producer";
     private static final String LAB_MODE = "EMULATOR_PRESENTATION";
@@ -172,6 +174,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean reentrantTeardownTest;
     private boolean queueSaturatedTeardownTest;
     private boolean producerDeathDuringTeardownTest;
+    private boolean viewDeathDuringTeardownTest;
     private volatile boolean reentrantTeardownInProgress;
     private boolean delayedDeathCallbackTest;
     private boolean type110SinkFailureTest;
@@ -338,6 +341,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                 getIntent().getBooleanExtra(EXTRA_QUEUE_SATURATED_TEARDOWN_TEST, false);
         producerDeathDuringTeardownTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_PRODUCER_DEATH_DURING_TEARDOWN_TEST, false);
+        viewDeathDuringTeardownTest = getIntent() != null &&
+                getIntent().getBooleanExtra(EXTRA_VIEW_DEATH_DURING_TEARDOWN_TEST, false);
         delayedDeathCallbackTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_DELAYED_DEATH_CALLBACK_TEST, false);
         type110SinkFailureTest = getIntent() != null &&
@@ -1954,6 +1959,25 @@ public final class ClarityLinkDisplayActivity extends Activity
             firstPaused = control.awaitLabParentTeardownBarrier(owner, false, 5000L);
             contenderRejectedWhilePaused = firstPaused &&
                     control.awaitLabParentTeardownBarrier(owner, true, 5000L);
+            if (viewDeathDuringTeardownTest && firstPaused && contenderRejectedWhilePaused) {
+                Type111ControlClient.FrameStats pending = control.queryFrameStats(child);
+                if (pending == null || pending.activePfdTransfers != 1 ||
+                        pending.retainedFrameBytes != 0)
+                    throw new IllegalStateException("view_death_teardown_pending_pfd_missing");
+                Log.i(TAG, "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_BARRIER_HELD view_pid=" +
+                        android.os.Process.myPid() + " session_id=" + owner.sessionId +
+                        " child_generation=" + child.streamGeneration +
+                        " compositor_pid=" + compositorRemotePid +
+                        " type110_sink_pid=" + queryType110StatsOrThrow(
+                                "view_death_teardown_type110_stats_missing").pid +
+                        " active_pfd_transfers=" + pending.activePfdTransfers +
+                        " parent_teardown_inflight=true admission_closed=true");
+                // The runner owns this fault injection and must kill the exact
+                // process. Do not self-crash on a timer: that could impersonate
+                // a successful external process-death injection.
+                new CountDownLatch(1).await();
+                throw new IllegalStateException("unreachable_view_death_test_latch");
+            }
             if (firstPaused) {
                 FrameStreamIdentity replacement = child.withGeneration(child.streamGeneration + 1L);
                 if (control.setup(replacement) ||
