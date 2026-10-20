@@ -166,6 +166,44 @@ def case_evidence_valid(case: dict, markers: list[str], source_hash: str,
             all(marker in content for marker in markers))
 
 
+def saturated_view_death_evidence_valid(case: dict, source_hash: str,
+                                        apk_hash: str) -> bool:
+    """P01 is covered only by an executed saturated crash/recovery API17 run."""
+    log_path = Path(case.get("log", ""))
+    if (case.get("status") != "PASS" or
+            case.get("actual_api17_execution") != "EXECUTED" or
+            case.get("source_sha256") != source_hash or
+            case.get("apk_sha256") != apk_hash or
+            not log_path.is_file() or not case.get("evidence_log_sha256")):
+        return False
+    content = log_path.read_text(errors="replace")
+    if hashlib.sha256(log_path.read_bytes()).hexdigest() != case["evidence_log_sha256"]:
+        return False
+    saturation = re.search(
+        r"^.*?CL_R4B_QUEUE_SATURATED_VIEW_DEATH_REQUEST .*?session_id=([1-9][0-9]*)"
+        r" .*?view_pid=([1-9][0-9]*)"
+        r" .*?queued_frames=3(?:\s|$).*?handler_held=true(?:\s|$)", content, re.M)
+    crash = re.search(
+        r"^.*?CL_R2_UNCAUGHT_CRASH_REQUESTED pid=([1-9][0-9]*) "
+        r"session_id=([1-9][0-9]*) .*?"
+        r"decoded_type111_frame_drawn=true(?:\s|$)", content, re.M)
+    fatal = re.search(
+        r"^CL_R4B_VIEW_FATAL_PID_VERIFIED pid=([1-9][0-9]*) "
+        r"package=org\.claritylink\.independentdisplay\.lab "
+        r"fatal=FATAL_EXCEPTION expected_exception=present(?:\s|$)", content, re.M)
+    recovery = re.search(
+        r"^.*?CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS .*?session_id=([1-9][0-9]*)"
+        r" .*?view_pid=([1-9][0-9]*)"
+        r" .*?view_process_absent=true fatal_pid=([1-9][0-9]*) fatal_exception=verified "
+        r"type111_death=observed .*?type110_survived=true "
+        r"post_crash_frame=true resources=zero(?:\s|$)", content, re.M)
+    api17 = re.search(r"^API17_EMULATOR_PROCESS pid=[1-9][0-9]* .*?serial=emulator-[0-9]+", content, re.M)
+    return bool(saturation and crash and fatal and recovery and api17 and
+                saturation.group(2) == crash.group(1) == fatal.group(1) ==
+                recovery.group(2) == recovery.group(3) and
+                saturation.group(1) == crash.group(2) == recovery.group(1))
+
+
 def scenario_receipt(content: str, markers: list[str], head: str,
                      source_hash: str, apk_hash: str, evidence_hash: str) -> dict:
     lines = content.splitlines()
@@ -390,10 +428,18 @@ def main() -> int:
         priority[derived_id].update({"status": "NOT_RUN", "reason":
                                      "Recomputed from audited case evidence for this run."})
     view_crash = by_id.get("CL-R4-12", {})
-    if view_crash.get("status") == "PASS":
+    p01_markers = ("CL_R4B_QUEUE_SATURATED_VIEW_DEATH_REQUEST",
+                   "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS", "view_pid=",
+                   "type110_survived=true", "post_crash_frame=true", "resources=zero")
+    if saturated_view_death_evidence_valid(view_crash, source_hash,
+                                           checkpoint["apk_sha256"]):
         priority["CL-R4B-P01"].update({"status": "PASS", "evidence_case": "CL-R4-12",
                                        "log": view_crash.get("log"),
-                                       "apk_sha256": checkpoint["apk_sha256"]})
+                                       "evidence_log_sha256": view_crash.get("evidence_log_sha256"),
+                                       "source_sha256": source_hash,
+                                       "apk_sha256": checkpoint["apk_sha256"],
+                                       "evidence_markers": list(p01_markers),
+                                       "actual_api17_execution": "EXECUTED"})
     def derive_priority(combo_id: str, required_cases: tuple[str, ...], required_markers: tuple[str, ...]) -> None:
         selected_cases = [by_id.get(case_id, {}) for case_id in required_cases]
         if not selected_cases or any(case.get("status") != "PASS" for case in selected_cases):

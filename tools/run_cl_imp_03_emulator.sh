@@ -1120,6 +1120,7 @@ if [ "$type111_mode" -eq 1 ]; then
     printf '%s\n' "$crash_line" | grep -F 'decoded_type111_frame_drawn=true' >/dev/null || {
       echo 'Crash was not preceded by a decoded Type111 frame rendered to the View.' >&2; exit 9;
     }
+    echo "$crash_line"
     crash_dialog_seen=0
     for crash_attempt in $(seq 1 30); do
       crash_log=$(adb_local -s "$serial" logcat -d -s AndroidRuntime:E '*:S' | tr -d '\r')
@@ -1143,6 +1144,7 @@ if [ "$type111_mode" -eq 1 ]; then
     [ -n "$fatal_record" ] || {
       echo "Fatal exception did not belong to requested app PID $app_pid and package $package." >&2; exit 9;
     }
+    echo "CL_R4B_VIEW_FATAL_PID_VERIFIED $fatal_record"
     crash_evidence="$campaign_evidence/api17-r4b-crash-$adb_port"
     mkdir -p "$crash_evidence"
     printf '%s\n' "$crash_log" > "$crash_evidence/logcat.txt"
@@ -1228,7 +1230,7 @@ if [ "$type111_mode" -eq 1 ]; then
       "$crash_evidence/windows-after-dismissal.txt" "$crash_evidence/claritylink-logcat-after-dismissal.txt" \
       "$crash_evidence/claritylink-logcat-after-parent-teardown.txt" \
       > "$crash_evidence/artifact-hashes.sha256"
-    echo "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS session_id=$crash_session view_pid=$app_pid type111_death=observed type110_survived=true post_crash_frame=true resources=zero evidence=$run_label/evidence"
+    echo "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS session_id=$crash_session view_pid=$app_pid view_process_absent=true fatal_pid=$app_pid fatal_exception=verified type111_death=observed type110_survived=true post_crash_frame=true resources=zero evidence=$run_label/evidence"
     exit 0
   fi
   wait_for 'TYPE110_LAB_SINK_START_REJECTED reason=admission_required session_id='
