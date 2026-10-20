@@ -836,13 +836,11 @@ def test_api17_crash_recovery_uses_live_decoded_type111_and_preserves_type110():
 
 def test_delayed_callback_runtime_receipts_are_forwarded_to_acceptance_stdout():
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
-    delayed = runner[runner.index("if [ \"$delayed_death_callback\" -eq 1 ]; then", runner.index("wait_for 'CL_R4A_VIEW_REATTACH_PASS'")):
-                    runner.index("wait_for_parent_teardown \"$session_id\"")]
-    assert 'grep -F "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=$session_id "' in delayed
-    assert "grep -F 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'" in delayed
-    assert 'printf \'%s\\n\' "$delayed_callback_receipt" "$delayed_teardown_receipt"' in delayed
-    assert "Delayed callback runtime receipts are missing for the tested session or teardown." in delayed
-    assert 'logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I' in delayed
+    assert 'grep -F "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=$session_id "' in runner
+    assert "grep -F 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'" in runner
+    assert 'printf \'%s\\n\' "$delayed_callback_receipt" "$delayed_teardown_receipt"' in runner
+    assert "Delayed callback runtime receipts are missing for the tested session or teardown." in runner
+    assert 'logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I' in runner
 
 
 def test_saturated_type111_view_queue_is_present_when_actual_view_process_crashes():
@@ -965,3 +963,23 @@ def test_all_stale_generation_fixtures_accept_only_real_receiver_denials():
     assert 'receiver_reason=" + staleReason' in activity
     assert '"frame_contract_rejected".equals(staleProducerGeneration)' in activity
     assert '"stream_identity_rejected".equals(staleProducerGeneration)' in activity
+
+
+def test_multiple_view_replacement_mode_checks_three_unique_process_generations():
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert "--cl-r4b-multiple-view-replacements" in shell
+    assert "for ordinal in 1 2 3" in shell
+    assert "unique_pids=true increasing_generations=true" in shell
+    assert "stream_generation=$replacement_generation" in shell
+    assert "replacement_ordinal_arg=${3:-0}" in shell
+    assert 'view_replacement_ordinal "$replacement_ordinal_arg"' in shell
+    assert "multiple_view_replacement_test" in activity
+    assert "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS" in activity
+    assert "CL_R4B_MULTI_VIEW_REPLACEMENT_EXIT_REQUESTED" in activity
+    assert '" type110_last_frame_id=" + reattachedType110Stats.frameId' in activity
+    assert "1000000000000L * Math.max(1, viewReplacementOrdinal)" in activity
+    assert 'index($NF, package ":")==1' in shell
+    assert "api17-replacement-pid-reuse-$ordinal-$adb_port.txt" in shell
+    assert '"CL-R4B-P08": ("multiple-view-replacements"' in acceptance

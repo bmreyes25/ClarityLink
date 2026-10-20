@@ -137,10 +137,10 @@ def test_recovery_probe_is_bound_to_the_exact_type111_death_identity():
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     service = (APP / "java/org/claritylink/android/Type110ProgressProbeService.java").read_text()
     assert "VERSION = 2" in owner
-    issue_body = owner[owner.index("static synchronized boolean issue("):owner.index("/** Atomically claims")]
-    assert "if (!clearAbandonedClaim(claimed)) return false" in issue_body
+    issue_body = owner[owner.index("private static boolean issueInternal("):owner.index("/** Atomically claims")]
+    assert "if (!clearAbandonedClaim(claimed))" in issue_body
     assert "File record = sessionFile(directory, identity.sessionId, RECORD_SUFFIX)" in issue_body
-    assert "if (existing != null || !record.delete()) return false" in issue_body
+    assert "if (existing != null || !record.delete())" in issue_body
     assert "pending >= MAX_PENDING_OWNERS" in issue_body
     assert "private static File sessionFile(File directory, long sessionId, String suffix)" in owner
     assert "RECORD_PREFIX + Long.toHexString(sessionId) + suffix" in owner
@@ -286,6 +286,19 @@ def test_recovery_owner_handoffs_are_keyed_and_bounded_per_session():
     assert "pending_cap=32 cap_rejected=true" in test_activity
     assert "expired_records_pruned=32 orphan_temp_pruned=true orphan_claim_pruned=true" in test_activity
     assert "new_session_issued=true artifacts_remaining=0" in test_activity
+
+
+def test_owner_isolation_failure_reports_bounded_issue_rejection_reason():
+    owner = (APP / "java/org/claritylink/android/Type110LabProbeOwnership.java").read_text()
+    fixture = (APP / "java/org/claritylink/android/Type110OwnerIsolationTestActivity.java").read_text()
+    assert "static synchronized boolean issueForTest(" in owner
+    assert "issueInternal(context, identity, expectedType111Death, lastFrameId, sinkPid, null)" in owner
+    for reason in ("invalid_identity_or_owner_process", "ownership_lock_unavailable",
+                   "abandoned_artifact_prune_failed", "pending_owner_capacity_unavailable_or_full",
+                   "temporary_record_publish_failed"):
+        assert reason in owner
+    assert '" rejection_a=" + rejectionReasons[0]' in fixture
+    assert '" rejection_b=" + rejectionReasons[1]' in fixture
 
 
 def test_api17_runner_proves_cross_uid_denial_and_uses_privileged_shell_launch():

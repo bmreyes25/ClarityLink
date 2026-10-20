@@ -21,6 +21,7 @@ owner_death=0
 reentrant_teardown=0
 producer_death_during_teardown=0
 view_death_during_teardown=0
+multiple_view_replacements=0
 delayed_death_callback=0
 view_crash=0
 crash_with_saturated_queue=0
@@ -57,6 +58,11 @@ elif [ "${1:-}" = "--cl-r4b-view-death-teardown" ]; then
   type111_mode=1
   reentrant_teardown=1
   view_death_during_teardown=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-multiple-view-replacements" ]; then
+  type111_mode=1
+  type111_reattach=1
+  multiple_view_replacements=1
   shift
 elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
@@ -607,8 +613,9 @@ start_lab_activity_privileged() {
   owned || exit 7
   scenario=$1
   reattach_session_arg=${2:-}
+  replacement_ordinal_arg=${3:-0}
   case "$scenario" in
-    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_reentrant_producer_death|type111_view_death_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
+    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_reentrant_producer_death|type111_view_death_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_multi_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
@@ -648,6 +655,14 @@ start_lab_activity_privileged() {
           ;;
         type111_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez hold_after_same_uid_attack true
+          if [ -n "$reattach_session_arg" ]; then
+            set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
+          fi
+          ;;
+        type111_multi_reattach)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true \
+            --ez multiple_view_replacement_test true --ei view_replacement_ordinal "$replacement_ordinal_arg" \
+            --ez hold_after_same_uid_attack true
           if [ -n "$reattach_session_arg" ]; then
             set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
           fi
@@ -769,6 +784,8 @@ elif [ "$type111_mode" -eq 1 ]; then
     fi
   elif [ "$delayed_death_callback" -eq 1 ]; then
     start_lab_activity_privileged type111_delayed_callback_first
+  elif [ "$multiple_view_replacements" -eq 1 ]; then
+    start_lab_activity_privileged type111_multi_reattach "" 0
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
     elif [ "$type110_failure" -eq 1 ]; then
@@ -1594,7 +1611,8 @@ $owner_logs"
     echo 'Type111 Binder stream was not registered before its process death.' >&2; exit 9;
   }
   ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
-  printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2==pid {found=1} END {exit !found}' && {
+  printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" -v package="$package" \
+    '$2==pid && ($NF==package || index($NF, package ":")==1) {found=1} END {exit !found}' && {
     echo "Type111 View process $app_pid remains alive after its self-termination request." >&2; exit 9;
   }
   if [ "$delayed_death_callback" -eq 1 ]; then
@@ -1614,7 +1632,8 @@ $owner_logs"
   if printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110" >/dev/null; then
     echo 'Type110 sink died when only the Type111 View process died.' >&2; exit 9;
   fi
-  process_state=$(printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2 == pid {print}')
+  process_state=$(printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" -v package="$package" \
+    '$2 == pid && ($NF==package || index($NF, package ":")==1) {print}')
   [ -z "$process_state" ] || { echo "Type111 sink process still exists: $process_state" >&2; exit 9; }
   if [ "$delayed_death_callback" -eq 1 ]; then
     replacement_activity_pid=$(printf '%s\n' "$logs" | sed -n \
@@ -1628,7 +1647,66 @@ $owner_logs"
   fi
   echo "TYPE111_SINK_DEATH_VERIFIED pid=$app_pid type110_sink_pid=$type110_sink_pid compositor_pid=$compositor_pid type110_death_callback=false"
   if [ "$type111_reattach" -eq 1 ]; then
-    if [ "$delayed_death_callback" -eq 0 ]; then
+    if [ "$multiple_view_replacements" -eq 1 ]; then
+      replacement_pids=,
+      replacement_generations=,
+      last_replacement_generation=0
+      last_type110_frame=$type110_last_frame
+      for ordinal in 1 2 3; do
+        start_lab_activity_privileged type111_multi_reattach "$session_id" "$ordinal"
+        wait_for "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS ordinal=$ordinal session_id=$session_id "
+        logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+        replacement_pass=$(printf '%s\n' "$logs" | grep -F "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS ordinal=$ordinal session_id=$session_id " | tail -1)
+        replacement_pid=$(printf '%s\n' "$replacement_pass" | sed -n 's/.*view_pid=\([0-9][0-9]*\).*/\1/p')
+        replacement_generation=$(printf '%s\n' "$replacement_pass" | sed -n 's/.*type111_generation=\([0-9][0-9]*\).*/\1/p')
+        replacement_type110_frame=$(printf '%s\n' "$replacement_pass" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
+        printf '%s\n' "$replacement_pass" | grep -F "type110_generation=$type110_generation" |
+          grep -F 'fresh_frame=true pixels_verified=true' >/dev/null &&
+          [ -n "$replacement_pid" ] && [ -n "$replacement_generation" ] &&
+          [ -n "$replacement_type110_frame" ] &&
+          [ "$replacement_generation" -gt "$last_replacement_generation" ] &&
+          [ "$replacement_type110_frame" -gt "$last_type110_frame" ] || {
+          echo "Replacement generation $ordinal omitted process, generation, Type110, or fresh-frame proof." >&2; exit 9;
+        }
+        case "$replacement_pids" in *",$replacement_pid,"*) echo 'A View PID was reused across replacement generations.' >&2; exit 9 ;; esac
+        case "$replacement_generations" in *",$replacement_generation,"*) echo 'A Type111 stream generation was reused.' >&2; exit 9 ;; esac
+        replacement_pids="${replacement_pids}${replacement_pid},"
+        replacement_generations="${replacement_generations}${replacement_generation},"
+        last_replacement_generation=$replacement_generation
+        last_type110_frame=$replacement_type110_frame
+        if [ "$ordinal" -lt 3 ]; then
+          wait_for "CL_R4B_MULTI_VIEW_REPLACEMENT_EXIT_REQUESTED ordinal=$ordinal view_pid=$replacement_pid "
+          for exit_attempt in $(seq 1 30); do
+            owned || exit 7
+            ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
+            # Android may reuse a PID quickly. A row with the old number is
+            # not proof that the app process is still alive; require the exact
+            # package process name before treating it as the original owner.
+            if ! printf '%s\n' "$ps_snapshot" | awk -v pid="$replacement_pid" -v package="$package" \
+              '$2==pid && ($NF==package || index($NF, package ":")==1) {found=1} END {exit !found}'; then break; fi
+            sleep 1
+          done
+          printf '%s\n' "$ps_snapshot" | awk -v pid="$replacement_pid" -v package="$package" \
+            '$2==pid && ($NF==package || index($NF, package ":")==1) {print; found=1} END {exit !found}' \
+            > "$campaign_evidence/api17-replacement-process-still-alive-$ordinal-$adb_port.txt" && {
+            echo "Replacement View process $replacement_pid remained alive after its death request; matching package row saved." >&2; exit 9;
+          }
+          printf '%s\n' "$ps_snapshot" | awk -v pid="$replacement_pid" '$2==pid {print}' \
+            > "$campaign_evidence/api17-replacement-pid-reuse-$ordinal-$adb_port.txt"
+          wait_for "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=111 "
+          logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+          printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=111 " |
+            grep -F "stream_generation=$replacement_generation" >/dev/null || {
+            echo "Replacement View generation $replacement_generation lacks its exact Binder death callback." >&2; exit 9;
+          }
+        else
+          wait_for "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id "
+        fi
+      done
+      wait_for_parent_teardown "$session_id" || exit $?
+      wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0'
+      echo "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS session_id=$session_id replacement_pids=$replacement_pids replacement_generations=$replacement_generations replacements=3 unique_pids=true increasing_generations=true parent_session_preserved=true type110_frames_increased=true final_streams_unregistered=true pfd_transfers=0 retained_frame_bytes=0"
+    elif [ "$delayed_death_callback" -eq 0 ]; then
       start_lab_activity_privileged type111_reattach "$session_id"
     fi
     if [ "$delayed_death_callback" -eq 1 ]; then

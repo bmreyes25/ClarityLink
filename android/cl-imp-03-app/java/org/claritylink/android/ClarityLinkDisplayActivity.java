@@ -177,6 +177,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean viewDeathDuringTeardownTest;
     private volatile boolean reentrantTeardownInProgress;
     private boolean delayedDeathCallbackTest;
+    private boolean multipleViewReplacementTest;
+    private int viewReplacementOrdinal;
     private boolean type110SinkFailureTest;
     private ServiceConnection securityProducerConnection;
     private boolean securityProducerBound;
@@ -334,6 +336,10 @@ public final class ClarityLinkDisplayActivity extends Activity
         reattachSessionId = getIntent() == null ? 0L :
                 getIntent().getLongExtra(EXTRA_REATTACH_SESSION_ID, 0L);
         type111ReattachTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_REATTACH_TEST, false);
+        multipleViewReplacementTest = getIntent() != null &&
+                getIntent().getBooleanExtra("multiple_view_replacement_test", false);
+        viewReplacementOrdinal = getIntent() == null ? 0 :
+                getIntent().getIntExtra("view_replacement_ordinal", 0);
         ownerDeathTest = getIntent() != null && getIntent().getBooleanExtra(EXTRA_OWNER_DEATH_TEST, false);
         reentrantTeardownTest = getIntent() != null &&
                 getIntent().getBooleanExtra(EXTRA_REENTRANT_TEARDOWN_TEST, false);
@@ -1270,7 +1276,12 @@ public final class ClarityLinkDisplayActivity extends Activity
         type111RunStarted = true;
         final FixtureRunToken runToken = new FixtureRunToken();
         type111FixtureRunToken = runToken;
-        fixtureTimestampOffsetNs = reattachSessionId > 0L ? 1000000000000L : 0L;
+        // Reattached activities share the long-lived Type110 receiver. Give
+        // each replacement's synthetic fixture a strictly later timestamp
+        // epoch so repeated View processes do not replay the first cycle's
+        // Type110 frame timestamps into that still-active stream.
+        fixtureTimestampOffsetNs = reattachSessionId > 0L ?
+                1000000000000L * Math.max(1, viewReplacementOrdinal) : 0L;
         lastType111SubmissionTimestampNs = fixtureTimestampOffsetNs;
         type111FixtureWorker = new Thread(new Runnable() {
             public void run() {
@@ -1602,11 +1613,14 @@ public final class ClarityLinkDisplayActivity extends Activity
                         FrameLabSink.Stats reattachedType110Stats = queryType110StatsOrThrow(
                                 "reattach_type110_stats_unavailable");
                         Type111ControlClient reattachControl = type111ControlClient;
-                        if (!runToken.claimTeardown()) {
+                        boolean finalReplacementTeardown = !multipleViewReplacementTest ||
+                                viewReplacementOrdinal >= 3;
+                        if (finalReplacementTeardown && !runToken.claimTeardown()) {
                             log("CL_R4A_FIXTURE_CANCELLED_BEFORE_PARENT_TEARDOWN parent_session_preserved=true");
                             return;
                         }
-                        if (reattachControl == null || !reattachControl.parentTeardown(type110Identity))
+                        if (reattachControl == null || (finalReplacementTeardown &&
+                                !reattachControl.parentTeardown(type110Identity)))
                             throw new IllegalStateException("reattached_parent_teardown_rejected");
                         if (delayedDeathCallbackTest) {
                             requireType111(!reattachControl.fireLabDelayedSinkDeathCallback(
@@ -1620,7 +1634,25 @@ public final class ClarityLinkDisplayActivity extends Activity
                                 " type110_generation_after_fixture=" + type110Identity.streamGeneration +
                                 " type111_generation=" + frameIpcClient.streamIdentity().streamGeneration +
                                 " type110_last_frame_id=" + reattachedType110Stats.frameId +
-                                " stale_frame_rejected=true parent_teardown_request=accepted");
+                                " stale_frame_rejected=true parent_teardown_request=" +
+                                (finalReplacementTeardown ? "accepted" : "deferred"));
+                        if (multipleViewReplacementTest && viewReplacementOrdinal > 0) {
+                            FrameStreamIdentity replacedView = frameIpcClient.streamIdentity();
+                            Log.i(TAG, "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS ordinal=" +
+                                    viewReplacementOrdinal + " session_id=" + type110Identity.sessionId +
+                                    " view_pid=" + android.os.Process.myPid() +
+                                    " type111_generation=" + replacedView.streamGeneration +
+                                    " type110_generation=" + type110Identity.streamGeneration +
+                                    " type110_last_frame_id=" + reattachedType110Stats.frameId +
+                                    " fresh_frame=true pixels_verified=true");
+                            if (viewReplacementOrdinal < 3) {
+                                Log.i(TAG, "CL_R4B_MULTI_VIEW_REPLACEMENT_EXIT_REQUESTED ordinal=" +
+                                        viewReplacementOrdinal + " view_pid=" + android.os.Process.myPid() +
+                                        " parent_session_preserved=true");
+                                android.os.Process.killProcess(android.os.Process.myPid());
+                                return;
+                            }
+                        }
                         stopOwnedDisplay("reattach-test-complete");
                     } else {
                         android.os.Process.killProcess(android.os.Process.myPid());

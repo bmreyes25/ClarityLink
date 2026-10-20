@@ -103,7 +103,7 @@ def test_lifecycle_detach_cancels_fixture_worker_without_parent_teardown():
     assert "runToken.cancelForDetach();" in lifecycle
     assert "fixtureWorker.interrupt();" in lifecycle
     assert "if (!runToken.isCancelled())" in worker_catch
-    assert "if (!runToken.claimTeardown())" in worker_catch
+    assert "if (finalReplacementTeardown && !runToken.claimTeardown())" in worker_catch
     assert "if (previousWorker != null && previousWorker.isAlive())" in worker_catch
     assert "CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE" in worker_catch
 
@@ -119,7 +119,7 @@ def test_api17_reattach_harness_restarts_view_with_the_existing_parent_session()
     assert '" type110_generation=" + reattachType110Generation' in activity
     assert 'if (reattachSessionId > 0L && type111FixtureMode)' in activity
     assert 'else submitSyntheticFrame(activeGeneration);' in activity
-    assert 'fixtureTimestampOffsetNs = reattachSessionId > 0L ? 1000000000000L : 0L;' in activity
+    assert "1000000000000L * Math.max(1, viewReplacementOrdinal)" in activity
     assert 'firstPtsUs += fixtureTimestampOffsetNs / 1000L;' in activity
     assert 'long inputPts = fixturePtsUs(100000L);' in activity
     assert 'lastType111SubmissionTimestampNs + 1L' in activity

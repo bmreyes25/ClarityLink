@@ -73,6 +73,7 @@ MODES = {
     "queue-parent-teardown": "--cl-r4b-reentrant-teardown-queue-saturated",
     "producer-death-teardown": "--cl-r4b-producer-death-teardown",
     "view-death-teardown": "--cl-r4b-view-death-teardown",
+    "multiple-view-replacements": "--cl-r4b-multiple-view-replacements",
 }
 
 REQUIRED_COMBINATIONS = [
@@ -109,6 +110,12 @@ PRIORITY_RUNS = {
         "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_API17_PASS",
         "remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0",
         "TYPE111_PARENT_TEARDOWN_COMPLETED",
+    ]),
+    "CL-R4B-P08": ("multiple-view-replacements", [
+        "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS",
+        "replacements=3 unique_pids=true increasing_generations=true",
+        "parent_session_preserved=true type110_frames_increased=true",
+        "final_streams_unregistered=true pfd_transfers=0 retained_frame_bytes=0",
     ]),
 }
 

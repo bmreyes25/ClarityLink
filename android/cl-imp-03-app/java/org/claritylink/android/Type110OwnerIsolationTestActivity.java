@@ -34,10 +34,11 @@ public final class Type110OwnerIsolationTestActivity extends Activity {
                 FrameStreamIdentity.TYPE111, 11102L, sessionB + 1L, FrameStreamIdentity.OUTPUT_SECONDARY_VIEW);
         final boolean[] issued = new boolean[2];
         final Throwable[] failures = new Throwable[2];
+        final String[] rejectionReasons = new String[2];
         final CountDownLatch ready = new CountDownLatch(2);
         final CountDownLatch start = new CountDownLatch(1);
-        Thread a = issueThread(0, ownerA, deathA, 101L, 1101, ready, start, issued, failures);
-        Thread b = issueThread(1, ownerB, deathB, 202L, 2202, ready, start, issued, failures);
+        Thread a = issueThread(0, ownerA, deathA, 101L, 1101, ready, start, issued, failures, rejectionReasons);
+        Thread b = issueThread(1, ownerB, deathB, 202L, 2202, ready, start, issued, failures, rejectionReasons);
         a.start();
         b.start();
         try {
@@ -50,7 +51,9 @@ public final class Type110OwnerIsolationTestActivity extends Activity {
                 throw new IllegalStateException("concurrent_issue_failed issued_a=" + issued[0] +
                         " issued_b=" + issued[1] + " a_alive=" + a.isAlive() +
                         " b_alive=" + b.isAlive() + " failure_a=" + failureName(failures[0]) +
-                        " failure_b=" + failureName(failures[1]));
+                        " failure_b=" + failureName(failures[1]) +
+                        " rejection_a=" + rejectionReasons[0] +
+                        " rejection_b=" + rejectionReasons[1]);
             if (!Type110LabProbeOwnership.hasPending(this, deathA) ||
                     !Type110LabProbeOwnership.hasPending(this, deathB))
                 throw new IllegalStateException("session_record_overwritten");
@@ -149,14 +152,18 @@ public final class Type110OwnerIsolationTestActivity extends Activity {
     private Thread issueThread(final int index, final FrameStreamIdentity owner,
             final FrameStreamIdentity death, final long frameId, final int sinkPid,
             final CountDownLatch ready, final CountDownLatch start,
-            final boolean[] issued, final Throwable[] failures) {
+            final boolean[] issued, final Throwable[] failures,
+            final String[] rejectionReasons) {
         return new Thread(new Runnable() {
             @Override public void run() {
                 ready.countDown();
                 try {
                     if (!start.await(2L, TimeUnit.SECONDS)) throw new IllegalStateException("issue_start_timeout");
-                    issued[index] = Type110LabProbeOwnership.issue(
-                            Type110OwnerIsolationTestActivity.this, owner, death, frameId, sinkPid);
+                    String[] issueReason = new String[1];
+                    issued[index] = Type110LabProbeOwnership.issueForTest(
+                            Type110OwnerIsolationTestActivity.this, owner, death, frameId,
+                            sinkPid, issueReason);
+                    rejectionReasons[index] = issueReason[0];
                 } catch (Throwable failure) {
                     failures[index] = failure;
                 }
