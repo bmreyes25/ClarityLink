@@ -182,32 +182,66 @@ final class Type110LabProbeOwnership {
 
     static synchronized boolean issue(Context context, FrameStreamIdentity identity,
             FrameStreamIdentity expectedType111Death, long lastFrameId, int sinkPid) {
+        return issueInternal(context, identity, expectedType111Death, lastFrameId, sinkPid, null);
+    }
+
+    /** Diagnostic variant reserved for the API17 owner-isolation regression fixture. */
+    static synchronized boolean issueForTest(Context context, FrameStreamIdentity identity,
+            FrameStreamIdentity expectedType111Death, long lastFrameId, int sinkPid,
+            String[] rejectionReason) {
+        return issueInternal(context, identity, expectedType111Death, lastFrameId, sinkPid,
+                rejectionReason);
+    }
+
+    private static boolean issueInternal(Context context, FrameStreamIdentity identity,
+            FrameStreamIdentity expectedType111Death, long lastFrameId, int sinkPid,
+            String[] rejectionReason) {
         if (context == null || identity == null || !identity.isValid() ||
                 identity.streamType != FrameStreamIdentity.TYPE110 || expectedType111Death == null ||
                 !expectedType111Death.isValid() ||
                 expectedType111Death.streamType != FrameStreamIdentity.TYPE111 ||
                 identity.sessionId != expectedType111Death.sessionId || lastFrameId < 0 || sinkPid <= 0 ||
-                !isAuthorizedSessionOwnerProcess(context, android.os.Process.myPid()))
+                !isAuthorizedSessionOwnerProcess(context, android.os.Process.myPid())) {
+            reject(rejectionReason, "invalid_identity_or_owner_process");
             return false;
+        }
         OwnershipLock ownershipLock = acquire(context);
-        if (ownershipLock == null) return false;
+        if (ownershipLock == null) {
+            reject(rejectionReason, "ownership_lock_unavailable");
+            return false;
+        }
         File directory = context.getFilesDir();
         File temporary = sessionFile(directory, identity.sessionId, ".tmp");
         File record = sessionFile(directory, identity.sessionId, RECORD_SUFFIX);
         File claimed = sessionFile(directory, identity.sessionId, ".claimed");
         DataOutputStream output = null;
         try {
-            if (!pruneAbandonedArtifacts(context, directory)) return false;
+            if (!pruneAbandonedArtifacts(context, directory)) {
+                reject(rejectionReason, "abandoned_artifact_prune_failed");
+                return false;
+            }
             // Under the OS lock, a claim left behind is from a process that has exited.
-            if (!clearAbandonedClaim(claimed)) return false;
+            if (!clearAbandonedClaim(claimed)) {
+                reject(rejectionReason, "abandoned_claim_clear_failed");
+                return false;
+            }
             // Same-session duplicate issuance is rejected; different sessions have distinct files.
             if (record.exists()) {
                 Record existing = read(context, record);
-                if (existing != null || !record.delete()) return false;
+                if (existing != null || !record.delete()) {
+                    reject(rejectionReason, "same_session_record_already_owned");
+                    return false;
+                }
             }
             int pending = pendingOwnerCount(directory);
-            if (pending < 0 || pending >= MAX_PENDING_OWNERS) return false;
-            if (temporary.exists() && !temporary.delete()) return false;
+            if (pending < 0 || pending >= MAX_PENDING_OWNERS) {
+                reject(rejectionReason, "pending_owner_capacity_unavailable_or_full");
+                return false;
+            }
+            if (temporary.exists() && !temporary.delete()) {
+                reject(rejectionReason, "stale_temporary_record_delete_failed");
+                return false;
+            }
             output = new DataOutputStream(new FileOutputStream(temporary, false));
             output.writeInt(MAGIC);
             output.writeInt(VERSION);
@@ -222,15 +256,25 @@ final class Type110LabProbeOwnership {
             output.flush();
             output.close();
             output = null;
-            if (record.exists()) return false;
-            return temporary.renameTo(record);
+            if (record.exists()) {
+                reject(rejectionReason, "session_record_appeared_before_publish");
+                return false;
+            }
+            boolean published = temporary.renameTo(record);
+            if (!published) reject(rejectionReason, "temporary_record_publish_failed");
+            return published;
         } catch (Exception failure) {
+            reject(rejectionReason, failure.getClass().getSimpleName());
             return false;
         } finally {
             if (output != null) try { output.close(); } catch (Exception ignored) { }
             if (temporary.exists()) temporary.delete();
             ownershipLock.close();
         }
+    }
+
+    private static void reject(String[] reason, String value) {
+        if (reason != null && reason.length > 0) reason[0] = value;
     }
 
     /** Atomically claims only the record matching this exact Binder death identity. */

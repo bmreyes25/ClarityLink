@@ -185,6 +185,37 @@ def test_producer_process_death_is_observed_inside_parent_teardown_barrier():
     assert "CL_R4B_OWNER_DEATH_SESSION_CAPACITY_PASS" in shell
 
 
+def test_actual_view_process_death_is_injected_at_parent_teardown_barrier():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    test = activity[activity.index("private void runReentrantParentTeardown"):
+                    activity.index("private void killType110SinkForTeardownRace")]
+    assert "EXTRA_VIEW_DEATH_DURING_TEARDOWN_TEST" in activity
+    assert "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_BARRIER_HELD" in test
+    assert "activePfdTransfers != 1" in test
+    assert "view_death_teardown_runner_did_not_kill_view" not in test
+    assert "--cl-r4b-view-death-teardown" in shell
+    assert 'expected_view_process="$package:type111_view"' in shell
+    assert 'shell ps | tr -d \'\\r\' > "$before_ps"' in shell
+    assert 'kill_command="kill -KILL' in shell
+    assert 'remote_kill_command="run-as $package sh -c' in shell
+    assert 'shell "$remote_kill_command" 2>&1) || {' in shell
+    assert "CL_R4B_REMOTE_VIEW_KILL_STATUS=0" in shell
+    assert 'host_identity_checked=true package_uid_signal=true' in shell
+    assert 'printf \'%s\\n\' "$held"' in shell
+    assert 'TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$held_session result=accepted" | tail -1' in shell
+    assert 'TYPE111_PARENT_TEARDOWN_RESOURCES session_id=$held_session remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0" | tail -1' in shell
+    assert 'CL_R4B_VIEW_DEATH_KILL_COMMAND_ACCEPTED' in shell
+    assert 'new CountDownLatch(1).await();' in test
+    assert 'await(12000L, TimeUnit.MILLISECONDS)' not in test
+    assert 'view_pid" = "$initial_type111_pid"' in shell
+    assert 'held_type110_pid" = "$initial_type110_sink_pid"' in shell
+    assert "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_API17_PASS" in shell
+    assert '"CL-R4B-P04": ("view-death-teardown"' in acceptance
+    assert '"IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0"' in acceptance
+
+
 def test_status_only_recovery_checks_only_new_live_log_lines():
     shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert shell.count('recovery_log_line_start=$(adb_local -s "$serial" logcat -d') == 2
@@ -204,7 +235,9 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
                     if item.get(ANDROID + "name") ==
                     "org.claritylink.android.CompositorOwnerDeathTestService")
     assert activity.get(ANDROID + "process") == ":owner_death_test"
-    assert activity.get(ANDROID + "exported") == "true"
+    # The child-cleanup trigger is an in-process lab control surface; it must
+    # not be externally callable even by another same-UID package.
+    assert activity.get(ANDROID + "exported") == "false"
     assert activity.get(ANDROID + "permission") == "android.permission.DUMP"
 
     source = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
@@ -805,13 +838,11 @@ def test_api17_crash_recovery_uses_live_decoded_type111_and_preserves_type110():
 
 def test_delayed_callback_runtime_receipts_are_forwarded_to_acceptance_stdout():
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
-    delayed = runner[runner.index("if [ \"$delayed_death_callback\" -eq 1 ]; then", runner.index("wait_for 'CL_R4A_VIEW_REATTACH_PASS'")):
-                    runner.index("wait_for_parent_teardown \"$session_id\"")]
-    assert 'grep -F "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=$session_id "' in delayed
-    assert "grep -F 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'" in delayed
-    assert 'printf \'%s\\n\' "$delayed_callback_receipt" "$delayed_teardown_receipt"' in delayed
-    assert "Delayed callback runtime receipts are missing for the tested session or teardown." in delayed
-    assert 'logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I' in delayed
+    assert 'grep -F "CL_R4B_DELAYED_SINK_CALLBACK_PASS session_id=$session_id "' in runner
+    assert "grep -F 'CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS stale_release_rejected=true session_not_resurrected=true'" in runner
+    assert 'printf \'%s\\n\' "$delayed_callback_receipt" "$delayed_teardown_receipt"' in runner
+    assert "Delayed callback runtime receipts are missing for the tested session or teardown." in runner
+    assert 'logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I' in runner
 
 
 def test_saturated_type111_view_queue_is_present_when_actual_view_process_crashes():
@@ -934,3 +965,67 @@ def test_all_stale_generation_fixtures_accept_only_real_receiver_denials():
     assert 'receiver_reason=" + staleReason' in activity
     assert '"frame_contract_rejected".equals(staleProducerGeneration)' in activity
     assert '"stream_identity_rejected".equals(staleProducerGeneration)' in activity
+
+
+def test_multiple_view_replacement_mode_checks_three_unique_process_generations():
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert "--cl-r4b-multiple-view-replacements" in shell
+    assert "for ordinal in 1 2 3" in shell
+    assert "unique_pids=true increasing_generations=true" in shell
+    assert "stream_generation=$replacement_generation" in shell
+    assert "replacement_ordinal_arg=${3:-0}" in shell
+    assert 'view_replacement_ordinal "$replacement_ordinal_arg"' in shell
+    assert "multiple_view_replacement_test" in activity
+    assert "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS" in activity
+    assert "CL_R4B_MULTI_VIEW_REPLACEMENT_EXIT_REQUESTED" in activity
+    assert '" type110_last_frame_id=" + reattachedType110Stats.frameId' in activity
+    assert "1000000000000L * Math.max(1, viewReplacementOrdinal)" in activity
+    assert 'index($NF, package ":")==1' in shell
+    assert "api17-replacement-pid-reuse-$ordinal-$adb_port.txt" in shell
+    assert '"CL-R4B-P08": ("multiple-view-replacements"' in acceptance
+
+
+def test_owner_death_during_child_cleanup_requires_held_queue_and_zero_cleanup():
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert "--cl-r4b-owner-death-child-cleanup" in shell
+    assert "owner_death_child_cleanup_test" in shell
+    assert "CL_R4B_OWNER_DEATH_CHILD_QUEUE_READY" in activity
+    assert "CL_R4B_OWNER_DEATH_CHILD_BARRIER_RELEASED" in activity
+    assert "cause=binder-death-recipient" in activity
+    assert "owner_death_trigger_line" in shell
+    assert "child_barrier_release_line" in shell
+    assert "trigger_child_queue_owner_death" in activity
+    assert "childQueueDeathTrigger.await(5L, TimeUnit.SECONDS)" in (
+        REPO / "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java"
+    ).read_text()
+    assert "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS" in activity
+    assert "viewSink.closeSession(observedSessionId, false)" in activity
+    assert "ownerDeathChildViewFencePassed && !ownerDeathChildCleanupControl.barrierTimedOut" in activity
+    assert "CL_R4B_OWNER_DEATH_CHILD_VIEW_FENCED" in activity
+    assert "CL_R4B_OWNER_DEATH_CHILD_QUEUE_DRAINED" in activity
+    assert "isGenerationFenced(observedSessionId)" in activity
+    assert "A stale Type111 frame was enqueued after Binder owner death." in shell
+    assert "ownerDeathChildBarrierReleasedByDeath && ownerDeathChildCleanupControl != null" in activity
+    assert "!ownerDeathChildCleanupControl.barrierTimedOut" in activity
+    assert "queued_frames_before=3" in shell
+    assert '"CL-R4B-P05": ("owner-death-child-cleanup"' in acceptance
+
+
+def test_decoder_shutdown_delivery_mode_closes_codec_while_view_dispatch_is_held():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert "--cl-r4b-decoder-shutdown-delivery" in shell
+    assert "decoder_shutdown_delivery_test true" in shell
+    assert "handlerEntered.await(5L, TimeUnit.SECONDS)" in activity
+    assert "decoder.close();" in activity
+    assert "finally {\n                                deliveryControl.releaseHandler.countDown();" in activity
+    assert "requireType111(!deliveryControl.barrierTimedOut" in activity
+    assert "frame_drawn_after_decoder_close=true" in activity
+    assert "pending_frames=[1-9]" in shell
+    assert "decoder_closed_before_delivery_release=true frame_drawn_after_decoder_close=true" in shell
+    assert '"CL-R4B-P06": ("decoder-shutdown-delivery"' in acceptance

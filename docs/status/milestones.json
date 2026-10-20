@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-19",
-  "current_campaign": "CL-R4 reliability completion and public-source publication",
+  "updated": "2026-10-20",
+  "current_campaign": "CL-R4 reliability complete; public-source publication and OEM contract investigation remain",
   "current_milestone": "CL-R4",
-  "current_milestone_state": "IN_PROGRESS",
-  "next_technical_milestone": "CL-R4",
+  "current_milestone_state": "COMPLETE",
+  "next_technical_milestone": "CL-R5",
   "safeForHonda": false,
   "hardware_validation_state": "NOT_STARTED",
   "license_state": "NO_LICENSE_SELECTED",
@@ -45,7 +45,7 @@
     {
       "id": "CL-R4",
       "title": "Complete Type111 fixture reliability acceptance",
-      "state": "IN_PROGRESS",
+      "state": "COMPLETE",
       "evidence": [
         "tools/run_cl_r4_acceptance.py",
         "docs/status/current.md",

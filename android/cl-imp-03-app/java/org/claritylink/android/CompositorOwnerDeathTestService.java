@@ -28,6 +28,7 @@ public final class CompositorOwnerDeathTestService extends Service {
     private final Handler handler = new Handler();
     private final Object lifecycleLock = new Object();
     private final IBinder ownerDeathQueryToken = new Binder();
+    private final CountDownLatch childQueueDeathTrigger = new CountDownLatch(1);
     private volatile IBinder endpoint;
     private volatile boolean ownerDeathRequested;
     private volatile boolean endpointDisconnected;
@@ -36,6 +37,7 @@ public final class CompositorOwnerDeathTestService extends Service {
     private boolean observerRebindStarted;
     private boolean endpointVerificationStarted;
     private boolean started;
+    private boolean waitForChildQueueTrigger;
     private int targetPid;
     private FrameStreamIdentity ownerIdentity;
     private FrameStreamIdentity childIdentity;
@@ -45,8 +47,25 @@ public final class CompositorOwnerDeathTestService extends Service {
     @Override public IBinder onBind(Intent intent) { return ownerDeathQueryToken; }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.getBooleanExtra("trigger_child_queue_owner_death", false)) {
+            long triggerSessionId = intent.getLongExtra("trigger_child_queue_session_id", 0L);
+            if (!started || !waitForChildQueueTrigger || finished || ownerIdentity == null ||
+                    triggerSessionId != ownerIdentity.sessionId) {
+                Log.w(TAG, "CL_R4B_OWNER_DEATH_CHILD_TRIGGER_REJECTED started=" + started +
+                        " waiting=" + waitForChildQueueTrigger + " finished=" + finished +
+                        " requested_session_id=" + triggerSessionId + " active_session_id=" +
+                        (ownerIdentity == null ? 0L : ownerIdentity.sessionId));
+                return START_NOT_STICKY;
+            }
+            childQueueDeathTrigger.countDown();
+            Log.i(TAG, "CL_R4B_OWNER_DEATH_CHILD_TRIGGER_RECEIVED=true session_id=" +
+                    triggerSessionId);
+            return START_NOT_STICKY;
+        }
         if (started) return START_NOT_STICKY;
         started = true;
+        waitForChildQueueTrigger = intent != null &&
+                intent.getBooleanExtra("wait_for_child_queue_trigger", false);
         if (intent == null || Build.VERSION.SDK_INT != 17 || !isEmulator()) {
             fail("api17_emulator_guard_rejected");
             return START_NOT_STICKY;
@@ -153,6 +172,12 @@ public final class CompositorOwnerDeathTestService extends Service {
                         !childIdentity.equals(query.identity) || !query.sinkAttached)
                     throw new IllegalStateException("live_parent_precondition_mismatch");
                 awaitPredeathResourceCleanup(control);
+                if (waitForChildQueueTrigger) {
+                    Log.i(TAG, "CL_R4B_OWNER_DEATH_WAITING_FOR_CHILD_QUEUE_TRIGGER session_id=" +
+                            ownerIdentity.sessionId + " timeout_ms=5000");
+                    if (!childQueueDeathTrigger.await(5L, TimeUnit.SECONDS))
+                        throw new IllegalStateException("child_queue_death_trigger_timeout");
+                }
                 ownerDeathRequested = true;
                 Log.i(TAG, "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=" + targetPid +
                         " observer_pid=" + Process.myPid() + " session_id=" + ownerIdentity.sessionId +

@@ -18,9 +18,13 @@ type111_first=0
 type111_reattach=0
 type110_failure=0
 owner_death=0
+owner_death_during_child_cleanup=0
 reentrant_teardown=0
 producer_death_during_teardown=0
+view_death_during_teardown=0
+multiple_view_replacements=0
 delayed_death_callback=0
+decoder_shutdown_delivery=0
 view_crash=0
 crash_with_saturated_queue=0
 queue_saturated_teardown=0
@@ -52,6 +56,16 @@ elif [ "${1:-}" = "--cl-r4b-producer-death-teardown" ]; then
   reentrant_teardown=1
   producer_death_during_teardown=1
   shift
+elif [ "${1:-}" = "--cl-r4b-view-death-teardown" ]; then
+  type111_mode=1
+  reentrant_teardown=1
+  view_death_during_teardown=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-multiple-view-replacements" ]; then
+  type111_mode=1
+  type111_reattach=1
+  multiple_view_replacements=1
+  shift
 elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   type110_failure=1
   # The failure matrix requires both independently owned streams and a live
@@ -67,6 +81,11 @@ elif [ "${1:-}" = "--cl-r4b-type110-failure-type111-first" ]; then
 elif [ "${1:-}" = "--cl-r4b-parent-owner-death" ]; then
   type111_mode=1
   owner_death=1
+  shift
+elif [ "${1:-}" = "--cl-r4b-owner-death-child-cleanup" ]; then
+  type111_mode=1
+  owner_death=1
+  owner_death_during_child_cleanup=1
   shift
 elif [ "${1:-}" = "--cl-imp-08-decoder" ]; then
   decoder_only=1
@@ -100,6 +119,11 @@ elif [ "${1:-}" = "--cl-r4b-delayed-callback-type111-first" ]; then
   type111_first=1
   type111_reattach=1
   delayed_death_callback=1
+  shift
+fi
+if [ "${1:-}" = "--cl-r4b-decoder-shutdown-delivery" ]; then
+  type111_mode=1
+  decoder_shutdown_delivery=1
   shift
 fi
 [ "$#" -eq 0 ] || { echo 'Unexpected emulator harness arguments.' >&2; exit 2; }
@@ -601,12 +625,14 @@ start_lab_activity_privileged() {
   owned || exit 7
   scenario=$1
   reattach_session_arg=${2:-}
+  replacement_ordinal_arg=${3:-0}
   case "$scenario" in
-    presentation|type111|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_reentrant_producer_death|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
+    presentation|type111|type111_decoder_shutdown_delivery|type111_type110_failure|type111_first_type110_failure|type111_owner_death|type111_owner_death_child_cleanup|type111_reentrant_teardown|type111_reentrant_queue_saturated|type111_reentrant_producer_death|type111_view_death_teardown|type111_first|type111_first_reentrant|type111_first_reattach|type111_reattach|type111_multi_reattach|type111_delayed_callback_first|type111_first_delayed_callback_first|type111_delayed_callback_replacement|type111_crash|type111_crash_queue_saturated|controlled_exit|crash)
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
         type111) set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true ;;
+        type111_decoder_shutdown_delivery) set -- "$@" --ez type111_fixture_mode true --ez decoder_shutdown_delivery_test true --ez hold_after_same_uid_attack true ;;
         type111_crash) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true ;;
         type111_crash_queue_saturated) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true --ez crash_with_saturated_type111_queue true ;;
         type111_type110_failure)
@@ -619,9 +645,11 @@ start_lab_activity_privileged() {
             --ez type110_sink_failure_test true
           ;;
         type111_owner_death) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true --ez hold_after_same_uid_attack true ;;
+        type111_owner_death_child_cleanup) set -- "$@" --ez type111_fixture_mode true --ez owner_death_test true --ez owner_death_child_cleanup_test true --ez hold_after_same_uid_attack true ;;
         type111_reentrant_teardown) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true ;;
         type111_reentrant_queue_saturated) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true --ez queue_saturated_teardown_test true ;;
         type111_reentrant_producer_death) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true --ez producer_death_during_teardown_test true ;;
+        type111_view_death_teardown) set -- "$@" --ez type111_fixture_mode true --ez reentrant_teardown_test true --ez view_death_during_teardown_test true ;;
         type111_first_reentrant) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez reentrant_teardown_test true ;;
         type111_first) set -- "$@" --ez type111_fixture_mode true --ez type111_first_mode true --ez hold_after_same_uid_attack true ;;
         type111_first_reattach)
@@ -641,6 +669,14 @@ start_lab_activity_privileged() {
           ;;
         type111_reattach)
           set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true --ez hold_after_same_uid_attack true
+          if [ -n "$reattach_session_arg" ]; then
+            set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
+          fi
+          ;;
+        type111_multi_reattach)
+          set -- "$@" --ez type111_fixture_mode true --ez type111_reattach_test true \
+            --ez multiple_view_replacement_test true --ei view_replacement_ordinal "$replacement_ordinal_arg" \
+            --ez hold_after_same_uid_attack true
           if [ -n "$reattach_session_arg" ]; then
             set -- "$@" --el type111_reattach_session_id "$reattach_session_arg"
           fi
@@ -742,24 +778,34 @@ elif [ "$type111_first" -eq 1 ]; then
     start_lab_activity_privileged type111_first
   fi
 elif [ "$type111_mode" -eq 1 ]; then
-  if [ "$view_crash" -eq 1 ]; then
+  if [ "$decoder_shutdown_delivery" -eq 1 ]; then
+    start_lab_activity_privileged type111_decoder_shutdown_delivery
+  elif [ "$view_crash" -eq 1 ]; then
     if [ "$crash_with_saturated_queue" -eq 1 ]; then
       start_lab_activity_privileged type111_crash_queue_saturated
     else
       start_lab_activity_privileged type111_crash
     fi
   elif [ "$owner_death" -eq 1 ]; then
-    start_lab_activity_privileged type111_owner_death
+    if [ "$owner_death_during_child_cleanup" -eq 1 ]; then
+      start_lab_activity_privileged type111_owner_death_child_cleanup
+    else
+      start_lab_activity_privileged type111_owner_death
+    fi
   elif [ "$reentrant_teardown" -eq 1 ]; then
     if [ "$queue_saturated_teardown" -eq 1 ]; then
       start_lab_activity_privileged type111_reentrant_queue_saturated
     elif [ "$producer_death_during_teardown" -eq 1 ]; then
       start_lab_activity_privileged type111_reentrant_producer_death
+    elif [ "$view_death_during_teardown" -eq 1 ]; then
+      start_lab_activity_privileged type111_view_death_teardown
     else
       start_lab_activity_privileged type111_reentrant_teardown
     fi
   elif [ "$delayed_death_callback" -eq 1 ]; then
     start_lab_activity_privileged type111_delayed_callback_first
+  elif [ "$multiple_view_replacements" -eq 1 ]; then
+    start_lab_activity_privileged type111_multi_reattach "" 0
   elif [ "$type111_reattach" -eq 1 ]; then
     start_lab_activity_privileged type111_reattach
     elif [ "$type110_failure" -eq 1 ]; then
@@ -855,6 +901,99 @@ adb_local -s "$serial" shell run-as "$package" cat files/test6a-binder-view-proo
 python3 "$repo/tools/normalize_api17_png.py" "$proof_tmp"
 mv "$proof_tmp" "$proof"
 echo "BINDER_VIEW_PROOF_SAVED artifact=$run_label/evidence/$(basename -- "$proof")"
+
+if [ "$view_death_during_teardown" -eq 1 ]; then
+  wait_for 'CL_R4B_VIEW_DEATH_DURING_TEARDOWN_BARRIER_HELD '
+  logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  printf '%s\n' "$logs" > "$campaign_evidence/api17-view-death-during-teardown-before-$adb_port.txt"
+  held=$(printf '%s\n' "$logs" | grep -F 'CL_R4B_VIEW_DEATH_DURING_TEARDOWN_BARRIER_HELD ' | tail -1)
+  view_pid=$(printf '%s\n' "$held" | sed -n 's/.*view_pid=\([0-9][0-9]*\).*/\1/p')
+  held_session=$(printf '%s\n' "$held" | sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
+  held_type110_pid=$(printf '%s\n' "$held" | sed -n 's/.*type110_sink_pid=\([0-9][0-9]*\).*/\1/p')
+  held_pfd=$(printf '%s\n' "$held" | sed -n 's/.*active_pfd_transfers=\([0-9][0-9]*\).*/\1/p')
+  [ "$view_pid" = "$initial_type111_pid" ] &&
+    [ "$held_session" = "$initial_session_generation" ] &&
+    [ "$held_type110_pid" = "$initial_type110_sink_pid" ] && [ "$held_pfd" = 1 ] &&
+    printf '%s\n' "$held" | grep -F 'parent_teardown_inflight=true admission_closed=true' >/dev/null || {
+      echo 'View-death teardown barrier did not match the exact live View, session, Type110 owner, and pending PFD.' >&2
+      exit 9
+    }
+  printf '%s\n' "$held"
+  before_ps="$campaign_evidence/api17-view-death-during-teardown-processes-before-$adb_port.txt"
+  after_ps="$campaign_evidence/api17-view-death-during-teardown-processes-after-$adb_port.txt"
+  expected_view_process="$package:type111_view"
+  adb_local -s "$serial" shell ps | tr -d '\r' > "$before_ps"
+  awk -v pid="$view_pid" -v name="$expected_view_process" '$2 == pid && $NF == name {found=1} END {exit !found}' "$before_ps" || {
+    echo 'Exact View PID and process name were not present before the teardown-race injection.' >&2; exit 9;
+  }
+  owned || exit 7
+  # Re-read identity immediately before injection to fail closed on PID reuse.
+  adb_local -s "$serial" shell ps | tr -d '\r' > "$after_ps"
+  awk -v pid="$view_pid" -v name="$expected_view_process" '$2 == pid && $NF == name {found=1} END {exit !found}' "$after_ps" || {
+    echo 'View PID identity changed immediately before teardown-race injection.' >&2; exit 9;
+  }
+  kill_command="kill -KILL $view_pid
+kill_status=\$?
+echo CL_R4B_REMOTE_VIEW_KILL_STATUS=\$kill_status
+exit \"\$kill_status\""
+  # Host verified the full process name immediately before this command.
+  # run-as confines signal authority to this app UID; the barrier keeps the
+  # identified Activity alive until this exact external injection.
+  remote_kill_command="run-as $package sh -c '$kill_command'"
+  kill_output=$(adb_local -s "$serial" shell "$remote_kill_command" 2>&1) || {
+    printf '%s\n' "$kill_output"
+    echo 'run-as did not confirm identity-checked targeted View process kill.' >&2; exit 9;
+  }
+  printf '%s\n' "$kill_output"
+  printf '%s\n' "$kill_output" | grep -F 'CL_R4B_REMOTE_VIEW_KILL_STATUS=0' >/dev/null || {
+    echo 'run-as did not report a successful same-UID process signal.' >&2; exit 9;
+  }
+  echo "CL_R4B_VIEW_DEATH_KILL_COMMAND_ACCEPTED pid=$view_pid process=$expected_view_process host_identity_checked=true package_uid_signal=true"
+  view_absent=0
+  for death_attempt in $(seq 1 60); do
+    owned || exit 7
+    adb_local -s "$serial" shell ps | tr -d '\r' > "$after_ps"
+    if ! awk -v pid="$view_pid" -v name="$expected_view_process" '$2 == pid && $NF == name {found=1} END {exit found ? 0 : 1}' "$after_ps"; then
+      view_absent=1
+      break
+    fi
+    sleep 0.2
+  done
+  [ "$view_absent" -eq 1 ] || { echo "View PID $view_pid survived the targeted teardown-race kill." >&2; exit 9; }
+  wait_for "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$held_session result=accepted"
+  wait_for "TYPE111_PARENT_TEARDOWN_RESOURCES session_id=$held_session remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0"
+  logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+  printf '%s\n' "$logs" > "$campaign_evidence/api17-view-death-during-teardown-logcat-$adb_port.txt"
+  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$held_session result=accepted" >/dev/null || {
+    echo 'Parent teardown did not complete after the exact View process exited.' >&2; exit 9;
+  }
+  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_RESOURCES session_id=$held_session remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0" >/dev/null || {
+    echo 'Parent teardown did not report zero session streams, PFD transfers, and retained frame bytes.' >&2; exit 9;
+  }
+  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_COMPLETED session_id=$held_session result=accepted" | tail -1
+  printf '%s\n' "$logs" | grep -F "TYPE111_PARENT_TEARDOWN_RESOURCES session_id=$held_session remaining_streams=0 active_pfd_transfers=0 retained_frame_bytes=0" | tail -1
+  for stream_type in 110 111; do
+    unregistered=$(printf '%s\n' "$logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$held_session " |
+      grep -F "stream_type=$stream_type " | tail -1)
+    [ -n "$unregistered" ] && printf '%s\n' "$unregistered" | grep -F 'active_pfd_transfers=0' >/dev/null || {
+      echo "Stream $stream_type was not unregistered with zero active PFD transfers after View death." >&2; exit 9;
+    }
+  done
+  awk -v pid="$held_type110_pid" '$2 == pid {found=1} END {exit !found}' "$after_ps" || {
+    echo 'Independent Type110 owner process did not survive the View death.' >&2; exit 9;
+  }
+  shasum -a 256 "$apk" "$campaign_evidence/api17-view-death-during-teardown-before-$adb_port.txt" \
+    "$campaign_evidence/api17-view-death-during-teardown-logcat-$adb_port.txt" \
+    "$before_ps" "$after_ps" > "$campaign_evidence/api17-view-death-during-teardown-artifact-hashes-$adb_port.sha256"
+  echo "CL_R4B_VIEW_DEATH_DURING_TEARDOWN_API17_PASS view_pid=$view_pid process_absent=true session_id=$held_session parent_teardown_inflight=true pending_pfd_before=1 type110_sink_pid=$held_type110_pid type110_survived=true streams_unregistered=2 active_pfd_transfers=0 retained_frame_bytes=0"
+  owned || exit 7
+  adb_local -s "$serial" shell am force-stop "$package"
+  adb_local -s "$serial" shell am force-stop "$attacker_package"
+  adb_local -s "$serial" uninstall "$attacker_package" >/dev/null
+  adb_local -s "$serial" uninstall "$package" >/dev/null
+  adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+  exit 0
+fi
 
 if [ "$type110_failure" -eq 1 ]; then
   # The Presentation proof precedes the H.264 fixture worker. Do not probe the
@@ -979,6 +1118,8 @@ if [ "$type110_failure" -eq 1 ]; then
     echo "Type110 sink PID $sink_pid remains alive after the targeted failure." >&2; exit 9;
   }
   echo "CL_R4B_TYPE110_ONLY_FAILURE_PASS session_id=$session_id type110_generation=$type110_generation type111_invalidated=true streams_unregistered=2 active_pfd_transfers=0 retained_frame_bytes=0 cross_uid_attempts=23 explicit_denials=$explicit_denial_count unverified_no_effect=$unverified_no_effect_count active_services_before_after=true sink_pid_exited=true fixture_only=true"
+  printf '%s\n' "$final_logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$session_id "
+  printf '%s\n' "$final_cleanup"
   shasum -a 256 "$campaign_evidence/api17-type110-owner-failure-logcat-$adb_port.txt" \
     > "$campaign_evidence/api17-type110-owner-failure-artifact-hashes-$adb_port.sha256"
   owned || exit 7
@@ -1018,6 +1159,7 @@ if [ "$type111_mode" -eq 1 ]; then
     printf '%s\n' "$crash_line" | grep -F 'decoded_type111_frame_drawn=true' >/dev/null || {
       echo 'Crash was not preceded by a decoded Type111 frame rendered to the View.' >&2; exit 9;
     }
+    echo "$crash_line"
     crash_dialog_seen=0
     for crash_attempt in $(seq 1 30); do
       crash_log=$(adb_local -s "$serial" logcat -d -s AndroidRuntime:E '*:S' | tr -d '\r')
@@ -1041,6 +1183,7 @@ if [ "$type111_mode" -eq 1 ]; then
     [ -n "$fatal_record" ] || {
       echo "Fatal exception did not belong to requested app PID $app_pid and package $package." >&2; exit 9;
     }
+    echo "CL_R4B_VIEW_FATAL_PID_VERIFIED $fatal_record"
     crash_evidence="$campaign_evidence/api17-r4b-crash-$adb_port"
     mkdir -p "$crash_evidence"
     printf '%s\n' "$crash_log" > "$crash_evidence/logcat.txt"
@@ -1126,7 +1269,7 @@ if [ "$type111_mode" -eq 1 ]; then
       "$crash_evidence/windows-after-dismissal.txt" "$crash_evidence/claritylink-logcat-after-dismissal.txt" \
       "$crash_evidence/claritylink-logcat-after-parent-teardown.txt" \
       > "$crash_evidence/artifact-hashes.sha256"
-    echo "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS session_id=$crash_session view_pid=$app_pid type111_death=observed type110_survived=true post_crash_frame=true resources=zero evidence=$run_label/evidence"
+    echo "CL_R4B_TYPE111_CRASH_RECOVERY_API17_PASS session_id=$crash_session view_pid=$app_pid view_process_absent=true fatal_pid=$app_pid fatal_exception=verified type111_death=observed type110_survived=true post_crash_frame=true resources=zero evidence=$run_label/evidence"
     exit 0
   fi
   wait_for 'TYPE110_LAB_SINK_START_REJECTED reason=admission_required session_id='
@@ -1192,6 +1335,15 @@ if [ "$type111_mode" -eq 1 ]; then
     type110_last_frame=$(printf '%s\n' "$ready_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
     type111_connection_id=$(printf '%s\n' "$ready_line" | sed -n 's/.*type111_connection_id=\([0-9][0-9]*\).*/\1/p')
     type111_generation=$(printf '%s\n' "$ready_line" | sed -n 's/.*type111_generation=\([0-9][0-9]*\).*/\1/p')
+    if [ "$owner_death_during_child_cleanup" -eq 1 ]; then
+      wait_for "CL_R4B_OWNER_DEATH_CHILD_QUEUE_READY session_id=$session_id "
+      queue_ready_line=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r' |
+        grep -F "CL_R4B_OWNER_DEATH_CHILD_QUEUE_READY session_id=$session_id " | tail -1)
+      printf '%s\n' "$queue_ready_line" | grep -F 'queued_frames=3' | grep -F 'handler_held=true owner_death_armed=true' >/dev/null || {
+        echo 'Owner-death child cleanup did not begin with a full held Type111 View queue.' >&2; exit 9;
+      }
+      printf '%s\n' "$queue_ready_line"
+    fi
     [ -n "$owner_pid" ] && [ -n "$session_id" ] && [ -n "$type110_connection_id" ] &&
       [ -n "$type110_generation" ] && [ -n "$type110_last_frame" ] &&
       [ -n "$type111_connection_id" ] && [ -n "$type111_generation" ] || {
@@ -1247,9 +1399,17 @@ if [ "$type111_mode" -eq 1 ]; then
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_TARGET_VERIFIED pid=$owner_pid "
     wait_for_owner_death_marker "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=$owner_pid "
     wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_BINDER_DISCONNECTED old_pid=$owner_pid "
+    if [ "$owner_death_during_child_cleanup" -eq 1 ]; then
+      wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_CHILD_BARRIER_RELEASED session_id=$session_id cause=binder-death-recipient"
+      wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_CHILD_VIEW_FENCED session_id=$session_id "
+      wait_for_owner_death_marker "CL_R4B_OWNER_DEATH_CHILD_QUEUE_DRAINED session_id=$session_id "
+    fi
     wait_for_owner_death_marker "TYPE110_OWNER_EPOCH_REVOKED session_id=$session_id cause=compositor_process_death"
     wait_for 'CL_R4B_ACTIVITY_OWNER_INVALIDATED '
     wait_for 'CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS '
+    if [ "$owner_death_during_child_cleanup" -eq 1 ]; then
+      wait_for "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS session_id=$session_id "
+    fi
     owner_death_early_logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
     owner_cleanup_line=$(printf '%s\n' "$owner_death_early_logs" | grep -F 'CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS ' | tail -1)
     printf '%s\n' "$owner_cleanup_line" | grep -E "session_id=${session_id}([[:space:]]|$)" >/dev/null || {
@@ -1313,7 +1473,45 @@ $owner_logs"
       printf '%s\n' "$receipt"
     done
     printf '%s\n' "$owner_cleanup_line"
+    if [ "$owner_death_during_child_cleanup" -eq 1 ]; then
+      owner_death_trigger_line=$(printf '%s\n' "$owner_logs" |
+        grep -F 'CL_R4B_OWNER_DEATH_CHILD_TRIGGER_RECEIVED=true' | tail -1)
+      child_view_fence_line=$(printf '%s\n' "$owner_logs" |
+        grep -F "CL_R4B_OWNER_DEATH_CHILD_VIEW_FENCED session_id=$session_id " | tail -1)
+      child_barrier_release_line=$(printf '%s\n' "$owner_logs" |
+        grep -F "CL_R4B_OWNER_DEATH_CHILD_BARRIER_RELEASED session_id=$session_id cause=binder-death-recipient" | tail -1)
+      child_queue_drained_line=$(printf '%s\n' "$owner_logs" |
+        grep -F "CL_R4B_OWNER_DEATH_CHILD_QUEUE_DRAINED session_id=$session_id " | tail -1)
+      [ -n "$owner_death_trigger_line" ] && [ -n "$child_view_fence_line" ] &&
+        [ -n "$child_barrier_release_line" ] && [ -n "$child_queue_drained_line" ] || {
+        echo 'Owner-death child trigger, View fence, barrier release, or queue drain receipt missing.' >&2; exit 9;
+      }
+      printf '%s\n' "$child_view_fence_line"
+      printf '%s\n' "$owner_death_trigger_line"
+      printf '%s\n' "$child_barrier_release_line"
+      printf '%s\n' "$child_queue_drained_line"
+      printf '%s\n' "$owner_death_early_logs" | awk -v generation="$type111_generation" '
+        /CL_R4B_ACTIVITY_OWNER_INVALIDATED .*notification=binder-death-recipient/ {dead=1; next}
+        dead && /BINDER_FRAME_QUEUED_FOR_VIEW/ && index($0, "generation=" generation) {stale=1}
+        END {exit stale}
+      ' || { echo 'A stale Type111 frame was enqueued after Binder owner death.' >&2; exit 9; }
+      child_cleanup_line=$(printf '%s\n' "$owner_logs" | grep -F "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS session_id=$session_id " | tail -1)
+      printf '%s\n' "$child_cleanup_line" | grep -F 'queued_frames_before=3' \
+        | grep -F 'queued_frames_after=0 queued_bytes_after=0 handler_released_by_owner_death=true barrier_timed_out=false' >/dev/null || {
+        echo 'Compositor owner death did not clear the saturated child View queue.' >&2; exit 9;
+      }
+      owner_death_request_line=$(printf '%s\n' "$owner_logs" |
+        grep -F "CL_R4B_PARENT_OWNER_DEATH_REQUESTED pid=$owner_pid " | tail -1)
+      [ -n "$owner_death_request_line" ] || {
+        echo 'Owner-death child-cleanup receipt omitted the exact parent death request.' >&2; exit 9;
+      }
+      printf '%s\n' "$owner_death_request_line"
+      printf '%s\n' "$child_cleanup_line"
+    fi
     echo "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=$owner_pid new_compositor_pid=$new_owner_pid session_id=$session_id old_pid_absent=true owner_valid=false child_present=false stale_type110_frame=rejected stale_type111_frame=rejected old_registrations_cleared_by_process_exit=true old_process_resources_reclaimed_by_exit=true predeath_pfd_transfers=0 predeath_retained_bytes=0 resource_state=not_observable_after_owner_death presentation=dismiss_requested evidence=$run_label/evidence"
+    if [ "$owner_death_during_child_cleanup" -eq 1 ]; then
+      echo "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_API17_PASS session_id=$session_id compositor_pid=$owner_pid view_pid=$initial_type111_pid queue_frames_before=3 queue_bytes_before=verified queue_frames_after=0 queue_bytes_after=0 handler_released_by_owner_death=true barrier_timed_out=false"
+    fi
     owned || exit 7
     adb_local -s "$serial" shell am force-stop "$package"
     adb_local -s "$serial" shell am force-stop "$attacker_package"
@@ -1490,7 +1688,8 @@ $owner_logs"
     echo 'Type111 Binder stream was not registered before its process death.' >&2; exit 9;
   }
   ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
-  printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2==pid {found=1} END {exit !found}' && {
+  printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" -v package="$package" \
+    '$2==pid && ($NF==package || index($NF, package ":")==1) {found=1} END {exit !found}' && {
     echo "Type111 View process $app_pid remains alive after its self-termination request." >&2; exit 9;
   }
   if [ "$delayed_death_callback" -eq 1 ]; then
@@ -1510,7 +1709,8 @@ $owner_logs"
   if printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=110" >/dev/null; then
     echo 'Type110 sink died when only the Type111 View process died.' >&2; exit 9;
   fi
-  process_state=$(printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" '$2 == pid {print}')
+  process_state=$(printf '%s\n' "$ps_snapshot" | awk -v pid="$app_pid" -v package="$package" \
+    '$2 == pid && ($NF==package || index($NF, package ":")==1) {print}')
   [ -z "$process_state" ] || { echo "Type111 sink process still exists: $process_state" >&2; exit 9; }
   if [ "$delayed_death_callback" -eq 1 ]; then
     replacement_activity_pid=$(printf '%s\n' "$logs" | sed -n \
@@ -1524,7 +1724,66 @@ $owner_logs"
   fi
   echo "TYPE111_SINK_DEATH_VERIFIED pid=$app_pid type110_sink_pid=$type110_sink_pid compositor_pid=$compositor_pid type110_death_callback=false"
   if [ "$type111_reattach" -eq 1 ]; then
-    if [ "$delayed_death_callback" -eq 0 ]; then
+    if [ "$multiple_view_replacements" -eq 1 ]; then
+      replacement_pids=,
+      replacement_generations=,
+      last_replacement_generation=0
+      last_type110_frame=$type110_last_frame
+      for ordinal in 1 2 3; do
+        start_lab_activity_privileged type111_multi_reattach "$session_id" "$ordinal"
+        wait_for "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS ordinal=$ordinal session_id=$session_id "
+        logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+        replacement_pass=$(printf '%s\n' "$logs" | grep -F "CL_R4B_MULTI_VIEW_REPLACEMENT_PASS ordinal=$ordinal session_id=$session_id " | tail -1)
+        replacement_pid=$(printf '%s\n' "$replacement_pass" | sed -n 's/.*view_pid=\([0-9][0-9]*\).*/\1/p')
+        replacement_generation=$(printf '%s\n' "$replacement_pass" | sed -n 's/.*type111_generation=\([0-9][0-9]*\).*/\1/p')
+        replacement_type110_frame=$(printf '%s\n' "$replacement_pass" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
+        printf '%s\n' "$replacement_pass" | grep -F "type110_generation=$type110_generation" |
+          grep -F 'fresh_frame=true pixels_verified=true' >/dev/null &&
+          [ -n "$replacement_pid" ] && [ -n "$replacement_generation" ] &&
+          [ -n "$replacement_type110_frame" ] &&
+          [ "$replacement_generation" -gt "$last_replacement_generation" ] &&
+          [ "$replacement_type110_frame" -gt "$last_type110_frame" ] || {
+          echo "Replacement generation $ordinal omitted process, generation, Type110, or fresh-frame proof." >&2; exit 9;
+        }
+        case "$replacement_pids" in *",$replacement_pid,"*) echo 'A View PID was reused across replacement generations.' >&2; exit 9 ;; esac
+        case "$replacement_generations" in *",$replacement_generation,"*) echo 'A Type111 stream generation was reused.' >&2; exit 9 ;; esac
+        replacement_pids="${replacement_pids}${replacement_pid},"
+        replacement_generations="${replacement_generations}${replacement_generation},"
+        last_replacement_generation=$replacement_generation
+        last_type110_frame=$replacement_type110_frame
+        if [ "$ordinal" -lt 3 ]; then
+          wait_for "CL_R4B_MULTI_VIEW_REPLACEMENT_EXIT_REQUESTED ordinal=$ordinal view_pid=$replacement_pid "
+          for exit_attempt in $(seq 1 30); do
+            owned || exit 7
+            ps_snapshot=$(adb_local -s "$serial" shell ps | tr -d '\r')
+            # Android may reuse a PID quickly. A row with the old number is
+            # not proof that the app process is still alive; require the exact
+            # package process name before treating it as the original owner.
+            if ! printf '%s\n' "$ps_snapshot" | awk -v pid="$replacement_pid" -v package="$package" \
+              '$2==pid && ($NF==package || index($NF, package ":")==1) {found=1} END {exit !found}'; then break; fi
+            sleep 1
+          done
+          printf '%s\n' "$ps_snapshot" | awk -v pid="$replacement_pid" -v package="$package" \
+            '$2==pid && ($NF==package || index($NF, package ":")==1) {print; found=1} END {exit !found}' \
+            > "$campaign_evidence/api17-replacement-process-still-alive-$ordinal-$adb_port.txt" && {
+            echo "Replacement View process $replacement_pid remained alive after its death request; matching package row saved." >&2; exit 9;
+          }
+          printf '%s\n' "$ps_snapshot" | awk -v pid="$replacement_pid" '$2==pid {print}' \
+            > "$campaign_evidence/api17-replacement-pid-reuse-$ordinal-$adb_port.txt"
+          wait_for "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=111 "
+          logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+          printf '%s\n' "$logs" | grep -F "IPC_VIEW_SINK_DEATH_CALLBACK session_id=$session_id stream_type=111 " |
+            grep -F "stream_generation=$replacement_generation" >/dev/null || {
+            echo "Replacement View generation $replacement_generation lacks its exact Binder death callback." >&2; exit 9;
+          }
+        else
+          wait_for "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id "
+        fi
+      done
+      wait_for_parent_teardown "$session_id" || exit $?
+      wait_for 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0'
+      echo "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS session_id=$session_id replacement_pids=$replacement_pids replacement_generations=$replacement_generations replacements=3 unique_pids=true increasing_generations=true parent_session_preserved=true type110_frames_increased=true final_streams_unregistered=true pfd_transfers=0 retained_frame_bytes=0"
+    elif [ "$delayed_death_callback" -eq 0 ]; then
       start_lab_activity_privileged type111_reattach "$session_id"
     fi
     if [ "$delayed_death_callback" -eq 1 ]; then
@@ -1559,6 +1818,10 @@ $owner_logs"
     fi
     wait_for_parent_teardown "$session_id" || exit $?
     logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
+    if [ "$delayed_death_callback" -eq 1 ]; then
+      printf '%s\n' "$logs" | grep -F "IPC_STREAM_UNREGISTERED session_id=$session_id "
+      printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_PROCESS_DESTROYED resources_cleared=true active_pfd_transfers=0 retained_frame_bytes=0' | tail -1
+    fi
     warning_block_receipt=$(printf '%s\n' "$logs" |
       grep -F 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS ' | tail -1)
     warning_recovery_receipt=$(printf '%s\n' "$logs" |
@@ -1597,6 +1860,32 @@ $owner_logs"
   fi
   logs=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r')
   printf '%s\n' "$logs" > "$campaign_evidence/api17-type111-logcat-$adb_port.txt"
+  if [ "$decoder_shutdown_delivery" -eq 1 ]; then
+    decoder_shutdown_line=$(printf '%s\n' "$logs" |
+      grep -F 'CL_R4B_DECODER_SHUTDOWN_DURING_DELIVERY ' | tail -1)
+    decoder_shutdown_pass=$(printf '%s\n' "$logs" |
+      grep -F 'CL_R4B_DECODER_SHUTDOWN_ACTIVE_DELIVERY_PASS ' | tail -1)
+    decoder_session=$(printf '%s\n' "$decoder_shutdown_line" |
+      sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
+    pass_session=$(printf '%s\n' "$decoder_shutdown_pass" |
+      sed -n 's/.*session_id=\([0-9][0-9]*\).*/\1/p')
+    decoder_timestamp=$(printf '%s\n' "$decoder_shutdown_line" |
+      sed -n 's/.*timestamp_ns=\([0-9][0-9]*\).*/\1/p')
+    [ -n "$decoder_shutdown_line" ] && [ -n "$decoder_shutdown_pass" ] &&
+      [ "$decoder_session" = "$pass_session" ] && [ -n "$decoder_timestamp" ] || {
+      echo 'Decoder shutdown delivery receipts are missing or refer to different sessions.' >&2; exit 9;
+    }
+    printf '%s\n' "$decoder_shutdown_line" | grep -E 'pending_frames=[1-9][0-9]* pending_bytes=[1-9][0-9]* codec_closed=true handler_held=true' >/dev/null || {
+      echo 'Decoder was not closed with a retained frame in active handler delivery.' >&2; exit 9;
+    }
+    printf '%s\n' "$decoder_shutdown_pass" | grep -F 'decoder_closed_before_delivery_release=true frame_drawn_after_decoder_close=true handler_timeout=false' >/dev/null || {
+      echo 'Pending frame did not draw after decoder shutdown with a clean handler barrier.' >&2; exit 9;
+    }
+    printf '%s\n' "$logs" | grep -F "CL_R4_DECODED_FRAME_DRAWN " | grep -F "timestamp_ns=$decoder_timestamp " >/dev/null || {
+      echo 'No exact decoded-frame draw receipt followed decoder shutdown.' >&2; exit 9;
+    }
+    printf '%s\n' "$decoder_shutdown_line" "$decoder_shutdown_pass"
+  fi
   if [ "$type111_reattach" -eq 0 ]; then
     assert_type110_progress_precedes_parent_teardown "$session_id" "$type110_last_frame" "$type110_sink_pid" "$logs"
     printf '%s\n' "$logs" | grep -F "CL_R4_TYPE110_AFTER_TYPE111_SINK_DEATH_PASS session_id=$session_id stream_generation=$type110_generation old_last_frame_id=$type110_last_frame" >/dev/null || {

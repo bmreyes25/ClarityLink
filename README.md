@@ -14,9 +14,9 @@ ClarityLink is not affiliated with Honda, Apple, or another manufacturer.
 
 ## What has been built
 
-The API17 laboratory prototype exercises Android 4.2.2 process and Binder behavior, actual H.264 `MediaCodec` decoding, Binder/PFD frame delivery, concurrent Type110 and Type111 streams, per-session ownership, per-stream generation fencing, stale-frame rejection, View and producer process-death recovery, warning-gated withdrawal and restoration, and a secondary output host. The current CL-R7 candidate passed both setup orders on API17: Type110-first and Type111-first. The rerun covered decoded-pixel verification, warning withdrawal and restoration, actual View-process death and reattachment, Type110 continuity, and cleanup. APK SHA-256: `26a659e5433ea168fb157f2cbae150d792b5ce275c8381f4e883d30f239066fc`. Full local evidence is under the ignored `build/cl-r7-lab-20261019-124248-19895/` directory.
+The API17 laboratory prototype exercises Android 4.2.2 process and Binder behavior, actual H.264 `MediaCodec` decoding, Binder/PFD frame delivery, concurrent Type110 and Type111 streams, per-session ownership, per-stream generation fencing, stale-frame rejection, View and producer process-death recovery, warning-gated withdrawal and restoration, and a secondary output host. CL-R7 passed both API17 setup orders (Type110-first and Type111-first), with decoded-pixel verification, warning withdrawal/restoration, View-process death and reattachment, Type110 continuity, and cleanup. The final CL-R4 campaign reran that demonstration on the same candidate source.
 
-CL-R4 reliability acceptance is still **partial**. The current resumable acceptance runner records each required case separately and refuses an overall PASS while any mandatory case or priority interleaving is unexecuted or failed. On the exact candidate fingerprint `07f43ef7c882f21c5fdb55f6645500eff5beefe3763f5f3b05ac7f2e0c2211ac` and APK SHA-256 `b23ccc5de16e6942b8ee4e55fc84f2d2dbd370b674aaee86bb57c06caa4d9826`, API17 cases CL-R4-06 (delayed callbacks) and CL-R4-12 (saturated-queue View crash recovery) passed; the runner derived priority cases P01 and P07 as PASS. CL-R4-01 passed on an earlier separate candidate. The complete final-source 12-case matrix, remaining priority interleavings, and aggregate cleanup have not passed together.
+CL-R4 reliability acceptance is **API17 laboratory PASS**. On source fingerprint `90fabf6d8a31c69a82b4c23fcc00d4823ed399f321e06e262a9b0530883552c3` and APK SHA-256 `fd5b20b4e281424f6880ebc48acd9483ba094d13dec6e57a44c1e006a355beac`, all 12 required cases and all 12 priority combinations passed, including queue saturation with process death/teardown, delayed callbacks, owner/child cleanup, decoder shutdown during delivery, multiple View replacements, registration/replay security, crash recovery, and aggregate resource cleanup. The machine-readable checkpoint and detailed evidence are preserved locally under ignored `build/cl-r4-acceptance-20261019-234709-22337/`; generated emulator evidence is not published in the repository.
 
 ## Architecture
 
@@ -46,9 +46,9 @@ Solid links inside the lab show synthetic components that have been exercised on
 | Milestone | Current result | Scope |
 |---|---|---|
 | CL-R1 through CL-R3 | Lab PASS | Warning preemption, API17 isolation, and Binder-to-View rendering. |
-| CL-R4 | Partial | Reliability matrix and aggregate cleanup remain open. |
+| CL-R4 | API17 laboratory PASS | All 12 required cases and 12 priority combinations passed on one source fingerprint/APK; see the local acceptance manifest noted above. |
 | CL-R5 / CL-R6 | Synthetic lab model | Honda authentication delegation and OEM Display 1 frame admission are unproven. |
-| CL-R7 | API17 laboratory PASS | Both setup orders, H.264 pixel checks, warning withdrawal/recovery, Type110 continuity, View reattachment, and cleanup passed on the current candidate APK. This is not hardware validation. |
+| CL-R7 | API17 laboratory PASS | Both setup orders, H.264 pixel checks, warning withdrawal/recovery, Type110 continuity, View reattachment, and cleanup passed after the CL-R4 fixes. This is not hardware validation. |
 | Honda vehicle validation | Not started | Requires supported OEM contracts, separate authorization, and independent safety review. |
 
 See the [current evidence and status](docs/status/current.md), [open blockers](docs/status/blockers.md), and the [milestone manifest](docs/status/milestones.json). Historical reports remain available under `research/` and `step-reports/`.

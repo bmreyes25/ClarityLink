@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -28,15 +28,15 @@
     },
     {
       "path": "README.md",
-      "sha256": "2653ea532bb27cd69a81226bf44898b022b71a6850efd0edcfbd269ce44e06be"
+      "sha256": "99ea73a24c5f844ff810d458cf3e10d8126fd3b196587b71dc7d4fb73575133e"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
-      "sha256": "f8eb6402921fba7274adeac05959e25b03cf3db9bd6a15a737a80a4f86126f66"
+      "sha256": "caef88f098f046df9ec1297809d99a03972a1d806481bce1d545ee72cd8de3a5"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java",
-      "sha256": "d6c6c45232e5d1b9fab113c732ae17aecf20f57b6b2e578b24bce80f1a4c20fa"
+      "sha256": "ba3903f99b332b5145108f59a756cd2b4e4b30017908ec07a271a25a02b3a5ee"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java",
@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "c3dd6b79b16219231b2006862e26f3c67bd9208404feb6dacdf0efbcdee59157"
+      "sha256": "d576ab1a16e2f3de6e91e7c5faed531f72399133a3ae1e2bcdbf9ce1e6d12976"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,19 +92,19 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "a21a4fa94e39cebdff8c57cf61fefc2936b312a703d22eda3f8a211c3ee5cc62"
+      "sha256": "1b1fc327667cdc88eb7f62b9382cd2975b33bf8a4659c0b3dfe86f5a8dbaeb5e"
     },
     {
       "path": "docs/status/milestones.json",
-      "sha256": "df6f67a6bbdb62111c44b8a89276a968936d7a4a3b9d2236ea2037da7ee32813"
+      "sha256": "b5464e8fd4ae5fcc4845f66bcd2ed19f3e462cb6d455c3c5909c0041a5439883"
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "923a98d1ad3f953a0f5e8e2f11271dcef121e5c85cba2b1cdaceff2f3d79724b"
+      "sha256": "7dfcdf371250e5761d455afc6ec7b1d09dc3ff94fe0e152b943f4dd12761d0ee"
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
-      "sha256": "eb6f61cfdd919c2db344488a4544dc21d1f616f4d9aca7fc1a0556631bc66236"
+      "sha256": "83a5acb62728cf17f2493cac6938aa6aac26451f1fdf129dd92058f637246832"
     },
     {
       "path": "tests/display/test_cl_r5_integration_contract.py",
@@ -152,7 +152,7 @@
     },
     {
       "path": "tools/run_cl_imp_03_emulator.sh",
-      "sha256": "5eacc757ac7e62a199f560375eddbd33ae9d70a02d4d0c4bea42206126150b43"
+      "sha256": "01458b1410e2537a4030f10c1ddbd6c17365b689f829d3895848ee075d905596"
     },
     {
       "path": "tools/test_r7e1_target_diag_modes.py",
@@ -168,7 +168,7 @@
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java",
-      "sha256": "6afea47d9eca24729cf992dfb161bee37a3b621a8dda4e522e1068340150fe35"
+      "sha256": "81fbd7a4ab64ad027eacfe0f1e73bb35bc0441cfdc839fd2c12e8691eb91c969"
     },
     {
       "path": "src/claritylink-renderer/android-api17/Display1OutputBackend.java",
@@ -216,5 +216,7 @@
   "cl_r4b_type110_death_diagnostic_refresh_note": "Added bounded API17 sink-PID exit verification and preserved process, filtered logcat, and service diagnostics on PID/callback timeout. Three fresh Android 4.2.2 runs observed sink PID exit, the real compositor Binder death callback, both stream invalidations, and zero reported active PFD transfers/retained bytes. The earlier Overnight 06 callback timeout has no preserved PID/log artifacts, so its cause remains unresolved and is not claimed fixed. Exact working-tree diff SHA 2cc2ab197091ce3936c7f1ab6d97bfe15012f6e0b52e152c898341899f363b21 received separate ECC code and security re-review with no actionable findings; configured suite: 1224 passed, 29 skipped.",
   "cl_r4b_security_closure_02_scope_refresh_note": "The pinned blobs for the previously listed files changed by CL-R4B Security Closure 02 were refreshed after separate read-only ECC code and security review of exact source diff SHA-256 1c388dcd3223a944769be5e2b21e1ad1d21c116e911fbe8c3a0bd232df1e9a09, committed as 6217ee0f8e433b5bb8f11a2f7e007fb97741a186. The original CL-R0 source_snapshot, review ranges, and approval_claimed=false remain unchanged; this note records a later exact-source review and does not retroactively claim CL-R0 approval.",
   "cl_r4b_final_acceptance_03_scope_refresh_note": "Pinned the changed CL-R4B teardown lifecycle files at the exact committed source snapshot f4b6225dc53cd207400d8f9af64af7f2c65302d4. Separate ECC code and security reviewers reviewed that commit against parent 4dbe3fde3880c7726c792ec4cdb61bafb7fc3afc with no actionable findings; exact commit diff SHA-256 c4ccdc5fbfe4599236a4326612e50860f1cbe6c1a4d55074d259f30a2a812a99. The CL-R4B reentrant teardown API17 run passed on build08; standard Type111/API17 recovery, rendering, and cross-UID live-service checks passed on the same source. Original CL-R0 review ranges and approval_claimed=false remain unchanged.",
-  "cl_r7_scope_refresh_note": "Refreshed the pinned CL-R0 source blobs for the CL-R6 geometry integration, decoded-Type111 warning withdrawal/recovery, API17 two-order runner, and parent-owner fencing fix. The exact implementation diff SHA-256 is f46ad54a9a45f9c8fa86665153f27771fb8f6ca6c826438bdb10574543041e1b. Separate read-only ECC code and security reviews found no outstanding actionable findings after corrections. The configured suite passed (1256 passed, 18 skipped), and the isolated API17 command passed both setup orders. This refresh preserves the historical CL-R0 source snapshot, review ranges, and approval_claimed=false."
+  "cl_r7_scope_refresh_note": "Refreshed the pinned CL-R0 source blobs for the CL-R6 geometry integration, decoded-Type111 warning withdrawal/recovery, API17 two-order runner, and parent-owner fencing fix. The exact implementation diff SHA-256 is f46ad54a9a45f9c8fa86665153f27771fb8f6ca6c826438bdb10574543041e1b. Separate read-only ECC code and security reviews found no outstanding actionable findings after corrections. The configured suite passed (1256 passed, 18 skipped), and the isolated API17 command passed both setup orders. This refresh preserves the historical CL-R0 source snapshot, review ranges, and approval_claimed=false.",
+  "cl_r4b_p04_scope_refresh_note": "Refreshed four pinned CL-R0 scope hashes after exact-source P04 code and security reviews. The API17 View-death-during-parent-teardown test passed with one pending PFD at the deterministic barrier, the exact View PID exited, Type110 survived, both streams unregistered, and PFD/frame bytes returned to zero. Original CL-R0 review ranges and approval_claimed=false remain unchanged.",
+  "cl_r4_final_acceptance_scope_note": "Pinned hashes were refreshed after the final CL-R4 reliability implementation, acceptance-report integrity fixes, and public status updates. Separate ECC code and security reviewers examined the lifecycle/process and acceptance changes with no remaining actionable findings. The exact-source API17 runner passed all 12 CL-R4 cases and 12 priority combinations, then passed CL-R7 in both setup orders; configured offline checks passed 1,289 tests with 29 skipped plus smoke, simulator, and whitespace checks. This records a later campaign review and does not claim independent CL-R0 approval; the historical source snapshot and approval_claimed=false remain unchanged."
 }
