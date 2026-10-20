@@ -2,11 +2,11 @@
 
 **Updated:** 2026-10-20
 
-**Campaign:** CL-R4 reliability completion and public-source publication
+**Campaign:** CL-R9 genuine Honda integration feasibility
 
-**Verified online main before this campaign's publication:** `dd7be19a068eb318e72814e0e0907361975a9c51`
+**Verified online main at CL-R9 start:** `fadcdad7654683c6c94ba341ab77d47843e14863`
 
-**Reliability PR:** [#38](https://github.com/bmreyes25/ClarityLink/pull/38), open; no approving GitHub review recorded at the latest check
+**Prior documentation PR:** [#39](https://github.com/bmreyes25/ClarityLink/pull/39), open at CL-R9 start; checks passed, approval not recorded
 
 **Authoritative manifest:** [milestones.json](milestones.json)
 
@@ -31,20 +31,38 @@ The canonical resumable runner is `tools/run_cl_r4_acceptance.py` (also `tools/r
 
 The final-source CL-R7 regression passed both setup orders. It verified actual H.264 decoding and rendered pixels, warning preemption and fresh-frame recovery, Type110 continuity, View replacement, and cleanup. This is laboratory evidence only.
 
-The configured offline suite passed **1,289 tests, 29 skipped**, plus three self-locator smoke tests, simulator checks, and whitespace validation. Host tests do not substitute for API17 acceptance.
+The configured offline suite passed **1,295 tests, 29 skipped** on the CL-R9 working tree, plus three self-locator smoke tests, simulator JavaScript checks, Type111 failure-twin checks, and whitespace validation. The 34 focused CL-R9/receiver/display tests passed. Host tests do not substitute for API17 acceptance.
 
 ## Publication and review
 
-PR #37 is merged. PR #38 contains the current CL-R4 implementation; the final local changes still need to be committed and pushed, then checked on the updated PR head. At the last GitHub check, CI and CodeQL were green for the previous PR #38 head, but no approving human review was recorded. Do not merge without the required review authorization.
+PR #38 is merged. PR #39 records the CL-R4 publication merge; at CL-R9 start its Offline CI and CodeQL checks passed, but no approving human review was recorded. Do not merge without the required review authorization.
 
 Generated emulator screenshots, runtime logs, APKs, and acceptance receipts are ignored local evidence, not public source. Historical research and worktrees remain preserved; private Honda research is not part of this publication.
 
-## Honda integration status
+## CL-R9 Honda integration status
 
-No genuine Honda Type111 capability advertisement, SETUP handler, authenticated receiver-session authority, stream delegation, or same-session transport contract has been established. No supported Honda Display 1 frame-admission, display ownership, geometry, warning-precedence, or restoration contract has been established. Synthetic adapters do not establish OEM compatibility.
+**Receiver gate:** `RECEIVER_AUTHORIZED_SPEC_REQUIRED`. Static Honda evidence
+establishes a single main-display `/info` descriptor and the Type110 SETUP
+path, but no genuine Type111 capability, dispatch/schema, authenticated
+session handoff, transport delegation, or Type111 teardown contract. The
+Honda Type111 parser remains fail-closed with
+`honda_type111_setup_dispatch`.
+
+**Display gate:** `DISPLAY_SUPPORTED_PATH_NOT_FOUND`. The audited
+ExternalDisplay AP Binder provides control/status calls, but no supported
+arbitrary-frame or View admission method was found. The factory Navigation
+safe-area and warning/restoration contract remain unknown. A new inert
+`HondaDisplay1OutputAdapter` reports
+`EVIDENCE_REQUIRED_HONDA_DISPLAY_ADMISSION_API`; it cannot be enabled by
+caller-supplied metadata.
+
+See [CL-R9 feasibility and future test gates](../research/cl-r9-genuine-honda-feasibility.md).
+Both factory boundaries remain disabled, and `safeForHonda()` remains `false`.
+CL-R5 through CL-R7 laboratory acceptance is unchanged and does not establish
+Honda compatibility.
 
 ## Next actions
 
-1. Complete ECC follow-up, commit the reviewed public-safe implementation and status updates, and push them to PR #38.
-2. Refresh the PR checks against the new exact head and obtain the required human GitHub approval before merging through repository rules.
-3. After publication, investigate documented, authorized Honda receiver and Display 1 contracts. Keep production integration disabled until those contracts are verified.
+1. Obtain the exact Honda-authorized Type111 receiver extension and Display 1 frame-admission specifications described in the [CL-R9 feasibility record](../research/cl-r9-genuine-honda-feasibility.md).
+2. Keep both Honda adapters disabled until independent review establishes the session, warning, geometry, and restoration contracts.
+3. Only after separate approval, follow the staged bench and hardware gates in the CL-R9 record. No vehicle or live-iPhone work is authorized by CL-R9.
