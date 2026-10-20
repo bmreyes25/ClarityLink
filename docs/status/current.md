@@ -7,6 +7,9 @@
 **Verified online main at CL-R9 start:** `fadcdad7654683c6c94ba341ab77d47843e14863`
 
 **Prior documentation PR:** [#39](https://github.com/bmreyes25/ClarityLink/pull/39), open at CL-R9 start; checks passed, approval not recorded
+**Verified online main after PR #38 merge:** `fadcdad7654683c6c94ba341ab77d47843e14863`
+
+**Reliability PR:** [#38](https://github.com/bmreyes25/ClarityLink/pull/38), merged 2026-10-20 as `fadcdad7654683c6c94ba341ab77d47843e14863`
 
 **Authoritative manifest:** [milestones.json](milestones.json)
 
@@ -36,6 +39,7 @@ The configured offline suite passed **1,295 tests, 29 skipped** on the CL-R9 wor
 ## Publication and review
 
 PR #38 is merged. PR #39 records the CL-R4 publication merge; at CL-R9 start its Offline CI and CodeQL checks passed, but no approving human review was recorded. Do not merge without the required review authorization.
+PR #37 and PR #38 are merged. PR #38 merged as `fadcdad7654683c6c94ba341ab77d47843e14863`; the merged head was `425193360f36b23ae9ac9f5b8b092503e3d50449`. Offline CI and all configured CodeQL analyses passed on that head. The final-source acceptance results and public documentation are present on online `main`.
 
 Generated emulator screenshots, runtime logs, APKs, and acceptance receipts are ignored local evidence, not public source. Historical research and worktrees remain preserved; private Honda research is not part of this publication.
 
@@ -66,3 +70,6 @@ Honda compatibility.
 1. Obtain the exact Honda-authorized Type111 receiver extension and Display 1 frame-admission specifications described in the [CL-R9 feasibility record](../research/cl-r9-genuine-honda-feasibility.md).
 2. Keep both Honda adapters disabled until independent review establishes the session, warning, geometry, and restoration contracts.
 3. Only after separate approval, follow the staged bench and hardware gates in the CL-R9 record. No vehicle or live-iPhone work is authorized by CL-R9.
+1. Investigate documented, authorized Honda receiver contracts for Type111 capability, SETUP, session authority, and stream delegation.
+2. Investigate a supported Honda-owned Display 1 frame-admission interface, including ownership, geometry, warning precedence, and restoration.
+3. Keep production integration disabled until OEM contracts are verified and safety gates are independently reviewed.

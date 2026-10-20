@@ -149,13 +149,30 @@ class StockFirstType111Delegator:
             child = self.secondary.lifecycle.current_type111
             return child.teardown() if child is not None else False
 
+    def teardown_stream(self, generation: int, stream_type: int) -> bool:
+        """Apply stream-local teardown in this synthetic stock-first model.
+
+        Type110 cleanup belongs to the mock primary owner. Only a Type111
+        teardown may retire the project child; parent revocation retires both.
+        This method is not a Honda teardown parser or protocol contract.
+        """
+        if isinstance(stream_type, bool) or not isinstance(stream_type, int):
+            raise DelegationError("invalid_stream_type")
+        if stream_type == 111:
+            return self.teardown_secondary(generation)
+        if stream_type == 110:
+            return False
+        raise DelegationError("unsupported_stream_teardown_type")
+
     def revoke_session(self, generation: int) -> bool:
         with self._lock:
             if not _valid_generation(generation) or generation != self._active_generation:
                 return False
-            child = self.secondary.lifecycle.current_type111
-            if child is not None:
-                child.teardown()
+            # Parent authority owns the complete synthetic session tree. A
+            # revoked parent cannot leave either child Type111 or its modeled
+            # Type110 screen active. This is mock lifecycle behavior only; it
+            # does not install or describe a Honda finalizer callback.
+            self.secondary.lifecycle.destroy_parent()
             revoked = self.primary.revoke(generation)
             self._active_generation = None
             return revoked

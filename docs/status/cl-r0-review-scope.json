@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "d576ab1a16e2f3de6e91e7c5faed531f72399133a3ae1e2bcdbf9ce1e6d12976"
+      "sha256": "6c87fefe328bea1f97c48cb6f43a3197034161a20ec9b71e47b7cca32dba906e"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -93,10 +93,11 @@
     {
       "path": "docs/status/current.md",
       "sha256": "90db716dfa1849f151cf14279059d2354820ea311e2d4d7307bee86c2246b7fa"
+      "sha256": "d1f8b226a7ef854ddd97dc5b29e2f6e6561a415fef7ff314dc57ca50c9c04f6e"
     },
     {
       "path": "docs/status/milestones.json",
-      "sha256": "b5464e8fd4ae5fcc4845f66bcd2ed19f3e462cb6d455c3c5909c0041a5439883"
+      "sha256": "9a9653f58aec290150ef8ba2a1017249aa4a0a5f5064eb2f4302a5f801390032"
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
