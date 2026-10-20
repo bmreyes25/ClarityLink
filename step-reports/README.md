@@ -1,7 +1,35 @@
+## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
+
+See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI native-socket/exception seams and native builds added; APK/Dalvik, complete races/faults, final 100-cycle run, and exact-head hosted checks remain open.
+
 ## Current / latest milestones
 
 - [43T1-R6D factory MFi oracle static closure](43t1-r6d-factory-mfi-oracle-static-closure.md): shared Honda iAP2/AirPlay auth primitive established statically; ARCH_D selected as target, no live adapter.
 - [43T1-R6C1 public oracle pivot](43t1-r6c1-factory-mfi-oracle-pivot.md): public research addendum and inert oracle scaffold.
+- [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.
+
+- [43T1-R7C2 — Android API17 runtime integration closure](43t1-r7c2-android-runtime-integration-closure.md) — actual API17 Dalvik x86 JNI/Surface/Presentation and selected Java adapter execution; 100 receiver cycles with zero native resource counters; R7C remains partial and R7D gate closed.
+
+- [43T1-R7C1 — Honda adapter integration closure](43t1-r7c1-honda-adapter-integration-closure.md) — host receiver/H.264/SurfaceSinkCore integration, opaque-handle and surface lifecycle stress; 100 host cycles and sanitizers pass. Direct Android JNI/Surface runtime and complete all-adapter failure matrix remain open; R7D entry gate stays closed.
+
+- [43T1-R7A — integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md) — historical R7A result: synthetic `/info`, SETUP, Type110 + Type111 media/decode/display, isolation and 100-cycle cleanup; `MODEL_ONLY`; followed by R7B and R7C.
+- [43T1-R7B — Android API17 / ARMv7 native receiver build](43t1-r7b-android-api17-armv7-native-build.md)
+- [43T1-R7C5 — final software closure attempt](43t1-r7c5-final-software-closure.md) — repository/host/API17 build and ARMv7 checks passed; framework race and native socket/runtime gates remain blocked.
+- [43T1-R7C — Honda-target adapter implementation (offline, partial)](43t1-r7c-honda-target-adapter-implementation.md)
+
+- [R7 host-to-Honda adapter boundary inventory](../research/runtime/r7a-host-honda-boundary-inventory.md) — interface and readiness classifications; target adapters remain evidence gated.
+
+- [43T1-R6H1 — Gate 1 CPC200/LIVI Link hardware authority bring-up](43t1-r6h1-gate1-hardware-authority-bringup.md) — CPC200 absent; provisioning/authentication stopped before hardware actions; Gate 1 open below T0; Gate 2 not started.
+
+- [43T1-R6H — LIVI control delegation and Gate 1 software](43t1-r6h-gate1-livi-adapter-completion.md) — exclusive delegate and private bridge host-validated; hardware required for real session.
+
+- [43T1-R6G — LIVI authority source seam and ClarityLink adapter](43t1-r6g-livi-authority-bringup.md) — small upstream pre-dispatch patch identified; ClarityLink provider partial pending bridge; CPC200 absent, no real iPhone tier; next adapter completion.
+
+- [43T1-R6F — authentication authority selection and complete Mac receiver Gate 1](43t1-r6f-authority-integration.md) — CPC200-CCPA + LIVI/LIVI Link selected for acquisition; not present, no real iPhone session; next authority bring-up.
+
+- [43T1-R6E authorized authentication transport](43t1-r6e-custom-receiver-auth-transport.md): host boundary implemented; no genuine authority present, no real-iPhone tier; next authority integration.
+
+- [43T1-R6D static authentication closure](43t1-r6d-static-auth-closure.md): no supported external factory session handoff found; next is lawful independent host auth transport.
 
 - [43T1-R6C Honda authentication substrate reuse](43t1-r6c-honda-auth-substrate-reuse.md): offline factory USB/iAP2/I²C auth and AirPlay ownership audit; target reuse unresolved.
 
@@ -31,8 +59,10 @@ This index preserves the engineering chronology and negative results. For curren
 
 ## Current project status
 
-- Latest completed observation: [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready.
-- Current research decision: [43T1-R5D](43t1-r5d-artifact-provenance-closure.md) recommends further public package custody research. [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) leaves ordinary-app Display 1 possible but unproven; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
+- Latest completed milestone: [R7A integrated offline dual-stream receiver](43t1-r7a-integrated-offline-dual-carplay.md), `R7A_INTEGRATED_SYNTHETIC_DUAL_STREAM_PASS` (`MODEL_ONLY`). R7 offline implementation first supersedes the CPC200 prerequisite for offline implementation; R6 reports remain historical. Next is R7B API17/ARMv7 native build. No Honda or vehicle action is authorized.
+
+- Latest completed Honda observation remains [43T0-D4 — read-only Honda network observation](43t0d4-netcfg-live-network-delta.md), with G11-A-D supported and binding policy ready. R7A is a separate host-only implementation result, not a new Honda observation.
+- [43T1-R5D](43t1-r5d-artifact-provenance-closure.md) and [R4D/R5A](43t1-r4d-r5a-display-policy-and-type111-recovery.md) retain their historical findings. R7A supersedes their next-action recommendation for offline implementation only; R3C's runtime-interposition NO-GO remains in force. No car experiment is authorized.
 - Honda Type111 negotiation, RAM attachment, and deployment remain unauthorized. D4 raw network details remain private.
 
 ## Latest milestones
@@ -167,6 +197,7 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 
 ### Type111, current-iOS, and runtime readiness (Step 43 onward)
 
+
 <details>
 <summary>40 preserved reports</summary>
 
@@ -226,3 +257,20 @@ Reports are grouped by project era; titles and links are navigation, not a claim
 
 - [`RUN_STATUS.md`](RUN_STATUS.md) is a historical support record.
 - The report files are intentionally kept at their existing paths; this index provides navigation without mass moves or renames.
+
+- [43T1-R6H — LIVI control delegation and real Mac auth Gate 1](43t1-r6h-gate1-livi-adapter-completion.md) — partial software bridge; Gate 1 remains open.
+- [43T1-R7B — Android API17 / ARMv7 native receiver build](43t1-r7b-android-api17-armv7-native-build.md)
+## 43t1 R7C6 — Final R7C software closure
+
+Status: `R7C_FRAMEWORK_RACE_BLOCKED`. See
+[`43t1-r7c6-final-r7c-software-closure.md`](43t1-r7c6-final-r7c-software-closure.md)
+and the linked `research/runtime/r7c6-*` evidence. PR #17 has not been merged;
+R7D remains closed.
+
+## 43t1 R7C7 — Final framework race closure
+
+Status: `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES`. The cumulative API17 Activity lifecycle now reaches onDestroy in the full suite and 25/25 repeat stress. Production Dalvik socket fault matrix and socket-inclusive 100-cycle combined run pass. See [`43t1-r7c7-final-framework-race-closure.md`](43t1-r7c7-final-framework-race-closure.md) and the linked `research/runtime/r7c7-*` evidence. Exact-head CI/CodeQL and PR #17 merge remain prerequisites to R7D.
+
+## 43t1 R7D — Integrated target simulation (active)
+
+Local R7D acceptance passed on `architecture/r7d-integrated-target-simulation`; starting head is R7C merge `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`. The 30-minute run measured 14.405 FPS against the 30-FPS target; the gap is documented. PR #18's exact-head Offline CI and CodeQL passed. R7E entry is open for preparation only. Next action: `GO_FOR_R7E_PARKED_CAR_COMPATIBILITY_PREPARATION`. See [`43t1-r7d-integrated-target-simulation.md`](43t1-r7d-integrated-target-simulation.md) and `research/runtime/r7d-*`.

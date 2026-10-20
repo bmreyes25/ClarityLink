@@ -1,0 +1,7 @@
+# R6H LIVI bridge protocol v1
+
+Transport: AF_UNIX stream, one session per socket, ClarityLink listens and LIVI connects. Private parent owned by current UID, not group/world writable; socket mode 0600; same-UID peer credentials required. Path absolute and at most 103 encoded bytes.
+
+Frames are compact ASCII JSON arrays terminated by LF, max 1,400,000 bytes. Version is integer 1. Hello `[1,"authenticated",sessionUUID,"mfi_auth_setup_response_then_pair_verify_then_next_control_request"]`; ready `[1,"session_ready",generation]`. Request `[1,"request",generation,requestUUID,method,path,contentTypeOrNull,base64(binaryPlist)]`; response `[1,"response",generation,requestUUID,status,"application/x-apple-binary-plist",base64(binaryPlist)]`. Exactly one request may be outstanding. Duplicate IDs, generation mismatch, unknown route, malformed frames, and timeout close the channel. Plist payload <=1,000,000 bytes; bounded depth, maps, arrays and nodes. Phone identity/pairing/authentication secret fields are stripped from inbound request plists. ClarityLink-generated response plists retain required accessory identity fields such as `deviceID`; no private security context is serialized. Logging never includes frames or body values.
+
+Python implementation: `auth_providers/livi_ipc.py`. A synthetic test peer exercises serialization and socket lifecycle only; it does not prove that LIVI speaks this protocol.

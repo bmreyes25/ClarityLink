@@ -1,0 +1,7 @@
+# R7C2 emulator-only safety gate
+
+The runner is `tools/run_r7c2_emulator.sh`. It refuses to start when any ADB target already exists, creates a uniquely named AVD below the ignored `build/r7c2/avd`, starts one fixed local emulator port, and repeatedly requires that the only device is `emulator-5580` in `device` state. It checks that identity before boot-dependent actions, install, activity start, and each result poll. Every ADB shell/install invocation uses `-s emulator-5580`. A foreign or ambiguous target aborts the run. Cleanup clears the overlay display setting, terminates only the launched emulator process, and deletes only the uniquely named AVD.
+
+ECC review finding: a wildcard `adb install` or trusting an existing `emulator-*` name risks sending the APK to an unrelated device. Fix: reject all pre-existing targets, bind the harness to its own fixed serial and process, use explicit `-s`, and recheck that there is exactly one target. Verification: the full runtime harness passed on the owned emulator; post-run `adb devices` had no targets and no emulator process/AVD remained.
+
+The test APK/package is test-only. The runner uses no Honda address, USB target, physical Android device, or generic ADB fallback. No ADB target other than the ephemeral emulator was present during the successful run. This safety gate is a test-tool boundary, not permission for a later target execution.

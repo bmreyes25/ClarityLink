@@ -265,3 +265,19 @@ These are offline research failure modes. R5D authorizes no vehicle action.
 | Target binary accidentally executed | Any run/install/flash command proposed | Stop; static tools only; never execute target code |
 | Type111 literal or cluster metadata overclaim | No linked dispatch/response/listener/media/security/teardown path | Report metadata only, not Type111 support |
 | Inference promoted to confirmation | Source lacks exact link in provenance chain | Reclassify as inference or unknown and cite missing link |
+
+## R6D static authentication-boundary overclaim controls
+
+These controls govern the offline interface decision. They do not authorize target execution.
+
+| Failure | Detection | Required response |
+|---|---|---|
+| Exported symbol mistaken for supported API | No independent caller, versioned ABI or lifecycle contract | Mark ELF visibility only; do not bind an adapter |
+| Process-local callback mistaken for IPC | Callback record resides in singleton proxy globals | Classify in-process only; do not register another owner |
+| Auth helper or certificate signer mistaken for session handoff | No request/response transport and session identity | Require the complete R6B handoff contract |
+| Internal fd mistaken for transferable fd | No fd-passing protocol or paired/security-state transfer | Keep transfer unsupported by found boundary |
+| AirPlay object mistaken for reusable ABI | CF pointer exists only inside `jmcs` | Require documented external ownership, retain/close and thread rules |
+| Security context existence mistaken for exportability | Type110 derivation reads session-private master state | Never expose material; require opaque supported reference API |
+| Static call edge mistaken for runtime ownership | Call graph lacks live ordering or unique callback selection | Label the missing edge `UNKNOWN`; do not claim live behavior |
+| Shared library mistaken for stable public ABI | Proxy exports forwarding functions but no supported consumer contract | Distinguish stock internal linkage from external reuse |
+| Factory auth path mistaken for deployment authorization | Config and I²C path are visible statically | No Honda, I²C, authentication hardware or target action in R6D |

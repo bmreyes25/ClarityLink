@@ -7,21 +7,43 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from functools import wraps
 import socket
+import plistlib
+import threading
 from typing import Any, Callable, Mapping
 
+from .auth import (AuthenticatedSession, AuthenticationAuthority, AuthenticationError,
+                   SyntheticLabAuthenticationAuthority)
 from .decoder import DecodeError, FFmpegDecoder, avcc_to_annexb
 from .display import Display1Output, NullDisplay
 from .listener import HostListener, ListenerError
 from .media import FramingProfile, MediaError, read_profile_message
-from .security import ClearLabSecurity, EvidenceRequiredSecurity, ScreenSecurityProvider, SecurityError
+from .info import InfoProfile, build_info, validate_info_shape
+from .security import (ClearLabSecurity, EvidenceRequiredPrimarySecurity, EvidenceRequiredSecurity,
+                       ScreenSecurityProvider, SecurityError)
 from .setup import SetupError, SetupRequest, SetupResponse, append_secondary, primary_unchanged, serialize_lab_plist
+from .stream_dispatch import PRIMARY_OUTPUT, SECONDARY_OUTPUT, StreamDispatchRegistry, StreamIdentity
 
 
 class ReceiverError(RuntimeError):
     def __init__(self, code: str) -> None:
         self.code = code
         super().__init__(code)
+
+
+def _valid_generation(generation: object) -> bool:
+    return (isinstance(generation, int) and not isinstance(generation, bool)
+            and 1 <= generation <= (1 << 64) - 1)
+
+
+def _synchronized(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Serialize owner state transitions; callbacks and reads share one lock."""
+    @wraps(method)
+    def call(self: "Receiver", *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return call
 
 
 class FaultInjector:
@@ -60,43 +82,109 @@ class ResourceSnapshot:
 
 class Receiver:
     def __init__(self, *, clear_lab: bool = False, display: Display1Output | None = None,
+                 primary_display: Display1Output | None = None,
                  faults: FaultInjector | None = None,
                  framing_profile: str = FramingProfile.LEGACY_HONDA_TYPE110,
-                 security_factory: Callable[[], ScreenSecurityProvider] | None = None) -> None:
+                 security_factory: Callable[[], ScreenSecurityProvider] | None = None,
+                 primary_dimensions: tuple[int, int] = (800, 480),
+                 secondary_dimensions: tuple[int, int] = (800, 480),
+                 authentication_authority: AuthenticationAuthority | None = None) -> None:
         self.clear_lab = clear_lab
+        self._lock = threading.RLock()
+        self._teardown_lock = threading.RLock()
+        # Serialize each output's draw/clear lifecycle without coupling Type110
+        # display latency to Type111 (or vice versa).
+        self._primary_output_lock = threading.RLock()
+        self._secondary_output_lock = threading.RLock()
+        self._secondary_decoder_lock = threading.RLock()
         self.framing_profile = framing_profile
         self.security_factory = security_factory
+        self.authentication_authority = (authentication_authority or
+                                         SyntheticLabAuthenticationAuthority())
+        self.authenticated_session: AuthenticatedSession | None = None
+        self.primary_dimensions = primary_dimensions
+        self.secondary_dimensions = secondary_dimensions
+        for width, height in (primary_dimensions, secondary_dimensions):
+            if not (1 <= width <= 4096 and 1 <= height <= 4096):
+                raise ReceiverError("invalid_output_dimensions")
         self.codec_prefix = b""
         self.display = display if display is not None else NullDisplay()
+        self.primary_display = primary_display if primary_display is not None else NullDisplay()
         self.generation = 0
+        self.dispatch_registry: StreamDispatchRegistry | None = None
+        self.primary_stream_generation = 0
+        self.secondary_stream_generation = 0
+        self.secondary_decoder_generation = 0
         self.state = ReceiverState.IDLE
         self.primary: HostListener | None = None
         self.secondary: HostListener | None = None
+        self.primary_security: ScreenSecurityProvider | None = None
+        self.primary_decoder: FFmpegDecoder | None = None
         self.primary_id: int | None = None
         self.secondary_id: int | None = None
         self.security: ScreenSecurityProvider | None = None
         self.decoder: FFmpegDecoder | None = None
         self.events: list[str] = []
         self.last_response: SetupResponse | None = None
+        self.last_info: Mapping[str, Any] | None = None
         self.frames = 0
         self.display_uncleared = False
+        self.primary_display_uncleared = False
         self.faults = faults if faults is not None else FaultInjector()
 
+    @_synchronized
     def start_session(self) -> int:
         self.faults.check("session_creation")
         if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED):
             raise ReceiverError("session_already_active")
-        self.generation += 1
+        next_generation = self.generation + 1
+        try:
+            session = self.authentication_authority.authenticate(next_generation)
+        except AuthenticationError as exc:
+            self.events.append("AUTHENTICATION_REJECTED")
+            raise ReceiverError(exc.code) from exc
+        except Exception as exc:
+            self.events.append("AUTHENTICATION_REJECTED")
+            raise ReceiverError("authentication_authority_failed") from exc
+        if session.generation != next_generation or session.evidence != "MODEL_ONLY":
+            try:
+                self.authentication_authority.close(session)
+            except Exception:
+                self.events.append("INVALID_AUTHORITY_PROOF_CLOSE_FAILED")
+            raise ReceiverError("synthetic_authentication_proof_invalid")
+        try:
+            if hasattr(self.display, "begin_generation"):
+                self.display.begin_generation(next_generation)
+            if hasattr(self.primary_display, "begin_generation"):
+                self.primary_display.begin_generation(next_generation)
+        except Exception as exc:
+            for output in (self.display, self.primary_display):
+                try:
+                    output.clear()
+                except Exception:
+                    self.events.append("PARTIAL_DISPLAY_CLEAR_FAILED")
+            try:
+                self.authentication_authority.close(session)
+            except Exception:
+                self.events.append("PARTIAL_AUTHORITY_CLOSE_FAILED")
+            self.events.append("SESSION_INITIALIZATION_ROLLED_BACK")
+            raise ReceiverError("session_display_initialization_failed") from exc
+        self.generation = next_generation
+        self.dispatch_registry = StreamDispatchRegistry(next_generation)
+        self.primary_stream_generation = next_generation
+        self.secondary_stream_generation = next_generation
+        self.authenticated_session = session
         self.last_response = None
+        self.last_info = None
         self.frames = 0
         self.codec_prefix = b""
         self.display_uncleared = False
-        if hasattr(self.display, "begin_generation"):
-            self.display.begin_generation(self.generation)
+        self.primary_display_uncleared = False
         self.state = ReceiverState.AUTHENTICATED_SESSION
         self.events.append("SESSION_CREATED")
         return self.generation
 
+    @_synchronized
     def info_exchanged(self, generation: int) -> None:
         self._require_generation(generation)
         if self.state is not ReceiverState.AUTHENTICATED_SESSION:
@@ -104,8 +192,30 @@ class Receiver:
         self.state = ReceiverState.INFO_EXCHANGED
         self.events.append("INFO_EXCHANGED")
 
+    @_synchronized
+    def exchange_info(self, profile: InfoProfile, generation: int) -> bytes:
+        """Build the lab /info payload and bind its exchange to this session."""
+        self._require_generation(generation)
+        if self.state is not ReceiverState.AUTHENTICATED_SESSION:
+            raise ReceiverError("info_out_of_order")
+        try:
+            info = build_info(profile)
+            missing = validate_info_shape(info)
+            if missing:
+                raise ReceiverError("incomplete_info_shape")
+            wire = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
+        except Exception as exc:
+            if isinstance(exc, ReceiverError):
+                raise
+            raise ReceiverError(getattr(exc, "code", "info_build_failed")) from exc
+        self.last_info = info
+        self.state = ReceiverState.INFO_EXCHANGED
+        self.events.append("INFO_EXCHANGED")
+        return wire
+
     def _require_generation(self, generation: int) -> None:
-        if generation != self.generation or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
+        if (not _valid_generation(generation) or generation != self.generation
+                or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED)):
             raise ReceiverError("stale_or_closed_session")
 
     def _sync_state(self) -> None:
@@ -118,6 +228,7 @@ class Receiver:
         else:
             self.state = ReceiverState.INFO_EXCHANGED
 
+    @_synchronized
     def setup(self, request_fields: Mapping[str, Any], generation: int) -> SetupResponse:
         self._require_generation(generation)
         if self.state is ReceiverState.AUTHENTICATED_SESSION:
@@ -139,6 +250,8 @@ class Receiver:
         prior_primary_id = self.primary_id
         new_primary: HostListener | None = None
         new_secondary: HostListener | None = None
+        primary_security: ScreenSecurityProvider | None = None
+        primary_decoder: FFmpegDecoder | None = None
         security: ScreenSecurityProvider | None = None
         decoder: FFmpegDecoder | None = None
         # Rebuild from live resources: a prior response may name a torn-down stream.
@@ -156,6 +269,12 @@ class Receiver:
                 self.faults.check("primary_listener")
                 new_primary = HostListener.create(generation)
                 original["streams"].append({"type": 110, "dataPort": new_primary.port})
+                self.faults.check("primary_decoder")
+                primary_decoder = FFmpegDecoder()
+                primary_security = (ClearLabSecurity() if self.clear_lab
+                                    else EvidenceRequiredPrimarySecurity())
+                if self.clear_lab:
+                    primary_security.open(generation, primary_requested.stream_connection_id)
             # Original primary is frozen logically before secondary allocation.
             primary_snapshot = serialize_lab_plist(original)
             if secondary_requested:
@@ -167,6 +286,8 @@ class Receiver:
                             ClearLabSecurity() if self.clear_lab else EvidenceRequiredSecurity())
                 assert secondary_requested.stream_connection_id is not None
                 self.faults.check("security")
+                if security is primary_security or security is self.primary_security:
+                    raise ReceiverError("security_context_alias")
                 security.open(generation, secondary_requested.stream_connection_id)
                 self.faults.check("decoder")
                 decoder = FFmpegDecoder()
@@ -180,21 +301,30 @@ class Receiver:
                 raise ReceiverError("primary_snapshot_changed")
             self.faults.check("commit")
         except (ReceiverError, SetupError, ListenerError, SecurityError, DecodeError) as exc:
+            keep_primary = bool(new_primary and primary_decoder and primary_security)
+            if primary_decoder and not keep_primary:
+                primary_decoder.close()
+            if primary_security and not keep_primary:
+                primary_security.close()
             if decoder:
                 decoder.close()
-            if security:
+            if security and security is not primary_security and security is not self.primary_security:
                 security.close()
             if new_secondary:
                 new_secondary.close()
             # A combined request may still establish Type110 when child setup fails.
-            if new_primary:
+            if new_primary and primary_decoder and primary_security:
                 self.primary = new_primary
                 assert primary_requested is not None
                 self.primary_id = primary_requested.stream_connection_id
+                self.primary_decoder = primary_decoder
+                self.primary_security = primary_security
                 self.events.append("PRIMARY_READY")
+            elif new_primary:
+                new_primary.close()
             self._sync_state()
             self.events.append("SECONDARY_ROLLBACK")
-            if new_primary or prior_primary:
+            if self.primary or prior_primary:
                 fallback = SetupResponse(original, serialize_lab_plist(original))
                 self.last_response = fallback
                 return fallback
@@ -205,12 +335,43 @@ class Receiver:
             self.primary = new_primary
             assert primary_requested is not None
             self.primary_id = primary_requested.stream_connection_id
+            if self.primary_stream_generation <= 0:
+                self.primary_stream_generation = generation
+            self.primary_decoder = primary_decoder
+            self.primary_security = primary_security
+            assert self.dispatch_registry is not None
+            try:
+                self.dispatch_registry.register(StreamIdentity(
+                    generation, 110, self.primary_id, self.primary_stream_generation, PRIMARY_OUTPUT),
+                    self.primary_display)
+            except ValueError as exc:
+                self.primary.close()
+                primary_decoder.close()
+                primary_security.close()
+                self.primary = self.primary_decoder = self.primary_security = None
+                self.primary_id = None
+                raise ReceiverError("primary_dispatch_registration_failed") from exc
             self.events.append("PRIMARY_READY")
         if new_secondary:
             self.secondary = new_secondary
             self.secondary_id = secondary_requested.stream_connection_id if secondary_requested else None
+            if self.secondary_stream_generation <= 0:
+                self.secondary_stream_generation = generation
             self.security = security
             self.decoder = decoder
+            self.secondary_decoder_generation = 0
+            assert self.dispatch_registry is not None
+            try:
+                self.dispatch_registry.register(StreamIdentity(
+                    generation, 111, self.secondary_id, self.secondary_stream_generation,
+                    SECONDARY_OUTPUT), self.display)
+            except ValueError as exc:
+                self.secondary.close()
+                decoder.close()
+                security.close()
+                self.secondary = self.decoder = self.security = None
+                self.secondary_id = None
+                raise ReceiverError("secondary_dispatch_registration_failed") from exc
             self.events.append("SECONDARY_READY")
         self._sync_state()
         self.last_response = candidate
@@ -220,114 +381,346 @@ class Receiver:
         return candidate
 
     def accept_secondary(self, generation: int, timeout: float = 1.0) -> socket.socket:
-        self._require_generation(generation)
-        if not self.secondary:
+        with self._lock:
+            self._require_generation(generation)
+            listener = self.secondary
+        if not listener:
             raise ReceiverError("secondary_not_active")
         try:
-            connection = self.secondary.accept(generation, timeout)
+            connection = listener.accept(generation, timeout)
         except ListenerError as exc:
             raise ReceiverError(exc.code) from exc
-        self.events.append("SECONDARY_CONNECTED")
+        with self._lock:
+            if generation != self.generation or listener is not self.secondary:
+                connection.close()
+                raise ReceiverError("stale_or_closed_session")
+            self.events.append("SECONDARY_CONNECTED")
         return connection
 
+    def accept_primary(self, generation: int, timeout: float = 1.0) -> socket.socket:
+        with self._lock:
+            self._require_generation(generation)
+            listener = self.primary
+        if not listener:
+            raise ReceiverError("primary_not_active")
+        try:
+            connection = listener.accept(generation, timeout)
+        except ListenerError as exc:
+            raise ReceiverError(exc.code) from exc
+        with self._lock:
+            if generation != self.generation or listener is not self.primary:
+                connection.close()
+                raise ReceiverError("stale_or_closed_session")
+            self.events.append("PRIMARY_CONNECTED")
+        return connection
+
+    def receive_primary_frame(self, generation: int) -> bytes:
+        with self._lock:
+            self._require_generation(generation)
+            listener, security, decoder = self.primary, self.primary_security, self.primary_decoder
+            connection = listener.accepted if listener else None
+            stream_generation = self.primary_stream_generation
+        if not connection or not security or not decoder:
+            raise ReceiverError("primary_not_connected")
+        try:
+            self.faults.check("primary_media")
+            message = read_profile_message(connection, generation, self.framing_profile)
+            if message.opcode != 0:
+                raise ReceiverError("unsupported_primary_media_opcode")
+            clear = security.unprotect(generation, message.body, message.header)
+            decoded = decoder.decode(clear, message.timestamp, stream_generation, self.primary_dimensions)
+            identity = StreamIdentity(generation, 110, self.primary_id, stream_generation, PRIMARY_OUTPUT)
+            with self._lock:
+                self._require_generation(generation)
+                if (listener is not self.primary or security is not self.primary_security or
+                        decoder is not self.primary_decoder):
+                    raise ReceiverError("stale_primary_frame")
+            if not self._dispatch_decoded(identity, decoded):
+                raise ReceiverError("primary_dispatch_rejected")
+            with self._lock:
+                self.frames += 1
+                self.events.append("PRIMARY_FRAME_DISPLAYED")
+            return decoded.png
+        except Exception as exc:
+            with self._lock:
+                self.events.append("PRIMARY_MEDIA_FAILED")
+            self.teardown_primary(generation, expected=(listener, security, decoder))
+            code = exc.code if hasattr(exc, "code") else "display_failed"
+            raise ReceiverError(code) from exc
+
+    def teardown_primary(self, generation: int, *,
+                         expected: tuple[HostListener | None, ScreenSecurityProvider | None,
+                                         FFmpegDecoder | None] | None = None) -> None:
+        with self._primary_output_lock:
+            registry = self.dispatch_registry
+            had_dispatcher = registry is not None and 110 in registry.snapshots()
+            dispatch_closed = registry is None or registry.close_stream(110)
+            with self._lock:
+                if not _valid_generation(generation) or generation != self.generation:
+                    return
+                if expected is not None and any(captured is not current for captured, current in zip(
+                        expected, (self.primary, self.primary_security, self.primary_decoder))):
+                    self.events.append("STALE_PRIMARY_CLEANUP_IGNORED")
+                    return
+                if dispatch_closed and not had_dispatcher:
+                    try:
+                        self.primary_display.clear()
+                    except Exception:
+                        self.primary_display_uncleared = True
+                        self.events.append("PRIMARY_DISPLAY_CLEAR_FAILED")
+                    else:
+                        self.primary_display_uncleared = False
+                elif not dispatch_closed:
+                    self.primary_display_uncleared = True
+                    self.events.append("PRIMARY_DISPATCH_DID_NOT_STOP")
+                else:
+                    self.primary_display_uncleared = False
+                for attr, label in (("primary_decoder", "PRIMARY_DECODER"),
+                                    ("primary_security", "PRIMARY_SECURITY"),
+                                    ("primary", "PRIMARY_LISTENER")):
+                    resource = getattr(self, attr)
+                    if resource is None:
+                        continue
+                    try:
+                        resource.close()
+                    except Exception:
+                        self.events.append(f"{label}_CLOSE_FAILED")
+                    else:
+                        setattr(self, attr, None)
+                if self.primary is None:
+                    self.primary_id = None
+                    self.primary_stream_generation = 0
+                if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
+                    self._sync_state()
+                self.events.append("PRIMARY_CLOSED")
+
     def receive_secondary_frame(self, generation: int) -> bytes:
-        self._require_generation(generation)
-        if not self.secondary or not self.secondary.accepted or not self.security or not self.decoder:
+        with self._lock:
+            self._require_generation(generation)
+            listener, security, decoder = self.secondary, self.security, self.decoder
+            connection = listener.accepted if listener else None
+            codec_prefix = self.codec_prefix
+            stream_generation = self.secondary_stream_generation
+            dimensions = self.secondary_dimensions
+        if not connection or not security or not decoder:
             raise ReceiverError("secondary_not_connected")
         try:
             self.faults.check("media")
-            message = read_profile_message(self.secondary.accepted, generation, self.framing_profile)
+            message = read_profile_message(connection, generation, self.framing_profile)
             if message.opcode == 1:
                 if self.framing_profile != FramingProfile.CURRENT_IOS_TYPE111:
                     raise ReceiverError("video_config_not_implemented")
                 from .decoder import parse_avcc_config
-                self.codec_prefix = parse_avcc_config(message.body)
-                self.events.append("VIDEO_CONFIG_RECEIVED")
+                parsed_prefix = parse_avcc_config(message.body)
+                with self._lock:
+                    self._require_generation(generation)
+                    if listener is not self.secondary:
+                        raise ReceiverError("stale_secondary_config")
+                    self.codec_prefix = parsed_prefix
+                    self.events.append("VIDEO_CONFIG_RECEIVED")
                 return b""
-            clear = self.security.unprotect(generation, message.body, message.header)
+            clear = security.unprotect(generation, message.body, message.header)
             if self.framing_profile == FramingProfile.CURRENT_IOS_TYPE111:
-                clear = self.codec_prefix + (clear if clear.startswith(b"\x00\x00\x00\x01") else
+                clear = codec_prefix + (clear if clear.startswith(b"\x00\x00\x00\x01") else
                                              avcc_to_annexb(clear))
             self.faults.check("decode")
-            decoded = self.decoder.decode(clear, message.timestamp, generation)
+            with self._secondary_decoder_lock:
+                if decoder is not self.decoder:
+                    raise ReceiverError("stale_secondary_decoder")
+                decoded = decoder.decode(clear, message.timestamp, stream_generation, dimensions)
             self.faults.check("display")
-            self.display.show(decoded)
-            self.frames += 1
-            self.events.append("FRAME_DISPLAYED")
+            identity = StreamIdentity(generation, 111, self.secondary_id,
+                                      stream_generation, SECONDARY_OUTPUT)
+            with self._lock:
+                self._require_generation(generation)
+                if listener is not self.secondary or security is not self.security:
+                    raise ReceiverError("stale_secondary_frame")
+                if decoder is not self.decoder:
+                    raise ReceiverError("stale_secondary_decoder")
+            if not self._dispatch_decoded(identity, decoded):
+                raise ReceiverError("secondary_dispatch_rejected")
+            with self._lock:
+                self.frames += 1
+                self.events.append("FRAME_DISPLAYED")
             return decoded.png
-        except (MediaError, SecurityError, DecodeError, ReceiverError, OSError) as exc:
-            self.events.append("SECONDARY_MEDIA_FAILED")
-            self.teardown_secondary(generation)
+        except ReceiverError as exc:
+            if exc.code == "stale_secondary_decoder":
+                with self._lock:
+                    self.events.append("STALE_SECONDARY_FRAME_DROPPED")
+                raise
+            with self._lock:
+                self.events.append("SECONDARY_MEDIA_FAILED")
+            self.teardown_secondary(generation, expected=(listener, security, decoder))
+            raise
+        except Exception as exc:
+            with self._lock:
+                self.events.append("SECONDARY_MEDIA_FAILED")
+            self.teardown_secondary(generation, expected=(listener, security, decoder))
             code = exc.code if hasattr(exc, "code") else "display_failed"
             raise ReceiverError(code) from exc
 
-    def teardown_secondary(self, generation: int) -> None:
-        if generation != self.generation:
-            return
-        try:
-            self.faults.check("teardown")
-        except ReceiverError:
-            self.events.append("TEARDOWN_FAULT_CONTAINED")
-        try:
-            self.display.clear()
-        except Exception:
-            self.display_uncleared = True
-            self.events.append("DISPLAY_CLEAR_FAILED")
-        else:
-            self.display_uncleared = False
-        if self.decoder:
-            try:
-                self.decoder.close()
-            except Exception:
-                self.events.append("DECODER_CLOSE_FAILED")
-            else:
-                self.decoder = None
-        if self.security:
-            try:
-                self.security.close()
-            except Exception:
-                self.events.append("SECURITY_CLOSE_FAILED")
-            else:
-                self.security = None
-        if self.secondary:
-            try:
-                self.secondary.close()
-            except Exception:
-                self.events.append("LISTENER_CLOSE_FAILED")
-            else:
-                self.secondary = None
-        if self.secondary is None and self.security is None and self.decoder is None:
-            self.secondary_id = None
-            self.codec_prefix = b""
-        if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
-            self._sync_state()
-        self.events.append("SECONDARY_CLOSED")
+    def teardown_secondary(self, generation: int, *,
+                           expected: tuple[HostListener | None, ScreenSecurityProvider | None,
+                                           FFmpegDecoder | None] | None = None) -> None:
+        with self._secondary_output_lock:
+            registry = self.dispatch_registry
+            had_dispatcher = registry is not None and 111 in registry.snapshots()
+            dispatch_closed = registry is None or registry.close_stream(111)
+            with self._lock:
+                if not _valid_generation(generation) or generation != self.generation:
+                    return
+                if expected is not None and any(captured is not current for captured, current in zip(
+                        expected, (self.secondary, self.security, self.decoder))):
+                    self.events.append("STALE_SECONDARY_CLEANUP_IGNORED")
+                    return
+                try:
+                    self.faults.check("teardown")
+                except ReceiverError:
+                    self.events.append("TEARDOWN_FAULT_CONTAINED")
+                if dispatch_closed and not had_dispatcher:
+                    try:
+                        self.display.clear()
+                    except Exception:
+                        self.display_uncleared = True
+                        self.events.append("DISPLAY_CLEAR_FAILED")
+                    else:
+                        self.display_uncleared = False
+                elif not dispatch_closed:
+                    self.display_uncleared = True
+                    self.events.append("SECONDARY_DISPATCH_DID_NOT_STOP")
+                else:
+                    self.display_uncleared = False
+                if self.decoder:
+                    try:
+                        self.decoder.close()
+                    except Exception:
+                        self.events.append("DECODER_CLOSE_FAILED")
+                    else:
+                        self.decoder = None
+                if self.security:
+                    try:
+                        self.security.close()
+                    except Exception:
+                        self.events.append("SECURITY_CLOSE_FAILED")
+                    else:
+                        self.security = None
+                if self.secondary:
+                    try:
+                        self.secondary.close()
+                    except Exception:
+                        self.events.append("LISTENER_CLOSE_FAILED")
+                    else:
+                        self.secondary = None
+                if self.secondary is None and self.security is None and self.decoder is None:
+                    self.secondary_id = None
+                    self.secondary_stream_generation = 0
+                    self.secondary_decoder_generation = 0
+                    self.codec_prefix = b""
+                if self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED, ReceiverState.FAILED):
+                    self._sync_state()
+                self.events.append("SECONDARY_CLOSED")
+
+    def restart_secondary_decoder(self, generation: int, width: int, height: int) -> int:
+        """Replace only the secondary decoder while preserving its stream identity and listener."""
+        if (isinstance(width, bool) or isinstance(height, bool) or not isinstance(width, int) or
+                not isinstance(height, int) or not 1 <= width <= 3840 or not 1 <= height <= 2160):
+            raise ReceiverError("invalid_video_config")
+        with self._lock:
+            self._require_generation(generation)
+            if self.secondary is None or self.decoder is None:
+                raise ReceiverError("secondary_not_active")
+            with self._secondary_decoder_lock:
+                self._require_generation(generation)
+                old = self.decoder
+                try:
+                    replacement = FFmpegDecoder()
+                except Exception as exc:
+                    raise ReceiverError("secondary_decoder_restart_failed") from exc
+                self.decoder = replacement
+                self.secondary_dimensions = (width, height)
+                self.secondary_decoder_generation += 1
+                decoder_generation = self.secondary_decoder_generation
+                old.close()
+                self.events.append("SECONDARY_DECODER_RESTARTED")
+                return decoder_generation
 
     def teardown(self, generation: int) -> None:
-        if generation != self.generation or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED):
-            return
-        self.teardown_secondary(generation)
-        if self.primary:
-            try:
-                self.primary.close()
-            except Exception:
-                self.events.append("PRIMARY_CLOSE_FAILED")
-            else:
-                self.primary = None
-        if self.primary is None:
-            self.primary_id = None
-        if any((self.primary, self.secondary, self.security, self.decoder, self.display_uncleared)):
-            self.state = ReceiverState.FAILED
-            self.events.append("GENERATION_CLEANUP_INCOMPLETE")
-        else:
-            self.state = ReceiverState.CLOSED
-            self.events.append("GENERATION_CLOSED")
+        # Child teardown takes per-output locks before the owner lock. Avoid
+        # holding the owner lock across those calls to keep that order acyclic.
+        with self._teardown_lock:
+            with self._lock:
+                if (not _valid_generation(generation) or generation != self.generation
+                        or self.state in (ReceiverState.IDLE, ReceiverState.CLOSED)):
+                    return
+                has_primary = self.primary is not None
+            self.teardown_secondary(generation)
+            if has_primary:
+                self.teardown_primary(generation)
+            with self._lock:
+                if self.authenticated_session:
+                    try:
+                        self.authentication_authority.close(self.authenticated_session)
+                    except Exception:
+                        self.events.append("AUTHORITY_CLOSE_FAILED")
+                    else:
+                        self.authenticated_session = None
+                if any((self.primary, self.secondary, self.security, self.decoder, self.primary_security,
+                        self.primary_decoder, self.display_uncleared, self.primary_display_uncleared,
+                        self.authenticated_session)):
+                    self.state = ReceiverState.FAILED
+                    self.events.append("GENERATION_CLEANUP_INCOMPLETE")
+                else:
+                    self.state = ReceiverState.CLOSED
+                    self.events.append("GENERATION_CLOSED")
+                    self.dispatch_registry = None
 
+    def stream_identity(self, stream_type: int) -> StreamIdentity:
+        with self._lock:
+            self._require_generation(self.generation)
+            if stream_type == 110 and self.primary is not None and self.primary_id is not None:
+                return StreamIdentity(self.generation, 110, self.primary_id,
+                                      self.primary_stream_generation, PRIMARY_OUTPUT)
+            if stream_type == 111 and self.secondary is not None and self.secondary_id is not None:
+                return StreamIdentity(self.generation, 111, self.secondary_id,
+                                      self.secondary_stream_generation, SECONDARY_OUTPUT)
+            raise ReceiverError("stream_not_registered")
+
+    def dispatch_decoded_frame(self, identity: StreamIdentity, frame: Any, *,
+                               timeout: float = 5.0) -> bool:
+        try:
+            return self.enqueue_decoded_frame(identity, frame).result(timeout=timeout)
+        except Exception as exc:
+            self.events.append("STREAM_DISPATCH_FAILED")
+            raise ReceiverError(getattr(exc, "code", "stream_dispatch_failed")) from exc
+
+    def enqueue_decoded_frame(self, identity: StreamIdentity, frame: Any):
+        with self._lock:
+            if identity != self.stream_identity(identity.stream_type):
+                raise ReceiverError("stale_or_conflicting_stream_identity")
+            registry = self.dispatch_registry
+        if registry is None:
+            raise ReceiverError("stream_dispatcher_unavailable")
+        try:
+            return registry.dispatch(identity, frame)
+        except ValueError as exc:
+            raise ReceiverError(getattr(exc, "code", "stream_dispatch_failed")) from exc
+
+    def dispatch_registry_snapshot(self):
+        registry = self.dispatch_registry
+        return {} if registry is None else registry.snapshots()
+
+    def _dispatch_decoded(self, identity: StreamIdentity, frame: Any) -> bool:
+        return self.dispatch_decoded_frame(identity, frame)
+
+    @_synchronized
     def snapshot(self) -> ResourceSnapshot:
         return ResourceSnapshot(
-            0 if self.state in (ReceiverState.IDLE, ReceiverState.CLOSED) else 1,
+            int(self.state not in (ReceiverState.IDLE, ReceiverState.CLOSED) or
+                self.authenticated_session is not None),
             int(self.primary is not None), int(self.secondary is not None),
-            int(self.security is not None), int(self.decoder is not None),
-            int(getattr(self.display, "current", None) is not None),
-            int(self.display_uncleared),
+            int(self.security is not None) + int(self.primary_security is not None),
+            int(self.decoder is not None) + int(self.primary_decoder is not None),
+            int(getattr(self.display, "current", None) is not None) +
+            int(getattr(self.primary_display, "current", None) is not None),
+            int(self.display_uncleared or self.primary_display_uncleared),
         )

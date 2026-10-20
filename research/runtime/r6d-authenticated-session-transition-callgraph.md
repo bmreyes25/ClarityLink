@@ -1,0 +1,21 @@
+# R6D authenticated-session transition call graph
+
+Offline input: preserved ARM32 `jmcs` SHA-256 `cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232`. Addresses identify evidence for review, not deployment instructions. `HONDA_STATIC_CONFIRMED` describes visible code, never a runtime observation. The proxy input hash is `dc8bc5c19cf32a8e7edcc14c1d80e78bb96ca6ccc434229349c74590136bef66`.
+
+| Transition / caller → callee | Object or state, context and lifetime | Evidence level / confidence |
+|---|---|---|
+| USB attach → iAP device | `jiap_usb_host_mode_transport_*`, `ios_iap2_*` reside in `jmcs`; exact USB fd and callback are untraced | HONDA_STATIC_PROBABLE / medium |
+| iAP2 auth → `auth_result` | R6C traced `iap2_acc_auth_*`, `uwh_ipod_cp_*`, `os_auth_cp_*`; callback thread and completion object remain partly untraced | HONDA_STATIC_PROBABLE / medium |
+| `auth_result` → `ios_iap2_set_authenticated` | passes an iAP2 device pointer at `0x170d90–0x170d92`; branch depends on result/state | HONDA_STATIC_CONFIRMED / high |
+| `ios_iap2_set_authenticated` → `do_attach` | gets `jiap2_get_dev`, then `j_device_get_owner_ctx`, writes authenticated flag in owner context; when its attach pointer is present, calls `do_attach` at `0x16e946–0x16e948` with context and device. The flag is not an AirPlay security context | HONDA_STATIC_CONFIRMED / high |
+| `do_attach` → generic device registration/probe | `j_device_add`, `j_device_set_creator_ctx`, `j_device_probe_and_attach` at `0x1611d0–0x161212`; in-process device lifecycle; winning callback through generic dispatch is not directly recovered | HONDA_STATIC_CONFIRMED for these calls; INFERENCE for a unique CarPlay path / medium |
+| `mc_ios_dev_attach` → `mc_carplay_attached` | at `0xfd76e–0xfd774`, passes an owner-context field and a second local argument; `mc_carplay_attached` calls audio/screen iAP2-attached functions. Exact generic-probe-to-this-callback edge remains indirect | HONDA_STATIC_CONFIRMED for direct call; UNKNOWN for preceding indirect edge |
+| `mc_carplay_attached` → `mc_carplay_screen_iap2_attached` | `0xb0e0c`; screen callback stores the incoming device pointer into a process global (`0xc0ab4` or `0xc0b26`). No AirPlay session is passed there | HONDA_STATIC_CONFIRMED / high |
+| `mc_carplay_app_init` → `_AirPlayThread` | `pthread_create` at `0xb06b2` uses a PC-relative start pointer resolving to `_AirPlayThread`; separate application startup path, not a return from `ios_iap2_set_authenticated` | HONDA_STATIC_CONFIRMED / high |
+| `_AirPlayThread` → `AirPlayReceiverServerCreate` | `0xaec64`; installs 28-byte server delegate and runs CF loop; released on thread exit | HONDA_STATIC_CONFIRMED / high |
+| AirPlay connection → `AirPlayReceiverSessionCreate` | internal call at `0x28ae48`; CF instance retains server/session state and installs screen object; session-created delegate is internal | HONDA_STATIC_CONFIRMED / high |
+| connection handler → `/info` | `_connectionHandleMessage` → `_requestProcessInfo` (`0x28b68e`) → `AirPlayCopyServerInfo` → synchronous plist response, per [Step 32](../../step-reports/32-airplay-info-phone-path.md) | HONDA_STATIC_CONFIRMED / high |
+| connection handler → SETUP | internal `AirPlayReceiverSessionSetup` and response serialization, per [R3A](43t1-r3a-setup-path-seam-map.md) | HONDA_STATIC_CONFIRMED / high |
+| SETUP → screen security | connection-local `APSMFiSAP_Decrypt` then `AirPlayReceiverSessionSetSecurityInfo` at `0x28aeca` and `0x28af3c`; Type110 screen KDF later consumes session master context | HONDA_STATIC_CONFIRMED / high for calls; exact iAP auth-to-SAP relationship UNKNOWN |
+
+**Transition object:** the visible auth-side transition is an iAP2 device plus an owner-context authenticated flag and generic attach. The AirPlay server starts on its own thread; an AirPlay receiver session is created later from a control connection. No single authenticated iAP2 object passed directly into `AirPlayReceiverSessionCreate` was established. The bridge may be mediated by device state, connection setup, and internal callbacks; its exact phone-side association is `UNKNOWN`. None of these internal objects has a supported external transfer contract.

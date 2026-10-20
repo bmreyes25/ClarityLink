@@ -1,3 +1,47 @@
+# R7C4 final Android integration closure — 2026-10-07
+
+- [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.
+- [JDK provenance](research/runtime/r7c4-jdk-toolchain-recovery.md) and [Python/API17 test environment](research/runtime/r7c4-test-environment-recovery.md) — pinned user-local JDK and existing `.venv`; no dependency-file changes.
+- [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md) — CLOSED pending deterministic lifecycle races, full fault matrix, final ARMv7 audit, and hosted checks.
+- PR #17 exact R7C3 head `0804bc0b3c6f6b7a63483562ce539eaa8550d778` — OPEN/CLEAN; Offline CI and CodeQL SUCCESS. These checks predate uncommitted R7C4 changes.
+
+# R7C3 attempt (2026-10-07)
+
+- [R7C3 milestone report](step-reports/43t1-r7c3-final-android-integration-closure.md) — historical snapshot; R7C4 later restored JDK/pytest and executed the updated Dalvik APK.
+- [Native socket runtime](research/runtime/r7c3-native-socket-runtime.md) — test seam compiled; runtime/fault coverage unverified.
+- [JNI exception/reference closure](research/runtime/r7c3-jni-exception-reference-closure.md) — no production global/weak refs or native worker callback; VM probes unexecuted.
+- [Framework lifecycle races](research/runtime/r7c3-framework-lifecycle-races.md) — deterministic runtime matrix incomplete.
+- [Fault matrix](research/runtime/r7c3-final-fault-matrix.md) and [resource accounting](research/runtime/r7c3-final-resource-accounting.md) — partial; do not infer R7C PASS.
+- [R7D entry decision](research/runtime/r7c3-r7d-entry-decision.md) — CLOSED; next `GO_FOR_R7C_INTEGRATION_CLOSURE`.
+
+# R7C2 Android API17 runtime integration — 2026-10-07
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| API17 runtime baseline | [Runtime baseline](research/runtime/r7c2-android-runtime-baseline.md) | `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`; Android 4.2.2 API17 on isolated x86 emulator under Rosetta; not ARM runtime or Honda proof |
+| Emulator boundary | [Safety gate](research/runtime/r7c2-emulator-safety-gate.md); `tools/run_r7c2_emulator.sh` | Rejects pre-existing/foreign ADB targets, exact serial, explicit `-s`; ephemeral AVD cleaned after run |
+| JNI and Surface | [Dalvik/JNI](research/runtime/r7c2-dalvik-jni-runtime.md); [Surface](research/runtime/r7c2-android-surface-runtime.md) | Actual JNI entrypoints, ANativeWindow path, H.264 output to two Surfaces, Type111 isolation and stale handle checks |
+| Display and Java adapters | [Secondary display](research/runtime/r7c2-secondary-display-runtime.md); [Java integration](research/runtime/r7c2-java-adapter-integration.md) | Synthetic API17 overlay display, actual Presentation lifecycle and selected audio/input/USB/process/security paths; Java loopback only for sockets |
+| Faults/resources/memory | [Fault matrix](research/runtime/r7c2-android-fault-matrix.md); [resource accounting](research/runtime/r7c2-runtime-resource-accounting.md); [memory](research/runtime/r7c2-runtime-memory-observation.md) | 100/100 Dalvik cycles; native diagnostic counters zero per cycle; software fault rows remain partial |
+| Decision | [R7D gate](research/runtime/r7c-r7d-entry-gate.md); [report](step-reports/43t1-r7c2-android-runtime-integration-closure.md) | `R7C_INTEGRATION_PARTIAL`; R7D CLOSED pending native Android socket runtime, VM exception/reference injections and deterministic framework callback/stop fault closure |
+
+## R7C1 JNI/surface/integration closure — offline partial
+
+- [R7C1 milestone report](step-reports/43t1-r7c1-honda-adapter-integration-closure.md): host lifecycle closure work, exact starting head, tests, remaining Android/JNI limits, and decision.
+- [JNI lifecycle closure](research/runtime/r7c1-jni-lifecycle-closure.md) and [Surface lifecycle closure](research/runtime/r7c1-surface-lifecycle-closure.md): shared monotonic handle table, testable sink core, Android runtime boundary, and ECC findings.
+- [R7C/R7C1 build provenance](research/runtime/r7c-build-provenance.md): original R7C and R7C1 API17/ARMv7 artifact hashes and import audits.
+- [Integrated harness](research/runtime/r7c1-integrated-adapter-harness.md), [fault matrix](research/runtime/r7c1-failure-injection-matrix.md), [resource accounting](research/runtime/r7c1-resource-accounting.md), and [restoration](research/runtime/r7c1-restoration-verification.md): actual H.264 receiver/surface-core host integration and limitations.
+- [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md): software-only gates that must close before target simulation.
+
+## R7C Android target adapters — offline partial
+
+- [R7C milestone report](step-reports/43t1-r7c-honda-target-adapter-implementation.md): exact R7B merge/start HEAD, compiled API17 Java and ARMv7 JNI library, offline tests, explicit partial decision.
+- [R7C build provenance](research/runtime/r7c-build-provenance.md): verified API17 platform archive, NDK/compiler target, artifact hash, and API17 stub audit.
+- [Architecture](research/runtime/r7c-android-adapter-architecture.md) and [JNI contract](research/runtime/r7c-jni-contract.md): ownership, generation, handle, exception, and thread boundaries.
+- [Display0](research/runtime/r7c-display0-adapter.md), [Display1 Presentation](research/runtime/r7c-display1-presentation-adapter.md), and [warning/safe-area gate](research/runtime/r7c-warning-safety-boundary.md): candidate path and Honda evidence limits.
+- [Transport](research/runtime/r7c-transport-adapters.md), [USB/iAP2](research/runtime/r7c-usb-iap2-boundary.md), and [authentication](research/runtime/r7c-authentication-boundary.md): bounded generic APIs and fail-closed defaults.
+- [Audio/input](research/runtime/r7c-audio-input-boundary.md), [process/restoration](research/runtime/r7c-process-restoration-model.md), [readiness](research/runtime/r7c-honda-adapter-readiness.md), and [next evidence](research/runtime/r7c-next-evidence-matrix.md).
+
 # Evidence index
 
 ## R6D factory oracle (2026-10-04)
@@ -6,6 +50,46 @@
 - `HONDA_STATIC_CONFIRMED`: [address trace](research/runtime/r6d-honda-i2c-address-semantics.md) passes configured `0x10` unchanged to Linux `I2C_SLAVE`; target execution is unobserved.
 - `PUBLIC_PRIOR_ART`: [Apple/xcertplay/OCBM comparison](research/runtime/r6d-public-vs-honda-auth-comparison.md) motivates an oracle design but does not establish Honda runtime viability.
 - `MODEL_ONLY`: [host oracle and orchestration](src/claritylink-jmcs/claritylink_jmcs/mfi_oracle.py) are inert/synthetic; [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md) records open gates.
+## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
+
+- [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md): exact R6H merge and R6H1 starting HEAD; CPC200 absent; stopped before provisioning/authentication; below G1-T0.
+- [Hardware/toolchain baseline](research/runtime/r6h1-hardware-toolchain-baseline.md): public LIVI v9.2.0 and provisioner pin/checksum, supported families, Mac tool availability and device gate.
+- [Provisioning preflight](research/runtime/r6h1-provisioning-preflight.md): `R6H1_PROVISIONING_BLOCKED` because no device is present; no write attempted.
+- [Network containment](research/runtime/r6h1-network-containment.md): no LIVI/ClarityLink listener or LIVI network interface; host firewall/listener limits recorded without unrelated identifiers.
+- [Gate 1 readiness](research/runtime/r6h1-gate1-real-readiness.md): Gate 1 remains `SOFTWARE_READY_HARDWARE_REQUIRED`; Gate 2 is `NOT_STARTED`.
+
+## R6G LIVI control-session seam
+
+- [R6G milestone report](step-reports/43t1-r6g-livi-authority-bringup.md) — R6F merge `7fadb23`; CPC200 absent; no real authority/iPhone gate; ClarityLink provider partial pending upstream bridge.
+- [LIVI pinned source baseline](research/runtime/r6g-livi-source-baseline.md) and [architecture map](research/runtime/r6g-livi-carplay-architecture-map.md) — public source SHA `dcb7885`, GPL-3.0-or-later, request/response ownership.
+- [Control-session seam](research/runtime/r6g-livi-control-session-seam.md) and [adapter design](research/runtime/r6g-livi-upstream-adapter-design.md) — small pre-dispatch patch required; no stock/delegate double response.
+- [Local authority inventory](research/runtime/r6g-local-authority-inventory.md), [failure attribution](research/runtime/r6g-failure-attribution-matrix.md), and [Mac readiness](research/runtime/r6g-mac-receiver-readiness.md).
+- `SYNTHETIC_ONLY`: `tests/jmcs/test_r6g_livi_provider.py`, including 100 lifecycle cycles; no authentication or real-iPhone gate evidence.
+
+## R6F authority selection and Mac Gate 1
+
+- [R6F milestone report](step-reports/43t1-r6f-authority-integration.md) — exact R6E merge/R6F head, selected CPC200-CCPA + LIVI target, acquisition required, no real-iPhone progress.
+- [Local authority inventory](research/runtime/r6f-local-authority-inventory.md)
+- [Candidate matrix](research/runtime/r6f-authority-candidate-matrix.md)
+- [Selection decision](research/runtime/r6f-authority-selection-decision.md)
+- [Exact acquisition specification](research/runtime/r6f-authority-acquisition-specification.md)
+- [/info readiness audit](research/runtime/r6f-info-readiness.md)
+- [Complete Mac receiver roadmap](research/runtime/r6f-complete-mac-receiver-roadmap.md)
+- [Cumulative Mac readiness](research/runtime/r6f-mac-receiver-readiness.md)
+- [Third-party dependency review](research/runtime/r6f-third-party-dependency-review.md)
+
+
+## R6E authorized host boundary (2026-10-04)
+
+- `HOST_CONFIRMED`: generation-owned handoff claim/close, matching control-channel identity, bounded structured input, fail-closed provider selection, and 100 synthetic contract cycles. [Contract](research/runtime/r6e-authenticated-session-handoff-contract.md), [transport](research/runtime/r6e-real-control-transport.md), [report](step-reports/43t1-r6e-custom-receiver-auth-transport.md).
+- `MODEL_ONLY`: test authorities and replay channels are synthetic; they establish no iPhone authentication or negotiation tier. [Ladder](research/runtime/r6e-real-ios-negotiation-ladder.md).
+- `UNKNOWN`: authorized hardware/service and real current-iOS /info acceptance. No candidate is usable now. [Authority selection](research/runtime/r6e-authorized-auth-authority-selection.md), [field readiness](research/runtime/r6e-real-ios-info-field-readiness.md).
+
+## R6D factory authenticated-session boundary (2026-10-04)
+
+- `HONDA_STATIC_CONFIRMED`: `auth_result` → `ios_iap2_set_authenticated` → owner-context flag/`do_attach`; generic device probe and direct `mc_ios_dev_attach` → `mc_carplay_attached` calls. [Transition call graph](research/runtime/r6d-authenticated-session-transition-callgraph.md) and [object ownership](research/runtime/r6d-auth-session-object-ownership.md). The indirect generic callback link is `UNKNOWN`.
+- `HONDA_STATIC_CONFIRMED`: `_AirPlayThread` creates the receiver server independently; a connection creates the receiver session; connection SAP exchange installs session screen security. [Transition](research/runtime/r6d-iap2-to-airplay-transition.md), [control owner](research/runtime/r6d-airplay-control-transport-ownership.md), [security source](research/runtime/r6d-airplay-security-context-source.md). Direct iAP auth-to-SAP derivation remains `UNKNOWN`.
+- `HONDA_STATIC` scoped negative: no supported external authenticated-session or request/security transfer found in audited proxy, ELF, Binder, socket, plugin and service surfaces. [Boundary audit](research/runtime/r6d-authenticated-session-boundary-audit.md), [proxy closure](research/runtime/r6d-libcarplay-proxy-boundary-closure.md), [decision matrix](research/runtime/r6d-factory-auth-handoff-decision-matrix.md). No Honda runtime was used. [R6D report](step-reports/43t1-r6d-static-auth-closure.md).
 
 ## R6C factory authentication substrate (2026-10-04)
 
@@ -973,3 +1057,75 @@ Honda-specific source notes remain separately indexed below; no external project
 | Forums / mirror payload references | Public forum discussions | `PROVENANCE_UNCLEAR`; no download or binary review. |
 | Receiver/Type111 conclusion | [R5B triage](research/runtime/r5b-type111-static-triage.md) | `TYPE111_INSUFFICIENT_ARTIFACT`; R5B decision `R5B_NO_LAWFUL_ANALYZABLE_ARTIFACT_FOUND`. This is not a negative receiver finding. |
 | Gate / recommendation | [R5B gate](research/runtime/r5b-honda-descendant-evidence-gate.md), [decision matrix](research/runtime/r5b-next-path-decision-matrix.md) | R3C runtime NO-GO unchanged; R5X `MODEL_ONLY`; R4D possible but unproven; next public artifact research only. No vehicle authorization. |
+
+## R6H Gate 1 LIVI delegation
+
+- [R6H report](step-reports/43t1-r6h-gate1-livi-adapter-completion.md): implementation and limits.
+- [LIVI patch contract](research/runtime/r6h-livi-patch-contract.md): pre-dispatch exclusive ownership seam and implementation gaps.
+- [Bridge protocol](research/runtime/r6h-livi-bridge-protocol.md): bounded local IPC contract.
+- [Gate 1 readiness](research/runtime/r6h-gate1-readiness.md): stages and current blockers.
+# R7A — Integrated offline dual-stream receiver (2026-10-06)
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Integrated synthetic receiver | [R7A report](step-reports/43t1-r7a-integrated-offline-dual-carplay.md); [demo](demo/r7a_offline_dual_receiver.py); [acceptance test](tests/jmcs/test_r7a_integrated_dual_receiver.py) | `MODEL_ONLY`: one synthetic session exchanges `/info` and SETUP, receives and actually decodes Type110 + Type111 frames, and delivers to separate host outputs. One frame per output at 800×480, distinct content. |
+| Failure/lifecycle | R7A acceptance tests | Both stream orders and single-stream cases; failure isolation, cleanup and 100 reconnect/disconnect cycles passed. No tracked resources remain after each cycle. |
+| Receiver boundaries | [Host-to-Honda inventory](research/runtime/r7a-host-honda-boundary-inventory.md); `src/claritylink-jmcs/claritylink_jmcs/{auth,adapters,receiver}.py` | Host implementations and future adapter protocols are classified separately. No unavailable Honda adapter is called implemented. |
+| Verification | R7A report and hosted PR checks | Local suite 901 passed, 14 skipped; repository health and whitespace checks passed. Offline CI and CodeQL passed on implementation head `bb80c159421d92452ecc6405ac264cb8fc615734`; R7A report links to both runs. |
+| Sequencing | [Rules v2](docs/project/claritylink-rules-v2.md); [roadmap](ROADMAP.md) | `R7_OFFLINE_IMPLEMENTATION_FIRST` removes CPC200 as prerequisite for offline work. R6 reports and conclusions remain unchanged. |
+
+# R7B — API17 / ARMv7 native receiver build (2026-10-06)
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Native dual-stream core | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md); `native/` | `HOST_NATIVE_CONFIRMED`: synthetic generation owner; Type110/Type111 decoded to independent sinks; production auth/security fail closed |
+| Shared behavior vectors | [Conformance](research/runtime/r7b-host-native-conformance.md); `tests/fixtures/r7b/` | Python reference and native harness consume same vector metadata/base64 H.264 bytes; decoded association and cleanup agree |
+| Target toolchain | [Toolchain](research/runtime/r7b-toolchain-selection.md); [manifest](research/runtime/r7b-build-manifest.md) | NDK r23c, API17 ARMv7 cross-build; FFmpeg release signature verified and source checksum pinned |
+| ABI/API audit | [ABI report](research/runtime/r7b-armv7-abi-report.md); [API audit](research/runtime/r7b-api17-compatibility-audit.md); [symbol list](research/runtime/r7b-api17-symbol-audit.json) | `ANDROID_ARMV7_BUILD_CONFIRMED`: ELF32 ARM EABI5; 114 imports match API17 stubs; only libc/libm/libdl NEEDED |
+| Decoder/dependency | [Decoder selection](research/runtime/r7b-decoder-selection.md) | FFmpeg 6.1.6 static H.264 decoder; no target runtime execution or Honda codec proof |
+| Adapter readiness | [Readiness inventory](research/runtime/r7b-target-readiness.md) | Honda adapters and real auth/security remain `EVIDENCE_REQUIRED`; interfaces are not vehicle implementations |
+| Local verification | [R7B report](step-reports/43t1-r7b-android-api17-armv7-native-build.md) | Native 100 cycles, ASan/UBSan, TSan, full suite, health and diff checks; hosted exact-head checks pending |
+# R7C5 — final software closure attempt (2026-10-08)
+
+| Evidence item | Source | Result / scope |
+|---|---|---|
+| Closure decision | [R7C5 report](step-reports/43t1-r7c5-final-software-closure.md); [entry decision](research/runtime/r7c5-r7d-entry-decision.md) | `R7C_FRAMEWORK_RACE_BLOCKED`; R7D CLOSED; PR #17 not merged |
+| API17 build and host checks | R7C5 report | Suite 902 passed/14 skipped; API17 Java/APK build; host socket and R7C1 ASan/UBSan/TSan passed |
+| ARMv7/API17 | [Build record](research/runtime/r7c5-armv7-final-build.md); [NDK recovery](research/runtime/r7c5-ndk-recovery.md) | NDK r23c local build; zero unknown API17 imports; SHA-256 recorded |
+| Open software gates | [Race closure](research/runtime/r7c5-framework-race-closure.md); [native socket](research/runtime/r7c5-native-socket-runtime-closure.md); [fault matrix](research/runtime/r7c5-final-software-fault-matrix.md) | Emulator failed before boot; deterministic races, full native socket matrix, native socket every cycle, and complete resource oracle remain open |
+# R7C6 (2026-10-08)
+
+- AVD recovery and ownership: `research/runtime/r7c6-api17-avd-recovery.md`,
+  `research/runtime/r7c6-emulator-ownership-proof.md`
+- Race controller/results: `research/runtime/r7c6-deterministic-race-controller.md`,
+  `research/runtime/r7c6-framework-race-results.md`
+- Socket/runtime/fault/accounting: `research/runtime/r7c6-native-socket-fault-matrix.md`,
+  `research/runtime/r7c6-final-100-cycle-runtime.md`,
+  `research/runtime/r7c6-resource-accounting.md`,
+  `research/runtime/r7c6-memory-observation.md`
+- ARMv7 and decision: `research/runtime/r7c6-armv7-final-build.md`,
+  `research/runtime/r7c6-r7d-entry-decision.md`
+- Milestone: `step-reports/43t1-r7c6-final-r7c-software-closure.md`
+
+## 43T1 R7C7 — final software closure (2026-10-08)
+
+| Evidence | Source | Classification |
+|---|---|---|
+| Lifecycle root cause and repeated Activity closure | [R7C7 lifecycle report](research/runtime/r7c7-activity-lifecycle-root-cause.md) | `PASS_EMULATOR`, 25/25 |
+| Cumulative ownership audit | [R7C7 state audit](research/runtime/r7c7-cumulative-stress-state-audit.md) | `PASS_EMULATOR` |
+| Production native socket faults | [R7C7 socket matrix](research/runtime/r7c7-native-socket-fault-matrix.md) | `PASS_EMULATOR`; local port collision N/A |
+| Combined acceptance | [R7C7 combined run](research/runtime/r7c7-combined-acceptance-run.md) | `RESULT=PASS`, 100 cycles |
+| Final cycle and memory/resource observations | [100-cycle runtime](research/runtime/r7c7-final-100-cycle-runtime.md), [memory](research/runtime/r7c7-memory-observation.md), [resource accounting](research/runtime/r7c7-resource-accounting.md) | `PASS_EMULATOR` |
+| Final software matrix and R7D decision | [fault matrix](research/runtime/r7c7-final-software-fault-matrix.md), [entry decision](research/runtime/r7c7-r7d-entry-decision.md) | local software gates PASS; exact-head CI/CodeQL and merge pending |
+| Milestone report | [43T1 R7C7](step-reports/43t1-r7c7-final-framework-race-closure.md) | `R7C_SOFTWARE_PASS_PENDING_EXACT_HEAD_GATES` |
+
+## 43T1 R7D — integrated target simulation (local acceptance pass; hosted gates pending)
+
+| Evidence | Source | Classification |
+|---|---|---|
+| R7C exact-head implementation and merge | `f24255c58ea000255c37d1dea28e5b26a569745b` → `f9ef5fa3f24ed89b32d0eddf62b1065fbef66562`; PR #17 Offline CI and CodeQL passed | `PASS` |
+| R7D long-run and performance | [long-run](research/runtime/r7d-long-run-stability.md), [performance](research/runtime/r7d-performance-observations.md) | `PASS`, 30:00.180, 25,932 frames/stream, 14.405 FPS; below 30-FPS goal |
+| Restart/display/network/decoder/churn | [restart](research/runtime/r7d-type111-restart-stress.md), [display](research/runtime/r7d-display-recreation.md), [network](research/runtime/r7d-network-fault-recovery.md), [decoder](research/runtime/r7d-decoder-stress.md), [churn](research/runtime/r7d-session-churn.md) | all pass: 100 restarts; 25+25 display cycles; fault matrix +25 reconnects; decoder recovery; 500 sessions |
+| Restoration, observability, Honda questions | [restoration](research/runtime/r7d-restoration-sequencing.md), [observability](research/runtime/r7d-target-observability.md), [question matrix](research/runtime/r7d-honda-unresolved-question-matrix.md) | project-owned restoration and event audit pass; target questions remain explicit |
+| Local regression and repository gates | [43T1 R7D report](step-reports/43t1-r7d-integrated-target-simulation.md) | 901 passed/15 skipped; ASan/UBSan, TSan, API17 ARMv7 import, health, and diff pass |
+| Hosted checks and R7E gate | PR #18 on the R7D branch; [R7D→R7E gate](research/runtime/r7d-r7e-entry-gate.md) | exact-head Offline CI and CodeQL PASS; R7E entry open for preparation only |

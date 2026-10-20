@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
 
+from .adapters import FrameOutput
 from .decoder import DecodedFrame
 
 
@@ -13,9 +13,7 @@ class DisplayError(RuntimeError):
         super().__init__(code)
 
 
-class Display1Output(Protocol):
-    def show(self, frame: DecodedFrame) -> None: ...
-    def clear(self) -> None: ...
+Display1Output = FrameOutput
 
 
 class NullDisplay:

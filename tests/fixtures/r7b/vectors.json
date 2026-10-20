@@ -1,0 +1,12 @@
+{
+  "evidence": "MODEL_ONLY",
+  "session": {"generation": 7, "authentication": "synthetic-test-authority"},
+  "info": {"profile": "R7A offline fixture", "expected_state": "INFO_EXCHANGED"},
+  "setup": [
+    {"type": 110, "connection_id": 1100, "fixture": "type110-red.h264.b64", "sha256": "1283b9e45dc6fd6992b8ea2f697cf901af4d6b1f001f5f20ae5aecae1ab60bd0", "sink": "Display0", "width": 32, "height": 24},
+    {"type": 111, "connection_id": 1101, "fixture": "type111-blue.h264.b64", "sha256": "b3802b8ed4e0531c9ab08898b5d6b413b21c604df62523ec67899a7eeda6b23c", "sink": "Display1", "width": 32, "height": 24}
+  ],
+  "orderings": [[111, 110], [110, 111]],
+  "expected": {"accepted_setup": true, "active_streams": 2, "frames_per_sink": 1, "cleanup_resources": 0},
+  "failures": ["duplicate_connection_id", "stale_generation", "malformed_packet", "truncated_packet", "oversized_length", "secondary_setup_failure", "production_security_fail_closed"]
+}

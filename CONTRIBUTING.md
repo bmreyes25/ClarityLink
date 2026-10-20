@@ -12,10 +12,17 @@ ClarityLink is an evidence-led car-integration and digital-twin project. Keep ch
 
 ## Project records
 
-- Update `PROJECT_STATE.md` when a milestone materially changes known behavior or readiness.
+- Update [the current status](docs/status/current.md) and milestone manifest when a milestone materially changes known behavior or readiness.
+- Keep `PROJECT_STATE.md`, `ROADMAP.md`, `NEXT_ACTION.md`, and `EVIDENCE_INDEX.md` available as legacy/history records; link new authoritative summaries rather than removing their evidence.
 - Update `EVIDENCE_INDEX.md` when evidence or its classification changes.
 - Keep `NEXT_ACTION.md` to exactly one concrete technical task.
 - Add a step report for a substantial milestone and link it from `step-reports/README.md`.
+
+## Review and milestone gates
+
+- Follow the dependency order in [CL-R0–CL-R8](docs/roadmap/final-development-plan.md).
+- Name the evidence and exact change set in independent review requests. Do not broaden prior approvals to new files, artifacts, or operations.
+- For an unexpected device, identity, permission, or safety condition, stop the affected operation and record the exact observation before proceeding.
 
 ## Testing and live boundaries
 

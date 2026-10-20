@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.claritylink.independentdisplay.lab">
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
+    <application android:name="org.claritylink.android.ClarityLinkDisplayApplication"
+        android:label="ClarityLink Display Lab" android:allowBackup="false"
+        android:debuggable="true">
+        <service android:name="org.claritylink.android.CompositorService"
+            android:process=":compositor" android:exported="false" />
+        <service android:name="org.claritylink.android.FrameLabSinkService"
+            android:process=":type110_sink" android:exported="false" />
+        <service android:name="org.claritylink.android.Type110ProgressProbeService"
+            android:process=":type110_probe" android:exported="false" />
+        <service android:name="org.claritylink.android.Type111ProducerService"
+            android:process=":type111_producer" android:exported="false" />
+        <service android:name="org.claritylink.android.SameUidRegistrationAttackTestService"
+            android:process=":registration_attacker" android:exported="false" />
+        <activity android:name="org.claritylink.android.Type110OwnerIsolationTestActivity"
+            android:process=":owner_test" android:exported="true"
+            android:permission="android.permission.DUMP" />
+        <service android:name="org.claritylink.android.CompositorOwnerDeathTestService"
+            android:process=":owner_death_test" android:exported="false"
+            android:permission="android.permission.DUMP" />
+        <service android:name="org.claritylink.android.Type110SinkFailureTestService"
+            android:process=":type110_failure" android:exported="true"
+            android:permission="android.permission.DUMP" />
+        <activity android:name="org.claritylink.android.ClarityLinkDisplayActivity"
+            android:process=":type111_view" android:exported="true"
+            android:permission="android.permission.DUMP"
+            android:configChanges="orientation|screenSize" />
+        <activity android:name="org.claritylink.android.Api17DecoderLabActivity"
+            android:exported="true" android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

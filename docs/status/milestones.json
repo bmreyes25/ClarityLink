@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "updated": "2026-10-20",
+  "current_campaign": "CL-R4 reliability and public-source publication complete; OEM contract investigation remains",
+  "current_milestone": "CL-R4",
+  "current_milestone_state": "COMPLETE",
+  "next_technical_milestone": "CL-R5",
+  "safeForHonda": false,
+  "hardware_validation_state": "NOT_STARTED",
+  "license_state": "NO_LICENSE_SELECTED",
+  "milestones": [
+    {
+      "id": "CL-R0",
+      "title": "Repository foundation and authoritative roadmap",
+      "state": "REVIEW_PENDING",
+      "evidence": [
+        "docs/status/current.md",
+        "docs/status/cl-r0-validation.md"
+      ]
+    },
+    {
+      "id": "CL-R1",
+      "title": "Resolve deterministic warning-preemption race",
+      "state": "COMPLETE",
+      "evidence": [
+        "research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md"
+      ]
+    },
+    {
+      "id": "CL-R2",
+      "title": "Establish isolated API17 emulator testing",
+      "state": "COMPLETE",
+      "evidence": [
+        "research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md"
+      ]
+    },
+    {
+      "id": "CL-R3",
+      "title": "Complete Binder-to-View path",
+      "state": "COMPLETE",
+      "evidence": [
+        "research/vehicle/test6a-t7-integration/22-cl-r3-final-acceptance.md"
+      ]
+    },
+    {
+      "id": "CL-R4",
+      "title": "Complete Type111 fixture reliability acceptance",
+      "state": "COMPLETE",
+      "evidence": [
+        "tools/run_cl_r4_acceptance.py",
+        "docs/status/current.md",
+        "research/vehicle/test6a-t7-integration/27-cl-type111-major-integration-results.md",
+        "research/vehicle/test6a-t7-integration/26-cl-r4-stream-isolation-results.md",
+        "research/vehicle/test6a-t7-integration/28-type111-process-isolation-runtime.md",
+        "research/vehicle/test6a-t7-integration/29-cl-r4-ecc-review-followup.md",
+        "research/vehicle/test6a-t7-integration/30-cl-r4-producer-process-fault-result.md"
+      ]
+    },
+    {
+      "id": "CL-R5",
+      "title": "Establish authenticated Honda Type111 extension contract",
+      "state": "IN_PROGRESS",
+      "evidence": [
+        "research/vehicle/test6a-t7-integration/27-cl-type111-major-integration-results.md",
+        "research/vehicle/test6a-t7-integration/25-cl-r5-presentation-control-model.md",
+        "research/vehicle/test6a-t7-integration/26-cl-r4-stream-isolation-results.md",
+        "src/claritylink-negotiation/presentation_stream.py",
+        "tests/jmcs/test_r5_presentation_stream_integration.py",
+        "src/claritylink-negotiation/presentation_state.py",
+        "tests/negotiation/test_presentation_state.py",
+        "src/claritylink-negotiation/type111_setup_contract.py"
+      ]
+    },
+    {
+      "id": "CL-R6",
+      "title": "Establish supported Honda display integration contract",
+      "state": "IN_PROGRESS",
+      "evidence": []
+    },
+    {
+      "id": "CL-R7",
+      "title": "End-to-end Type110/Type111 laboratory demonstration",
+      "state": "COMPLETE",
+      "evidence": [
+        "tools/run_cl_r7_lab.sh",
+        "docs/status/current.md"
+      ]
+    },
+    {
+      "id": "CL-R8",
+      "title": "Separately authorized Honda hardware and integrated navigation validation",
+      "state": "PLANNED",
+      "evidence": [
+        "docs/safety/vehicle-testing.md"
+      ]
+    }
+  ]
+}

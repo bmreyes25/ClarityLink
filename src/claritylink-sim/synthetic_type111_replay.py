@@ -19,7 +19,7 @@ for relative in (
 from lifecycle_coord import ClarityLinkLifecycleCoordinator, ClarityLinkRedactedDiagnostics
 from listener import FakeSecondaryListenerFactory
 from models import (
-    ClarityLinkCapabilityProfile, ClarityLinkSecondaryDisplayDescriptor,
+    CapabilityProfileMode, ClarityLinkCapabilityProfile, ClarityLinkSecondaryDisplayDescriptor,
     Provenance, ResponseStrategy, SourcedValue, Type111ResponseProfile,
 )
 from receiver_core import HondaScreenReceiverCore, VideoConfigEvent, VideoMediaBufferEvent
@@ -87,6 +87,8 @@ def synthetic_type111_cluster_replay(mode: ReplayMode = ReplayMode.HYPOTHETICAL_
     decision: CapabilityDecision = evaluate_capability_gate(mode, gates)
     if decision.allowed:
         display_profile = ClarityLinkCapabilityProfile(
+            enabled=True,
+            mode=CapabilityProfileMode.SYNTHETIC_LAB,
             descriptor=ClarityLinkSecondaryDisplayDescriptor(
                 uuid=SourcedValue("SYNTHETIC_CLUSTER_DISPLAY", Provenance.CONFIGURABLE)
             ),

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import plistlib
 from typing import Any, Mapping
 
-from .capabilities import SecondaryDisplayCapability, host_info
+from .capabilities import CapabilityMode, SecondaryDisplayCapability, host_info
 from .identity import LabIdentity
 
 
@@ -56,7 +56,8 @@ def build_info(profile: InfoProfile) -> dict[str, Any]:
             raise InfoError("invalid_hid_capability")
     capability = SecondaryDisplayCapability(
         width=profile.displays.width, height=profile.displays.height, fps=profile.displays.fps,
-        enabled=profile.displays.enabled, physical_width_mm=profile.displays.physical_width_mm,
+        enabled=profile.displays.enabled, mode=profile.displays.mode,
+        physical_width_mm=profile.displays.physical_width_mm,
         physical_height_mm=profile.displays.physical_height_mm,
         main_uuid=profile.identity.main_uuid, secondary_uuid=profile.identity.secondary_uuid,
         initial_url=profile.displays.initial_url)
@@ -79,7 +80,7 @@ def build_info(profile: InfoProfile) -> dict[str, Any]:
     return info
 
 
-def validate_info_shape(info: Mapping[str, Any]) -> tuple[str, ...]:
+def validate_info_shape(info: Mapping[str, Any], *, require_secondary: bool = False) -> tuple[str, ...]:
     required = ("sourceVersion", "features", "statusFlags", "model", "manufacturer", "deviceID",
                 "bluetoothIDs", "name", "modes", "audioFormats", "audioLatencies", "hidDevices", "displays")
     missing = [key for key in required if key not in info]
@@ -90,7 +91,7 @@ def validate_info_shape(info: Mapping[str, Any]) -> tuple[str, ...]:
         kinds = [entry.get("type") for entry in displays if isinstance(entry, Mapping)]
         if 110 not in kinds:
             missing.append("displays[110]")
-        if 111 not in kinds:
+        if require_secondary and 111 not in kinds:
             missing.append("displays[111]")
         for entry in displays:
             if not isinstance(entry, Mapping):
