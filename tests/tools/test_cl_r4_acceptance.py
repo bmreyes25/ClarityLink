@@ -1,4 +1,7 @@
-from tools.run_cl_r4_acceptance import CASES, scenario_receipt, saturated_view_death_evidence_valid
+from tools.run_cl_r4_acceptance import (CASES, aggregate_cleanup_dimensions_valid,
+                                       aggregate_result_status, priority_evidence_valid,
+                                       invalidate_source_drift_receipt,
+                                       scenario_receipt, saturated_view_death_evidence_valid)
 from pathlib import Path
 import hashlib
 
@@ -106,3 +109,48 @@ def test_saturated_view_death_priority_requires_hashed_api17_crash_evidence(tmp_
     record["actual_api17_execution"] = "EXECUTED"
     log.write_text(content + "changed\n")
     assert not saturated_view_death_evidence_valid(record, "source", "apk")
+
+
+def test_aggregate_cleanup_dimensions_use_emitted_registration_receipt():
+    matching = (
+        "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS session_id=41 "
+        "queued_frames_after=0 queued_bytes_after=0 "
+        "handler_released_by_owner_death=true barrier_timed_out=false\n"
+        "CL_R4B_PARENT_OWNER_DEATH_API17_PASS old_compositor_pid=10 "
+        "new_compositor_pid=11 session_id=41 old_pid_absent=true "
+        "old_registrations_cleared_by_process_exit=true "
+        "old_process_resources_reclaimed_by_exit=true stale_type110_frame=rejected "
+        "stale_type111_frame=rejected"
+    )
+    assert aggregate_cleanup_dimensions_valid(matching)
+    assert not aggregate_cleanup_dimensions_valid(matching.replace("session_id=41", "session_id=42", 1))
+    assert not aggregate_cleanup_dimensions_valid(matching.replace("queued_bytes_after=0", "queued_bytes_after=128"))
+    assert not aggregate_cleanup_dimensions_valid(matching.replace("stale_type111_frame=rejected", "stale_type111_frame=accepted"))
+
+
+def test_aggregate_status_preserves_failure_blocked_and_not_run():
+    assert aggregate_result_status(["PASS", "FAIL"]) == "FAIL"
+    assert aggregate_result_status(["PASS", "BLOCKED"]) == "BLOCKED"
+    assert aggregate_result_status(["PASS", "NOT_RUN"]) == "NOT_RUN"
+    assert aggregate_result_status(["PASS", "PASS"]) == "PASS"
+
+
+def test_priority_evidence_requires_matching_source_apk_hash_and_markers(tmp_path):
+    log = tmp_path / "priority.log"
+    log.write_text("API17_EMULATOR_PROCESS pid=9 serial=emulator-5580\nP05_PASS\n")
+    record = {"status": "PASS", "source_sha256": "source", "apk_sha256": "apk",
+              "log": str(log), "evidence_log_sha256": hashlib.sha256(log.read_bytes()).hexdigest()}
+    assert priority_evidence_valid(record, ["P05_PASS"], "source", "apk")
+    assert not priority_evidence_valid(record, ["P05_PASS"], "changed-source", "apk")
+    assert not priority_evidence_valid(record, ["P05_PASS"], "source", "changed-apk")
+    record["evidence_log_sha256"] = "stale"
+    assert not priority_evidence_valid(record, ["P05_PASS"], "source", "apk")
+
+
+def test_source_drift_invalidates_cl_r7_receipt():
+    record = {"status": "PASS", "source_sha256": "initial"}
+    invalidate_source_drift_receipt(record, "cl_r7_regression", "initial", "final")
+    assert record["status"] == "FAIL"
+    assert record["source_changed_during_run"] == {
+        "phase": "cl_r7_regression", "initial": "initial", "final": "final",
+        "acceptance_invalidated": True}

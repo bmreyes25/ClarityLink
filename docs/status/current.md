@@ -1,44 +1,50 @@
 # Current project status
 
-**Updated:** 2026-10-19
+**Updated:** 2026-10-20
+
 **Campaign:** CL-R4 reliability completion and public-source publication
-**Repository main baseline:** `bf4802246fe6c7e3bbf2c21edee23430fe9bb92c`
-**Reliability PR:** [#37](https://github.com/bmreyes25/ClarityLink/pull/37), open and awaiting an approving GitHub review
+
+**Verified online main before this campaign's publication:** `dd7be19a068eb318e72814e0e0907361975a9c51`
+
+**Reliability PR:** [#38](https://github.com/bmreyes25/ClarityLink/pull/38), open; no approving GitHub review recorded at the latest check
+
 **Authoritative manifest:** [milestones.json](milestones.json)
 
 ## Verified state
 
 | Area | State | Evidence and limits |
 |---|---|---|
-| CL-R0 repository foundation | Established | See [CL-R0 validation](cl-r0-validation.md). The repository has no selected license. |
+| CL-R0 repository foundation | Established | The repository has no selected license. The owner must choose one. |
 | CL-R1 warning preemption | Lab PASS | Deterministic Binder/Handler/View race tests suppress stale drawing and restore fresh frames. This is not Honda warning-priority evidence. |
 | CL-R2 API17 isolation and crash recovery | Lab PASS | Owned API17 emulator process checks and controlled crash-dialog handling have been exercised. Historical FinalizerWatchdog behavior remains unattributed and unreproduced. |
-| CL-R3 Binder-to-View | Lab PASS | Malformed Binder input, generations, pixel checks, process death, crash recovery, and cleanup have prior API17 evidence. No physical scanout is claimed. |
-| CL-R4 reliability | **PARTIAL** | On exact candidate fingerprint `07f43ef7c882f21c5fdb55f6645500eff5beefe3763f5f3b05ac7f2e0c2211ac` and APK SHA-256 `b23ccc5de16e6942b8ee4e55fc84f2d2dbd370b674aaee86bb57c06caa4d9826`, CL-R4-06 (delayed Binder callbacks) and CL-R4-12 (saturated-queue uncaught View-process crash recovery) passed on API17. The runner derives P01 and P07 PASS from those receipts. The crash case records the requested crashed PID, queue saturation, process disappearance, Type111 detach, preserved Type110 operation, fresh post-crash frame, and zero application resources. CL-R4-01 passed on a separate prior fingerprint; separate earlier evidence includes CL-R4-04 and P02/P03. These results do not combine into a complete final-source matrix. P04/P05/P06/P08 and aggregate P12 remain unverified. See ignored local acceptance reports under `build/cl-r4-acceptance-*`. |
-| CL-R5 Type111 control model | Synthetic lab model | Capability, setup, navigation eligibility, presentation, geometry, and VideoConfig are represented in the lab. Honda SETUP schema and authenticated receiver-session delegation are unknown. |
+| CL-R3 Binder-to-View | Lab PASS | Malformed Binder input, generations, pixel checks, process death, crash recovery, and cleanup have API17 evidence. No physical scanout is claimed. |
+| CL-R4 reliability | **API17 LAB PASS** | All 12 mandatory cases and 12 priority combinations passed against source fingerprint `90fabf6d8a31c69a82b4c23fcc00d4823ed399f321e06e262a9b0530883552c3`, candidate APK SHA-256 `fd5b20b4e281424f6880ebc48acd9483ba094d13dec6e57a44c1e006a355beac`. Run: `build/cl-r4-acceptance-20261019-234709-22337/`. Evidence is generated/ignored and remains local. |
+| CL-R5 Type111 control model | Synthetic lab model | Capability, setup, presentation, geometry, and VideoConfig are represented in the lab. Honda SETUP schema and authenticated receiver-session delegation remain unknown. |
 | CL-R6 secondary output host | Synthetic lab model | Lab output geometry, warnings, withdrawal, restoration, and lifecycle are exercised. No Honda-owned instrument-cluster frame-admission interface is established. |
-| CL-R7 end-to-end laboratory demonstration | **API17 LAB PASS** | The current candidate passed Type110-first and Type111-first on API17 / Android 4.2.2. Both runs verified actual MediaCodec H.264 output, Binder/PFD delivery, decoded pixels, warning withdrawal and fresh-frame restoration, real View-process death and reattachment, Type110 continuity, and cleanup. APK SHA-256: `26a659e5433ea168fb157f2cbae150d792b5ce275c8381f4e883d30f239066fc`. Evidence is preserved locally under ignored `build/cl-r7-lab-20261019-124248-19895/`. |
-| Honda hardware validation | Not started | Requires documented OEM contracts, separate authorization, and an independently reviewed parked-vehicle plan. |
+| CL-R7 end-to-end laboratory demonstration | **API17 LAB PASS** | After CL-R4, both Type110-first and Type111-first runs passed on API17 / Android 4.2.2 with actual MediaCodec H.264 output, Binder/PFD delivery, decoded-pixel checks, warning withdrawal and recovery, View-process death/reattachment, Type110 continuity, and cleanup. Evidence is in the CL-R4 run directory above. |
+| Honda vehicle validation | Not started | Requires supported OEM contracts, separate authorization, and an independently reviewed parked-vehicle plan. |
 | `safeForHonda()` | `false` | Production integration remains disabled. |
 
-## Current CL-R4 candidate run
+## CL-R4 evidence summary
 
-The canonical runner is `tools/run_cl_r4_acceptance.py` (also `tools/run_cl_r4_acceptance.sh`). The latest run at `build/cl-r4-acceptance-20261019-123156-10607` records CL-R4-01 PASS and all unselected cases as NOT_RUN; its overall result is PARTIAL. It includes the API17 cross-UID attack start response and receipt, plus application-side rejection evidence. CL-R4-04, P02, and P03 have separate prior candidate passes; their fingerprints differ from the latest run and they do not combine into a final-source matrix PASS.
+The canonical resumable runner is `tools/run_cl_r4_acceptance.py` (also `tools/run_cl_r4_acceptance.sh`). The final run started at `2026-10-19 23:47` local time and completed with `CL_R4_ACCEPTANCE_PASS`. It recorded exact source/APK fingerprints, isolated API17 emulator and ADB identities, process IDs, fault-injection markers, lifecycle observations, assertion results, resource cleanup, and evidence hashes. The aggregate cleanup receipt is `cl-r4-10-aggregate-cleanup-receipt.json` in the run directory.
 
-The configured offline suite passed **1,287 tests, 18 skipped**, plus three self-locator smoke tests, simulator checks, and whitespace validation after the unauthorized-start lifecycle fix. Host results do not substitute for API17 acceptance.
+The final-source CL-R7 regression passed both setup orders. It verified actual H.264 decoding and rendered pixels, warning preemption and fresh-frame recovery, Type110 continuity, View replacement, and cleanup. This is laboratory evidence only.
+
+The configured offline suite passed **1,289 tests, 29 skipped**, plus three self-locator smoke tests, simulator checks, and whitespace validation. Host tests do not substitute for API17 acceptance.
 
 ## Publication and review
 
-PR #37 is the current reliability branch. Its previously observed Offline CI failure occurred in `tools/check_repo_health.py`, before pytest, because pinned hashes in `docs/status/cl-r0-review-scope.json` were stale for changed tracked files. CodeQL and language-analysis jobs passed, but those checks do not replace Offline CI. The branch has no recorded approving GitHub review. Do not bypass protected-main requirements.
+PR #37 is merged. PR #38 contains the current CL-R4 implementation; the final local changes still need to be committed and pushed, then checked on the updated PR head. At the last GitHub check, CI and CodeQL were green for the previous PR #38 head, but no approving human review was recorded. Do not merge without the required review authorization.
 
-The worktree contains public-safe source and test changes that still need final-source acceptance, scope-hash refresh, PR checks, and publication. Generated emulator evidence remains local and ignored. Historical worktrees and private research are preserved.
+Generated emulator screenshots, runtime logs, APKs, and acceptance receipts are ignored local evidence, not public source. Historical research and worktrees remain preserved; private Honda research is not part of this publication.
 
 ## Honda integration status
 
-No genuine Honda Type111 capability advertisement, SETUP handler, authorized stream delegation, or same-session transport contract has been established. No supported Honda Display 1 frame-admission interface, display ownership contract, geometry contract, warning precedence contract, or restoration contract has been established. No OEM API is inferred from the synthetic adapters.
+No genuine Honda Type111 capability advertisement, SETUP handler, authenticated receiver-session authority, stream delegation, or same-session transport contract has been established. No supported Honda Display 1 frame-admission, display ownership, geometry, warning-precedence, or restoration contract has been established. Synthetic adapters do not establish OEM compatibility.
 
 ## Next actions
 
-1. Implement the missing API17 fault interleavings and aggregate resource assertions, then freeze and run the full CL-R4 matrix on one source/APK. The current candidate's CL-R7 two-order regression has passed.
-2. Refresh the PR #37 stale review-scope hashes after exact-source review, rerun Offline CI and CodeQL, and publish only reviewed, public-safe source through protected GitHub review.
-3. Keep Honda integration disabled until supported receiver and instrument-cluster contracts are established.
+1. Complete ECC follow-up, commit the reviewed public-safe implementation and status updates, and push them to PR #38.
+2. Refresh the PR checks against the new exact head and obtain the required human GitHub approval before merging through repository rules.
+3. After publication, investigate documented, authorized Honda receiver and Display 1 contracts. Keep production integration disabled until those contracts are verified.

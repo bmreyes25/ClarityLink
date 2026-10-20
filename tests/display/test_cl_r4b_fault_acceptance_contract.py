@@ -235,7 +235,9 @@ def test_parent_owner_death_harness_kills_only_verified_compositor_and_checks_re
                     if item.get(ANDROID + "name") ==
                     "org.claritylink.android.CompositorOwnerDeathTestService")
     assert activity.get(ANDROID + "process") == ":owner_death_test"
-    assert activity.get(ANDROID + "exported") == "true"
+    # The child-cleanup trigger is an in-process lab control surface; it must
+    # not be externally callable even by another same-UID package.
+    assert activity.get(ANDROID + "exported") == "false"
     assert activity.get(ANDROID + "permission") == "android.permission.DUMP"
 
     source = (APP / "java/org/claritylink/android/CompositorOwnerDeathTestService.java").read_text()
@@ -983,3 +985,47 @@ def test_multiple_view_replacement_mode_checks_three_unique_process_generations(
     assert 'index($NF, package ":")==1' in shell
     assert "api17-replacement-pid-reuse-$ordinal-$adb_port.txt" in shell
     assert '"CL-R4B-P08": ("multiple-view-replacements"' in acceptance
+
+
+def test_owner_death_during_child_cleanup_requires_held_queue_and_zero_cleanup():
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert "--cl-r4b-owner-death-child-cleanup" in shell
+    assert "owner_death_child_cleanup_test" in shell
+    assert "CL_R4B_OWNER_DEATH_CHILD_QUEUE_READY" in activity
+    assert "CL_R4B_OWNER_DEATH_CHILD_BARRIER_RELEASED" in activity
+    assert "cause=binder-death-recipient" in activity
+    assert "owner_death_trigger_line" in shell
+    assert "child_barrier_release_line" in shell
+    assert "trigger_child_queue_owner_death" in activity
+    assert "childQueueDeathTrigger.await(5L, TimeUnit.SECONDS)" in (
+        REPO / "android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java"
+    ).read_text()
+    assert "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS" in activity
+    assert "viewSink.closeSession(observedSessionId, false)" in activity
+    assert "ownerDeathChildViewFencePassed && !ownerDeathChildCleanupControl.barrierTimedOut" in activity
+    assert "CL_R4B_OWNER_DEATH_CHILD_VIEW_FENCED" in activity
+    assert "CL_R4B_OWNER_DEATH_CHILD_QUEUE_DRAINED" in activity
+    assert "isGenerationFenced(observedSessionId)" in activity
+    assert "A stale Type111 frame was enqueued after Binder owner death." in shell
+    assert "ownerDeathChildBarrierReleasedByDeath && ownerDeathChildCleanupControl != null" in activity
+    assert "!ownerDeathChildCleanupControl.barrierTimedOut" in activity
+    assert "queued_frames_before=3" in shell
+    assert '"CL-R4B-P05": ("owner-death-child-cleanup"' in acceptance
+
+
+def test_decoder_shutdown_delivery_mode_closes_codec_while_view_dispatch_is_held():
+    activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
+    shell = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    acceptance = (REPO / "tools/run_cl_r4_acceptance.py").read_text()
+    assert "--cl-r4b-decoder-shutdown-delivery" in shell
+    assert "decoder_shutdown_delivery_test true" in shell
+    assert "handlerEntered.await(5L, TimeUnit.SECONDS)" in activity
+    assert "decoder.close();" in activity
+    assert "finally {\n                                deliveryControl.releaseHandler.countDown();" in activity
+    assert "requireType111(!deliveryControl.barrierTimedOut" in activity
+    assert "frame_drawn_after_decoder_close=true" in activity
+    assert "pending_frames=[1-9]" in shell
+    assert "decoder_closed_before_delivery_release=true frame_drawn_after_decoder_close=true" in shell
+    assert '"CL-R4B-P06": ("decoder-shutdown-delivery"' in acceptance

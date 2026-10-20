@@ -127,6 +127,18 @@ final class FrameViewSink extends Binder {
     FrameDispatchGate dispatchGate() { return dispatchGate; }
     int queuedFrameCount() { return queuedFrames.get(); }
     int queuedByteCount() { return queuedBytes.get(); }
+    synchronized boolean closeSession(long sessionId, boolean releaseProbeBarrier) {
+        if (identity == null || identity.sessionId != sessionId ||
+                identity.streamType != FrameStreamIdentity.TYPE111) return false;
+        close(identity.streamGeneration, releaseProbeBarrier);
+        return isGenerationFenced(sessionId);
+    }
+
+    synchronized boolean isGenerationFenced(long sessionId) {
+        return closed && generation == 0L && lastClosedIdentity != null &&
+                lastClosedIdentity.sessionId == sessionId &&
+                lastClosedIdentity.streamType == FrameStreamIdentity.TYPE111;
+    }
 
     void setDispatchProbe(DispatchProbe probe) { dispatchProbe = probe; }
 
@@ -163,12 +175,17 @@ final class FrameViewSink extends Binder {
     }
 
     synchronized void close(long value) {
+        close(value, true);
+    }
+
+    synchronized void close(long value, boolean releaseProbeBarrier) {
         if (generation == value) {
             lastClosedIdentity = identity;
             dispatchGate.end(value);
             closed = true;
             DispatchProbe probe = dispatchProbe;
-            if (probe instanceof TestControl) ((TestControl) probe).releaseForClose();
+            if (releaseProbeBarrier && probe instanceof TestControl)
+                ((TestControl) probe).releaseForClose();
             cancelPendingDispatches();
             generation = 0L;
             identity = null;

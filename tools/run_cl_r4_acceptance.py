@@ -74,6 +74,8 @@ MODES = {
     "producer-death-teardown": "--cl-r4b-producer-death-teardown",
     "view-death-teardown": "--cl-r4b-view-death-teardown",
     "multiple-view-replacements": "--cl-r4b-multiple-view-replacements",
+    "owner-death-child-cleanup": "--cl-r4b-owner-death-child-cleanup",
+    "decoder-shutdown-delivery": "--cl-r4b-decoder-shutdown-delivery",
 }
 
 REQUIRED_COMBINATIONS = [
@@ -116,6 +118,25 @@ PRIORITY_RUNS = {
         "replacements=3 unique_pids=true increasing_generations=true",
         "parent_session_preserved=true type110_frames_increased=true",
         "final_streams_unregistered=true pfd_transfers=0 retained_frame_bytes=0",
+    ]),
+    "CL-R4B-P05": ("owner-death-child-cleanup", [
+        "CL_R4B_OWNER_DEATH_CHILD_QUEUE_READY",
+        "CL_R4B_OWNER_DEATH_CHILD_VIEW_FENCED",
+        "CL_R4B_OWNER_DEATH_CHILD_TRIGGER_RECEIVED",
+        "CL_R4B_OWNER_DEATH_CHILD_BARRIER_RELEASED",
+        "CL_R4B_OWNER_DEATH_CHILD_QUEUE_DRAINED",
+        "CL_R4B_PARENT_OWNER_DEATH_REQUESTED",
+        "CL_R4B_ACTIVITY_OWNER_CLEANUP_PASS",
+        "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS",
+        "CL_R4B_PARENT_OWNER_DEATH_API17_PASS",
+        "queued_frames_at_fence=3 queued_bytes_at_fence=",
+        "queued_frames_after=0 queued_bytes_after=0 handler_released_by_owner_death=true barrier_timed_out=false",
+    ]),
+    "CL-R4B-P06": ("decoder-shutdown-delivery", [
+        "CL_R4B_DECODER_SHUTDOWN_DURING_DELIVERY",
+        "CL_R4B_DECODER_SHUTDOWN_ACTIVE_DELIVERY_PASS",
+        "codec_closed=true handler_held=true",
+        "decoder_closed_before_delivery_release=true frame_drawn_after_decoder_close=true handler_timeout=false",
     ]),
 }
 
@@ -209,6 +230,55 @@ def saturated_view_death_evidence_valid(case: dict, source_hash: str,
                 saturation.group(2) == crash.group(1) == fatal.group(1) ==
                 recovery.group(2) == recovery.group(3) and
                 saturation.group(1) == crash.group(2) == recovery.group(1))
+
+
+def aggregate_cleanup_dimensions_valid(log_text: str) -> bool:
+    """Require registration, queue, and stale-frame proof from one session."""
+    lines = log_text.splitlines()
+    child_line = next((line for line in lines
+                       if "CL_R4B_OWNER_DEATH_CHILD_CLEANUP_PASS " in line), "")
+    parent_line = next((line for line in lines
+                        if "CL_R4B_PARENT_OWNER_DEATH_API17_PASS " in line), "")
+    child_session = re.search(r"\bsession_id=([1-9][0-9]*)\b", child_line)
+    parent_session = re.search(r"\bsession_id=([1-9][0-9]*)\b", parent_line)
+    child_cleanup = all(token in child_line for token in (
+        "queued_frames_after=0", "queued_bytes_after=0",
+        "handler_released_by_owner_death=true", "barrier_timed_out=false"))
+    parent_cleanup = all(token in parent_line for token in (
+        "old_registrations_cleared_by_process_exit=true",
+        "old_process_resources_reclaimed_by_exit=true",
+        "stale_type110_frame=rejected", "stale_type111_frame=rejected"))
+    return bool(child_session and parent_session and child_cleanup and parent_cleanup and
+                child_session.group(1) == parent_session.group(1))
+
+
+def aggregate_result_status(statuses: list[str]) -> str:
+    if "FAIL" in statuses:
+        return "FAIL"
+    if "BLOCKED" in statuses:
+        return "BLOCKED"
+    if statuses and all(status == "PASS" for status in statuses):
+        return "PASS"
+    return "NOT_RUN"
+
+
+def priority_evidence_valid(record: dict, markers: list[str], source_hash: str,
+                            apk_hash: str) -> bool:
+    log = Path(record.get("log", ""))
+    return bool(record.get("status") == "PASS" and
+                record.get("source_sha256") == source_hash and
+                record.get("apk_sha256") == apk_hash and log.is_file() and
+                record.get("evidence_log_sha256") == hashlib.sha256(log.read_bytes()).hexdigest() and
+                all(marker in log.read_text(errors="replace") for marker in markers))
+
+
+def invalidate_source_drift_receipt(record: dict, phase: str, initial: str,
+                                   final: str) -> dict:
+    record.update({"status": "FAIL", "reason": "Source fingerprint changed during acceptance.",
+                   "source_changed_during_run": {"phase": phase, "initial": initial,
+                                                  "final": final,
+                                                  "acceptance_invalidated": True}})
+    return record
 
 
 def scenario_receipt(content: str, markers: list[str], head: str,
@@ -430,6 +500,16 @@ def main() -> int:
 
     # Priority interleavings are separate runtime cases; unsupported ones remain NOT_RUN.
     priority = {case["id"]: case for case in checkpoint["combinations"]}
+    # Audit every cached runtime priority receipt, even when --only excludes it.
+    # Aggregation must never trust a PASS whose source/log/markers are stale.
+    for combo_id, (_mode, markers) in PRIORITY_RUNS.items():
+        cached = priority[combo_id]
+        if cached.get("status") != "PASS":
+            continue
+        if not priority_evidence_valid(cached, markers, source_hash,
+                                       checkpoint["apk_sha256"]):
+            cached.update({"status": "NOT_RUN", "reason":
+                           "Cached priority PASS failed source, APK, log-hash, or marker audit."})
     for derived_id in ("CL-R4B-P01", "CL-R4B-P07", "CL-R4B-P09", "CL-R4B-P10",
                        "CL-R4B-P11", "CL-R4B-P12"):
         priority[derived_id].update({"status": "NOT_RUN", "reason":
@@ -454,14 +534,20 @@ def main() -> int:
         logs = "\n".join(Path(case.get("log", "")).read_text(errors="replace")
                            for case in selected_cases if Path(case.get("log", "")).is_file())
         if all(marker in logs for marker in required_markers):
+            evidence_hashes = {case["id"]: case.get("evidence_log_sha256")
+                               for case in selected_cases}
             priority[combo_id].update({"status": "PASS", "evidence_cases": list(required_cases),
                                        "evidence_markers": list(required_markers),
-                                       "apk_sha256": checkpoint["apk_sha256"]})
+                                       "source_sha256": source_hash,
+                                       "apk_sha256": checkpoint["apk_sha256"],
+                                       "evidence_log_sha256_by_case": evidence_hashes,
+                                       "actual_api17_execution": "DERIVED_FROM_EXECUTED_API17_EVIDENCE"})
 
     derive_priority("CL-R4B-P07", ("CL-R4-06",),
                     ("CL_R4B_DELAYED_CALLBACK_POST_TEARDOWN_PASS", "CL_R4B_DELAYED_SINK_CALLBACK_PASS"))
     derive_priority("CL-R4B-P09", ("CL-R4-05",),
-                    ("CL_R4B_TEARDOWN_REPLACEMENT_REJECTED", "replacement_during_shutdown_rejected=true"))
+                    ("CL_R4B_REENTRANT_PARENT_TEARDOWN_PASS",
+                     "replacement_during_shutdown_rejected=true"))
     derive_priority("CL-R4B-P10", ("CL-R4-07", "CL-R4-09"),
                     ("CL_R4B_SAME_UID_REGISTRATION_ATTACK_PASS", "CL_R4_CROSS_UID_ATTACKS_PASS"))
     derive_priority("CL-R4B-P11", ("CL-R4-04", "CL-R4-12"),
@@ -596,25 +682,71 @@ def main() -> int:
             all(any(all(term in line for term in group) for line in lines)
                 for group in required_lines)
         )
-    all_cleanup_evidence = "\n".join(cleanup_logs)
-    aggregate_dimensions = (
-        "registrations=0" in all_cleanup_evidence and
-        ("queue_frames_after=0" in all_cleanup_evidence or "queue=zero" in all_cleanup_evidence) and
-        ("stale_type110_frame=rejected" in all_cleanup_evidence or
-         "stale_frame_rejected=true" in all_cleanup_evidence)
-    )
-    aggregate_status = "PASS" if (ordinary and all(x == "PASS" for x in ordinary) and
-                                    all(x == "PASS" for x in combinations) and
-                                    cleanup_receipts and all(cleanup_receipts) and
-                                    aggregate_dimensions) else "NOT_RUN"
+    owner_cleanup_log = Path(priority["CL-R4B-P05"].get("log", ""))
+    owner_cleanup_evidence = (owner_cleanup_log.read_text(errors="replace")
+                              if priority["CL-R4B-P05"].get("status") == "PASS" and
+                              owner_cleanup_log.is_file() else "")
+    aggregate_dimensions = aggregate_cleanup_dimensions_valid(owner_cleanup_evidence)
+    aggregate_status = aggregate_result_status(ordinary + combinations)
+    if aggregate_status == "PASS" and not (cleanup_receipts and all(cleanup_receipts) and
+                                             aggregate_dimensions):
+        aggregate_status = "FAIL"
+    aggregate_receipt = {
+        "schema": 1,
+        "scenario_id": "CL-R4-10",
+        "source_sha256": source_hash,
+        "apk_sha256": checkpoint["apk_sha256"],
+        "actual_api17_execution": "DERIVED_FROM_EXECUTED_API17_EVIDENCE",
+        "cases": [{key: case.get(key) for key in (
+            "id", "status", "actual_api17_execution", "source_sha256", "apk_sha256",
+            "evidence_log_sha256", "process_ids", "failure_injection", "observed_lifecycle",
+            "acceptance_assertions", "resource_cleanup")}
+            for case in checkpoint["cases"] if case.get("id") != "CL-R4-10"],
+        "priority_combinations": [{key: combo.get(key) for key in (
+            "id", "status", "actual_api17_execution", "source_sha256", "apk_sha256",
+            "evidence_log_sha256", "evidence_log_sha256_by_case", "evidence_cases",
+            "process_ids", "failure_injection", "observed_lifecycle", "acceptance_assertions",
+            "resource_cleanup")}
+            for combo in checkpoint["combinations"] if combo.get("id") != "CL-R4B-P12"],
+        "cleanup_receipts_valid": bool(cleanup_receipts) and all(cleanup_receipts),
+        "aggregate_dimensions_valid": aggregate_dimensions,
+    }
+    aggregate_path = evidence / "cl-r4-10-aggregate-cleanup-receipt.json"
+    atomic_json(aggregate_path, aggregate_receipt)
+    aggregate_hash = hashlib.sha256(aggregate_path.read_bytes()).hexdigest()
     by_id["CL-R4-10"] = {"id": "CL-R4-10", "name": CASES[9][1],
                          "status": aggregate_status,
+                         "actual_api17_execution": "DERIVED_FROM_EXECUTED_API17_EVIDENCE",
+                         "source_sha256": source_hash,
+                         "apk_sha256": checkpoint["apk_sha256"],
+                         "evidence": str(aggregate_path),
+                         "evidence_sha256": aggregate_hash,
+                         "evidence_log_sha256": aggregate_hash,
+                         "process_ids": {case.get("id"): case.get("process_ids", {})
+                                         for case in checkpoint["cases"] if case.get("id") != "CL-R4-10"},
+                         "failure_injection": "See per-scenario API17 evidence referenced by aggregate receipt.",
+                         "observed_lifecycle": "All mandatory lifecycle scenarios are recorded in aggregate receipt.",
+                         "acceptance_assertions": {"all_component_cases_pass": all(x == "PASS" for x in ordinary),
+                                                   "all_priority_interleavings_pass": all(x == "PASS" for x in combinations),
+                                                   "all_cleanup_receipts_valid": bool(cleanup_receipts) and all(cleanup_receipts),
+                                                   "owner_cleanup_dimensions_valid": aggregate_dimensions},
+                         "resource_cleanup": [case.get("resource_cleanup", []) for case in checkpoint["cases"]
+                                              if case.get("id") != "CL-R4-10"],
                          "reason": "All component cases and priority interleavings must pass with zero resource receipts."}
-    if aggregate_status == "PASS":
-        priority["CL-R4B-P12"].update({"status": "PASS", "evidence_case": "CL-R4-01..12",
+    priority["CL-R4B-P12"].update({"status": aggregate_status,
+                                       "evidence_case": "CL-R4-01..12",
                                        "cleanup_receipts": "all_required_cases",
-                                       "apk_sha256": checkpoint["apk_sha256"]})
-        checkpoint["combinations"] = [priority[cid] for cid, _ in REQUIRED_COMBINATIONS]
+                                       "source_sha256": source_hash,
+                                       "apk_sha256": checkpoint["apk_sha256"],
+                                       "evidence": str(aggregate_path),
+                                       "evidence_sha256": aggregate_hash,
+                                       "evidence_log_sha256": aggregate_hash,
+                                       "actual_api17_execution": "DERIVED_FROM_EXECUTED_API17_EVIDENCE",
+                                       "evidence_cases": [case.get("id") for case in checkpoint["cases"]
+                                                          if case.get("id") != "CL-R4-10"],
+                                       "process_ids": by_id["CL-R4-10"]["process_ids"],
+                                       "resource_cleanup": by_id["CL-R4-10"]["resource_cleanup"]})
+    checkpoint["combinations"] = [priority[cid] for cid, _ in REQUIRED_COMBINATIONS]
     checkpoint["cases"] = [by_id.get(item[0], {"id": item[0], "name": item[1],
                                                "status": "NOT_RUN"}) for item in CASES]
     final_source_hash, _final_source_files = fingerprint(repo)
@@ -629,6 +761,32 @@ def main() -> int:
             if case.get("status") == "PASS":
                 case["status"] = "FAIL"
                 case["reason"] = "Source fingerprint changed during acceptance run."
+        aggregate_receipt["source_changed_during_run"] = {
+            "initial": source_hash, "final": final_source_hash,
+            "acceptance_invalidated": True}
+        aggregate_receipt["cases"] = [{key: case.get(key) for key in (
+            "id", "status", "actual_api17_execution", "source_sha256", "apk_sha256",
+            "evidence_log_sha256", "process_ids", "failure_injection", "observed_lifecycle",
+            "acceptance_assertions", "resource_cleanup")}
+            for case in checkpoint["cases"] if case.get("id") != "CL-R4-10"]
+        aggregate_receipt["priority_combinations"] = [{key: combo.get(key) for key in (
+            "id", "status", "actual_api17_execution", "source_sha256", "apk_sha256",
+            "evidence_log_sha256", "evidence_log_sha256_by_case", "evidence_cases",
+            "process_ids", "failure_injection", "observed_lifecycle", "acceptance_assertions",
+            "resource_cleanup")}
+            for combo in checkpoint["combinations"] if combo.get("id") != "CL-R4B-P12"]
+        atomic_json(aggregate_path, aggregate_receipt)
+        aggregate_hash = hashlib.sha256(aggregate_path.read_bytes()).hexdigest()
+        for case in checkpoint["cases"]:
+            if case.get("id") == "CL-R4-10":
+                case.update({"status": "FAIL", "evidence_sha256": aggregate_hash,
+                             "evidence_log_sha256": aggregate_hash,
+                             "reason": "Source fingerprint changed during acceptance run."})
+        for combo in checkpoint["combinations"]:
+            if combo.get("id") == "CL-R4B-P12":
+                combo.update({"status": "FAIL", "evidence_sha256": aggregate_hash,
+                              "evidence_log_sha256": aggregate_hash,
+                              "reason": "Source fingerprint changed during acceptance run."})
     checkpoint["overall"] = "PASS" if final_source_hash == source_hash and (
         all(c.get("status") == "PASS" for c in checkpoint["cases"]) and
         all(c.get("status") == "PASS" for c in checkpoint["combinations"])
@@ -652,6 +810,34 @@ def main() -> int:
             checkpoint["source_changed_during_run"] = {
                 "initial": source_hash, "final": post_r7_source_hash,
                 "phase": "cl_r7_regression"}
+            invalidate_source_drift_receipt(checkpoint["cl_r7_regression"],
+                                            "cl_r7_regression", source_hash,
+                                            post_r7_source_hash)
+            for record in checkpoint["cases"] + checkpoint["combinations"]:
+                if record.get("status") == "PASS":
+                    record.update({"status": "FAIL", "reason":
+                                   "Source fingerprint changed during CL-R7 regression."})
+            aggregate_receipt["source_changed_during_run"] = {
+                "initial": source_hash, "final": post_r7_source_hash,
+                "phase": "cl_r7_regression", "acceptance_invalidated": True}
+            aggregate_receipt["cases"] = [{key: case.get(key) for key in (
+                "id", "status", "actual_api17_execution", "source_sha256", "apk_sha256",
+                "evidence_log_sha256", "process_ids", "failure_injection", "observed_lifecycle",
+                "acceptance_assertions", "resource_cleanup")}
+                for case in checkpoint["cases"] if case.get("id") != "CL-R4-10"]
+            aggregate_receipt["priority_combinations"] = [{key: combo.get(key) for key in (
+                "id", "status", "actual_api17_execution", "source_sha256", "apk_sha256",
+                "evidence_log_sha256", "evidence_log_sha256_by_case", "evidence_cases",
+                "process_ids", "failure_injection", "observed_lifecycle", "acceptance_assertions",
+                "resource_cleanup")}
+                for combo in checkpoint["combinations"] if combo.get("id") != "CL-R4B-P12"]
+            atomic_json(aggregate_path, aggregate_receipt)
+            aggregate_hash = hashlib.sha256(aggregate_path.read_bytes()).hexdigest()
+            for record in checkpoint["cases"] + checkpoint["combinations"]:
+                if record.get("id") in ("CL-R4-10", "CL-R4B-P12"):
+                    record.update({"status": "FAIL", "evidence_sha256": aggregate_hash,
+                                   "evidence_log_sha256": aggregate_hash,
+                                   "reason": "Source fingerprint changed during CL-R7 regression."})
             checkpoint["overall"] = "FAIL"
     checkpoint["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     atomic_json(checkpoint_path, checkpoint)
