@@ -51,7 +51,9 @@ Solid links inside the lab show synthetic components that have been exercised on
 | CL-R7 | API17 laboratory PASS | Both setup orders, H.264 pixel checks, warning withdrawal/recovery, Type110 continuity, View reattachment, and cleanup passed after the CL-R4 fixes. This is not hardware validation. |
 | Honda vehicle validation | Not started | Requires supported OEM contracts, separate authorization, and independent safety review. |
 
-See the [current evidence and status](docs/status/current.md), [open blockers](docs/status/blockers.md), and the [milestone manifest](docs/status/milestones.json). Historical reports remain available under `research/` and `step-reports/`.
+See the [current evidence and status](docs/status/current.md), [open blockers](docs/status/blockers.md), and the [legacy CL-R0–CL-R8 milestone manifest](docs/status/milestones.json). Historical reports remain available under `research/` and `step-reports/`.
+
+The cross-campaign objective and gated path to any Honda integration are in the [CL-MASTER-01 program roadmap](docs/roadmap/claritylink-master-plan.md), with a [finish-line contract](docs/roadmap/finish-line-definition.md), [dependency graph](docs/roadmap/master-dependency-graph.md), and [evidence ledger](docs/status/evidence-ledger.md). Current integration readiness remains NO-GO because supported Honda receiver and Display 1 contracts are not established.
 
 ## Quickstart
 
@@ -81,6 +83,7 @@ It starts an owned API17 emulator and isolated ADB server, fingerprints the sour
 - [Project overview](docs/getting-started/overview.md), [architecture](docs/architecture/overview.md), and [glossary](docs/glossary.md)
 - [Android and Python source](src/README.md), [contribution guidance](CONTRIBUTING.md), and [test instructions](docs/development/testing.md)
 - [Current status](docs/status/current.md), [blockers](docs/status/blockers.md), and [safety guidance](docs/safety/vehicle-testing.md)
+- [CL-MASTER-01 roadmap](docs/roadmap/claritylink-master-plan.md), [integration readiness](docs/status/integration-readiness.md), and [campaign gates](docs/roadmap/milestone-acceptance-gates.md)
 - [Research and evidence classification](research/README.md), [evidence index](EVIDENCE_INDEX.md), and [milestone reports](step-reports/README.md)
 
 ## Safety, evidence, and license

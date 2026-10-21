@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged. CL-MASTER-01 refreshed the pinned README.md, docs/README.md, docs/status/current.md, and docs/status/blockers.md hashes on 2026-10-20 to match this public-safe roadmap/status update. Historical review ranges, review_status, and approval_claimed=false remain unchanged. This hash refresh is an integrity inventory only, not an independent review or approval. CL-MASTER-01 refreshed the pinned blockers hash on 2026-10-20 after correcting the vehicle acceptance evidence boundary; historical review ranges, review_status, and approval_claimed=false remain unchanged. This is an integrity inventory only, not an independent review or approval.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "99ea73a24c5f844ff810d458cf3e10d8126fd3b196587b71dc7d4fb73575133e"
+      "sha256": "3f8f963b59fbc678e91f599a8857d56ab32a0de92faa2c278a9cbafe82b4fe38"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
@@ -48,7 +48,7 @@
     },
     {
       "path": "docs/README.md",
-      "sha256": "3f57ec6260346336086e8f82841b6d51c332bf79d09a66b1df24b10b2b00c61e"
+      "sha256": "45d7581d44de19358803074860731c3866d2bb20dd40354f0e6262be836ebd5f"
     },
     {
       "path": "docs/development/blocker-resolution.md",
@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "6c87fefe328bea1f97c48cb6f43a3197034161a20ec9b71e47b7cca32dba906e"
+      "sha256": "ac4f4b68d8ab7e6db9158ac17a3ea93709d8c3e23c77d55bbda4f33c47be3e2c"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,7 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "2b35d3cb504726e14cd23377a101b05ff8a76f7af98959d51acea62004f03e02"
+      "sha256": "784f60aeaf16967adaf9cfef555adb0f36bb6c6a6a8df52961a7700e5a8a65a6"
     },
     {
       "path": "docs/status/milestones.json",
