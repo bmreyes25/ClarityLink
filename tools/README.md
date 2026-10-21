@@ -39,10 +39,11 @@ tools/publish_checkpoint.sh \
   --file AGENTS.md --file tools/publish_checkpoint.py \
   --message "docs: add verified local publication checkpoints" \
   --verification VERIFIED \
+  --public-safe-reviewed \
   --verify-command "python3 -m unittest discover -s tests/tools -p 'test_publish_checkpoint.py'"
 ```
 
-Repeat `--file` for every intended path. The publisher never stages the whole repository. It rejects ignored paths, common private/generated artifact types, credential-like content, and direct `main` publication. A verified checkpoint needs a successful verification command. A public-safe `WIP_UNVERIFIED` checkpoint keeps its branch and skips creating a new PR; do not publish restricted or uncertain material to this public repository.
+Repeat `--file` for every intended path. The publisher never stages the whole repository. It requires a public-safety review attestation, rejects ignored paths, restricted path classes, binary artifacts, credential-like content, pre-staged unrelated files, and direct `main` publication. Shared status files require the designated maintenance-owner flag. A verified checkpoint needs a successful verification command. A public-safe `WIP_UNVERIFIED` checkpoint also needs notes of incomplete work and known failures, keeps its branch, and skips creating a new PR; do not publish restricted or uncertain material to this public repository.
 
 Run `python3 tools/verify_remote_publication.py` to compare local `HEAD` with the live remote branch. Run `python3 tools/check_source_discovery.py` to find source-like files hidden by ignore rules; classify each result manually.
 

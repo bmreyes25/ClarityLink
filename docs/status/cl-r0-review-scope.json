@@ -20,7 +20,7 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "50d25ead48eed79b1d47d490589a6e223a08f68d57a0391cde35d9e46e7f2ea2"
+      "sha256": "764a0c5219945fd3f40c1c321d595c0e5d2ebf21383521b36383f9437d408368"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -132,7 +132,7 @@
     },
     {
       "path": "tools/README.md",
-      "sha256": "c92f15b3031a4982ccf3c8e977d349e2bdce21fc860d21b7fa2232f6e8ed80a3"
+      "sha256": "942fa44196f5f15ce35d8faa4736143ec35f74af2599b9aa5326b4148c518d31"
     },
     {
       "path": "tools/api17_runner_guard.py",

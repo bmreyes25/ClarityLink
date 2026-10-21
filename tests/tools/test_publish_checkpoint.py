@@ -33,6 +33,30 @@ class PublishScopeTests(unittest.TestCase):
             self.assertEqual(subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip(), sha)
             self.assertEqual((root / "note.md").read_text(), "preserved work\n")
 
+    def test_unrelated_pre_staged_file_blocks_publication(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "scope.md").write_text("scoped\n")
+            (root / "unrelated.md").write_text("unrelated\n")
+            subprocess.run(["git", "-C", str(root), "add", "unrelated.md"], check=True)
+            with self.assertRaises(publisher.Failure):
+                publisher.reject_staged_outside_scope(root, ["scope.md"])
+
+    def test_explicit_tracked_deletion_is_allowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Synthetic Test"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            (root / "note.md").write_text("base\n")
+            subprocess.run(["git", "-C", str(root), "add", "note.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
+            (root / "note.md").unlink()
+            self.assertEqual(publisher.safe_scope(root, ["note.md"]), ["note.md"])
+            subprocess.run(["git", "-C", str(root), "add", "--", "note.md"], check=True)
+            publisher.scan_staged(root)
+
     def test_detached_main_branch_is_rejected_without_moving_head(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -52,6 +76,14 @@ class PublishScopeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(publisher.Failure):
                 publisher.safe_scope(Path(d), [])
+
+    def test_pathspec_patterns_are_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "note.md").write_text("text")
+            for value in ("*.md", ":(glob)**"):
+                with self.assertRaises(publisher.Failure):
+                    publisher.safe_scope(root, [value])
 
     def test_parent_traversal_rejected(self):
         with tempfile.TemporaryDirectory() as d:
