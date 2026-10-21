@@ -1,8 +1,9 @@
 # CL-R12-F2 API 17 Performance and Reliability Acceptance
 
-Status: **in progress; API 17 execution is required before this report can be closed**
+Status: **PARTIAL — controlled short A/B completed; performance and reliability acceptance remain unmet**
 PR: [#52](https://github.com/bmreyes25/ClarityLink/pull/52)
 Issue: [#58](https://github.com/bmreyes25/ClarityLink/issues/58)
+Hosted run: [API 17 runtime, A/B, and short-run receipts](https://github.com/bmreyes25/ClarityLink/actions/runs/39555976565)
 
 ## Scope and safety
 
@@ -10,7 +11,7 @@ This work uses only the synthetic ClarityLink Android lab on the GitHub-hosted A
 
 ## Source and runtime procedure
 
-The API 17 workflow builds the baseline performance activity from the immediately preceding PR-head commit, then builds the optimized activity from the tested commit. All other source inputs, runner, emulator image, dimensions, frame cadence, preflight, and 30-second workload are held constant. Both APK hashes and runtime receipts are retained as workflow artifacts. The previous source is read from Git history; no existing worktree is rewritten.
+The API 17 workflow builds the baseline performance activity from the pinned pre-optimization PR source (`2d4c5f74…`) and the optimized activity (`73365283…`) from the tested commit. It verifies the source digests and refuses byte-identical APKs. Both APKs use one generated lab signing key, and each is installed fresh. Other source inputs, runner, emulator image, dimensions, frame cadence, preflight, and 30-second workload are held constant. APK hashes and runtime receipts are retained as workflow artifacts. The previous source is read from Git history; no existing worktree is rewritten.
 
 The runtime runner first executes the established synthetic CL-R12 integration scenario. It then runs the baseline and optimized 30-second synthetic performance activity. The 10-minute optimized soak starts only if both short runs pass the fixed rate, latency, byte-integrity, queue, frame-accounting, memory-file, file-descriptor, heap, and final-stat checks. A skipped soak is reported as not run, not as a pass.
 
@@ -26,13 +27,21 @@ Populate this section from the attached run artifacts only. Keep the baseline an
 
 | Gate | Result |
 | --- | --- |
-| Build and API 17 runtime identity | Pending hosted run |
-| Original synthetic CL-R12 scenario | Pending hosted run |
-| Baseline 30-second performance | Pending hosted run |
-| Optimized 30-second performance | Pending hosted run |
-| Optimized 10-minute soak | Conditional; pending short-run gates |
+| Build and API 17 runtime identity | PASS — Ubuntu 22.04 x86-64/KVM; Android 4.2.2/API 17/x86; emulator package 37.2.12; `swiftshader_indirect` |
+| Original synthetic CL-R12 scenario | PASS — exact pixels, bounded queue, stale-generation rejection, Navigation withdrawal, interrupt preemption, synthetic host-process recovery, and Type110 isolation |
+| Baseline 30-second performance | **FAIL gate** — offered 29.975 FPS; delivered 14.421 FPS; p50/p95/p99 51.33/69.55/80.08 ms; 467/900 frames dropped (51.9%); queue high-water 1 |
+| Optimized 30-second performance | **FAIL gate** — offered 29.982 FPS; delivered 15.307 FPS; p50/p95/p99 38.74/59.46/73.16 ms; 441/901 frames dropped (49.0%); queue high-water 1 |
+| Optimized 10-minute soak | **Not run** — both short runs failed one or more predeclared gates |
+| Frame bytes and MemoryFiles | PASS for both short runs — no pixel mismatch, create/close counters balanced, open count zero in both processes |
+| Heap and descriptors | Heap deltas stayed within 8 MiB. Producer descriptor count was 46→49 in both runs, exceeding the gate of +2; host stayed 32→32. This sample is before Activity destruction and does not establish post-destruction cleanup. |
 | Full 15-case fault matrix | Not implemented |
 | Per-stage and CPU instrumentation | Not implemented |
 | Independent review | Not available through the connected review service; no approval claimed |
+
+### Interpretation
+
+The controlled sample shows the optimized candidate delivered 0.89 more frames/s than the baseline (about 6.1%) and reduced p95 latency by about 10.1 ms. Both remain below the 27 FPS and 50 ms p95 gates, with nearly half of offered frames dropped. These are single 30-second samples; no repeated-run variance was measured. The optimization commit changes frame copying and reply processing/lifecycle handling together, so the result cannot isolate the contribution of the copy removal. Stage timing and process CPU/PSS were not collected, so the bottleneck is not localized by these measurements.
+
+An earlier run, [39555068735](https://github.com/bmreyes25/ClarityLink/actions/runs/39555068735), is excluded from A/B interpretation: both builds used the optimized source, and the baseline APK installation failed because the APKs had different signing certificates. The workflow now pins and verifies the actual baseline source digest and signs both builds with one lab key. The valid run's baseline and optimized APK SHA-256 values are recorded in its `apk-ab.sha256` artifact.
 
 The acceptance remains **PARTIAL** unless all published correctness, performance, resource, and fault-matrix criteria are individually met. A successful emulator boot or synthetic smoke test alone does not complete CL-R12-F2.
