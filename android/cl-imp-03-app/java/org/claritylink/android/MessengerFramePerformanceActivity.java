@@ -38,6 +38,19 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private static final long SHORT_RUN_NS = 30L * 1000000000L;
     private static final long SOAK_RUN_NS = 600L * 1000000000L;
     private static final int MAX_SAMPLES = 20000;
+    private static final String[] PROFILE_STAGE_NAMES = new String[] {
+        "sender_queue", "frame_generation", "source_memoryfile_alloc", "source_memoryfile_write",
+        "source_pfd_prepare", "messenger_send_call", "send_to_host_dispatch", "host_validate",
+        "host_read_copy", "host_memoryfile_alloc", "host_memoryfile_write", "host_pfd_prepare",
+        "host_process_to_reply", "reply_to_ack_dispatch", "return_read_copy", "pixel_compare",
+        "decoded_frame_create", "ui_queue_wait", "renderer_attach", "renderer_submit",
+        "offer_to_renderer_submit", "ack_handling"
+    };
+    private static final int MAX_PROFILE_DRAWS = 1200;
+    private static final String[] VIEW_PROFILE_STAGE_NAMES = new String[] {
+        "bitmap_create", "pixel_convert_and_set", "ui_install_queue", "ui_install",
+        "invalidate_to_draw", "view_draw"
+    };
 
     private final Handler ui = new Handler();
     private HandlerThread schedulerThread;
@@ -45,6 +58,15 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private Handler scheduler;
     private Handler sender;
     private final long[] latencyNs = new long[MAX_SAMPLES];
+    private long[][] profileSamples;
+    private long[][] viewProfileSamples;
+    private long[] viewProfileFrameIds;
+    private long[] profileFrameIds;
+    private long[] profileFrameTimestamps;
+    private long[] activeProfile;
+    private int profileCount;
+    private int viewProfileCount;
+    private boolean profileStages;
     private final Object responseLock = new Object();
     private final Object connectionLock = new Object();
     private volatile Messenger remote;
@@ -60,6 +82,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private volatile long runEndNs;
     private long nextDueNs;
     private volatile long sentAtNs;
+    private volatile long activeSourceSendCallNs;
     private long lastProgressNs;
     private boolean bound;
     private volatile boolean running;
@@ -161,6 +184,15 @@ public final class MessengerFramePerformanceActivity extends Activity {
         scheduler = new Handler(schedulerThread.getLooper());
         sender = new Handler(senderThread.getLooper());
         mode = getIntent() == null ? "" : getIntent().getStringExtra("cl_r12b_mode");
+        profileStages = getIntent() != null && getIntent().getBooleanExtra("cl_r12b_profile", false);
+        if (profileStages) {
+            profileSamples = new long[PROFILE_STAGE_NAMES.length][MAX_PROFILE_DRAWS];
+            viewProfileSamples = new long[VIEW_PROFILE_STAGE_NAMES.length][MAX_PROFILE_DRAWS];
+            viewProfileFrameIds = new long[MAX_PROFILE_DRAWS];
+            profileFrameIds = new long[MAX_PROFILE_DRAWS];
+            profileFrameTimestamps = new long[MAX_PROFILE_DRAWS];
+            activeProfile = new long[PROFILE_STAGE_NAMES.length];
+        }
         if (!"short".equals(mode) && !"soak".equals(mode)) {
             finishWithError("invalid_mode");
             return;
@@ -194,6 +226,8 @@ public final class MessengerFramePerformanceActivity extends Activity {
         offered = sent = hostAccepted = delivered = dropBackpressure = hostRejected = 0;
         transportErrors = pixelMismatches = maxInFlight = latencyCount = 0;
         sequence = 0L;
+        profileCount = 0;
+        viewProfileCount = 0;
         long duration = "short".equals(mode) ? SHORT_RUN_NS : SOAK_RUN_NS;
         runStartNs = System.nanoTime();
         runEndNs = runStartNs + duration;
@@ -224,6 +258,8 @@ public final class MessengerFramePerformanceActivity extends Activity {
             maxInFlight = 1;
             final long offerTime = now;
             final long currentSequence = ++sequence;
+            if (profileStages) Arrays.fill(activeProfile, 0L);
+            activeSourceSendCallNs = 0L;
             activePixels = null;
             activeGeneration = frameGeneration;
             activeSequence = currentSequence;
@@ -245,16 +281,27 @@ public final class MessengerFramePerformanceActivity extends Activity {
 
     private void sendSyntheticFrame(final long currentSequence, long offerTime,
             final long frameGeneration, final long targetEpoch, final Messenger target) {
+        final long senderStartedNs = profileStages ? System.nanoTime() : 0L;
+        if (profileStages) activeProfile[0] = senderStartedNs - offerTime;
+        long stageStartedNs = profileStages ? System.nanoTime() : 0L;
         byte[] pixels = new byte[FRAME_BYTES];
         byte marker = (byte) (currentSequence & 0xff);
         Arrays.fill(pixels, marker);
+        if (profileStages) activeProfile[1] = System.nanoTime() - stageStartedNs;
         long pts = offerTime;
         ParcelFileDescriptor descriptor = null;
         try {
             // The synthetic source is already tightly packed RGBA. Sending it
             // directly avoids an immutable DecodedFrame copy and a second
             // frame-sized ByteArrayOutputStream copy before the MemoryFile.
-            descriptor = MessengerFrameParcel.write(pixels);
+            MessengerFrameParcel.IoTiming sourceWriteTiming = profileStages
+                    ? new MessengerFrameParcel.IoTiming() : null;
+            descriptor = MessengerFrameParcel.write(pixels, sourceWriteTiming);
+            if (profileStages) {
+                activeProfile[2] = sourceWriteTiming.allocationNs;
+                activeProfile[3] = sourceWriteTiming.writeNs;
+                activeProfile[4] = sourceWriteTiming.descriptorNs;
+            }
             Bundle data = new Bundle();
             data.putInt(MessengerFrameHostService.KEY_WIDTH, WIDTH);
             data.putInt(MessengerFrameHostService.KEY_HEIGHT, HEIGHT);
@@ -268,6 +315,17 @@ public final class MessengerFramePerformanceActivity extends Activity {
             data.putInt(MessengerFrameHostService.KEY_CROP_BOTTOM, HEIGHT);
             data.putLong(MessengerFrameHostService.KEY_GENERATION, frameGeneration);
             data.putLong(MessengerFrameHostService.KEY_SEQUENCE, currentSequence);
+            data.putBoolean(MessengerFrameHostService.KEY_PROFILE, profileStages);
+            if (profileStages) {
+                data.putLong(MessengerFrameHostService.KEY_SOURCE_QUEUE_NS, activeProfile[0]);
+                data.putLong(MessengerFrameHostService.KEY_SOURCE_GENERATION_NS, activeProfile[1]);
+                data.putLong(MessengerFrameHostService.KEY_SOURCE_MEMORY_ALLOC_NS,
+                        sourceWriteTiming.allocationNs);
+                data.putLong(MessengerFrameHostService.KEY_SOURCE_MEMORY_WRITE_NS,
+                        sourceWriteTiming.writeNs);
+                data.putLong(MessengerFrameHostService.KEY_SOURCE_PFD_NS,
+                        sourceWriteTiming.descriptorNs);
+            }
             data.putParcelable(MessengerFrameHostService.KEY_PFD, descriptor);
             Message request = Message.obtain(null, MessengerFrameHostService.FRAME);
             request.replyTo = replies;
@@ -281,7 +339,11 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 activePixels = pixels;
                 sentAtNs = offerTime;
                 sent++;
+                long sendStartedNs = profileStages ? System.nanoTime() : 0L;
+                if (profileStages)
+                    data.putLong(MessengerFrameHostService.KEY_SOURCE_SEND_NS, sendStartedNs);
                 target.send(request);
+                if (profileStages) activeSourceSendCallNs = System.nanoTime() - sendStartedNs;
             }
         } catch (Exception failure) {
             if (descriptor != null) close(descriptor);
@@ -303,6 +365,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
     }
 
     private void onReply(Message message) {
+        final long ackStartedNs = profileStages ? System.nanoTime() : 0L;
         Bundle data = message.getData();
         String replyKind = data.getString(MessengerFrameHostService.KEY_REASON);
         if (message.arg1 == MessengerFrameHostService.STATS) {
@@ -348,6 +411,25 @@ public final class MessengerFramePerformanceActivity extends Activity {
         final ParcelFileDescriptor returned = data.getParcelable(MessengerFrameHostService.KEY_PFD);
         final int byteCount = data.getInt(MessengerFrameHostService.KEY_BYTES);
         final long pts = data.getLong(MessengerFrameHostService.KEY_PTS);
+        if (profileStages) {
+            activeProfile[0] = data.getLong(MessengerFrameHostService.KEY_SOURCE_QUEUE_NS);
+            activeProfile[1] = data.getLong(MessengerFrameHostService.KEY_SOURCE_GENERATION_NS);
+            activeProfile[2] = data.getLong(MessengerFrameHostService.KEY_SOURCE_MEMORY_ALLOC_NS);
+            activeProfile[3] = data.getLong(MessengerFrameHostService.KEY_SOURCE_MEMORY_WRITE_NS);
+            activeProfile[4] = data.getLong(MessengerFrameHostService.KEY_SOURCE_PFD_NS);
+            activeProfile[5] = activeSourceSendCallNs;
+            long hostReceiveNs = data.getLong(MessengerFrameHostService.KEY_HOST_RECEIVE_NS);
+            long hostReplyNs = data.getLong(MessengerFrameHostService.KEY_HOST_REPLY_NS);
+            long sourceSendNs = data.getLong(MessengerFrameHostService.KEY_SOURCE_SEND_NS);
+            activeProfile[6] = Math.max(0L, hostReceiveNs - sourceSendNs);
+            activeProfile[7] = data.getLong(MessengerFrameHostService.KEY_HOST_VALIDATE_NS);
+            activeProfile[8] = data.getLong(MessengerFrameHostService.KEY_HOST_READ_NS);
+            activeProfile[9] = data.getLong(MessengerFrameHostService.KEY_HOST_MEMORY_ALLOC_NS);
+            activeProfile[10] = data.getLong(MessengerFrameHostService.KEY_HOST_MEMORY_WRITE_NS);
+            activeProfile[11] = data.getLong(MessengerFrameHostService.KEY_HOST_PFD_NS);
+            activeProfile[12] = Math.max(0L, hostReplyNs - hostReceiveNs);
+            activeProfile[13] = Math.max(0L, ackStartedNs - hostReplyNs);
+        }
         final byte[] expectedPixels = activePixels;
         if (expectedPixels == null || activeGeneration != replyGeneration ||
                 activeSequence != replySequence) {
@@ -387,25 +469,35 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 boolean mismatch = false;
                 Exception failure = null;
                 try {
-                    byte[] result = MessengerFrameParcel.read(returned, byteCount);
+                    MessengerFrameParcel.IoTiming returnReadTiming = profileStages
+                            ? new MessengerFrameParcel.IoTiming() : null;
+                    byte[] result = MessengerFrameParcel.read(returned, byteCount, returnReadTiming);
+                    if (profileStages) activeProfile[14] = returnReadTiming.readNs;
+                    long compareStartedNs = profileStages ? System.nanoTime() : 0L;
                     mismatch = !Arrays.equals(expectedPixels, result);
+                    if (profileStages) activeProfile[15] = System.nanoTime() - compareStartedNs;
                     if (mismatch) throw new IOException("pixel_identity_failure");
+                    long decodeStartedNs = profileStages ? System.nanoTime() : 0L;
                     deliveredFrame = MessengerFrameParcel.decoded(WIDTH, HEIGHT, STRIDE,
                             pts, 0, 0, 0, WIDTH, HEIGHT, result);
+                    if (profileStages) activeProfile[16] = System.nanoTime() - decodeStartedNs;
                 } catch (Exception problem) {
                     failure = problem;
                 }
                 final DecodedFrame completedFrame = deliveredFrame;
                 final Exception completedFailure = failure;
                 final boolean pixelMismatch = mismatch;
+                final long uiPostedNs = profileStages ? System.nanoTime() : 0L;
                 ui.post(new Runnable() {
                     public void run() {
+                        if (profileStages) activeProfile[17] = System.nanoTime() - uiPostedNs;
                         completeAcceptedReply(replyGeneration, replySequence,
                                 completedFrame, completedFailure, pixelMismatch);
                     }
                 });
             }
         });
+        if (profileStages) activeProfile[21] = System.nanoTime() - ackStartedNs;
         if (!posted) {
             synchronized (responseLock) {
                 if (pendingResponseDescriptor == returned) pendingResponseDescriptor = null;
@@ -438,12 +530,46 @@ public final class MessengerFramePerformanceActivity extends Activity {
             return;
         }
         try {
+            long attachStartedNs = profileStages ? System.nanoTime() : 0L;
             if (renderer == null) {
                 renderer = new Display1OutputBackend(new HondaStyleSimulatorRendererHost(simulator),
                         new Display1OutputBackend.Viewport(0, 0, 800, 480), generation);
                 renderer.attach();
             }
+            if (profileStages && renderer.contentView() != null) {
+                renderer.contentView().setProfileListener(
+                        new org.claritylink.renderer.ClarityLinkContentView.ProfileListener() {
+                    public void onFrameProfile(long timestampNs, long bitmapCreateNs,
+                            long pixelConvertNs, long installQueueNs, long installNs,
+                            long invalidateToDrawNs, long drawNs) {
+                        if (viewProfileCount >= MAX_PROFILE_DRAWS) return;
+                        int frameIndex = Arrays.binarySearch(profileFrameTimestamps, 0,
+                                profileCount, timestampNs);
+                        if (frameIndex < 0) return;
+                        int index = viewProfileCount++;
+                        viewProfileFrameIds[index] = profileFrameIds[frameIndex];
+                        viewProfileSamples[0][index] = bitmapCreateNs;
+                        viewProfileSamples[1][index] = pixelConvertNs;
+                        viewProfileSamples[2][index] = installQueueNs;
+                        viewProfileSamples[3][index] = installNs;
+                        viewProfileSamples[4][index] = invalidateToDrawNs;
+                        viewProfileSamples[5][index] = drawNs;
+                    }
+                });
+            }
+            if (profileStages) activeProfile[18] = System.nanoTime() - attachStartedNs;
+            long renderStartedNs = profileStages ? System.nanoTime() : 0L;
             renderer.submit(deliveredFrame);
+            long submittedNs = profileStages ? System.nanoTime() : 0L;
+            if (profileStages && profileCount < MAX_PROFILE_DRAWS) {
+                activeProfile[19] = submittedNs - renderStartedNs;
+                activeProfile[20] = submittedNs - sentAtNs;
+                profileFrameIds[profileCount] = replySequence;
+                profileFrameTimestamps[profileCount] = deliveredFrame.presentationTimeNs;
+                for (int i = 0; i < PROFILE_STAGE_NAMES.length; i++)
+                    profileSamples[i][profileCount] = activeProfile[i];
+                profileCount++;
+            }
             hostAccepted++;
             delivered++;
             if (latencyCount < latencyNs.length) latencyNs[latencyCount++] = System.nanoTime() - sentAtNs;
@@ -600,7 +726,32 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 " host_memoryfiles_open=" + hostMemoryFilesOpen +
                 " host_reads=" + hostReads + " host_read_bytes=" + hostReadBytes +
                 " final_stats=" + finalStatsReceived);
+        if (profileStages) logProfileResults();
         if (status != null) status.setText("CL-R12-B " + mode + " finished; see emulator log");
+    }
+
+    private void logProfileResults() {
+        for (int stage = 0; stage < PROFILE_STAGE_NAMES.length; stage++) {
+            long[] sorted = Arrays.copyOf(profileSamples[stage], profileCount);
+            Arrays.sort(sorted);
+            Log.i(TAG, "R12B_STAGE stage=" + PROFILE_STAGE_NAMES[stage] +
+                    " samples=" + profileCount + " p50_us=" + percentile(sorted, 0.50) / 1000.0 +
+                    " p95_us=" + percentile(sorted, 0.95) / 1000.0 +
+                    " p99_us=" + percentile(sorted, 0.99) / 1000.0 +
+                    " max_us=" + (sorted.length == 0 ? 0 : sorted[sorted.length - 1] / 1000.0));
+        }
+        for (int stage = 0; stage < VIEW_PROFILE_STAGE_NAMES.length; stage++) {
+            long[] sorted = Arrays.copyOf(viewProfileSamples[stage], viewProfileCount);
+            Arrays.sort(sorted);
+            Log.i(TAG, "R12B_VIEW_STAGE stage=" + VIEW_PROFILE_STAGE_NAMES[stage] +
+                    " samples=" + viewProfileCount + " p50_us=" + percentile(sorted, 0.50) / 1000.0 +
+                    " p95_us=" + percentile(sorted, 0.95) / 1000.0 +
+                    " p99_us=" + percentile(sorted, 0.99) / 1000.0 +
+                    " max_us=" + (sorted.length == 0 ? 0 : sorted[sorted.length - 1] / 1000.0));
+        }
+        if (viewProfileCount > 0)
+            Log.i(TAG, "R12B_VIEW_FRAME_IDS count=" + viewProfileCount + " id_kind=sequence first=" +
+                    viewProfileFrameIds[0] + " last=" + viewProfileFrameIds[viewProfileCount - 1]);
     }
 
     private static long percentile(long[] sorted, double fraction) {
@@ -661,6 +812,12 @@ public final class MessengerFramePerformanceActivity extends Activity {
         if (bound) { unbindService(connection); bound = false; }
         if (schedulerThread != null) schedulerThread.quit();
         if (senderThread != null) senderThread.quit();
+        Log.i(TAG, "R12B_DESTROY mode=" + mode + " source_fd_after_destroy=" + fdCount() +
+                " source_memoryfiles_created=" + MessengerFrameParcel.memoryFilesCreated() +
+                " source_memoryfiles_closed=" + MessengerFrameParcel.memoryFilesClosed() +
+                " source_memoryfiles_open=" + MessengerFrameParcel.memoryFilesOpen() +
+                " in_flight=" + inFlight + " pending_response_pfd=" +
+                (pendingResponseDescriptor != null));
         super.onDestroy();
     }
 }

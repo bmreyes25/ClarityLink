@@ -90,7 +90,8 @@ grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
 }
 
 run_performance() {
-  local variant="$1" apk_path="$2" mode="${3:-short}" started="$receipt/perf-$1-start.txt"
+  local variant="$1" apk_path="$2" mode="${3:-short}" profile="${4:-false}" started="$receipt/perf-$1-start.txt"
+  local result_seen=false
   [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
   "$adb" -s "$serial" uninstall org.claritylink.independentdisplay.lab \
     > "$receipt/perf-$variant-uninstall.txt" 2>&1 || true
@@ -98,20 +99,23 @@ run_performance() {
   "$adb" -s "$serial" logcat -c
   "$adb" -s "$serial" shell am start -W \
     -n org.claritylink.independentdisplay.lab/org.claritylink.android.MessengerFramePerformanceActivity \
-    --es cl_r12b_mode "$mode" | tee "$started"
+    --es cl_r12b_mode "$mode" --ez cl_r12b_profile "$profile" | tee "$started"
   local timeout=90
   [[ "$mode" == soak ]] && timeout=720
   local deadline=$((SECONDS + timeout))
   while (( SECONDS < deadline )); do
     "$adb" -s "$serial" logcat -d -s ClarityLinkR12B > "$receipt/perf-$variant-logcat.txt"
     if grep -q "R12B_RESULT mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
-      grep -E 'R12B_(START|RESULT|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
+      result_seen=true
+    fi
+    if [[ "$result_seen" == true ]] && grep -q "R12B_DESTROY mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
+      grep -E 'R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
         "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
       return 0
     fi
     sleep 1
   done
-  echo "Timed out waiting for $variant performance run" >&2
+  echo "Timed out waiting for $variant performance/destruction result" >&2
   exit 8
 }
 
@@ -120,6 +124,8 @@ candidate_apk="${CL_R12_CANDIDATE_APK:-$apk}"
 if [[ -n "$baseline_apk" ]]; then
   run_performance baseline "$baseline_apk"
   run_performance optimized "$candidate_apk"
+  run_performance optimized-profile-control "$candidate_apk"
+  run_performance optimized-profile "$candidate_apk" short true
   if python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-baseline-logcat.txt" \
       > "$receipt/perf-baseline-gate.txt" 2>&1 &&
       python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-optimized-logcat.txt" \

@@ -52,6 +52,20 @@ public final class MessengerFrameHostService extends Service {
     static final String KEY_HOST_MEMORY_BYTES = "host_memory_bytes_created";
     static final String KEY_HOST_READS = "host_reads_completed";
     static final String KEY_HOST_READ_BYTES = "host_read_bytes";
+    static final String KEY_PROFILE = "profile_stages";
+    static final String KEY_SOURCE_SEND_NS = "source_send_ns";
+    static final String KEY_SOURCE_QUEUE_NS = "source_queue_ns";
+    static final String KEY_SOURCE_GENERATION_NS = "source_generation_ns";
+    static final String KEY_SOURCE_MEMORY_ALLOC_NS = "source_memory_alloc_ns";
+    static final String KEY_SOURCE_MEMORY_WRITE_NS = "source_memory_write_ns";
+    static final String KEY_SOURCE_PFD_NS = "source_pfd_ns";
+    static final String KEY_HOST_RECEIVE_NS = "host_receive_ns";
+    static final String KEY_HOST_VALIDATE_NS = "host_validate_ns";
+    static final String KEY_HOST_READ_NS = "host_read_ns";
+    static final String KEY_HOST_MEMORY_ALLOC_NS = "host_memory_alloc_ns";
+    static final String KEY_HOST_MEMORY_WRITE_NS = "host_memory_write_ns";
+    static final String KEY_HOST_PFD_NS = "host_pfd_ns";
+    static final String KEY_HOST_REPLY_NS = "host_reply_ns";
 
     private static final String TAG = "ClarityLinkMessengerLab";
     private long generation;
@@ -120,6 +134,7 @@ public final class MessengerFrameHostService extends Service {
     }
 
     private void receiveFrame(Message message) {
+        long hostReceiveNs = System.nanoTime();
         android.os.Bundle data = message.getData();
         long requestedGeneration = data.getLong(KEY_GENERATION, -1L);
         long sequence = data.getLong(KEY_SEQUENCE, -1L);
@@ -128,6 +143,7 @@ public final class MessengerFrameHostService extends Service {
         int stride = data.getInt(KEY_STRIDE, 0);
         int byteCount = data.getInt(KEY_BYTES, 0);
         ParcelFileDescriptor incoming = data.getParcelable(KEY_PFD);
+        long validationStartedNs = hostReceiveNs;
         if (requestedGeneration != generation || sequence <= lastSequence) {
             close(incoming); reply(message, false, "stale_frame", null); return;
         }
@@ -139,10 +155,23 @@ public final class MessengerFrameHostService extends Service {
                 stride < (long) width * 4L || expected != byteCount || expected > MessengerFrameParcel.MAX_BYTES) {
             close(incoming); reply(message, false, "invalid_frame_geometry", null); return;
         }
+        long hostValidateNs = System.nanoTime() - validationStartedNs;
         inFlight++;
         try {
-            byte[] pixels = MessengerFrameParcel.read(incoming, byteCount);
-            ParcelFileDescriptor returned = MessengerFrameParcel.write(pixels);
+            MessengerFrameParcel.IoTiming readTiming = data.getBoolean(KEY_PROFILE)
+                    ? new MessengerFrameParcel.IoTiming() : null;
+            byte[] pixels = MessengerFrameParcel.read(incoming, byteCount, readTiming);
+            MessengerFrameParcel.IoTiming writeTiming = data.getBoolean(KEY_PROFILE)
+                    ? new MessengerFrameParcel.IoTiming() : null;
+            ParcelFileDescriptor returned = MessengerFrameParcel.write(pixels, writeTiming);
+            if (data.getBoolean(KEY_PROFILE)) {
+                data.putLong(KEY_HOST_RECEIVE_NS, hostReceiveNs);
+                data.putLong(KEY_HOST_VALIDATE_NS, hostValidateNs);
+                data.putLong(KEY_HOST_READ_NS, readTiming.readNs);
+                data.putLong(KEY_HOST_MEMORY_ALLOC_NS, writeTiming.allocationNs);
+                data.putLong(KEY_HOST_MEMORY_WRITE_NS, writeTiming.writeNs);
+                data.putLong(KEY_HOST_PFD_NS, writeTiming.descriptorNs);
+            }
             lastSequence = sequence;
             Log.i(TAG, "MESSENGER_FRAME_ACCEPTED generation=" + generation + " sequence=" + sequence +
                     " bytes=" + byteCount + " in_flight=" + inFlight + " process=" + Process.myPid());
@@ -180,6 +209,17 @@ public final class MessengerFrameHostService extends Service {
         data.putLong(KEY_HOST_READ_BYTES, MessengerFrameParcel.readBytes());
         data.putLong(KEY_GENERATION, request.getData().getLong(KEY_GENERATION, -1L));
         data.putLong(KEY_SEQUENCE, request.getData().getLong(KEY_SEQUENCE, -1L));
+        if (request.getData().getBoolean(KEY_PROFILE)) {
+            for (String key : new String[] { KEY_SOURCE_SEND_NS, KEY_SOURCE_QUEUE_NS,
+                    KEY_SOURCE_GENERATION_NS, KEY_SOURCE_MEMORY_ALLOC_NS,
+                    KEY_SOURCE_MEMORY_WRITE_NS, KEY_SOURCE_PFD_NS, KEY_HOST_RECEIVE_NS,
+                    KEY_HOST_VALIDATE_NS, KEY_HOST_READ_NS, KEY_HOST_MEMORY_ALLOC_NS,
+                    KEY_HOST_MEMORY_WRITE_NS, KEY_HOST_PFD_NS }) {
+                if (request.getData().containsKey(key))
+                    data.putLong(key, request.getData().getLong(key));
+            }
+            data.putLong(KEY_HOST_REPLY_NS, System.nanoTime());
+        }
         for (String key : new String[] { KEY_WIDTH, KEY_HEIGHT, KEY_STRIDE, KEY_PTS, KEY_ROTATION,
                 KEY_CROP_LEFT, KEY_CROP_TOP, KEY_CROP_RIGHT, KEY_CROP_BOTTOM, KEY_BYTES })
             if (request.getData().containsKey(key)) data.putInt(key, request.getData().getInt(key));
