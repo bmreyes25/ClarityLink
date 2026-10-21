@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged. CL-R12-F PR #52 exact-head scope digest refresh (2026-10-21): the experimental candidate intentionally changes only the recorded .gitignore workflow-script allowlist, IPC test service selection, and API17 build inputs/portable permission matcher. Their hashes now match this candidate tree so health validation checks the exact content. This is an integrity refresh only; it does not extend or claim independent ECC review, alter review_status, or claim approval. CL-R12-F2 scope digest refresh (2026-10-21): tools/build_cl_imp_03_apks.sh now accepts an explicit shared lab keystore path for same-certificate baseline/optimized emulator comparisons; default signing remains output-local. Hash refresh records exact content only, extends no ECC review, leaves review_status unchanged, and makes no approval claim.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -16,7 +16,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "5b184273c539f86e406dcc60aa4604a0ace8aac746683bb0a72bc8be0d083ef9"
+      "sha256": "839cb0aae2fcac18e54d8f29eb0447b03253c43fabc3b261de5aadabf73d9047"
     },
     {
       "path": "AGENTS.md",
@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "99ea73a24c5f844ff810d458cf3e10d8126fd3b196587b71dc7d4fb73575133e"
+      "sha256": "3f8f963b59fbc678e91f599a8857d56ab32a0de92faa2c278a9cbafe82b4fe38"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
@@ -48,7 +48,7 @@
     },
     {
       "path": "docs/README.md",
-      "sha256": "3f57ec6260346336086e8f82841b6d51c332bf79d09a66b1df24b10b2b00c61e"
+      "sha256": "45d7581d44de19358803074860731c3866d2bb20dd40354f0e6262be836ebd5f"
     },
     {
       "path": "docs/development/blocker-resolution.md",
@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "6c87fefe328bea1f97c48cb6f43a3197034161a20ec9b71e47b7cca32dba906e"
+      "sha256": "ac4f4b68d8ab7e6db9158ac17a3ea93709d8c3e23c77d55bbda4f33c47be3e2c"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,7 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "2b35d3cb504726e14cd23377a101b05ff8a76f7af98959d51acea62004f03e02"
+      "sha256": "784f60aeaf16967adaf9cfef555adb0f36bb6c6a6a8df52961a7700e5a8a65a6"
     },
     {
       "path": "docs/status/milestones.json",
@@ -100,7 +100,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "7dfcdf371250e5761d455afc6ec7b1d09dc3ff94fe0e152b943f4dd12761d0ee"
+      "sha256": "c9c9296453fda0c5e454996801c409842492a78736c392047ef4cf2c24a3f13b"
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
@@ -140,7 +140,7 @@
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
-      "sha256": "a3c484e4218c818293a299035845683590120048e378814ecbd07539ecb97fe1"
+      "sha256": "1e9e45670c01659d7c560bcffd1150a5a1d3ea654ea5bad763c4f105b399f517"
     },
     {
       "path": "tools/check_repo_health.py",
