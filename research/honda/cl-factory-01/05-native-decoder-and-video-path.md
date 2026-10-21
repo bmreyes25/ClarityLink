@@ -9,7 +9,7 @@ Exact symbol names and decompiled bodies are retained in private evidence.
 flowchart LR
   iPhone[iPhone CarPlay] -->|USB/iAP2| Recv[native AirPlay-family receiver\n(jmcs)]
   Recv -->|AES-encrypted screen stream| Cfg[screen-config read]
-  Cfg -->|android_mediacodec_ctx| MC[Android MediaCodec decoder]
+  Cfg -->|screen config → decoder ctx| MC[Android MediaCodec decoder]
   MC -->|decoded frames| VOut[platform video-out driver]
   Recv <-->|callback bind (register)| Proxy[libcarplay_proxy]
   Proxy -->|single screen callback set| VOut
