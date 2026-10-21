@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "99ea73a24c5f844ff810d458cf3e10d8126fd3b196587b71dc7d4fb73575133e"
+      "sha256": "3f8f963b59fbc678e91f599a8857d56ab32a0de92faa2c278a9cbafe82b4fe38"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
@@ -48,7 +48,7 @@
     },
     {
       "path": "docs/README.md",
-      "sha256": "3f57ec6260346336086e8f82841b6d51c332bf79d09a66b1df24b10b2b00c61e"
+      "sha256": "45d7581d44de19358803074860731c3866d2bb20dd40354f0e6262be836ebd5f"
     },
     {
       "path": "docs/development/blocker-resolution.md",
@@ -76,7 +76,7 @@
     },
     {
       "path": "docs/status/blockers.md",
-      "sha256": "6c87fefe328bea1f97c48cb6f43a3197034161a20ec9b71e47b7cca32dba906e"
+      "sha256": "ac4f4b68d8ab7e6db9158ac17a3ea93709d8c3e23c77d55bbda4f33c47be3e2c"
     },
     {
       "path": "docs/status/capabilities.md",
@@ -92,7 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "2b35d3cb504726e14cd23377a101b05ff8a76f7af98959d51acea62004f03e02"
+      "sha256": "784f60aeaf16967adaf9cfef555adb0f36bb6c6a6a8df52961a7700e5a8a65a6"
     },
     {
       "path": "docs/status/milestones.json",

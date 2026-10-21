@@ -1,5 +1,13 @@
 # Next action
 
+## Current action — CL-MASTER-01 public roadmap and campaign tracking — 2026-10-20
+
+The current program source of truth is [CL-MASTER-01](docs/roadmap/claritylink-master-plan.md). This roadmap is based on `origin/main` `c30a385455449b3c1d7b5cc65bb74c88c694b7f8`; it preserves the active CL-R4 worktree and its private untracked research. Honda integration remains NO-GO: receiver Type111 ownership and Display 1 frame admission contracts are unknown, and `safeForHonda() == false`.
+
+**NEXT:** finish the existing CL-R13-A reference-library PR #53 review without duplicating its work, then complete CL-R12-F's full API17 runtime/performance acceptance and reconcile CL-R11-A/R12-B/C/D/E evidence. CL-R12-F PR #52 is partial; its hosted runtime smoke passed, but Offline CI failed. Do not run Honda ADB, connect a vehicle, or start a live-iPhone test under CL-MASTER-01. See the [campaign gates](docs/roadmap/milestone-acceptance-gates.md), [readiness](docs/status/integration-readiness.md), and [safety boundary](docs/security/vehicle-safety-gates.md).
+
+Historical action snapshots follow. They are preserved as records and are not current instructions.
+
 ## R7C5 final software closure — blocked — 2026-10-08
 
 R7C5 preserved the existing R7C4 work and passed the full suite (902 passed, 14 skipped), API17 Java/APK build, host socket/R7C1 ASan/UBSan and TSan, and local NDK r23c ARMv7/API17 build/import audit (zero unknown imports). The API17 emulator runner failed before boot because its system image lacks `devices.xml`; no further ADB calls were made after an unowned target appeared. Deterministic framework races, Android native socket fault/per-cycle coverage, and complete per-cycle resource accounting remain open. Decision: `R7C_FRAMEWORK_RACE_BLOCKED`; R7D stays closed and PR #17 is not merged. **NEXT:** restore a safely isolated API17 AVD and finish the deterministic framework and native socket closure matrix. See [R7C5 report](step-reports/43t1-r7c5-final-software-closure.md). No Honda or vehicle execution occurred.

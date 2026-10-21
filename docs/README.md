@@ -8,13 +8,16 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 - [Getting started](getting-started/overview.md) and [offline quickstart](getting-started/quickstart.md)
 - [Architecture and invariants](architecture/overview.md)
 - [Current status](status/current.md) and [capability matrix](status/capabilities.md)
-- [CL-R0–CL-R8 roadmap](roadmap/final-development-plan.md)
+- [CL-MASTER-01 Type111 integration program](roadmap/claritylink-master-plan.md) — current end-to-end objective, evidence gates and campaign dependencies.
+- [CL-R0–CL-R8 historical roadmap](roadmap/final-development-plan.md)
 - [Glossary](glossary.md)
 
 ## Current engineering state
 
 - [Next action](../NEXT_ACTION.md) — current action followed by preserved historical snapshots.
 - [Milestone blockers](status/blockers.md)
+- [Master integration readiness](status/integration-readiness.md) and [evidence ledger](status/evidence-ledger.md)
+- [Master campaign issue index](status/campaign-issues.md)
 - [Project state](../PROJECT_STATE.md) — historical rolling ledger.
 - [Evidence index](../EVIDENCE_INDEX.md) — claim provenance and evidence limits.
 - [Project records guide](project/records.md) — explains how these records fit together.
@@ -37,6 +40,7 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 - [Evidence classification](development/evidence-classification.md)
 - [Source-pinned CarPlay AltScreen prior art](research/carplay-altscreen-prior-art.md)
 - [Honda Type111 research plan](research/honda-type111-research-plan.md)
+- [Honda integration evidence](research/honda/README.md) and [CL-R13-A reference status](research/cl-master-01-reference-status.md)
 - [Chronological step reports](../step-reports/README.md)
 
 ## Safety and vehicle testing
@@ -44,6 +48,7 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 - [Vehicle testing and evidence gates](safety/vehicle-testing.md)
 - [43T1-R1 runtime failure matrix](safety/runtime-failure-matrix.md)
 - [Vehicle test proposal form](../.github/ISSUE_TEMPLATE/vehicle-test-proposal.yml)
+- [Master-program safety gates](security/vehicle-safety-gates.md) and [public/private evidence boundary](security/public-private-evidence-boundary.md)
 - [Security reporting policy](../SECURITY.md)
 
 ## Offline demonstration
