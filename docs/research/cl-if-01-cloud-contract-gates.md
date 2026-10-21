@@ -1,8 +1,8 @@
 # CL-IF-01 — Honda receiver and Display 1 contract gates (public-safe audit)
 
-**Audit date:** 2026-10-21  
-**Campaign:** [Issue #60](https://github.com/bmreyes25/ClarityLink/issues/60)  
-**Disposition:** **NO-GO — both Honda integration contracts remain unestablished.**  
+**Audit date:** 2026-10-21
+**Campaign:** [Issue #60](https://github.com/bmreyes25/ClarityLink/issues/60)
+**Disposition:** **NO-GO — both Honda integration contracts remain unestablished.**
 **Execution boundary:** Remote GitHub source and previously published sanitized research only. No Honda connection, ADB, live iPhone, factory service invocation, decompilation, private binary handling, code implementation, or vehicle operation in this audit. `safeForHonda() == false`.
 
 ## Purpose and evidence terminology
