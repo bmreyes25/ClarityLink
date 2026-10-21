@@ -22,8 +22,8 @@ reported as a blocker, and only the independently testable offline components ar
 | M2 | CarPlay receiver + Type110 reconstruction | **COMPLETE** (reports 03,05) — Java+native graph; MediaCodec decode; singleton registration code-confirmed |
 | M3 | Factory Navigation + Display 1 architecture | **IN PROGRESS** (reports 06,07,08) — structured-data flow + two-layer warning composition mapped |
 | M4 | Custom compatibility architecture decision | **IN PROGRESS** (report 09) — Option E selected; B/C gated on authorized hw + admission |
-| M5 | Type111 control/transport (offline, testable) | **IN PROGRESS** — `frame_gate.py` (bounded generation-gated delivery, 11 tests) |
-| M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `src/claritylink-honda/factory_integration_contract.py` (8 tests) |
+| M5 | Type111 control/transport (offline, testable) | **IN PROGRESS** — `frame_gate.py` (11) + structured cluster-nav model `cluster_navigation_model.py` (11) |
+| M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `factory_integration_contract.py` (8) + `cluster_navigation_model.py` (G-04, 11) |
 | M7 | Synthetic concurrent Type110/Type111 integration tests | **IN PROGRESS** — `tests/integration/test_cl_factory_01_dual_stream_gate.py` (7 scenarios) |
 | M8 | Android API17 compatibility regression | not started |
 | M9 | Bounded read-only ADB collection plan (for separate approval) | **DRAFTED** (report 11) — inert; awaits owner approval |
