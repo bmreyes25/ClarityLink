@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "updated": "2026-10-20",
-  "current_campaign": "CL-R4 reliability and public-source publication complete; OEM contract investigation remains",
+  "current_campaign": "CL-R4 reliability complete; CL-R13-A reference publication in progress; OEM contract investigation remains",
   "current_milestone": "CL-R4",
   "current_milestone_state": "COMPLETE",
   "next_technical_milestone": "CL-R5",
@@ -92,6 +92,17 @@
       "state": "PLANNED",
       "evidence": [
         "docs/safety/vehicle-testing.md"
+      ]
+    }
+  ],
+  "reference_campaigns": [
+    {
+      "id": "CL-R13-A",
+      "title": "Install REA and publish xcertplay Type111 research references",
+      "state": "IN_PROGRESS",
+      "evidence": [
+        "docs/research/cl-r13-a-reference-integration.md",
+        "docs/research/references/README.md"
       ]
     }
   ]

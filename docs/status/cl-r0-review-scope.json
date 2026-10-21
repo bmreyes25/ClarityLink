@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged. CL-R12-F PR #52 exact-head scope digest refresh (2026-10-21): the experimental candidate intentionally changes only the recorded .gitignore workflow-script allowlist, IPC test service selection, and API17 build inputs/portable permission matcher. Their hashes now match this candidate tree so health validation checks the exact content. This is an integrity refresh only; it does not extend or claim independent ECC review, alter review_status, or claim approval. CL-R12-F2 scope digest refresh (2026-10-21): tools/build_cl_imp_03_apks.sh now accepts an explicit shared lab keystore path for same-certificate baseline/optimized emulator comparisons; default signing remains output-local. Hash refresh records exact content only, extends no ECC review, leaves review_status unchanged, and makes no approval claim.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged. CL-R12-F PR #52 exact-head scope digest refresh (2026-10-21): the experimental candidate intentionally changes only the recorded .gitignore workflow-script allowlist, IPC test service selection, and API17 build inputs/portable permission matcher. Their hashes now match this candidate tree so health validation checks the exact content. This is an integrity refresh only; it does not extend or claim independent ECC review, alter review_status, or claim approval. CL-R12-F2 scope digest refresh (2026-10-21): tools/build_cl_imp_03_apks.sh now accepts an explicit shared lab keystore path for same-certificate baseline/optimized emulator comparisons; default signing remains output-local. Hash refresh records exact content only, extends no ECC review, leaves review_status unchanged, and makes no approval claim. CL-R13-A publication integrity refresh (2026-10-21): exact hashes were refreshed for README.md, docs/README.md, docs/status/current.md, and docs/status/milestones.json to reflect CL-R13-A research navigation and status updates. This records provenance only; it does not alter review_status, extend ECC review, or claim independent approval.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "3f8f963b59fbc678e91f599a8857d56ab32a0de92faa2c278a9cbafe82b4fe38"
+      "sha256": "0bd7ef711a619bee28868125423798dda08b649cef6dea172920c1c028e4838d"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
@@ -48,7 +48,7 @@
     },
     {
       "path": "docs/README.md",
-      "sha256": "45d7581d44de19358803074860731c3866d2bb20dd40354f0e6262be836ebd5f"
+      "sha256": "76e1056e8f213705e3d8a0ff608d0ce87e4600a7a8931549422b31f81af7170f"
     },
     {
       "path": "docs/development/blocker-resolution.md",
@@ -92,11 +92,11 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "784f60aeaf16967adaf9cfef555adb0f36bb6c6a6a8df52961a7700e5a8a65a6"
+      "sha256": "6c866a1c5ee8f60623556d24dbf67146f4d6416d5ebb37d9b02106ed394df544"
     },
     {
       "path": "docs/status/milestones.json",
-      "sha256": "9a9653f58aec290150ef8ba2a1017249aa4a0a5f5064eb2f4302a5f801390032"
+      "sha256": "43f6e77c57ba44fbca40e57c18d10f5bb7c300b915836bfebe2f12e58cdcc9ae"
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",

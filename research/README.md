@@ -13,6 +13,7 @@
 | Evidence and inventory | `evidence/`, `inventory/`, `acquisition/` | [second-display evidence ledger](evidence/second-display-ledger.md), [historical acquisition recovery guide (superseded)](acquisition/TERMINAL_RESUME_GUIDE.md) |
 | Simulator and digital twin | `simulator/`, `local-model/` | [simulator notes](simulator/), [offline visual demo](../demo/type111/README.md) |
 | Native and deployment research | `native/`, `verification/`, `deployment/` | [PREP2 restoration verifier](runtime/43t1-restoration-verifier.md), [PREP2 offline readiness](../step-reports/43t1-prep2-offline-runtime-integration-readiness.md) |
+| REA and secondary-display references | `docs/research/references/` | [CL-R13-A reference library](../docs/research/references/README.md), [xcertplay Type111 architecture](../docs/research/references/xcertplay-type111-architecture.md) |
 | Historical probes and plans | `probes/`, `plans/`, `progress/`, `resources/`, `logs/` | Use the [chronological step-report index](../step-reports/README.md) and repository search; these areas retain prior investigations and negative results. |
 
 ## Evidence and privacy
