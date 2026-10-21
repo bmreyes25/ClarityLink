@@ -3,7 +3,7 @@
 Status: **PARTIAL — controlled short A/B completed; performance and reliability acceptance remain unmet**
 PR: [#52](https://github.com/bmreyes25/ClarityLink/pull/52)
 Issue: [#58](https://github.com/bmreyes25/ClarityLink/issues/58)
-Hosted run: [API 17 runtime, A/B, and short-run receipts](https://github.com/bmreyes25/ClarityLink/actions/runs/39555976565)
+Hosted runs: [paired A/B 1](https://github.com/bmreyes25/ClarityLink/actions/runs/39555976565), [paired A/B 2 at this report's head](https://github.com/bmreyes25/ClarityLink/actions/runs/39556434895)
 
 ## Scope and safety
 
@@ -29,8 +29,8 @@ Populate this section from the attached run artifacts only. Keep the baseline an
 | --- | --- |
 | Build and API 17 runtime identity | PASS — Ubuntu 22.04 x86-64/KVM; Android 4.2.2/API 17/x86; emulator package 37.2.12; `swiftshader_indirect` |
 | Original synthetic CL-R12 scenario | PASS — exact pixels, bounded queue, stale-generation rejection, Navigation withdrawal, interrupt preemption, synthetic host-process recovery, and Type110 isolation |
-| Baseline 30-second performance | **FAIL gate** — offered 29.975 FPS; delivered 14.421 FPS; p50/p95/p99 51.33/69.55/80.08 ms; 467/900 frames dropped (51.9%); queue high-water 1 |
-| Optimized 30-second performance | **FAIL gate** — offered 29.982 FPS; delivered 15.307 FPS; p50/p95/p99 38.74/59.46/73.16 ms; 441/901 frames dropped (49.0%); queue high-water 1 |
+| Baseline 30-second performance | **FAIL gate** — two runs delivered 14.421 and 14.218 FPS (mean 14.320); p95 69.55 and 73.90 ms (mean 71.73); drops 51.9% and 52.6%; queue high-water 1 |
+| Optimized 30-second performance | **FAIL gate** — two runs delivered 15.307 and 19.333 FPS (mean 17.320); p95 59.46 and 52.94 ms (mean 56.20); drops 48.9% and 35.6%; queue high-water 1 |
 | Optimized 10-minute soak | **Not run** — both short runs failed one or more predeclared gates |
 | Frame bytes and MemoryFiles | PASS for both short runs — no pixel mismatch, create/close counters balanced, open count zero in both processes |
 | Heap and descriptors | Heap deltas stayed within 8 MiB. Producer descriptor count was 46→49 in both runs, exceeding the gate of +2; host stayed 32→32. This sample is before Activity destruction and does not establish post-destruction cleanup. |
@@ -40,7 +40,7 @@ Populate this section from the attached run artifacts only. Keep the baseline an
 
 ### Interpretation
 
-The controlled sample shows the optimized candidate delivered 0.89 more frames/s than the baseline (about 6.1%) and reduced p95 latency by about 10.1 ms. Both remain below the 27 FPS and 50 ms p95 gates, with nearly half of offered frames dropped. These are single 30-second samples; no repeated-run variance was measured. The optimization commit changes frame copying and reply processing/lifecycle handling together, so the result cannot isolate the contribution of the copy removal. Stage timing and process CPU/PSS were not collected, so the bottleneck is not localized by these measurements.
+Across two paired workflow runs, the optimized candidate averaged 3.00 more delivered frames/s than baseline and a 15.53 ms lower p95. The optimized result varied from 15.31 to 19.33 FPS and from 59.46 to 52.94 ms p95 across the two runs, showing material run-to-run variability. Both variants remain below the 27 FPS and 50 ms p95 gates, and drops remain above the 10% limit. These short samples do not support a stable performance claim. The optimization commit changes frame copying and reply processing/lifecycle handling together, so the result cannot isolate the contribution of copy removal. Stage timing and process CPU/PSS were not collected, so the bottleneck is not localized by these measurements.
 
 An earlier run, [39555068735](https://github.com/bmreyes25/ClarityLink/actions/runs/39555068735), is excluded from A/B interpretation: both builds used the optimized source, and the baseline APK installation failed because the APKs had different signing certificates. The workflow now pins and verifies the actual baseline source digest and signs both builds with one lab key. The valid run's baseline and optimized APK SHA-256 values are recorded in its `apk-ab.sha256` artifact.
 
