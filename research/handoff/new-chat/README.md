@@ -1,5 +1,5 @@
 # ClarityLink session handoff
 
-Use `START_HERE.md` as the first message in a new Codex or Ollama session. It states the narrowed ClarityLink goal, current Step 5B hold point, safety boundaries, and diagnostics-first next action. It contains no raw vehicle captures or firmware.
+Use `START_HERE.md` as optional session context. The active repository root and its current `AGENTS.md`, `NEXT_ACTION.md`, `docs/status/current.md`, and `docs/status/milestones.json` are authoritative. Check live GitHub refs for current branch and PR state.
 
-Project repository: `/Users/bmreyes24/ClarityLab/clarity-analysis`
+This directory preserves historical handoff context; it is not the default project folder or a Git root. Open the actual ClarityLink repository root in Codex Desktop.

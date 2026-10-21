@@ -1,0 +1,30 @@
+{
+  "description": "ClarityLink local publication checks. Hooks are read-only and require Codex trust approval.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/session_start_publish_audit.py\"",
+            "timeout": 3,
+            "statusMessage": "Checking local ClarityLink repository and branch"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_publish_guard.py\"",
+            "timeout": 3,
+            "statusMessage": "Checking ClarityLink publication status"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -40,6 +40,21 @@ These rules apply to every Codex campaign in this repository.
 - Never automatically merge Honda integration, receiver authentication or security, vehicle-control, factory-warning, or `safeForHonda()` changes; unverified or failing code; or historical branches containing private data. Keep auto-merge disabled for these categories and use the existing protected-main workflow. Do not weaken Honda safety gates.
 - Never force-push, discard local work, remove worktrees, or delete research files as part of routine campaign cleanup.
 
+## Mandatory local execution and GitHub checkpoints
+
+- Execute ClarityLink work locally on the authorized Mac. REA/Ghidra/JADX, macOS development tools, Android API 17 build tools, USB/test equipment, and separately authorized private evidence remain local. Do not move development to Codex Cloud and do not create another repository.
+- `origin` must identify `bmreyes25/ClarityLink`. Use the `gh` credential helper/Keychain-backed login; never put credentials in files, commands, or logs. Do not weaken sandboxing globally.
+- Every coherent approved development unit must end with a live GitHub checkpoint before unrelated work begins. A local commit, clean worktree, or Codex response is not proof of publication. Verify `git ls-remote` SHA equals local `HEAD` using `tools/verify_remote_publication.py`.
+- Use `tools/publish_checkpoint.sh` with explicit task ID, branch, file list, message, verification level, and optional existing PR. Never stage repository-wide. Review full staged content and classify ignored files before publication.
+- `VERIFIED` requires a successful verification command. `WIP_UNVERIFIED` may be pushed only when its entire explicit scope is public-safe; this repository is public, so never include newly sensitive or restricted material. Clearly label WIP, do not create a PR for a first WIP, resume on the same branch, and never merge it automatically. Record failing or incomplete checks honestly.
+- Never publish a WIP or any source whose public safety is uncertain. Preserve it locally and use an approved restricted backup; report that exception and blocker. No publish operation requires or triggers car access.
+- Each concurrent Codex session owns its own feature branch/worktree and explicit file scope. Do not switch to, update, or publish another session's branch. Do not routinely edit shared roadmap/status files; only a designated maintenance task reconciles canonical global status.
+- Read actual remote ancestry before branch changes. Do not create speculative merges or rewrite history to make a branch appear current. Never force-push or push directly to protected `main`.
+- A final PASS requires remote SHA verification. Every final development report includes repository, branch, local SHA, remote SHA, commit URL, PR URL (or none), tests, worktree status, unpushed commit count, uncommitted source count, and pending blockers. If any source or commit is unpublished, say so and do not report completion.
+- `.codex/hooks.json` configures read-only SessionStart and Stop audits. The Stop hook may request another bounded turn but must never commit/push unknown files; honor `stop_hook_active` and report a blocker after the continuation has already been used. Hooks are not crash protection and run only after project trust approval in Codex Desktop.
+- `tools/check_source_discovery.py` reports source-like files excluded by ignore rules. Review each result; never auto-add ignored files.
+- Maintain `safeForHonda() == false`. Honda/ADB/vehicle use remains separately gated and owner-authorized; publication and CI must never connect to the car.
+
 ## Non-negotiable safety boundaries
 
 - `safeForHonda()` must remain false.
