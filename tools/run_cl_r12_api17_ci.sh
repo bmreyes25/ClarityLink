@@ -92,6 +92,7 @@ grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
 run_performance() {
   local variant="$1" apk_path="$2" mode="${3:-short}" profile="${4:-false}" started="$receipt/perf-$1-start.txt"
   local result_seen=false
+  local destroy_seen=false
   [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
   "$adb" -s "$serial" uninstall org.claritylink.independentdisplay.lab \
     > "$receipt/perf-$variant-uninstall.txt" 2>&1 || true
@@ -108,7 +109,17 @@ run_performance() {
     if grep -q "R12B_RESULT mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
       result_seen=true
     fi
-    if [[ "$result_seen" == true ]] && grep -q "R12B_DESTROY mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
+    if grep -q "R12B_DESTROY mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
+      destroy_seen=true
+    fi
+    if [[ "$result_seen" == true && "$destroy_seen" == true ]]; then
+      grep -E 'R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
+        "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
+      return 0
+    fi
+    if [[ "$result_seen" == true && "$mode" != soak && $((SECONDS - deadline + timeout)) -ge 5 ]]; then
+      echo "R12B_DESTROY_MISSING mode=$mode; continuing with teardown evidence incomplete" \
+        | tee "$receipt/perf-$variant-destroy-missing.txt"
       grep -E 'R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
         "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
       return 0
