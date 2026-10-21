@@ -58,12 +58,19 @@ jobs:
           fi
           echo "sdkmanager=$sdkmanager" >> "$GITHUB_OUTPUT"
           "$sdkmanager" --list --include_obsolete | tee sdk-package-query.txt
-          for package in 'platforms;android-17' 'build-tools;35.0.0' 'emulator' 'system-images;android-17;default;x86'; do
-            if ! rg -F -q "$package" sdk-package-query.txt; then
+          for package in 'build-tools;35.0.0' 'emulator' 'system-images;android-17;default;x86'; do
+            if ! grep -F -q "$package" sdk-package-query.txt; then
               echo "MISSING_PACKAGE=$package" | tee -a sdk-package-query.txt
               exit 20
             fi
           done
+          if grep -F -q 'platforms;android-17' sdk-package-query.txt; then
+            echo 'api17_platform=listed' >> "$GITHUB_OUTPUT"
+            echo 'API17_PLATFORM_PACKAGE_LISTED' | tee -a sdk-package-query.txt
+          else
+            echo 'api17_platform=archived' >> "$GITHUB_OUTPUT"
+            echo 'API17_PLATFORM_PACKAGE_NOT_LISTED; use verified official Google archive android-17_r03.zip' | tee -a sdk-package-query.txt
+          fi
           echo 'API17_PACKAGE_QUERY_PASS' | tee -a sdk-package-query.txt
 
       - name: Install API 17 platform, authentic x86 image, and build tools
@@ -72,8 +79,26 @@ jobs:
           set -euo pipefail
           yes | "${{ steps.sdk.outputs.sdkmanager }}" --licenses >/dev/null
           "${{ steps.sdk.outputs.sdkmanager }}" --install \
-            'platform-tools' 'platforms;android-17' 'build-tools;35.0.0' \
+            'platform-tools' 'build-tools;35.0.0' \
             'system-images;android-17;default;x86'
+
+      - name: Install API 17 compile platform from the official Google archive
+        if: steps.sdk.outputs.api17_platform == 'archived'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/android-17_r03.zip"
+          url='https://dl.google.com/android/repository/android-17_r03.zip'
+          curl --fail --location --silent --show-error "$url" -o "$archive"
+          test "$(stat -c %s "$archive")" = 57030216
+          echo 'b66e73fb2639f8c916fde4369aa29012a5c531e156dbb205fe3788fe998fbbe8  '"$archive" | sha256sum --check
+          unzip -q "$archive" -d "$RUNNER_TEMP/android-17-platform"
+          platform_source="$RUNNER_TEMP/android-17-platform/android-4.2.2"
+          test -f "$platform_source/android.jar"
+          grep -F -q 'AndroidVersion.ApiLevel=17' "$platform_source/source.properties"
+          mkdir -p "$ANDROID_HOME/platforms/android-17"
+          cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
+          sha256sum "$archive" "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
 
       - name: Build fresh synthetic ClarityLink APKs
         shell: bash
@@ -124,6 +149,7 @@ jobs:
             sdk-package-query.txt
             build-package-query.txt
             kvm-host.txt
+            api17-platform.sha256
             build-output.txt
             apk.sha256
             build/cl-r12-api17-ci/receipt/

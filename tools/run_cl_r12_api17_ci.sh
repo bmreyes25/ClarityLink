@@ -75,14 +75,14 @@ apk="$repo/build/cl-imp-03/claritylink-display-lab.apk"
 deadline=$((SECONDS + 180))
 while (( SECONDS < deadline )); do
   "$adb" -s "$serial" logcat -d -s ClarityLinkMessengerLab > "$receipt/test-logcat.txt"
-  if rg -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt"; then
-    rg 'CL_R12_MESSENGER_LAB_PASS|SCENARIO_STALE_GENERATION_REJECTED|navigation_inactive|interrupt_preemption|LAB_ONLY_SYNTHETIC_HOST_PROCESS_CRASH|rendered Type111 fixture frames=' "$receipt/test-logcat.txt" \
+  if grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt"; then
+    grep -E 'CL_R12_MESSENGER_LAB_PASS|SCENARIO_STALE_GENERATION_REJECTED|navigation_inactive|interrupt_preemption|LAB_ONLY_SYNTHETIC_HOST_PROCESS_CRASH|rendered Type111 fixture frames=' "$receipt/test-logcat.txt" \
       | tee "$receipt/test-result.txt"
     break
   fi
   sleep 1
 done
-rg -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
+grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
   "$adb" -s "$serial" logcat -d -s ClarityLinkMessengerLab AndroidRuntime > "$receipt/test-failure-logcat.txt" || true
   echo 'CL-R12 API17 runtime scenario did not produce its PASS marker.' >&2
   exit 6

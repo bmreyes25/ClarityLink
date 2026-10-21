@@ -145,12 +145,12 @@ attacker_aligned="$attacker_out/cl-r4-boundary-attacker-aligned.apk"
   --out "$attacker_out/cl-r4-boundary-attacker.apk" "$attacker_aligned"
 "$build_tools/apksigner" verify --min-sdk-version 17 "$attacker_out/cl-r4-boundary-attacker.apk"
 attacker_permissions=$("$build_tools/aapt" dump permissions "$attacker_out/cl-r4-boundary-attacker.apk")
-printf '%s\n' "$attacker_permissions" | rg -q '^uses-permission:' && {
+printf '%s\n' "$attacker_permissions" | grep -E -q '^uses-permission:' && {
   echo "Boundary attacker must request no permissions: $attacker_permissions" >&2; exit 3;
 }
 
 permissions=$("$build_tools/aapt" dump permissions "$out/claritylink-display-lab.apk")
-printf '%s\n' "$permissions" | rg -q '^uses-permission:' && {
+printf '%s\n' "$permissions" | grep -E -q '^uses-permission:' && {
   echo "Unexpected permission declaration in lab APK: $permissions" >&2; exit 3;
 }
 python3 - "$out/claritylink-display-lab.apk" "$out/claritylink-disabled-candidate.apk" <<'PY'
