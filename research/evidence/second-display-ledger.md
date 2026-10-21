@@ -18,6 +18,8 @@
 | 11 | Photo-derived navigation bounds are approximate | `20260925T150706Z-physical-cluster.jpg` — photo to HDMI calibration | Honda compass placed below speed gauge, above Menu/trip; side clearance unverified | Low for exact coordinates; High for approximate region | Calibrated display-1 layer/surface measurements from actual HDMI capture |
 | 12 | Two new verified Mac copies of forensic data exist | `CLARITY_FORENSIC_20260925_211500_COMPLETE_ORIGINAL` (immutable, perms `0444`) and `..._WORKING` (rw) | Both copies verified against USB SHA256SUMS with 2,487 matching entries | High | Independent cross-check from a third party |
 
+| 13 | Preserved factory `jmcs` resolves CarPlay proxy screen callbacks; proxy has a single screen callback registry | CL-SYS-01A bounded static analysis of the preserved API17-era system/vendor archive; sanitized summary: [`CL-SYS-01A`](../honda/cl-sys-01a-factory-android-architecture.md) | Ghidra 12.1.4 through REA confirmed the native library boundary and one callback registration table in the inspected artifact; no Type111 session or Android Display 1 consumer was established | High for these static structures; no change to NO-GO | Current REA Android/JADX reinspection of factory APK manifests/classes; stream/session identity; decode/display path; supported handoff and recovery contract |
+
 
 ## CL-HH-06B — HondaHack Display 1 static pipeline (2026-10)
 
