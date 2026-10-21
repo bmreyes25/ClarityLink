@@ -21,10 +21,10 @@ reported as a blocker, and only the independently testable offline components ar
 | M1 | Factory artifact & build-compatibility verification | **COMPLETE** (reports 01, 02) — inventory + deodex pipeline verified |
 | M2 | CarPlay receiver + Type110 reconstruction | **IN PROGRESS** (report 03) — Java/native graph recovered; native locus + AIDL fabric mapped |
 | M3 | Factory Navigation + Display 1 architecture | **IN PROGRESS** (reports 06,07,08) — structured-data flow + two-layer warning composition mapped |
-| M4 | Custom compatibility architecture decision | not started |
-| M5 | Type111 control/transport (offline, testable) | not started |
+| M4 | Custom compatibility architecture decision | **IN PROGRESS** (report 09) — Option E selected; B/C gated on authorized hw + admission |
+| M5 | Type111 control/transport (offline, testable) | **IN PROGRESS** — `frame_gate.py` (bounded generation-gated delivery, 11 tests) |
 | M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `src/claritylink-honda/factory_integration_contract.py` (8 tests) |
-| M7 | Synthetic concurrent Type110/Type111 integration tests | not started |
+| M7 | Synthetic concurrent Type110/Type111 integration tests | **IN PROGRESS** — `tests/integration/test_cl_factory_01_dual_stream_gate.py` (7 scenarios) |
 | M8 | Android API17 compatibility regression | not started |
 | M9 | Bounded read-only ADB collection plan (for separate approval) | not started |
 | M10 | Feasibility + deployment prerequisites | not started |
@@ -36,7 +36,8 @@ reported as a blocker, and only the independently testable offline components ar
 - [06 — Navigation → cluster data flow](06-navigation-architecture.md)
 - [07 — ExternalDisplay host architecture](07-externaldisplay-architecture.md)
 - [08 — Cluster composition & safety](08-cluster-composition-and-safety.md)
-- (forthcoming) 04 Type110/Type111; 05 native decoder/video; 09 compatibility options; 10 evidence gaps; 11 ADB plan; 12 feasibility.
+- [09 — Compatibility options & decision](09-compatibility-options.md)
+- (forthcoming) 04 Type110/Type111; 05 native decoder/video; 10 evidence gaps; 11 ADB plan; 12 feasibility.
 
 ## Key standing facts (see report 01 for evidence)
 - Preserved platform: Honda ADA (Andromeda-class) head unit, Android 4.2.2 / API 17 / armeabi-v7a.
