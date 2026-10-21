@@ -165,7 +165,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 }
             }
             Log.e(TAG, "R12B_UNEXPECTED_IPC_CLOSED mode=" + mode + " delivered=" + delivered);
-            if (running) finishWithError("unexpected_ipc_closure");
+            // A disconnect can arrive after bind but before baseline stats start
+            // the timed run. Always fail and close the Activity in that case too.
+            finishWithError("unexpected_ipc_closure");
         }
     };
 
