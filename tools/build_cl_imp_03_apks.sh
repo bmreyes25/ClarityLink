@@ -49,6 +49,8 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/src/main/java/org/claritylink/android/Yuv420FrameAdapter.java" \
   "$repo/android/src/main/java/org/claritylink/android/HostedContentLifecycle.java" \
   "$repo/android/src/main/java/org/claritylink/android/ProcessLifecycleAdapter.java" \
+  "$repo/android/src/main/java/org/claritylink/android/HondaStyleHostModel.java" \
+  "$repo/android/src/main/java/org/claritylink/android/HondaStyleDisplayHostSimulator.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayApplication.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type110ProgressProbeService.java" \
@@ -57,6 +59,10 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/SameUidRegistrationAttackTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Api17DecoderLabActivity.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameHostService.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameLabActivity.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameParcel.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSinkService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSinkAdmission.java" \
@@ -77,14 +83,15 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/src/claritylink-renderer/android-api17/RendererViewport.java" \
   "$repo/src/claritylink-renderer/android-api17/FrameBackpressureGate.java" \
   "$repo/src/claritylink-renderer/android-api17/SimulatedExternalDisplayCompositor.java" \
-  "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java"
+  "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java" \
+  "$repo/src/claritylink-renderer/android-api17/HondaStyleSimulatorRendererHost.java"
 mkdir -p "$out/assets"
 cp "$repo/tests/fixtures/cl-imp-08/type110-red-32x32.h264.b64" "$out/assets/type110-red-32x32.h264.b64"
 cp "$repo/tests/fixtures/cl-imp-08/type111-blue-32x32.h264.b64" "$out/assets/type111-blue-32x32.h264.b64"
 cp "$repo/tests/fixtures/cl-imp-08/type111-green-64x64.h264.b64" "$out/assets/type111-green-64x64.h264.b64"
 "$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$out/dex" \
   $(find "$out/classes" -name '*.class' -print)
-key="$out/cl-imp-03-debug.keystore"
+key=${CL_IMP_03_KEYSTORE:-"$out/cl-imp-03-debug.keystore"}
 if [ ! -f "$key" ]; then
   "$java_home/bin/keytool" -genkeypair -keystore "$key" -storepass android -keypass android \
     -alias climp03lab -dname 'CN=ClarityLink CL-IMP-03 Offline Lab' -keyalg RSA -keysize 2048 \
@@ -138,12 +145,12 @@ attacker_aligned="$attacker_out/cl-r4-boundary-attacker-aligned.apk"
   --out "$attacker_out/cl-r4-boundary-attacker.apk" "$attacker_aligned"
 "$build_tools/apksigner" verify --min-sdk-version 17 "$attacker_out/cl-r4-boundary-attacker.apk"
 attacker_permissions=$("$build_tools/aapt" dump permissions "$attacker_out/cl-r4-boundary-attacker.apk")
-printf '%s\n' "$attacker_permissions" | rg -q '^uses-permission:' && {
+printf '%s\n' "$attacker_permissions" | grep -E -q '^uses-permission:' && {
   echo "Boundary attacker must request no permissions: $attacker_permissions" >&2; exit 3;
 }
 
 permissions=$("$build_tools/aapt" dump permissions "$out/claritylink-display-lab.apk")
-printf '%s\n' "$permissions" | rg -q '^uses-permission:' && {
+printf '%s\n' "$permissions" | grep -E -q '^uses-permission:' && {
   echo "Unexpected permission declaration in lab APK: $permissions" >&2; exit 3;
 }
 python3 - "$out/claritylink-display-lab.apk" "$out/claritylink-disabled-candidate.apk" <<'PY'
