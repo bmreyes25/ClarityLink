@@ -118,13 +118,17 @@ jobs:
           fi
           git show "$baseline_ref:$source_file" > "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java"
           cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" "$source_file"
-          "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee build-output.txt
-          cp build/cl-r12-api17-ci/claritylink-display-lab.apk "$RUNNER_TEMP/cl-r12-baseline.apk"
+          CL_IMP_03_BUILD_DIR="$RUNNER_TEMP/cl-r12-baseline-build" \
+            "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee build-output.txt
+          cp "$RUNNER_TEMP/cl-r12-baseline-build/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-baseline.apk"
           git checkout HEAD -- "$source_file"
-          "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee -a build-output.txt
-          cp build/cl-r12-api17-ci/claritylink-display-lab.apk "$RUNNER_TEMP/cl-r12-optimized.apk"
+          CL_IMP_03_BUILD_DIR="$RUNNER_TEMP/cl-r12-optimized-build" \
+            "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee -a build-output.txt
+          cp "$RUNNER_TEMP/cl-r12-optimized-build/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"
           echo "CL_R12_BASELINE_APK=$RUNNER_TEMP/cl-r12-baseline.apk" >> "$GITHUB_ENV"
           echo "CL_R12_CANDIDATE_APK=$RUNNER_TEMP/cl-r12-optimized.apk" >> "$GITHUB_ENV"
+          mkdir -p "$CL_IMP_03_BUILD_DIR"
+          cp "$RUNNER_TEMP/cl-r12-optimized.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
           sha256sum "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk" | tee apk-ab.sha256
           sha256sum build/cl-r12-api17-ci/claritylink-display-lab.apk | tee apk.sha256
 
