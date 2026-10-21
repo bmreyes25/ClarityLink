@@ -17,6 +17,17 @@
 - [Campaign tracker issues](../status/campaign-issues.md) (ten canonical campaign issues)
 - [Reference-library status](../research/cl-master-01-reference-status.md) (existing CL-R13-A work is in PR #53; do not duplicate it)
 
+## Live status addendum — 2026-10-21
+
+This addendum supersedes the kickoff-state references below for current publication and campaign status. The kickoff table and source base are preserved as historical provenance. Current exact heads, required checks, reviews, blockers and commit-specific report links are maintained in [current status](../status/current.md).
+
+- Online `main` is `512d30cbca99b081c235414566142e1b8b228f27`. PR #54 merged the roadmap structure; PR #66 merged the CL-SYS-01A bounded static report; PR #52 merged the CL-R12-F runtime experiment, whose performance/reliability acceptance remains **PARTIAL**.
+- CL-R13-A reference research is in open PR #53. CL-HH-06A/B research is in open PR #65, CL-SYS-01A was merged from PR #66, CL-HH-07 is in open PR #67, and CL-IF-01/cloud readiness is in open PR #68. These documents are publicly accessible by their exact GitHub PR/commit links but are not on `main`.
+- Issues #55–#64 exist with canonical titles listed in [campaign issues](../status/campaign-issues.md). The initial issue creation is complete; campaign work remains at different states. CL-HH-06 static research is published for review while final publication is pending; CL-SYS-01A report merged from PR #66 and remains bounded; CL-R12-F remains partial; CL-IF-01 receiver/display contracts remain unknown/NO-GO.
+- PR #66 merged at `512d30cbca99b081c235414566142e1b8b228f27` after `offline-tests` and CodeQL passed on its head; no review submission is recorded. GitHub currently reports older PR metadata heads than the pushed branch refs for #53/#65/#67, so do not claim their merge-base updates or newer CI until reconciled. PR #68 refreshed candidate checks remain to be verified. No independent reviewer is available besides the owner; keep eligible PRs open pending review and current merge requirements.
+- Preserve the CL-R12 targets (27 FPS minimum, p95 ≤50 ms, ≤10% drops, resource gates, full failure/reconnect matrix and soak). A merged smoke test is not acceptance. Preserve F1–F12 as technical/safety acceptance; F13 is the separate public documentation/publication gate.
+- HondaHack screenshot source 400×240, View-local image region 584×191, and logical Android Display 1 800×480 remain distinct. Physical Navigation aperture, supported external frame admission, authorized same-session Type111 handoff, universal warning priority and crash-safe restoration remain unproven. `safeForHonda() == false`.
+
 ## Phase plan
 
 | Phase | Campaign / objective | State and exit condition |
