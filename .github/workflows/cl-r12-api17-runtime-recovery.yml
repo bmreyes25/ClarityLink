@@ -77,9 +77,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "${{ steps.sdk.outputs.sdkmanager }}" --install \
-            'platform-tools' 'build-tools;35.0.0' \
-            'system-images;android-17;default;x86'
+          packages=('platform-tools' 'build-tools;35.0.0' 'system-images;android-17;default;x86')
+          if [[ "${{ steps.sdk.outputs.api17_platform }}" == listed ]]; then
+            packages+=('platforms;android-17')
+          fi
+          "${{ steps.sdk.outputs.sdkmanager }}" --install "${packages[@]}"
 
       - name: Install API 17 compile platform from the official Google archive
         if: steps.sdk.outputs.api17_platform == 'archived'
