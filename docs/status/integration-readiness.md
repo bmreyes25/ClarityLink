@@ -14,7 +14,7 @@
 | Independent Type111 receiver | Step 43P is a PlayPort observation, not Honda evidence and not an approved bench acceptance for this campaign. | `AUTHORIZATION REQUIRED` for another live iPhone session. |
 | Vehicle observation | Historical 43T0-D ended at zero targets before target commands. This campaign prohibits Honda ADB. | `NOT AUTHORIZED`. |
 | Safety review | No independent vehicle-safety review for a target integration is recorded. | Required before CL-INT-01/CL-VT-01. |
-| Public/private preservation | The master roadmap and CL-R12-F report are on `main`; CL-R13-A, CL-HH-06A/B, CL-SYS-01A, CL-HH-07 and CL-IF-01 reports are accessible on open PR branches but remain unmerged. Generated runtime evidence and Honda proprietary artifacts are private. | Verify private encrypted backup and restore independently; do not publish raw evidence. |
+| Public/private preservation | The master roadmap and CL-R12-F report are on `main`; CL-R13-A, CL-HH-06A/B, CL-HH-07 and CL-IF-01 reports are accessible on open PR branches but remain unmerged; CL-SYS-01A was merged from PR #66 at main `512d30c`. Generated runtime evidence and Honda proprietary artifacts are private. | Verify private encrypted backup and restore independently; do not publish raw evidence. |
 
 The two critical blockers are the authorized receiver contract and the supported cluster frame-admission contract. A bench receiver or a successful emulator cannot replace either. If either remains unsupported or ambiguous, record CL-IF-01 `NO-GO` and complete CL-REL-01; do not claim the original goal is complete.
 
