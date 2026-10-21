@@ -9,6 +9,8 @@
 !/NEXT_ACTION.md
 !/EVIDENCE_INDEX.md
 !/CONTRIBUTING.md
+!/.codex/
+!/.codex/**
 !/SECURITY.md
 !/requirements-test.txt
 !/.editorconfig
@@ -37,6 +39,8 @@
 !/native/
 !/native/**
 /tools/*
+!/tools/*.py
+!/tools/*.sh
 !/tools/run_cl_r12_api17_ci.sh
 !/tools/README.md
 !/tools/run_cl_r7_lab.sh

@@ -28,3 +28,23 @@ The clean public test suite intentionally skips only the exact local-only collec
 Run `tools/run_cl_r7_lab.sh` from a checkout with the documented API17 SDK and Java 17 toolchain installed. The default locations are `$HOME/Android/r7c2-sdk` and the pinned Java 17 path selected by the existing CL-IMP-03 scripts. To use another SDK or Java toolchain, set `CL_IMP_03_SDK_ROOT` or `JAVA_HOME`. The SDK must include API 17, build-tools 35.0.0, emulator, platform-tools, and cmdline-tools `avdmanager`. The host also needs Python 3, Swift, `shasum`, and `lsof` for existing runner validation and ownership checks.
 
 The command creates a fresh marked build directory and never reuses or removes prior evidence. `CL_R7_BUILD_DIR` can select a fresh path directly under `build/`; it must not already exist. A successful command prints `CL_R7_END_TO_END_LAB_PASS` and leaves runtime logs, screenshots, and evidence in that directory. The scenarios use only synthetic fixtures on isolated API17 emulators; the warning test withdraws a decoded Type111 H.264 frame and checks that a fresh decoded frame renders after warning clearance.
+## GitHub publication checkpoints
+
+Every development task uses an explicit scope and verifies the live GitHub ref before claiming completion.
+
+```sh
+tools/publish_checkpoint.sh \
+  --task CL-GH-LOCAL-01 \
+  --branch docs/cl-gh-local-01-publication \
+  --file AGENTS.md --file tools/publish_checkpoint.py \
+  --message "docs: add verified local publication checkpoints" \
+  --verification VERIFIED \
+  --public-safe-reviewed \
+  --verify-command "python3 -m unittest discover -s tests/tools -p 'test_publish_checkpoint.py'"
+```
+
+Repeat `--file` for every intended path. The publisher never stages the whole repository. It requires a public-safety review attestation, rejects ignored paths, restricted path classes, binary artifacts, credential-like content, pre-staged unrelated files, and direct `main` publication. Shared status files require the designated maintenance-owner flag. A verified checkpoint needs a successful verification command. A public-safe `WIP_UNVERIFIED` checkpoint also needs notes of incomplete work and known failures, keeps its branch, and skips creating a new PR; do not publish restricted or uncertain material to this public repository.
+
+Run `python3 tools/verify_remote_publication.py` to compare local `HEAD` with the live remote branch. Run `python3 tools/check_source_discovery.py` to find source-like files hidden by ignore rules; classify each result manually.
+
+`.codex/hooks.json` configures bounded, read-only `SessionStart` and `Stop` audits. Codex Desktop must load the actual repository root as the project and the user must review/trust these project hooks before they run. The Stop hook can request one continuation but never commits or pushes. Hooks do not protect against crashes or power loss.
