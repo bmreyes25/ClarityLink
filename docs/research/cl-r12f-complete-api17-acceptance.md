@@ -1,6 +1,6 @@
 # CL-R12-F2 API 17 Performance and Reliability Acceptance
 
-Status: **PARTIAL — controlled short A/B completed; performance and reliability acceptance remain unmet**
+Status: **PARTIAL — CL-R12-F3 added stage measurements; performance and reliability acceptance remain unmet**
 PR: [#52](https://github.com/bmreyes25/ClarityLink/pull/52)
 Issue: [#58](https://github.com/bmreyes25/ClarityLink/issues/58)
 Hosted runs: [paired A/B 1](https://github.com/bmreyes25/ClarityLink/actions/runs/39555976565), [paired A/B 2](https://github.com/bmreyes25/ClarityLink/actions/runs/39556434895), [paired A/B 3 at this report's head](https://github.com/bmreyes25/ClarityLink/actions/runs/39556881547)
@@ -45,3 +45,47 @@ Across three paired workflow runs, the optimized candidate averaged 2.20 more de
 An earlier run, [39555068735](https://github.com/bmreyes25/ClarityLink/actions/runs/39555068735), is excluded from A/B interpretation: both builds used the optimized source, and the baseline APK installation failed because the APKs had different signing certificates. The workflow now pins and verifies the actual baseline source digest and signs both builds with one lab key. The valid run's baseline and optimized APK SHA-256 values are recorded in its `apk-ab.sha256` artifact.
 
 The acceptance remains **PARTIAL** unless all published correctness, performance, resource, and fault-matrix criteria are individually met. A successful emulator boot or synthetic smoke test alone does not complete CL-R12-F2.
+
+## CL-R12-F3 stage-profile update
+
+Source: [2550756](https://github.com/bmreyes25/ClarityLink/commit/255075605a0e33b5f99a0f842462e17e71be04c0). Exact-head API 17 workflow: [run 39610034532](https://github.com/bmreyes25/ClarityLink/actions/runs/39610034532). The run used the same 800×480, 30-second synthetic workload at 30 offered FPS, first for baseline and optimized candidates, then an optimized non-profile control and an optimized profile run. The pre-existing acceptance criteria are unchanged. No soak was run because the short gates failed.
+
+| Variant | Delivered FPS | p50 latency | p95 latency | Dropped | Pixel mismatches |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline | 14.409 | 52.19 ms | 69.74 ms | 51.9% | 0 |
+| Optimized | 14.980 | 40.28 ms | 60.04 ms | 50.1% | 0 |
+| Optimized profile control | 14.884 | 41.11 ms | 62.97 ms | 50.4% | 0 |
+| Optimized profiled | 14.896 | 40.27 ms | 64.49 ms | 50.3% | 0 |
+
+The prior runs and this new run consistently show substantial improvement relative to baseline but remain far below 27 FPS, above 50 ms p95, and above the 10% drop ceiling. The sequential profile/control sample differs by 0.012 FPS and 1.52 ms p95; this single pair does not establish instrumentation overhead reliably. The workload is application-level frame submission and pixel verification, not physical scanout. Screenshot capture was disabled, so its overhead was not measured.
+
+The one profiled sample identifies multiple costly application stages rather than emulator compositor cost alone. Per-stage p50/p95 (447 samples except where noted):
+
+| Stage | p50 | p95 |
+| --- | ---: | ---: |
+| Frame generation | 12.44 ms | 21.50 ms |
+| Source MemoryFile write | 0.52 ms | 0.66 ms |
+| Host read/copy | 2.62 ms | 4.72 ms |
+| Host MemoryFile write | 0.45 ms | 0.60 ms |
+| Host process through reply | 3.74 ms | 6.53 ms |
+| Return read/copy | 2.66 ms | 4.16 ms |
+| Pixel comparison | 13.81 ms | 23.01 ms |
+| Decoded-frame construction | 2.75 ms | 3.32 ms |
+| UI queue wait | 0.05 ms | 10.66 ms |
+| Renderer attach | 0.013 ms | 0.016 ms |
+| Renderer submit call | 0.016 ms | 0.039 ms |
+| Offer through renderer submission | 40.26 ms | 64.47 ms |
+| Bitmap creation (28 samples) | 4.01 ms | 5.52 ms |
+| Pixel conversion and setPixels (28 samples) | 56.33 ms | 74.47 ms |
+| Invalidate through draw (28 samples) | 4.84 ms | 12.35 ms |
+| View draw (28 samples) | 0.039 ms | 0.084 ms |
+
+Frame generation and full-frame pixel verification are the largest recurring producer-side costs. The profiled renderer conversion/setPixels path is also expensive on the sparse View-stage sample, but that sample count and instrumentation run do not establish it as the sole throughput limiter. Messenger dispatch, allocation, and descriptor preparation are smaller at p50; occasional high tails remain. Do not infer that changing transport alone will reach the FPS goal. No optimization was applied from this profile; a targeted change must be isolated and remeasured against correctness and resources.
+
+### Resource and cleanup update
+
+Across all four 30-second runs, producer descriptors were 46 before to 49 at final in-run sampling; the host stayed 32 to 32. MemoryFile create/close counts balanced in each process and open counts were zero. Producer native heap changed by only a few KiB, while Java heap rose by 4.3–10.4 MiB depending on run; the optimized run exceeded the existing 8 MiB bound. The new harness still did not observe its R12B_DESTROY marker within the grace period, so these data do not prove post-destruction descriptor cleanup or explain the +3. This remains a failed resource gate, not evidence that the descriptors are harmless or leaked.
+
+The exact-head runtime smoke passed its existing scenario: synthetic pixel identity, stale-generation rejection, Navigation withdrawal, interrupt preemption, host-process recovery, and Type110-path isolation. This does not complete the requested fault matrix. Ten reconnect cycles and independent invalid-size, truncated-payload, closed-PFD, Messenger-failure, receiver/sender-death, duplicate-ID, out-of-order, stale-producer, rapid attach/detach, partial-allocation, and per-failure cleanup tests remain unverified. Factory-host simulation restoration remains represented only by the existing lab smoke behavior, not an independently accepted recovery proof.
+
+The API 17 workflow itself passed on this head because its runtime smoke and receipt collection completed; performance acceptance did not. Offline CI and CodeQL are exact-head checks and must be read from PR #52. Keep the PR in draft and CL-R12-F **PARTIAL**. Next technical action: instrument heap/FD and destroy lifecycle at each connection boundary, then isolate profile-supported CPU work (generation and byte-for-byte comparison) in a controlled optimization, preserving the byte-integrity oracle and rerunning the API 17 A/B and failure matrix. Do not begin soak until every short-run gate passes.
