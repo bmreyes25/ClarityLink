@@ -7,7 +7,7 @@
 
 # CL-SYS-01A factory Android architecture — 2026-10-21
 
-- [Bounded architecture report](research/honda/cl-sys-01a-factory-android-architecture.md) — current Ghidra/REA inspection confirms the preserved native `jmcs` to CarPlay proxy boundary and singleton screen callback table; factory APK manifest/class graph remains pending because the live REA/JADX provider was unavailable. No supported Type111 handoff or Display 1 frame admission is established; `safeForHonda() == false`.
+- [Bounded architecture report](research/honda/cl-sys-01a-factory-android-architecture.md) — overall verdict D: current Ghidra/REA inspection confirms the preserved native `jmcs` to CarPlay proxy boundary and singleton screen callback table; factory APK manifest/class graph remains pending because the live REA/JADX provider was unavailable. No supported Type111 handoff or Display 1 frame admission is established; `safeForHonda() == false`.
 - [Second Display Evidence Ledger](research/evidence/second-display-ledger.md) — additive row with claim scope and missing proof.
 
 # R7C3 attempt (2026-10-07)

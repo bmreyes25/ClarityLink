@@ -1,6 +1,6 @@
 # CL-SYS-01A — factory Android architecture and boundaries
 
-**Verdict: C — previous findings confirmed, with a reproducible receiver-side static check. NO-GO remains.** The preserved factory archive contains the relevant receiver, Navigation, ExternalDisplay, framework, and native artifacts. Current REA/Ghidra analysis reproduced the native `jmcs` → CarPlay proxy boundary. The live REA Android/JADX provider was unavailable, so this report does not claim a fresh APK manifest, Java service graph, or JNI audit. `safeForHonda() == false`.
+**Verdict: D — critical tool evidence is missing for the complete factory APK and Java/Binder graph.** The preserved factory archive contains the relevant receiver, Navigation, ExternalDisplay, framework, and native artifacts. Current REA/Ghidra analysis of the native subset confirms the previously recorded `jmcs` → CarPlay proxy boundary, but the live REA Android/JADX provider was unavailable. The receiver/display no-go findings remain unchanged; this campaign does not claim its requested factory application analysis is complete. `safeForHonda() == false`.
 
 ## Scope and provenance
 
@@ -141,7 +141,7 @@ The first follow-up is a supported REA/JADX reload and manifest-first offline in
 6. **Further static research:** justified only after supported Android provider recovery, limited to the preserved CarPlay, Navigation, ExternalDisplay, and framework artifacts.
 7. **Separate observation:** no live vehicle observation is justified now. A read-only layer/display observation cannot establish caller authorization, OEM interface support, crash-safe restoration, or bus purity. Those require authoritative OEM contract evidence or a separately scoped question with explicit authorization.
 
-**Verdict: C — previous findings confirmed. NO-GO.** No supported receiver handoff or display admission interface is documented by this evidence. Preserve `safeForHonda() == false`.
+**Verdict: D — critical tool evidence missing for full factory Android analysis.** The bounded native check confirms prior receiver-side findings, but factory APK manifests, Java service ownership, and Android Binder relationships still need a successful supported REA/JADX pass. No supported receiver handoff or display admission interface is documented by the evidence reviewed; retain NO-GO and `safeForHonda() == false`.
 
 ## Exact limitations
 
