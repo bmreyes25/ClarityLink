@@ -28,3 +28,8 @@ The clean public test suite intentionally skips only the exact local-only collec
 Run `tools/run_cl_r7_lab.sh` from a checkout with the documented API17 SDK and Java 17 toolchain installed. The default locations are `$HOME/Android/r7c2-sdk` and the pinned Java 17 path selected by the existing CL-IMP-03 scripts. To use another SDK or Java toolchain, set `CL_IMP_03_SDK_ROOT` or `JAVA_HOME`. The SDK must include API 17, build-tools 35.0.0, emulator, platform-tools, and cmdline-tools `avdmanager`. The host also needs Python 3, Swift, `shasum`, and `lsof` for existing runner validation and ownership checks.
 
 The command creates a fresh marked build directory and never reuses or removes prior evidence. `CL_R7_BUILD_DIR` can select a fresh path directly under `build/`; it must not already exist. A successful command prints `CL_R7_END_TO_END_LAB_PASS` and leaves runtime logs, screenshots, and evidence in that directory. The scenarios use only synthetic fixtures on isolated API17 emulators; the warning test withdraws a decoded Type111 H.264 frame and checks that a fresh decoded frame renders after warning clearance.
+
+
+## Offline Android reverse-engineering readiness
+
+[`doctor_re_toolchain.sh`](doctor_re_toolchain.sh) checks the installed REA/JDK/JADX environment and optional Apktool/Ghidra/Android tools without installing software or executing APK contents. See the [REA Android toolchain guide](../docs/development/rea-android-toolchain.md). A successful local CLI check does not prove that Codex Desktop's running MCP server inherited changed configuration; that requires a fresh live Android operation after restart.

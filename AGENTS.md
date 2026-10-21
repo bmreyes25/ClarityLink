@@ -17,6 +17,10 @@ These rules apply to every Codex campaign in this repository.
 - Before finishing any task, report work completed; tests and results; final local commit SHA; branch and worktree; clean/dirty state; untracked and unpublished work; push status; PR URL; CI/CodeQL status; review status; and remaining blockers. Include `origin/main` when publication was requested. If a field cannot be verified, say so and explain why. Never finish with verified development work unsaved.
 - If a field cannot be verified, say so and explain why. Do not substitute assumptions or stale receipts for current state.
 
+## Approved research-tool recovery
+
+- Before specialized offline research, verify required approved development tools and their pinned versions. Where task authorization permits, recover missing standard tools from trusted official sources, verify integrity, preserve existing configuration, and test actual functionality. Do not infer blanket permission to install arbitrary executables. Escalate only genuine external, privileged, security, or authorization blockers; continue independent work.
+
 ## Development units and commits
 
 - Complete each coherent development unit, run its relevant checks, verify the resulting diff is public-safe, and commit it before moving to unrelated work or ending the campaign.
