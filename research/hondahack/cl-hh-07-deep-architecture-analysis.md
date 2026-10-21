@@ -177,7 +177,7 @@ Testing was limited to static parsing, hash comparison, archive inventory, ODEX 
 
 Keep the NO-GO and synthetic CL-R12 design. The smallest justified next research task is to obtain an OEM-approved, documented frame-admission and authorization contract, including display ownership, warning arbitration, revocation, geometry, and process-death restoration. Until that evidence exists, continue only offline analysis and synthetic performance work.
 
-This report is tracked by [issue #56](https://github.com/bmreyes25/ClarityLink/issues/56), cross-references [renderer contract issue #60](https://github.com/bmreyes25/ClarityLink/issues/60), and is published in the CL-HH-07 pull request linked from this campaign. It does not modify PR #52 or any vehicle-facing implementation.
+This report is tracked by [issue #56](https://github.com/bmreyes25/ClarityLink/issues/56), cross-references [renderer contract issue #60](https://github.com/bmreyes25/ClarityLink/issues/60), and is published in [CL-HH-07 pull request #67](https://github.com/bmreyes25/ClarityLink/pull/67). It does not modify PR #52 or any vehicle-facing implementation.
 
 ## Public sources
 
