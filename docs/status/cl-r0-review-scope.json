@@ -92,8 +92,7 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "90db716dfa1849f151cf14279059d2354820ea311e2d4d7307bee86c2246b7fa"
-      "sha256": "d1f8b226a7ef854ddd97dc5b29e2f6e6561a415fef7ff314dc57ca50c9c04f6e"
+      "sha256": "2b35d3cb504726e14cd23377a101b05ff8a76f7af98959d51acea62004f03e02"
     },
     {
       "path": "docs/status/milestones.json",
