@@ -40,7 +40,8 @@ reported as a blocker, and only the independently testable offline components ar
 - [10 — Remaining evidence gaps](10-remaining-evidence-gaps.md)
 - [11 — Read-only ADB collection plan (proposal)](11-adb-collection-plan.md)
 - [05 — Native decoder & video path](05-native-decoder-and-video-path.md)
-- (forthcoming) 04 Type110/Type111; 12 feasibility.
+- [04 — Type110/Type111 & presentation contracts](04-type110-type111-analysis.md)
+- (forthcoming) 12 integration feasibility.
 
 ## Key standing facts (see report 01 for evidence)
 - Preserved platform: Honda ADA (Andromeda-class) head unit, Android 4.2.2 / API 17 / armeabi-v7a.
