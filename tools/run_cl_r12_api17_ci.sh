@@ -4,6 +4,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 receipt="${CL_R12_RECEIPT_DIR:-$repo/build/cl-r12-api17-receipt}"
+build_dir="${CL_IMP_03_BUILD_DIR:-$repo/build/cl-imp-03}"
 mkdir -p "$receipt"
 
 adb="$sdk_root/platform-tools/adb"
@@ -21,7 +22,7 @@ serial="${ANDROID_SERIAL:-}"
   echo "emulator_version=$("$sdk_root/emulator/emulator" -version 2>&1 | head -n 1)"
   echo "emulator_sha256=$(sha256sum "$sdk_root/emulator/emulator" | awk '{print $1}')"
   echo "graphics_backend=swiftshader_indirect (headless)"
-  echo "apk_sha256=$(sha256sum "$repo/build/cl-imp-03/claritylink-display-lab.apk" | awk '{print $1}')"
+  echo "apk_sha256=$(sha256sum "$build_dir/claritylink-display-lab.apk" | awk '{print $1}')"
   echo "source_sha256=$(git -C "$repo" archive HEAD | sha256sum | awk '{print $1}')"
 } > "$receipt/identity.txt"
 sdkmanager=$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null || true)
@@ -65,7 +66,7 @@ abi=$("$adb" -s "$serial" shell getprop ro.product.cpu.abi | tr -d '\r')
   exit 5
 }
 
-apk="$repo/build/cl-imp-03/claritylink-display-lab.apk"
+apk="$build_dir/claritylink-display-lab.apk"
 "$adb" -s "$serial" logcat -c
 "$adb" -s "$serial" install "$apk" | tee "$receipt/install.txt"
 "$adb" -s "$serial" shell am start -W \
