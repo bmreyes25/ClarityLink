@@ -77,7 +77,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          yes | "${{ steps.sdk.outputs.sdkmanager }}" --licenses >/dev/null
           "${{ steps.sdk.outputs.sdkmanager }}" --install \
             'platform-tools' 'build-tools;35.0.0' \
             'system-images;android-17;default;x86'
