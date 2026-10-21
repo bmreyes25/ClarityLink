@@ -42,6 +42,7 @@
 !/tools/run_cl_r4_acceptance.sh
 !/tools/run_cl_r4_acceptance.py
 !/tools/check_repo_health.py
+!/tools/check_r6d_oracle_boundary.py
 !/tools/repo_health_public_images.json
 !/tools/check_r7e1_target_diag_artifact.py
 !/tools/r6b_info_diff.py
