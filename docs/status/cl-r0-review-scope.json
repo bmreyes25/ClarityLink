@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged. CL-R12-F PR #52 exact-head scope digest refresh (2026-10-21): the experimental candidate intentionally changes only the recorded .gitignore workflow-script allowlist, IPC test service selection, and API17 build inputs/portable permission matcher. Their hashes now match this candidate tree so health validation checks the exact content. This is an integrity refresh only; it does not extend or claim independent ECC review, alter review_status, or claim approval.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -16,7 +16,7 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "5b184273c539f86e406dcc60aa4604a0ace8aac746683bb0a72bc8be0d083ef9"
+      "sha256": "839cb0aae2fcac18e54d8f29eb0447b03253c43fabc3b261de5aadabf73d9047"
     },
     {
       "path": "AGENTS.md",
@@ -100,7 +100,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",
-      "sha256": "7dfcdf371250e5761d455afc6ec7b1d09dc3ff94fe0e152b943f4dd12761d0ee"
+      "sha256": "c9c9296453fda0c5e454996801c409842492a78736c392047ef4cf2c24a3f13b"
     },
     {
       "path": "tests/display/test_cl_r4b_fault_acceptance_contract.py",
@@ -140,7 +140,7 @@
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
-      "sha256": "a3c484e4218c818293a299035845683590120048e378814ecbd07539ecb97fe1"
+      "sha256": "4458c4dd64292c950342296ddc5bb47040cd1479d90c51a196c3723e8178976a"
     },
     {
       "path": "tools/check_repo_health.py",
