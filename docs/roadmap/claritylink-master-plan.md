@@ -17,6 +17,17 @@
 - [Campaign tracker issues](../status/campaign-issues.md) (ten canonical campaign issues)
 - [Reference-library status](../research/cl-master-01-reference-status.md) (existing CL-R13-A work is in PR #53; do not duplicate it)
 
+## Live status addendum — 2026-10-21
+
+This addendum supersedes the kickoff-state references below for current publication and campaign status. The kickoff table and source base are preserved as historical provenance. Current exact heads, required checks, reviews, blockers and commit-specific report links are maintained in [current status](../status/current.md).
+
+- Online `main` is `512d30cbca99b081c235414566142e1b8b228f27`. PR #54 merged the roadmap structure; PR #66 merged the CL-SYS-01A bounded static report; PR #52 merged the CL-R12-F runtime experiment, whose performance/reliability acceptance remains **PARTIAL**.
+- CL-R13-A reference research is in open PR #53. CL-HH-06A/B research is in open PR #65, CL-SYS-01A was merged from PR #66, CL-HH-07 is in open PR #67, and CL-IF-01/cloud readiness is in open PR #68. These documents are publicly accessible by their exact GitHub PR/commit links but are not on `main`.
+- Issues #55–#64 exist with canonical titles listed in [campaign issues](../status/campaign-issues.md). The initial issue creation is complete; campaign work remains at different states. CL-HH-06 static research is published for review while final publication is pending; CL-SYS-01A report merged from PR #66 and remains bounded; CL-R12-F remains partial; CL-IF-01 receiver/display contracts remain unknown/NO-GO.
+- PR #66 merged at `512d30cbca99b081c235414566142e1b8b228f27` after `offline-tests` and CodeQL passed on its head; no review submission is recorded. GitHub currently reports older PR metadata heads than the pushed branch refs for #53/#65/#67, so do not claim their merge-base updates or newer CI until reconciled. PR #68 refreshed candidate checks remain to be verified. No independent reviewer is available besides the owner; keep eligible PRs open pending review and current merge requirements.
+- Preserve the CL-R12 targets (27 FPS minimum, p95 ≤50 ms, ≤10% drops, resource gates, full failure/reconnect matrix and soak). A merged smoke test is not acceptance. Preserve F1–F12 as technical/safety acceptance; F13 is the separate public documentation/publication gate.
+- HondaHack screenshot source 400×240, View-local image region 584×191, and logical Android Display 1 800×480 remain distinct. Physical Navigation aperture, supported external frame admission, authorized same-session Type111 handoff, universal warning priority and crash-safe restoration remain unproven. `safeForHonda() == false`.
+
 ## Phase plan
 
 | Phase | Campaign / objective | State and exit condition |
@@ -25,8 +36,8 @@
 | 1 — Define finish line | Specify F1–F13, proof class and non-equivalent evidence. | **Done in plan:** [finish-line contract](finish-line-definition.md). No F-item is passed for Honda. |
 | 2 — Reconcile evidence | Link R4–R13, R10A/B/C, R11-A, R12-B/C/D/E, 43P, 43T0, HondaHack, and private evidence classes with claim limits. | **Partial:** [ledger](../status/evidence-ledger.md) links public evidence and open PRs. CL-R11-A and R12-B/C/D/E require report-level reconciliation; private archive recovery is not verified. |
 | 3 — REA / xcertplay references | Pin tools/source, describe Codex/JADX/JDK/Ghidra setup, protocol paths, security and GPL-3.0 boundaries. | **In progress in PR #53:** no duplicate research campaign; close that existing work and review. See [reference status](../research/cl-master-01-reference-status.md). |
-| 4 — HondaHack reconstruction | CL-HH-06, offline and sanitized architecture map. | **Not started.** Requires lawful offline source/artifact and private/public boundary. No vehicle or installed-package changes. |
-| 5 — Factory Android architecture | CL-SYS-01, bounded ownership, process/Binder/native/display and risk maps from authorized preserved artifacts. | **Not started.** Static analysis only until separately scoped authorization. |
+| 4 — HondaHack reconstruction | CL-HH-06, offline and sanitized architecture map. | **Static research published on PR #65/#67 branches; API-reported PR heads remain stale and independent review is pending.** Requires lawful offline source/artifact and private/public boundary. No vehicle or installed-package changes. |
+| 5 — Factory Android architecture | CL-SYS-01, bounded ownership, process/Binder/native/display and risk maps from authorized preserved artifacts. | **Bounded static report merged from PR #66 at main `512d30c`; broader architecture remains unproven.** Static analysis only until separately scoped authorization. |
 | 6 — Restore API17 lab | CL-R12-F original scenario, timing, controlled A/B, ten reconnects and remaining failure matrix. | **Partial, PR #52:** runtime smoke reported; Offline CI failed and full criteria remain incomplete. See [runtime plan](../development/api17-runtime-recovery.md). |
 | 7 — Authenticated bench Type111 | CL-REC-01, independent legitimate receiver and a separately authorized live-iPhone session. | **Blocked pending separate scope and approval.** It does not prove Honda compatibility. |
 | 8 — Establish Honda contracts | CL-IF-01 receiver session/SETUP and cluster admission/geometry/warnings/restore. | **Blocked / critical path.** Any unsupported or ambiguous boundary means NO-GO. |

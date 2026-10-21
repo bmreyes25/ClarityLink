@@ -1,10 +1,10 @@
 # Next action
 
-## Current action — CL-MASTER-01 public roadmap and campaign tracking — 2026-10-20
+## Current action — CL-GH-06 repository reconciliation — 2026-10-21
 
-The current program source of truth is [CL-MASTER-01](docs/roadmap/claritylink-master-plan.md). This roadmap is based on `origin/main` `c30a385455449b3c1d7b5cc65bb74c88c694b7f8`; it preserves the active CL-R4 worktree and its private untracked research. Honda integration remains NO-GO: receiver Type111 ownership and Display 1 frame admission contracts are unknown, and `safeForHonda() == false`.
+The current online `main` is `512d30cbca99b081c235414566142e1b8b228f27`. PR #52 (CL-R12-F experiment) and PR #54 (master roadmap) are merged. PRs #53, #65, #67 and #68 are public review branches; GitHub PR metadata still reports older heads than the pushed branch refs for #53/#65/#67; their research documents are not yet on `main`. The live campaign table and exact file links are in [current status](docs/status/current.md). Honda integration remains NO-GO and `safeForHonda() == false`.
 
-**NEXT:** finish the existing CL-R13-A reference-library PR #53 review without duplicating its work, then complete CL-R12-F's full API17 runtime/performance acceptance and reconcile CL-R11-A/R12-B/C/D/E evidence. CL-R12-F PR #52 is partial; its hosted runtime smoke passed, but Offline CI failed. Do not run Honda ADB, connect a vehicle, or start a live-iPhone test under CL-MASTER-01. See the [campaign gates](docs/roadmap/milestone-acceptance-gates.md), [readiness](docs/status/integration-readiness.md), and [safety boundary](docs/security/vehicle-safety-gates.md).
+**NEXT:** obtain independent review for the public research PRs when an eligible reviewer is available; do not merge while review is outstanding. Continue CL-R12-F offline acceptance under [issue #58](https://github.com/bmreyes25/ClarityLink/issues/58): reach at least 27 FPS, p95 ≤50 ms, ≤10% drops, and all resource, 15-case failure/reconnect, and soak gates on an exact recorded head. Do not run Honda ADB, connect a vehicle, start a live-iPhone session, or begin integration work. See the [master roadmap](docs/roadmap/claritylink-master-plan.md), [readiness](docs/status/integration-readiness.md), and [safety boundary](docs/security/vehicle-safety-gates.md).
 
 Historical action snapshots follow. They are preserved as records and are not current instructions.
 

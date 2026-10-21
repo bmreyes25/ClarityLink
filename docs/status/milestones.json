@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-20",
-  "current_campaign": "CL-R4 reliability and public-source publication complete; OEM contract investigation remains",
+  "updated": "2026-10-21",
+  "current_campaign": "CL-MASTER-01: Honda Type111 feasibility; CL-R4/R7 API17 lab milestones complete; CL-R12-F acceptance remains partial",
   "current_milestone": "CL-R4",
   "current_milestone_state": "COMPLETE",
   "next_technical_milestone": "CL-R5",
@@ -94,5 +94,14 @@
         "docs/safety/vehicle-testing.md"
       ]
     }
-  ]
+  ],
+  "milestone_sequence_scope": "current_milestone and next_technical_milestone retain the validated CL-R0\u2013CL-R8 sequence; overall program status is in docs/status/current.md",
+  "program_status": {
+    "program": "CL-MASTER-01",
+    "decision": "NO-GO / NOT ESTABLISHED",
+    "safeForHonda": false,
+    "last_verified_main": "512d30cbca99b081c235414566142e1b8b228f27",
+    "status_source": "docs/status/current.md",
+    "next_acceptance": "CL-R12-F full API17 performance/reliability acceptance; issue #58"
+  }
 }
