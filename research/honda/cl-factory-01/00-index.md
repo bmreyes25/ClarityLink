@@ -18,12 +18,12 @@ reported as a blocker, and only the independently testable offline components ar
 ## Milestones
 | M | Title | Status |
 |---|---|---|
-| M1 | Factory artifact & build-compatibility verification | **IN PROGRESS** (report 01) — inventory + tool readiness done; deodex tool pending |
-| M2 | CarPlay receiver + Type110 reconstruction | not started (blocked on deodex for Java graph; native path open) |
+| M1 | Factory artifact & build-compatibility verification | **COMPLETE** (reports 01, 02) — inventory + deodex pipeline verified |
+| M2 | CarPlay receiver + Type110 reconstruction | **IN PROGRESS** (report 03) — Java/native graph recovered; native locus + AIDL fabric mapped |
 | M3 | Factory Navigation + Display 1 architecture | not started |
 | M4 | Custom compatibility architecture decision | not started |
 | M5 | Type111 control/transport (offline, testable) | not started |
-| M6 | Fail-closed factory integration contracts/adapters | not started |
+| M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `src/claritylink-honda/factory_integration_contract.py` (8 tests) |
 | M7 | Synthetic concurrent Type110/Type111 integration tests | not started |
 | M8 | Android API17 compatibility regression | not started |
 | M9 | Bounded read-only ADB collection plan (for separate approval) | not started |
@@ -31,7 +31,9 @@ reported as a blocker, and only the independently testable offline components ar
 
 ## Reports
 - [01 — Artifact inventory & tool readiness](01-artifact-inventory.md)
-- (forthcoming) 02 build/odex; 03 CarPlay receiver; 04 Type110/Type111; 05 native decoder/video; 06 navigation;
+- [02 — Deodex pipeline & build analysis](02-build-and-odex-analysis.md)
+- [03 — CarPlay receiver architecture](03-carplay-receiver-architecture.md)
+- (forthcoming) 04 Type110/Type111; 05 native decoder/video; 06 navigation;
   07 externaldisplay; 08 cluster/safety; 09 compatibility options; 10 evidence gaps; 11 ADB plan; 12 feasibility.
 
 ## Key standing facts (see report 01 for evidence)
