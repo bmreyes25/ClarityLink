@@ -5,6 +5,11 @@
 - [R7D entry gate](research/runtime/r7c-r7d-entry-gate.md) — CLOSED pending deterministic lifecycle races, full fault matrix, final ARMv7 audit, and hosted checks.
 - PR #17 exact R7C3 head `0804bc0b3c6f6b7a63483562ce539eaa8550d778` — OPEN/CLEAN; Offline CI and CodeQL SUCCESS. These checks predate uncommitted R7C4 changes.
 
+# CL-SYS-01A factory Android architecture — 2026-10-21
+
+- [Bounded architecture report](research/honda/cl-sys-01a-factory-android-architecture.md) — current Ghidra/REA inspection confirms the preserved native `jmcs` to CarPlay proxy boundary and singleton screen callback table; factory APK manifest/class graph remains pending because the live REA/JADX provider was unavailable. No supported Type111 handoff or Display 1 frame admission is established; `safeForHonda() == false`.
+- [Second Display Evidence Ledger](research/evidence/second-display-ledger.md) — additive row with claim scope and missing proof.
+
 # R7C3 attempt (2026-10-07)
 
 - [R7C3 milestone report](step-reports/43t1-r7c3-final-android-integration-closure.md) — historical snapshot; R7C4 later restored JDK/pytest and executed the updated Dalvik APK.
