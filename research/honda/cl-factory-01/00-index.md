@@ -20,7 +20,7 @@ reported as a blocker, and only the independently testable offline components ar
 |---|---|---|
 | M1 | Factory artifact & build-compatibility verification | **COMPLETE** (reports 01, 02) — inventory + deodex pipeline verified |
 | M2 | CarPlay receiver + Type110 reconstruction | **IN PROGRESS** (report 03) — Java/native graph recovered; native locus + AIDL fabric mapped |
-| M3 | Factory Navigation + Display 1 architecture | not started |
+| M3 | Factory Navigation + Display 1 architecture | **IN PROGRESS** (reports 06,07,08) — structured-data flow + two-layer warning composition mapped |
 | M4 | Custom compatibility architecture decision | not started |
 | M5 | Type111 control/transport (offline, testable) | not started |
 | M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `src/claritylink-honda/factory_integration_contract.py` (8 tests) |
@@ -33,13 +33,16 @@ reported as a blocker, and only the independently testable offline components ar
 - [01 — Artifact inventory & tool readiness](01-artifact-inventory.md)
 - [02 — Deodex pipeline & build analysis](02-build-and-odex-analysis.md)
 - [03 — CarPlay receiver architecture](03-carplay-receiver-architecture.md)
-- (forthcoming) 04 Type110/Type111; 05 native decoder/video; 06 navigation;
-  07 externaldisplay; 08 cluster/safety; 09 compatibility options; 10 evidence gaps; 11 ADB plan; 12 feasibility.
+- [06 — Navigation → cluster data flow](06-navigation-architecture.md)
+- [07 — ExternalDisplay host architecture](07-externaldisplay-architecture.md)
+- [08 — Cluster composition & safety](08-cluster-composition-and-safety.md)
+- (forthcoming) 04 Type110/Type111; 05 native decoder/video; 09 compatibility options; 10 evidence gaps; 11 ADB plan; 12 feasibility.
 
 ## Key standing facts (see report 01 for evidence)
 - Preserved platform: Honda ADA (Andromeda-class) head unit, Android 4.2.2 / API 17 / armeabi-v7a.
 - Factory APKs are **ODEX-separated** (code in `.odex`); manifests/permissions/components are analyzable now, Java
   bodies require a Dalvik-API17 deodex step. Native binaries (`jmcs`, `libcarplay_proxy`) are ARM, unstripped.
+- M3: factory cluster Navigation is **structured turn-by-turn data** rendered host-side into Android Views on Display 1; the host composes a **main layer + a preempting interrupt/warning layer** (factory warning precedence exists; its preservation under third-party content is UNPROVEN, U-05).
 - Prior CL-SYS-01A: native `jmcs → libcarplay_proxy` screen-stream callback family is **singleton** (no second-screen
   / Type111 evidence at the proxy); receiver→Display-1 edge **UNKNOWN**. This campaign re-verifies against artifacts.
 
