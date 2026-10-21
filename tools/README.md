@@ -45,8 +45,6 @@ tools/publish_checkpoint.sh \
 
 Repeat `--file` for every intended path. The publisher never stages the whole repository. It requires a public-safety review attestation, rejects ignored paths, restricted path classes, binary artifacts, credential-like content, pre-staged unrelated files, and direct `main` publication. Shared status files require the designated maintenance-owner flag. A verified checkpoint needs a successful verification command. A public-safe `WIP_UNVERIFIED` checkpoint also needs notes of incomplete work and known failures, keeps its branch, and skips creating a new PR; do not publish restricted or uncertain material to this public repository.
 
-Before staging, the publisher fetches `origin/main` and requires an existing feature branch to match its live remote SHA. A new feature branch must start exactly at the fetched `origin/main`. This prevents a checkpoint push from carrying older unpublished commits. The content scan checks each complete staged text file, including binary markers and credential-like patterns near the end of large files. Pass only a verification command you trust; the command is executed by the local shell before commit.
-
 Run `python3 tools/verify_remote_publication.py` to compare local `HEAD` with the live remote branch. Run `python3 tools/check_source_discovery.py` to find source-like files hidden by ignore rules; classify each result manually.
 
 `.codex/hooks.json` configures bounded, read-only `SessionStart` and `Stop` audits. Codex Desktop must load the actual repository root as the project and the user must review/trust these project hooks before they run. The Stop hook can request one continuation but never commits or pushes. Hooks do not protect against crashes or power loss.
