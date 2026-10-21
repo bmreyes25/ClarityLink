@@ -14,7 +14,7 @@
 - [Integration readiness](../status/integration-readiness.md)
 - [Public/private evidence boundary](../security/public-private-evidence-boundary.md)
 - [Vehicle safety gates](../security/vehicle-safety-gates.md)
-- [Campaign tracker issues](https://github.com/bmreyes25/ClarityLink/issues) (campaign issues are linked here as they are created)
+- [Campaign tracker issues](../status/campaign-issues.md) (ten canonical campaign issues)
 - [Reference-library status](../research/cl-master-01-reference-status.md) (existing CL-R13-A work is in PR #53; do not duplicate it)
 
 ## Phase plan
@@ -35,10 +35,10 @@
 | 11 — Vehicle acceptance | CL-VT-01 future conditional acceptance against F1–F13. | **Not authorized.** Requires reversible procedure, exact approval, independent safety review, and parked-only stop criteria. |
 | 12 — Alternative architecture | CL-REL-01 if a required stock interface is unsupported or target acceptance is NO-GO. | **Conditional.** Explain tradeoffs; do not call a separate receiver/external display the original finish line. |
 | 13 — GitHub documentation system | Keep public-safe source of truth, issue links, reports, status, provenance and reproducibility. | **This PR supplies the initial structure.** Update status only with evidence; do not rewrite historical decisions/approvals. |
-| 14 — GitHub tracking | One issue per planned campaign unless an equivalent issue exists. | **Being established with this PR.** Exact campaign URLs are linked from the master page after creation. |
+| 14 — GitHub tracking | One issue per planned campaign unless an equivalent issue exists. | **Complete:** ten canonical issues #55–#64 are linked in the [campaign issue index](../status/campaign-issues.md). |
 | 15 — Execution discipline | Read instructions, roadmap, issue, dependencies; define acceptance; evidence; verify; update ledger/status; commit/push/PR; report. | **Required for every subsequent campaign.** Do not repeat completed research or bypass review. |
 | 16 — Verify plan | Check dependency order, safety consistency, evidence classes, links, JSON, health, whitespace, secret/private artifact boundary, independent reviews. | **Pre-publication validation is required.** No historical approval is manufactured. |
-| 17 — Publish | Feature branch from current main, exact remote SHA, PR, CI/CodeQL/review state and links verified. | **This roadmap branch is the publication candidate.** Do not merge or auto-merge; leave open if required review is unavailable. |
+| 17 — Publish | Feature branch from current main, exact remote SHA, PR, CI/CodeQL/review state and links verified. | **PR #54 is open** from the recorded main SHA; verify required checks and review state before considering publication complete. Do not merge or auto-merge; leave open if required review is unavailable. |
 
 ## Current evidence and blockers
 
@@ -62,7 +62,7 @@ Critical blockers:
 
 ## First execution campaign
 
-Finish the existing **CL-R13-A PR #53** review/publication as a bounded reference-library campaign, correcting any source-version or license findings without duplicating completed research. Then advance the highest independent technical blocker: complete CL-R12-F acceptance on its own branch/PR and reconcile the CL-R11-A/R12-B/C/D/E reports in the ledger. Do not begin a Honda observation or final integration from this roadmap alone.
+Finish the existing **CL-R13-A issue #55 / PR #53** review/publication as a bounded reference-library campaign, correcting any source-version or license findings without duplicating completed research. Then advance the highest independent technical blocker: complete **CL-R12-F issue #58** acceptance on its own branch/PR and reconcile the CL-R11-A/R12-B/C/D/E reports in the ledger. Do not begin a Honda observation or final integration from this roadmap alone.
 
 ## Public-safe campaign report standard
 
