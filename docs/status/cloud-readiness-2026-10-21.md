@@ -4,6 +4,21 @@
 
 Remote `main` at audit: `c30a385455449b3c1d7b5cc65bb74c88c694b7f8`.
 
+## Concurrent GitHub update after the initial audit
+
+**This section supersedes the initial head/status table below.** Other repository sessions made changes while this cloud-first audit and PR were being prepared.
+
+- **New remote main:** `c0b834567086ad4267fd0c6df9c78e6cbbcf29a0`.
+- **PR #52 was merged** at `170601590c9a48c3f3f312091cf0f51f8cfabd65`. Its API17 runtime smoke and CI passed, **but the published frame-rate, latency, drop-rate, resource and full fault-matrix acceptance remained PARTIAL**. Being merged does not constitute technical acceptance.
+- **PR #54 was merged** at `c0b834567086ad4267fd0c6df9c78e6cbbcf29a0`. Its previously branch-only master-plan files are now on `main` as of this check, although any shared status snapshot still needs evidence-based reconciliation.
+- **PR #53** remained open at `cd127d1db969c544ec56537a36177c5426a0803a`, with reported CI/CodeQL checks passed at that head.
+- **PR #65** remained open at `30936b0bb2642f12a91efdcddf19a1f0e6b2c368`, but **`offline-tests` failed** at that newer head. Resolve the actual failure before merging.
+- **PR #66** remained open at `c5f7f50ebca4a1b199a90776504d8b039d6ba1cd`, with `offline-tests` still in progress at the check.
+- **PR #67** remained open at `815d4dd9dea098c7353a3eecf45800615bed8d54`, with some hosted checks still in progress.
+- **PR #68** (the cloud-first/CL-IF-01 documentation) was opened from the earlier main and is now behind the updated protected branch. It must meet strict up-to-date required checks and applicable review gates before merge.
+
+Do **not** automatically revert or undo another session's merged work, or infer that the act of merging verifies the unresolved Honda/API17 acceptance gates. The repo state is actively changing: re-fetch main, exact PR heads and checks immediately before any next Git operation. The historical table below is retained as evidence of the **earlier** audit instant, not an assertion of present GitHub status.
+
 ## Current protected-main rules
 
 The active [repository ruleset](https://github.com/bmreyes25/ClarityLink/rules/24422879) applies to the default branch. It prohibits deletion/non-fast-forward updates, requires a pull request, requires resolved review threads, and requires up-to-date `offline-tests` and `CodeQL` checks. The inspected ruleset lists a numeric required-approval count of **0**, but also enables an extra-approval condition for unattributed changes. Independently of that numeric setting, [AGENTS.md](../../AGENTS.md) requires real independent review where applicable, truthful attribution of review status, and prohibits automated merging of sensitive Honda/receiver/safety changes. Do not interpret a passing CI run or an ECC checklist as an approving GitHub review.
