@@ -72,6 +72,47 @@ class PublishScopeTests(unittest.TestCase):
                 publisher.ensure_branch(root, "main")
             self.assertEqual(subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip(), sha)
 
+    def test_unpublished_history_on_existing_branch_is_rejected(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "def456"]), \
+             patch.object(publisher, "live_remote_branch_sha", return_value="abc123"):
+            with self.assertRaisesRegex(publisher.Failure, "unpublished commits"):
+                publisher.ensure_no_unpublished_history(root, "feature/synthetic")
+
+    def test_new_branch_must_start_at_fetched_origin_main(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "def456", "abc123"]), \
+             patch.object(publisher, "live_remote_branch_sha", return_value=""):
+            with self.assertRaisesRegex(publisher.Failure, "origin/main"):
+                publisher.ensure_no_unpublished_history(root, "feature/synthetic")
+
+    def test_new_branch_at_origin_main_has_no_unpublished_history(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "abc123", "abc123"]), \
+             patch.object(publisher, "live_remote_branch_sha", return_value=""):
+            publisher.ensure_no_unpublished_history(root, "feature/synthetic")
+
+    def test_live_remote_lookup_failure_fails_closed(self):
+        root = Path("/synthetic/repo")
+        failed = subprocess.CompletedProcess([], 128, "", "fatal: Authentication failed")
+        with patch.object(publisher.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(publisher.Failure, "refusing publication"):
+                publisher.live_remote_branch_sha(root, "feature/synthetic")
+
+    def test_publish_runs_history_preflight_before_any_publication(self):
+        root = Path("/synthetic/repo")
+        args = publisher.argparse.Namespace(
+            repo=root, task="synthetic", branch="feature/synthetic", file=["note.md"],
+            message="docs: smoke", verification="VERIFIED", verify_command="true",
+            wip_notes=None, pr=None, public_safe_reviewed=True, maintenance_owner=False,
+        )
+        with patch.object(publisher, "git", side_effect=[str(root), publisher.REMOTE]), \
+             patch.object(publisher, "ensure_branch", return_value="feature/synthetic"), \
+             patch.object(publisher, "ensure_no_unpublished_history", side_effect=publisher.Failure("unsafe history")) as preflight:
+            with self.assertRaisesRegex(publisher.Failure, "unsafe history"):
+                publisher.publish(args)
+            preflight.assert_called_once_with(root.resolve(), "feature/synthetic")
+
     def test_empty_scope_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(publisher.Failure):
@@ -128,6 +169,24 @@ class PublishScopeTests(unittest.TestCase):
             (root / "note.md").write_text("synthetic token=ghp_" + "A" * 30 + "\n")
             subprocess.run(["git", "-C", str(root), "add", "note.md"], check=True)
             with self.assertRaises(publisher.Failure):
+                publisher.scan_staged(root)
+
+    def test_staged_token_after_two_megabytes_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "note.md").write_text("x" * 2_000_100 + "token=ghp_" + "A" * 30)
+            subprocess.run(["git", "-C", str(root), "add", "note.md"], check=True)
+            with self.assertRaises(publisher.Failure):
+                publisher.scan_staged(root)
+
+    def test_binary_marker_after_first_eight_kilobytes_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "note.md").write_bytes(b"x" * 9000 + b"\0")
+            subprocess.run(["git", "-C", str(root), "add", "note.md"], check=True)
+            with self.assertRaises(publisher.UnsafeContent):
                 publisher.scan_staged(root)
 
 class VerifyResultTests(unittest.TestCase):
