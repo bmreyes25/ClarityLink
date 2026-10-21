@@ -19,7 +19,7 @@ reported as a blocker, and only the independently testable offline components ar
 | M | Title | Status |
 |---|---|---|
 | M1 | Factory artifact & build-compatibility verification | **COMPLETE** (reports 01, 02) — inventory + deodex pipeline verified |
-| M2 | CarPlay receiver + Type110 reconstruction | **IN PROGRESS** (report 03) — Java/native graph recovered; native locus + AIDL fabric mapped |
+| M2 | CarPlay receiver + Type110 reconstruction | **COMPLETE** (reports 03,05) — Java+native graph; MediaCodec decode; singleton registration code-confirmed |
 | M3 | Factory Navigation + Display 1 architecture | **IN PROGRESS** (reports 06,07,08) — structured-data flow + two-layer warning composition mapped |
 | M4 | Custom compatibility architecture decision | **IN PROGRESS** (report 09) — Option E selected; B/C gated on authorized hw + admission |
 | M5 | Type111 control/transport (offline, testable) | **IN PROGRESS** — `frame_gate.py` (bounded generation-gated delivery, 11 tests) |
@@ -39,7 +39,8 @@ reported as a blocker, and only the independently testable offline components ar
 - [09 — Compatibility options & decision](09-compatibility-options.md)
 - [10 — Remaining evidence gaps](10-remaining-evidence-gaps.md)
 - [11 — Read-only ADB collection plan (proposal)](11-adb-collection-plan.md)
-- (forthcoming) 04 Type110/Type111; 05 native decoder/video; 12 feasibility.
+- [05 — Native decoder & video path](05-native-decoder-and-video-path.md)
+- (forthcoming) 04 Type110/Type111; 12 feasibility.
 
 ## Key standing facts (see report 01 for evidence)
 - Preserved platform: Honda ADA (Andromeda-class) head unit, Android 4.2.2 / API 17 / armeabi-v7a.
