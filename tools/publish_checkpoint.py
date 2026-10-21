@@ -86,9 +86,9 @@ def scan_staged(root: Path) -> None:
         blob = subprocess.run(["git", "-C", str(root), "show", f":{name}"], capture_output=True)
         if blob.returncode:
             raise Failure(f"cannot inspect staged content: {name}")
-        if b"\0" in blob.stdout[:8192]:
+        if b"\0" in blob.stdout:
             raise UnsafeContent(f"binary content is blocked by default: {name}")
-        content = blob.stdout[:2_000_000].decode("utf-8", "replace")
+        content = blob.stdout.decode("utf-8", "replace")
         if any(rx.search(content) for rx in SECRET_PATTERNS):
             raise UnsafeContent(f"credential-like content blocked: {name}")
 
@@ -108,6 +108,40 @@ def ensure_branch(root: Path, intended: str) -> str:
     return current
 
 
+def live_remote_branch_sha(root: Path, branch: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-remote", "--heads", "origin", f"refs/heads/{branch}"],
+        text=True, capture_output=True, timeout=30,
+    )
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip()
+        raise Failure(f"could not verify live origin/{branch}; refusing publication: {detail}")
+    lines = result.stdout.strip().splitlines()
+    if not lines:
+        return ""
+    return lines[0].split()[0]
+
+
+def ensure_no_unpublished_history(root: Path, branch: str) -> None:
+    """Refuse to push commits other than the scoped checkpoint created below."""
+    git(root, "fetch", "--quiet", "origin", "main", timeout=60)
+    remote_sha = live_remote_branch_sha(root, branch)
+    head = git(root, "rev-parse", "HEAD")
+    if remote_sha:
+        if head != remote_sha:
+            raise Failure(
+                f"branch has unpublished commits or is not synchronized with origin/{branch}; "
+                "publish only from a clean checkpoint branch"
+            )
+        return
+    main = git(root, "rev-parse", "refs/remotes/origin/main", check=False)
+    if not main or head != main:
+        raise Failure(
+            "new checkpoint branches must start exactly at the fetched origin/main; "
+            "unpublished historical commits are blocked"
+        )
+
+
 def reject_staged_outside_scope(root: Path, scope: list[str]) -> None:
     staged = set(git(root, "diff", "--cached", "--name-only").splitlines())
     outside = sorted(staged - set(scope))
@@ -122,6 +156,7 @@ def publish(args: argparse.Namespace) -> dict:
     branch = ensure_branch(root, args.branch)
     if branch == "main" or branch.startswith("main/"):
         raise Failure("direct publication to protected main is forbidden")
+    ensure_no_unpublished_history(root, branch)
     if args.verification == "VERIFIED" and not args.verify_command:
         raise Failure("VERIFIED requires an explicit --verify-command")
     scope = safe_scope(root, args.file)
