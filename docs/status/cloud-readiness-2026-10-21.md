@@ -68,3 +68,37 @@ The active [repository ruleset](https://github.com/bmreyes25/ClarityLink/rules/2
 No repository settings were changed; no existing PR was merged, closed, rebased, force-pushed or rewritten. This dated public-safe document is suitable for a separate reviewable PR. Future actions must re-query GitHub and obey the current ruleset and [AGENTS.md](../../AGENTS.md).
 
 No Honda access, live iPhone, vehicle action, native integration, or private artifact publication. `safeForHonda() == false`.
+
+## Fresh verification — 2026-10-21 08:06 PDT (15:06 UTC)
+
+This section records the refreshed remote state after PR #52 and #54 merged. It supersedes earlier status claims only for the checks and refs below; this dated record is still a snapshot.
+
+- **Current `main`:** `c0b834567086ad4267fd0c6df9c78e6cbbcf29a0`. GitHub reports #52 and #54 merged. The master roadmap and CL-R12 acceptance report are on `main`; #52 remains **PARTIAL**, not accepted: the optimized run averaged 16.61 FPS and 57.14 ms p95 against 27 FPS and 50 ms limits, the 10% drop gate was not met, and full fault/resource/soak evidence remains incomplete.
+- **Protection:** ruleset `24422879` remains active on the default branch. It requires PRs, resolved review threads, strict up-to-date `offline-tests` and `CodeQL`; deletion and non-fast-forward updates are prohibited. Numeric approval count is 0, with extra approval for unattributed changes. The only repository collaborator returned is the owner, so no independent GitHub reviewer can be assigned. An ECC checklist is not approval.
+- **Branch refresh:** #53, #65, #66 and #67 now include current `main` through normal merge commits. Their updated remote heads are below. Their new required CI runs were pending at this snapshot except where stated. #68 was also merged locally with current `main`; that refresh and this report edit had not yet been pushed, so no check result is claimed for its updated candidate.
+- **#65 CI repair:** the prior `offline-tests` failure on `30936b0` was a CL-R0 `.gitignore` digest mismatch. The branch now records the actual `.gitignore` SHA-256 (`46f1915c…f6380af56`) and an integrity note without changing its historical review status. The exact refreshed head is `1d37e24156bc5e535049cb830ae3ee4114d7fafb`; `CodeQL` passed, while `offline-tests` and language analyses were still running.
+
+| PR | Purpose | Exact head at snapshot | Base / sync | `offline-tests` | `CodeQL` | Review / merge state |
+| --- | --- | --- | --- | --- | --- | --- |
+| [#53](https://github.com/bmreyes25/ClarityLink/pull/53) | CL-R13-A references | `e37ec9494a01000cdd4cd5aa0f9a9201d4f5baf3` | `main` `c0b8345…`; current | Pending | Skipped on this docs-only head; do not count as a pass without required-context acceptance | No review; open; blocked on checks/review |
+| [#65](https://github.com/bmreyes25/ClarityLink/pull/65) | CL-HH-06A/B research | `1d37e24156bc5e535049cb830ae3ee4114d7fafb` | `main` `c0b8345…`; current | Pending | Pass | No review; open; blocked on checks/review |
+| [#66](https://github.com/bmreyes25/ClarityLink/pull/66) | CL-SYS-01A factory Android | `289809d41a0ae7ff44c4e5d5e23a138693bc89dd` | `main` `c0b8345…`; current | Pending | Pass | No review; open; blocked on checks/review |
+| [#67](https://github.com/bmreyes25/ClarityLink/pull/67) | CL-HH-07 architecture | `31b0b4bcf70a318d104107bca9d5d1fa6b484241` | `main` `c0b8345…`; current | Pending | Pass | No review; open; blocked on checks/review |
+| [#68](https://github.com/bmreyes25/ClarityLink/pull/68) | CL-IF-01 and cloud-readiness | `69fcfe3e83a5ab80d2e313a5ea9dbb1eb00691f1` (remote before refresh) | Old base `1706015…`; behind | Pass on old head | Pass on old head | No review; open; refreshed candidate not yet pushed |
+| [#7](https://github.com/bmreyes25/ClarityLink/pull/7) | Older R6D inert MFi oracle | `6ce9a7d241e96027c827658e9988309d99deed9e` | Base `ddba48a…`; dirty | Pass on stale head | Pass on stale head | No review; open; conflicts; not updated in this campaign |
+| [#19](https://github.com/bmreyes25/ClarityLink/pull/19) | Older R7E parked-car preparation | `a4b564317beca3730b1ae685a302770d46931b77` | Base `edea469…`; dirty | Pass on stale head | Pass on stale head | No review; open; conflicts; not updated in this campaign |
+
+There were zero unresolved review threads on #53, #65–#68 at inspection. All five new research/report PRs (#53, #65–#68) remain open and their report files are public through GitHub PR branches, **not yet canonical files on `main`**. Only #54’s roadmap is on `main`; its phase/status narrative predates the CL-HH-06, CL-SYS-01A and CL-HH-07 reports and needs one dedicated reconciliation change. Exact issue titles #55–#64 were checked against GitHub and are listed in `docs/status/campaign-issues.md`.
+
+The #53 merge conflict was resolved by retaining both CL-R13-A and CL-MASTER-01 navigation links. Its review-scope digests now match the exact merged documentation and status content, with no approval claim. The #65 digest repair is similarly provenance-noted. #66/#67 main updates were clean. No force push, branch protection change, reviewer fabrication, or merge was performed.
+
+Gitleaks reported no leaks in the changed #53 and #65 public content. The #66/#67 PR descriptions report prior changed-content scans, but their refreshed exact heads still need a fresh scan alongside the final checks. Private evidence remains outside the inspected public diffs; encrypted private backup/restore remains unverified. Keep `safeForHonda() == false` and Honda integration **NO-GO**.
+
+### Next publication and engineering gates
+
+1. Finish exact-head hosted `offline-tests`/`CodeQL` evaluation for the synchronized branches; investigate any new failure and verify the resulting SHA.
+2. Keep all research PRs open for independent review. No merge is eligible while the required exact-head checks are pending and independent review is unavailable.
+3. Open one dedicated status reconciliation PR from current `main`, updating the master phase table, `NEXT_ACTION.md`, current/blocker/readiness/evidence-ledger/milestone status against merged versus PR-only evidence. Link unmerged research to its PR or commit-specific URL; preserve F1–F12 acceptance separately from F13 documentation/publication.
+4. The next technical milestone remains CL-R12-F full API17 performance/reliability closure under issue #58, preserving 27 FPS, p95 ≤50 ms, ≤10% drops, resource, 15-case failure/reconnect and soak requirements. Honda receiver/display authorization, physical aperture, universal warning priority and crash-safe factory restoration remain unproven.
+
+**Readiness at this snapshot:** GitHub collaboration is usable and the previous #65 failure has a verified root-cause correction. Cloud consolidation and documentation reconciliation remain **PARTIAL**; updated required checks and independent reviews are outstanding.
