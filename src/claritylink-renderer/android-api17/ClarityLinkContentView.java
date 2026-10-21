@@ -19,6 +19,10 @@ import org.claritylink.android.HostedContentLifecycle;
  * This View is a laboratory renderer and does not acquire a Honda display root.
  */
 public final class ClarityLinkContentView extends View implements HostedContentLifecycle {
+    public interface ProfileListener {
+        void onFrameProfile(long timestampNs, long bitmapCreateNs, long pixelConvertNs,
+                long installQueueNs, long installNs, long invalidateToDrawNs, long drawNs);
+    }
     private static final String THREAD_NAME = "ClarityLinkFrameConvert";
 
     private final Object stateLock = new Object();
@@ -50,6 +54,16 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     private boolean sessionStarted;
     private boolean closed;
     private Bitmap displayedBitmap;
+    private volatile ProfileListener profileListener;
+    private long pendingBitmapCreateNs;
+    private long pendingPixelConvertNs;
+    private long pendingInstallQueueNs;
+    private long displayedBitmapCreateNs;
+    private long displayedPixelConvertNs;
+    private long displayedInstallQueueDurationNs;
+    private long displayedInstallDurationNs;
+    private long displayedInstallNs;
+    private long lastProfiledDrawTimestampNs = -1L;
     private Rect displayedCrop;
     private int displayedRotation;
     private FrameDispatchGate displayedDispatchGate;
@@ -157,11 +171,19 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             }
 
             Bitmap converted = null;
+            long bitmapCreateNs = 0L;
+            long pixelConvertNs = 0L;
             try {
                 DecodedFrame frame = envelope.frame;
+                ProfileListener listener = profileListener;
+                long stageStartedNs = listener == null ? 0L : System.nanoTime();
                 converted = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888);
-                converted.setPixels(frame.toArgbPixels(), 0, frame.width,
+                if (listener != null) bitmapCreateNs = System.nanoTime() - stageStartedNs;
+                stageStartedNs = listener == null ? 0L : System.nanoTime();
+                int[] argb = frame.toArgbPixels();
+                converted.setPixels(argb, 0, frame.width,
                         0, 0, frame.width, frame.height);
+                if (listener != null) pixelConvertNs = System.nanoTime() - stageStartedNs;
             } catch (RuntimeException failure) {
                 if (converted != null && !converted.isRecycled()) converted.recycle();
                 continue;
@@ -183,6 +205,9 @@ public final class ClarityLinkContentView extends View implements HostedContentL
                     pendingBitmapTimestampNs = envelope.frame.presentationTimeNs;
                     pendingBitmapCrop = envelope.frame.cropRect();
                     pendingBitmapRotation = envelope.frame.rotationDegrees;
+                    pendingBitmapCreateNs = bitmapCreateNs;
+                    pendingPixelConvertNs = pixelConvertNs;
+                    pendingInstallQueueNs = profileListener == null ? 0L : System.nanoTime();
                     pendingDispatchGate = envelope.gate;
                     pendingDispatchGeneration = envelope.gateGeneration;
                     pendingDispatchEpoch = envelope.dispatchEpoch;
@@ -206,12 +231,19 @@ public final class ClarityLinkContentView extends View implements HostedContentL
         long generation;
         long gateGeneration;
         long timestampNs;
+        long bitmapCreateNs;
+        long pixelConvertNs;
+        long installQueueNs;
+        long installStartedNs = profileListener == null ? 0L : System.nanoTime();
         synchronized (stateLock) {
             installScheduled = false;
             next = pendingBitmap;
             crop = pendingBitmapCrop;
             generation = pendingBitmapGeneration;
             timestampNs = pendingBitmapTimestampNs;
+            bitmapCreateNs = pendingBitmapCreateNs;
+            pixelConvertNs = pendingPixelConvertNs;
+            installQueueNs = pendingInstallQueueNs;
             pendingBitmap = null;
             pendingBitmapCrop = null;
             if (next == null || closed || hostSuspended || generation != activeGeneration) {
@@ -224,15 +256,34 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             displayedRotation = pendingBitmapRotation;
             displayedGeneration = generation;
             displayedTimestampNs = timestampNs;
+            displayedBitmapCreateNs = bitmapCreateNs;
+            displayedPixelConvertNs = pixelConvertNs;
+            displayedInstallQueueDurationNs = profileListener == null ? 0L
+                    : Math.max(0L, installStartedNs - installQueueNs);
             displayedDispatchGate = pendingDispatchGate;
             displayedGateGeneration = pendingDispatchGeneration;
             displayedDispatchEpoch = pendingDispatchEpoch;
             if (previous != null && previous != next && !previous.isRecycled()) previous.recycle();
         }
         invalidate();
+        if (profileListener != null) {
+            long installedNs = System.nanoTime();
+            synchronized (stateLock) {
+                if (displayedTimestampNs == timestampNs) {
+                    displayedInstallDurationNs = installedNs - installStartedNs;
+                    displayedInstallNs = installedNs;
+                }
+            }
+        }
+    }
+
+    public void setProfileListener(ProfileListener listener) {
+        profileListener = listener;
     }
 
     @Override protected void onDraw(Canvas canvas) {
+        ProfileListener listener = profileListener;
+        long drawStartedNs = listener == null ? 0L : System.nanoTime();
         super.onDraw(canvas);
         Bitmap bitmap;
         Rect crop;
@@ -298,12 +349,24 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             rendered = gate.drawIfCurrent(gateGeneration, dispatchEpoch, action) && renderedResult[0];
         }
         if (!rendered) return;
+        boolean reportProfile = false;
         synchronized (stateLock) {
             if (!closed && !hostSuspended && displayedBitmap == bitmap && !bitmap.isRecycled()
                     && displayedGeneration == generation && displayedTimestampNs == timestampNs) {
                 drawnGeneration = generation;
                 drawnTimestampNs = timestampNs;
+                if (listener != null && lastProfiledDrawTimestampNs != timestampNs) {
+                    lastProfiledDrawTimestampNs = timestampNs;
+                    reportProfile = true;
+                }
             }
+        }
+        if (listener != null && reportProfile) {
+            long now = System.nanoTime();
+            listener.onFrameProfile(timestampNs, displayedBitmapCreateNs,
+                    displayedPixelConvertNs,
+                    displayedInstallQueueDurationNs, displayedInstallDurationNs,
+                    Math.max(0L, drawStartedNs - displayedInstallNs), now - drawStartedNs);
         }
     }
 
