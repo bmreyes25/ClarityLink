@@ -13,7 +13,8 @@ serial="${ANDROID_SERIAL:-}"
 
 {
   echo "commit=$(git -C "$repo" rev-parse HEAD)"
-  echo "tree=$(git -C "$repo" rev-parse HEAD^{tree})"
+  tree_fingerprint=$(git -C "$repo" rev-parse 'HEAD^{tree}')
+  echo "tree=$tree_fingerprint"
   echo "branch=$(git -C "$repo" branch --show-current)"
   echo "serial=$serial"
   echo "sdk_root=$sdk_root"

@@ -26,10 +26,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      ANDROID_HOME: ${{ runner.temp }}/android-sdk
-      ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
-      JAVA_HOME: ${{ runner.temp }}/jdk17
-      CL_IMP_03_SDK_ROOT: ${{ runner.temp }}/android-sdk
+      ANDROID_HOME: ${{ github.workspace }}/.ci-android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      CL_IMP_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
       CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r12-api17-ci
       CL_R12_RECEIPT_DIR: ${{ github.workspace }}/build/cl-r12-api17-ci/receipt
     steps:
