@@ -111,11 +111,14 @@ jobs:
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           export JAVA_HOME="$java_home"
           source_file='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
-          baseline_ref='eb50c212faf405bbcef469f062893c8be211ff1f'
+          # Compare this candidate only with the exact source at the fetched
+          # origin/main base of the PR, so the A/B isolates the task change.
+          baseline_ref="$(git merge-base HEAD origin/main)"
+          test -n "$baseline_ref"
+          echo "baseline_ref=$baseline_ref" | tee source-ab.sha256
           git show "$baseline_ref:$source_file" > "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java"
           baseline_source_sha="$(sha256sum "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" | awk '{print $1}')"
-          test "$baseline_source_sha" = '2d4c5f74a9460b76ecf6239b27889b0e8920d6f3ce5153ea8f6ac34f94c864f7'
-          echo "baseline_source_sha256=$baseline_source_sha" | tee source-ab.sha256
+          echo "baseline_source_sha256=$baseline_source_sha" | tee -a source-ab.sha256
           cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" "$source_file"
           CL_IMP_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID" \
             "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee build-output.txt
@@ -127,7 +130,8 @@ jobs:
             "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee -a build-output.txt
           cp "$GITHUB_WORKSPACE/build/cl-r12-optimized-$GITHUB_RUN_ID/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"
           optimized_source_sha="$(sha256sum "$source_file" | awk '{print $1}')"
-          echo "optimized_source_sha256=$optimized_source_sha" | tee -a source-ab.sha256
+          echo "candidate_source_sha256=$optimized_source_sha" | tee -a source-ab.sha256
+          test "$baseline_source_sha" != "$optimized_source_sha"
           if cmp -s "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"; then
             echo 'Baseline and optimized APKs are byte-identical; refusing to report an A/B result.' >&2
             exit 9
