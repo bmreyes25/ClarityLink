@@ -1,14 +1,17 @@
-# Active blockers
+# Active blockers — CL-MASTER-01
 
-This page records current evidence and open gates. Historical reports remain unchanged.
+**Updated:** 2026-10-20. Detailed evidence is in the [integration readiness](integration-readiness.md), [evidence ledger](evidence-ledger.md), and [acceptance gates](../roadmap/milestone-acceptance-gates.md).
 
-| Blocker | State | Evidence or required resolution | Milestone |
+| Blocker | State | Required resolution | Milestone |
 |---|---|---|---|
-| CL-R4 reliability acceptance | Complete in laboratory | Final API17 run passed all 12 required cases and 12 priority combinations on one source fingerprint/APK. See `build/cl-r4-acceptance-20261019-234709-22337/` locally; generated evidence is not published. | CL-R4 |
-| PR #38 publication | Complete | Merged to online `main` on 2026-10-20 as `fadcdad7654683c6c94ba341ab77d47843e14863`. Offline CI and configured CodeQL checks passed on PR head `425193360f36b23ae9ac9f5b8b092503e3d50449`. | Publication |
-| Genuine authenticated Honda Type111 receiver contract | Unknown | No documented supported capability advertisement, Honda SETUP schema, receiver-session authority, stream-delegation, or same-session transport contract has been established. Keep production adapter disabled. | CL-R5 |
-| Honda Display 1 frame-admission contract | Unknown | No supported OEM-owned frame input, display ownership, geometry, warning precedence, or restoration contract has been established. Do not write the cluster framebuffer or patch factory binaries. | CL-R6 |
-| Hardware validation | Not started | No Honda ADB, installation, firmware operation, live iPhone experiment, or physical vehicle test is authorized by this campaign. Any future vehicle test requires separate specific authorization, preconditions, equipment, stop conditions, evidence capture, restoration, and independent safety review. | CL-R7+ |
-| License choice | Owner decision | The repository has no selected license. Do not add a license or imply open-source reuse permission until the owner chooses one. | Repository |
+| Honda Type111 receiver ownership | **BLOCKED / UNKNOWN** | Authorized versioned contract for same-session Type111 advertisement, accepted SETUP, authentication/session ownership, authoritative configuration, transport, revocation and teardown; otherwise record NO-GO. | CL-IF-01 |
+| Honda Display 1 frame admission | **BLOCKED / NOT ESTABLISHED** | Supported caller/frame contract, physical Navigation geometry, page ownership, warning priority, stale-frame withdrawal, host restart and factory restoration; otherwise record NO-GO. | CL-IF-01 |
+| CL-R12-F full API17 acceptance | **PARTIAL** | Complete original scenario, stage timing, controlled A/B, ten reconnect cycles, remaining failure matrix, predeclared performance gates, clean teardown, and exact-head CI. PR #52's Offline CI currently fails. | CL-R12-F |
+| CL-R13-A canonical publication | **IN PROGRESS** | Complete exact-range review and merge PR #53 through normal project rules. Current CI/CodeQL passes; no approval is recorded. | CL-R13-A |
+| CL-R11-A / CL-R12-B/C/D/E report reconciliation | **NOT RECONCILED** | Locate authoritative report/version/commit and evidence class, preserve limits, and update the ledger without importing unpublished work. | CL-IF-01 / CL-R12-F |
+| Private evidence backup/recovery | **UNVERIFIED** | Verify encrypted archive backup and recovery in authorized private storage; publish only a sanitized receipt. No PASS is claimed here. | CL-MASTER-01 |
+| Independent target safety review | **NOT RECORDED** | Obtain review of exact target integration, warning behavior, stop conditions and rollback before any target-facing work. | CL-INT-01 / CL-VT-01 |
+| Separate live-iPhone / vehicle authorization | **NOT AUTHORIZED** | A bench session or read-only vehicle observation needs its own exact scope, independent review, explicit owner approval, privacy plan, and stop/rollback conditions. | CL-REC-01 / CL-OBS-01 / CL-VT-01 |
+| Honda vehicle acceptance | **NOT STARTED** | Requires supported contracts, integrated lab acceptance, safety review, reversible procedure, exact authorization, and all vehicle-relevant F1–F12 evidence. F13 (public development history) is tracked separately and is not a vehicle-test prerequisite. | CL-VT-01 |
 
-Historical FinalizerWatchdogDaemon behavior remains **NOT REPRODUCED** and unattributed. The laboratory does not establish vehicle compatibility or hardware safety. `safeForHonda()` remains `false`.
+CL-R4 and CL-R7 remain **API17 LAB PASS** within their recorded synthetic scope. Historical FinalizerWatchdogDaemon behavior remains **NOT REPRODUCED** and unattributed. `safeForHonda()` remains `false`.
