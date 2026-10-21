@@ -12,29 +12,41 @@ Labels: **OBSERVED_STATIC** means directly returned by static artifact inspectio
 
 ```mermaid
 flowchart LR
-  U[User enables cast] --> F[Feature state and refresh scheduling]
-  F --> P[Android system screenshot producer]
-  P --> B[Display 0 frame represented as bitmap]
-  B --> M[Shared-memory buffer and message transport]
-  M --> C[HondaHack receiver-side consumer]
-  C --> I[Bitmap/ImageView update]
-  I --> X[Xposed in-process insertion into Honda display host view tree]
-  X --> D[External-display host presents on Display 1]
-  F -. normal stop / page transition .-> T[Callback and transport cleanup]
-  P -. producer or process failure .-> Q[Recovery outcome unknown]
-  C -. consumer or host failure .-> Q
+  subgraph App[HondaHack app process]
+    U[User enables casting] --> F[Feature state and request scheduler]
+    C[Consumer reads shared frame buffer] --> I[Persistent bitmap updated; cast ImageView callback]
+  end
+  subgraph SU[Android SystemUI screenshot process]
+    P[Bound screenshot service / hook] --> B[Display 0 captured as 400×240 ARGB bitmap]
+    B --> M[384,000-byte shared-memory frame buffer]
+  end
+  subgraph Honda[Honda external-display host process]
+    X[Xposed entry conditionally hooks host lifecycle] --> V[App-owned feature view inserted into Honda-owned main/interrupt root]
+    V --> D[Android Display 1 host output]
+  end
+  F -->|cross-process request| P
+  M -->|shared-memory descriptor/control IPC| C
+  I -->|in-process view content| V
+  F -. normal stop / disconnect callback .-> T[Normal-path cleanup]
+  P -. abrupt producer death .-> Q[Recovery not established]
+  C -. abrupt app/host death .-> Q
 ```
+
+The figure separates three process owners: HondaHack schedules requests and consumes frames; SystemUI produces pixels; Xposed code in the Honda external-display process admits the app's view into Honda-owned windows. The app-to-SystemUI handoff is cross-process. The observed view insertion occurs in the host process. This is not a supported third-party renderer API or independent framebuffer/display surface.
 
 | Stage | Finding | Class | Limit |
 |---|---|---|---|
-| Start action and feature initialization | A user preference changes the cast state and schedules refresh work. | OBSERVED_STATIC | Does not prove the full UI-to-frame path under runtime conditions. |
-| Producer selection | Screenshot acquisition is requested through an Android system screenshot service in the observed static route. | OBSERVED_STATIC | Permission, timing, and successful capture are not runtime-verified here. |
-| Frame acquisition and representation | Earlier private static evidence describes a Display 0 screenshot represented as an ARGB bitmap at a fixed source size. | OBSERVED_STATIC (historical static note) | This is source-side metadata, not proof of final cluster crop or pixels. |
-| Buffer copy and transport | Earlier private evidence describes a shared-memory buffer and message/file-descriptor transport with initialization, update, and close phases. | OBSERVED_STATIC (historical static note) | Exact protocol details are private; no transport was exercised. |
-| Consumer and bitmap/view update | Selected receiver code creates or updates bitmap-backed image content. | OBSERVED_STATIC | Successful frame delivery and UI-thread behavior are not runtime proven. |
-| Host admission and output | Static Xposed integration inserts app-owned content into a Honda external-display host's view hierarchy; the host is associated with Display 1. | OBSERVED_STATIC | Does not establish a supported public API, admission authorization, actual aperture, or guaranteed display output. |
-| Normal teardown | Normal stop/page transitions and observed disconnect callbacks include cleanup paths. | OBSERVED_STATIC | Callback execution is not guaranteed after process death or host restart. |
-| Abnormal cleanup | Process death, stale frame disposal, host restart recovery, and factory-content restoration are not proven crash-safe. | UNKNOWN | Requires separate lifecycle and recovery evidence; no vehicle testing authorized. |
+| User action and initialization | A preference/state handler changes casting state and schedules refresh work. | OBSERVED_STATIC | Exact UI-to-handler runtime ordering is not proven. |
+| Producer selection and acquisition | The app binds to the Android SystemUI screenshot service; static inspection shows built-in Display 0 captured into a 400×240 ARGB bitmap. | OBSERVED_STATIC | No live capture, permission outcome, or timing was tested. |
+| Frame representation and copy | The producer copies pixels into a reusable 384,000-byte shared-memory region, consistent with 400×240×4 bytes. | OBSERVED_STATIC | Source dimensions and buffer size do not establish downstream scaling or crop. |
+| IPC / transport | Messenger control and a duplicated file descriptor establish a cross-process setup/update/close path. | OBSERVED_STATIC | Exact message values and private identifiers are withheld; no transport was exercised. |
+| Consumer | The app-side receiver reads the shared region into a persistent ARGB bitmap and calls the cast view update. | OBSERVED_STATIC | Actual frame arrival and presentation are not runtime proven. |
+| View admission | The bitmap is assigned to a HondaHack ImageView; Xposed code in the external-display host process inserts the containing feature view into a Honda-owned main or interrupt root. | OBSERVED_STATIC | In-process technical access is not caller authorization or a supported public API. |
+| Display output | Earlier preserved Display 1 captures show an 800×480 Android host output. | OBSERVED_HISTORICAL_RUNTIME | Does not identify the physical cluster aperture, crop, mask, final scaling, or warning composition. |
+| Normal teardown | Static stop/page-transition and disconnect callbacks close consumer resources or remove the view on normal paths; SystemUI disconnect handling also retries binding. | OBSERVED_STATIC | A callback path is not guaranteed after abrupt process death. Producer-side resource closure is not fully established in all branches. |
+| Abnormal cleanup | Process death, stale-frame withdrawal, host restart recovery, duplicate attach handling, and factory-content restoration are not proven crash-safe. | UNKNOWN | No host-owned recovery contract was found; vehicle testing is unauthorized. |
+
+The 400×240 source bitmap and 800×480 Display 1 host frame are distinct measurements from different stages. The physical Navigation viewport and any downstream transform remain **UNKNOWN**.
 
 The dotted arrows indicate inferred failure outcomes, not observed behavior.
 
@@ -45,10 +57,14 @@ The dotted arrows indicate inferred failure outcomes, not observed behavior.
 | Screen casting | Captured pixels / bitmap frames | Bitmap-backed image content inserted into the external-display host | Screenshot producer plus host-view integration | Static path observed; complete runtime delivery inferred. |
 | Advanced Meter | Semantic/widget inputs, including instrument values and navigation-related presentation | Custom in-process views using the shared injected host integration | Vehicle-data consumers may supply values; individual read side effects not fully classified | Shared host mechanism observed; not the screen-cast bitmap pipeline. |
 | Factory Navigation integration | Navigation-page state and semantic content | Factory Honda navigation UI/content | Honda-owned navigation and services | Exact data flow and overlap with injected rendering are partially unknown. |
-| Waze turn-by-turn | Semantic maneuver/guidance information is a distinct category from screen pixels | Evidence does not establish that HondaHack's Waze path is a bitmap stream; head-unit Waze observations are separate evidence | Potential navigation-data/service path; source and authority are not established here | Relationship to this APK's specific rendering route remains unknown. |
+| Waze turn-by-turn | Semantic maneuver/guidance information would be distinct from screen pixels | Current artifact class searches did not establish an in-app Waze-specific producer; head-unit Waze observations are separate evidence | No HondaHack Waze source, consumer, or service authority is established | UNKNOWN. Do not attribute head-unit Waze behavior to this APK or equate semantic TBT with arbitrary frame admission. |
 | Honda system-service interaction | Structured service/vehicle data or commands | Service clients feeding feature logic or widgets | Some methods may be read-only, control-capable, or mixed | Classify per method and transitive effects; a “get” name is not proof of purity. |
 
-Thus, the observed screen cast is a pixel producer, while Advanced Meter is a semantic/widget renderer. Factory Navigation is Honda-owned navigation content. Waze TBT must be treated as semantic navigation data unless a frame source is directly evidenced. The artifact does not establish that these features share one data/rendering pipeline.
+Thus, the observed screen cast is a pixel producer, while Advanced Meter is a semantic/widget renderer. Factory Navigation is Honda-owned navigation content. No HondaHack-specific Waze TBT producer was established; if such a semantic path exists, it is not equivalent to pixel-frame admission. The artifact does not establish that these features share one data/rendering pipeline.
+
+## Manifest-first package boundary
+
+The decoded manifest contains 23 activities, 2 services, 1 receiver, and 1 provider; it declares 22 permissions. The inspected manifest text contains no explicit `android:exported` or `android:process` attributes for these components. This bounded report does not determine effective export behavior from platform defaults or intent filters. The manifest does not declare Xposed metadata; a separate asset indicator and static entry-point inspection establish Xposed integration. Three ARMv7 native libraries are present, but JNI crossings relevant to the rendering path have not been established. Manifest component counts do not prove which components participate in this feature.
 
 ## Xposed and display ownership model
 
@@ -66,6 +82,8 @@ Static indicators and selected entry-point code show conditional Xposed integrat
 | Revocation/lease | No ownership lease, revocation handshake, or host-enforced lifecycle contract established. |
 
 This model is an architectural description, not an implementation recommendation.
+
+At the view-tree boundary, Honda owns the window roots and HondaHack supplies the inserted view. The normal code path contains detach/removal behavior, but there is no evidence of a host-enforced lease or guaranteed reclamation when the injecting app or host process terminates.
 
 ## Vehicle interface classification
 
@@ -113,6 +131,20 @@ No vehicle-facing method was invoked. Any read-like call that triggers listeners
 - The more specific static path is not evidence of a supported interface. It does not establish caller authorization, physical viewport geometry, process-death cleanup, universal warning priority, or bus purity.
 
 ## Highest-value unknowns and CL-SYS-01 questions
+
+### Selected static research seeds
+
+| Seed | Why selected / current producer–consumer understanding | Still unverified / next static question |
+|---|---|---|
+| Screen casting | Preference-driven request scheduling connects to the SystemUI pixel producer, app bitmap consumer, and host-process view insertion described above. | Independently reproduce each transition from the current DEX; establish frame drop/stale-frame behavior and all cleanup branches. |
+| Advanced Meter | Its settings and shared host integration distinguish semantic/widget content from the cast bitmap path. | Trace displayed values to each producer and classify downstream service side effects. |
+| Waze TBT | The current class search did not establish an in-app Waze-specific producer; separate head-unit observations are not evidence about this APK. | Search exact resources, intents, and navigation callbacks; determine whether any semantic producer/consumer exists. |
+| Factory Navigation | Navigation-related preferences exist, but the inspected activity lifecycle does not prove control of Honda's factory renderer. | Trace page-state callbacks and app/service interactions without invoking them. |
+| Honda system services | The app service registers broadcast, location, and timer work, but this does not classify vehicle interfaces. | Follow each service client transitively; classify read-only, control-capable, mixed, or unknown, including indirect effects. |
+| Process startup/shutdown | App service start/destroy and Xposed package-load entry establish separate lifecycle boundaries. | Determine what happens across app, SystemUI, and host restarts; normal callbacks do not establish recovery after process death. |
+| Warning/restoration | Main/interrupt host roots and one limited Door Open observation make interrupt handling a high-value boundary. | Establish universal warning precedence, viewport bounds, stale-frame withdrawal, and factory restoration from an authoritative host contract. |
+
+Private evidence IDs and exact implementation references for these seeds are retained in authorized private notes, not this report.
 
 - Does Honda provide a documented external renderer admission API with caller identity checks, explicit display/viewport bounds, and host-owned lifetime enforcement?
 - What ownership, revocation, and recovery contract applies if the producer, renderer, or host process exits unexpectedly?
