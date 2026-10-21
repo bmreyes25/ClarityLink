@@ -34,6 +34,8 @@ jobs:
     steps:
       - name: Check out exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Install fixed Java toolchain
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # setup-java v4
@@ -108,7 +110,22 @@ jobs:
           java_home="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           export JAVA_HOME="$java_home"
+          source_file='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            baseline_ref='${{ github.event.pull_request.head.sha }}^'
+          else
+            baseline_ref='HEAD^'
+          fi
+          git show "$baseline_ref:$source_file" > "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java"
+          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" "$source_file"
           "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee build-output.txt
+          cp build/cl-r12-api17-ci/claritylink-display-lab.apk "$RUNNER_TEMP/cl-r12-baseline.apk"
+          git checkout HEAD -- "$source_file"
+          "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee -a build-output.txt
+          cp build/cl-r12-api17-ci/claritylink-display-lab.apk "$RUNNER_TEMP/cl-r12-optimized.apk"
+          echo "CL_R12_BASELINE_APK=$RUNNER_TEMP/cl-r12-baseline.apk" >> "$GITHUB_ENV"
+          echo "CL_R12_CANDIDATE_APK=$RUNNER_TEMP/cl-r12-optimized.apk" >> "$GITHUB_ENV"
+          sha256sum "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk" | tee apk-ab.sha256
           sha256sum build/cl-r12-api17-ci/claritylink-display-lab.apk | tee apk.sha256
 
       - name: Enable KVM for the GitHub x86-64 runner
@@ -154,6 +171,7 @@ jobs:
             api17-platform.sha256
             build-output.txt
             apk.sha256
+            apk-ab.sha256
             build/cl-r12-api17-ci/receipt/
           if-no-files-found: ignore
           retention-days: 14

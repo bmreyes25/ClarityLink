@@ -89,5 +89,47 @@ grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
   exit 6
 }
 
+run_performance() {
+  local variant="$1" apk_path="$2" mode="${3:-short}" started="$receipt/perf-$1-start.txt"
+  [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
+  "$adb" -s "$serial" install -r "$apk_path" | tee "$receipt/perf-$variant-install.txt"
+  "$adb" -s "$serial" logcat -c
+  "$adb" -s "$serial" shell am start -W \
+    -n org.claritylink.independentdisplay.lab/org.claritylink.android.MessengerFramePerformanceActivity \
+    --es cl_r12b_mode "$mode" | tee "$started"
+  local timeout=90
+  [[ "$mode" == soak ]] && timeout=720
+  local deadline=$((SECONDS + timeout))
+  while (( SECONDS < deadline )); do
+    "$adb" -s "$serial" logcat -d -s ClarityLinkR12B > "$receipt/perf-$variant-logcat.txt"
+    if grep -q "R12B_RESULT mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
+      grep -E 'R12B_(START|RESULT|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
+        "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for $variant performance run" >&2
+  exit 8
+}
+
+baseline_apk="${CL_R12_BASELINE_APK:-}"
+candidate_apk="${CL_R12_CANDIDATE_APK:-$apk}"
+if [[ -n "$baseline_apk" ]]; then
+  run_performance baseline "$baseline_apk"
+  run_performance optimized "$candidate_apk"
+  if python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-baseline-logcat.txt" \
+      > "$receipt/perf-baseline-gate.txt" 2>&1 &&
+      python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-optimized-logcat.txt" \
+      > "$receipt/perf-optimized-gate.txt" 2>&1; then
+    run_performance optimized-soak "$candidate_apk" soak
+    python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-optimized-soak-logcat.txt" \
+      > "$receipt/perf-optimized-soak-gate.txt" 2>&1 || true
+  else
+    echo 'CL_R12_SOAK_SKIPPED short-run correctness/performance/resource gates did not pass.' \
+      | tee "$receipt/perf-soak-skipped.txt"
+  fi
+fi
+
 "$adb" -s "$serial" shell am force-stop org.claritylink.independentdisplay.lab
 echo 'CL_R12_API17_RUNTIME_PASS' | tee "$receipt/final-status.txt"

@@ -25,7 +25,6 @@ import org.claritylink.renderer.HondaStyleSimulatorRendererHost;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /** Timed, synthetic 800x480 MemoryFile/PFD/Messenger regression and soak harness. */
@@ -46,7 +45,10 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private Handler scheduler;
     private Handler sender;
     private final long[] latencyNs = new long[MAX_SAMPLES];
+    private final Object responseLock = new Object();
+    private final Object connectionLock = new Object();
     private volatile Messenger remote;
+    private volatile long connectionEpoch;
     private Messenger replies;
     private HondaStyleDisplayHostSimulator simulator;
     private Display1OutputBackend renderer;
@@ -63,7 +65,11 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private volatile boolean running;
     private volatile boolean inFlight;
     private volatile boolean finishPending;
-    private volatile DecodedFrame activeFrame;
+    private volatile byte[] activePixels;
+    private volatile long activeGeneration;
+    private volatile long activeSequence;
+    private ParcelFileDescriptor pendingResponseDescriptor;
+    private boolean activityDestroyed;
     private volatile int offered;
     private volatile int sent;
     private volatile int hostAccepted;
@@ -110,8 +116,11 @@ public final class MessengerFramePerformanceActivity extends Activity {
 
     private final ServiceConnection connection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder binder) {
-            remote = new Messenger(binder);
-            generation = Math.max(generation + 1L, System.nanoTime());
+            synchronized (connectionLock) {
+                remote = new Messenger(binder);
+                connectionEpoch++;
+                generation = Math.max(generation + 1L, System.nanoTime());
+            }
             sequence = 0L;
             sendControl(MessengerFrameHostService.ATTACH, "benchmark_attach");
             Log.i(TAG, "R12B_HOST_CONNECTED pid_from_ack_pending=true generation=" + generation);
@@ -121,11 +130,16 @@ public final class MessengerFramePerformanceActivity extends Activity {
         }
 
         public void onServiceDisconnected(ComponentName name) {
-            remote = null;
-            if (inFlight) {
-                inFlight = false;
-                activeFrame = null;
-                transportErrors++;
+            synchronized (connectionLock) {
+                remote = null;
+                connectionEpoch++;
+                if (inFlight) {
+                    inFlight = false;
+                    activePixels = null;
+                    activeGeneration = 0L;
+                    activeSequence = 0L;
+                    transportErrors++;
+                }
             }
             Log.e(TAG, "R12B_UNEXPECTED_IPC_CLOSED mode=" + mode + " delivered=" + delivered);
             if (running) finishWithError("unexpected_ipc_closure");
@@ -203,13 +217,25 @@ public final class MessengerFramePerformanceActivity extends Activity {
         if (inFlight || remote == null) {
             dropBackpressure++;
         } else {
+            final Messenger target = remote;
+            final long targetEpoch = connectionEpoch;
+            final long frameGeneration = generation;
             inFlight = true;
             maxInFlight = 1;
             final long offerTime = now;
             final long currentSequence = ++sequence;
-            sender.post(new Runnable() {
-                public void run() { sendSyntheticFrame(currentSequence, offerTime); }
-            });
+            activePixels = null;
+            activeGeneration = frameGeneration;
+            activeSequence = currentSequence;
+            if (!sender.post(new Runnable() {
+                public void run() {
+                    sendSyntheticFrame(currentSequence, offerTime, frameGeneration,
+                            targetEpoch, target);
+                }
+            })) {
+                releaseActiveFrame(frameGeneration, currentSequence);
+                transportErrors++;
+            }
         }
         logProgressIfDue(now);
         nextDueNs += FRAME_INTERVAL_NS;
@@ -217,18 +243,18 @@ public final class MessengerFramePerformanceActivity extends Activity {
         scheduler.postDelayed(frameTick, delayMs);
     }
 
-    private void sendSyntheticFrame(long currentSequence, long offerTime) {
+    private void sendSyntheticFrame(final long currentSequence, long offerTime,
+            final long frameGeneration, final long targetEpoch, final Messenger target) {
         byte[] pixels = new byte[FRAME_BYTES];
         byte marker = (byte) (currentSequence & 0xff);
         Arrays.fill(pixels, marker);
         long pts = offerTime;
-        DecodedFrame frame;
         ParcelFileDescriptor descriptor = null;
         try {
-            frame = new DecodedFrame(WIDTH, HEIGHT, STRIDE, pts, 0, 0, 0,
-                    WIDTH, HEIGHT, ByteBuffer.wrap(pixels));
-            byte[] parcelBytes = MessengerFrameParcel.rgba(frame);
-            descriptor = MessengerFrameParcel.write(parcelBytes);
+            // The synthetic source is already tightly packed RGBA. Sending it
+            // directly avoids an immutable DecodedFrame copy and a second
+            // frame-sized ByteArrayOutputStream copy before the MemoryFile.
+            descriptor = MessengerFrameParcel.write(pixels);
             Bundle data = new Bundle();
             data.putInt(MessengerFrameHostService.KEY_WIDTH, WIDTH);
             data.putInt(MessengerFrameHostService.KEY_HEIGHT, HEIGHT);
@@ -240,25 +266,34 @@ public final class MessengerFramePerformanceActivity extends Activity {
             data.putInt(MessengerFrameHostService.KEY_CROP_TOP, 0);
             data.putInt(MessengerFrameHostService.KEY_CROP_RIGHT, WIDTH);
             data.putInt(MessengerFrameHostService.KEY_CROP_BOTTOM, HEIGHT);
-            data.putLong(MessengerFrameHostService.KEY_GENERATION, generation);
+            data.putLong(MessengerFrameHostService.KEY_GENERATION, frameGeneration);
             data.putLong(MessengerFrameHostService.KEY_SEQUENCE, currentSequence);
             data.putParcelable(MessengerFrameHostService.KEY_PFD, descriptor);
             Message request = Message.obtain(null, MessengerFrameHostService.FRAME);
             request.replyTo = replies;
             request.setData(data);
-            sentAtNs = offerTime;
-            activeFrame = frame;
-            sent++;
-            remote.send(request);
+            synchronized (connectionLock) {
+                if (target == null || remote != target || connectionEpoch != targetEpoch ||
+                        generation != frameGeneration || !running || !inFlight ||
+                        activeGeneration != frameGeneration || activeSequence != currentSequence) {
+                    throw new RemoteException("stale_connection_or_frame");
+                }
+                activePixels = pixels;
+                sentAtNs = offerTime;
+                sent++;
+                target.send(request);
+            }
         } catch (Exception failure) {
             if (descriptor != null) close(descriptor);
             final String reason = failure.getClass().getSimpleName();
             ui.post(new Runnable() {
                 public void run() {
-                    activeFrame = null;
-                    inFlight = false;
-                    transportErrors++;
-                    Log.e(TAG, "R12B_FRAME_SEND_FAILED sequence=" + sequence + " reason=" + reason);
+                    if (activeGeneration == frameGeneration && activeSequence == currentSequence) {
+                        releaseActiveFrame(frameGeneration, currentSequence);
+                        transportErrors++;
+                        Log.e(TAG, "R12B_FRAME_SEND_FAILED sequence=" + currentSequence +
+                                " reason=" + reason);
+                    }
                     if (finishPending) finishTimedRun();
                 }
             });
@@ -275,20 +310,23 @@ public final class MessengerFramePerformanceActivity extends Activity {
             return;
         }
         if (message.arg1 != MessengerFrameHostService.FRAME) return;
-        if (data.getLong(MessengerFrameHostService.KEY_GENERATION, -1L) != generation) {
+        final long replyGeneration = data.getLong(MessengerFrameHostService.KEY_GENERATION, -1L);
+        final long replySequence = data.getLong(MessengerFrameHostService.KEY_SEQUENCE, -1L);
+        if (replyGeneration != generation) {
             close(data.<ParcelFileDescriptor>getParcelable(MessengerFrameHostService.KEY_PFD));
             hostRejected++;
-            inFlight = false;
-            activeFrame = null;
+            releaseActiveFrame(replyGeneration, replySequence);
             if (finishPending) finishTimedRun();
             return;
         }
         if (!data.getBoolean(MessengerFrameHostService.KEY_ACCEPTED)) {
             close(data.<ParcelFileDescriptor>getParcelable(MessengerFrameHostService.KEY_PFD));
-            inFlight = false;
-            activeFrame = null;
             captureHostStats(data, false);
             if (preflightStage == 1) {
+                inFlight = false;
+                activePixels = null;
+                activeGeneration = 0L;
+                activeSequence = 0L;
                 partialFrameRejected = "short_frame_payload".equals(
                         data.getString(MessengerFrameHostService.KEY_REASON));
                 preflightStage = 2;
@@ -298,20 +336,108 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 sendControl(MessengerFrameHostService.STATS, "baseline_stats");
                 return;
             }
+            if (activeGeneration != replyGeneration || activeSequence != replySequence) {
+                hostRejected++;
+                return;
+            }
+            releaseActiveFrame(replyGeneration, replySequence);
             hostRejected++;
             if (finishPending) finishTimedRun();
             return;
         }
-        ParcelFileDescriptor returned = data.getParcelable(MessengerFrameHostService.KEY_PFD);
-        try {
-            byte[] result = MessengerFrameParcel.read(returned,
-                    data.getInt(MessengerFrameHostService.KEY_BYTES));
-            if (activeFrame == null || !Arrays.equals(MessengerFrameParcel.rgba(activeFrame), result)) {
-                pixelMismatches++;
-                throw new IOException("pixel_identity_failure");
+        final ParcelFileDescriptor returned = data.getParcelable(MessengerFrameHostService.KEY_PFD);
+        final int byteCount = data.getInt(MessengerFrameHostService.KEY_BYTES);
+        final long pts = data.getLong(MessengerFrameHostService.KEY_PTS);
+        final byte[] expectedPixels = activePixels;
+        if (expectedPixels == null || activeGeneration != replyGeneration ||
+                activeSequence != replySequence) {
+            close(returned);
+            hostRejected++;
+            return;
+        }
+        if (returned == null) {
+            transportErrors++;
+            releaseActiveFrame(replyGeneration, replySequence);
+            if (finishPending) finishTimedRun();
+            return;
+        }
+        if (byteCount != FRAME_BYTES) {
+            close(returned);
+            transportErrors++;
+            releaseActiveFrame(replyGeneration, replySequence);
+            if (finishPending) finishTimedRun();
+            return;
+        }
+        captureHostStats(data, false);
+        synchronized (responseLock) {
+            if (activityDestroyed) {
+                close(returned);
+                releaseActiveFrame(replyGeneration, replySequence);
+                return;
             }
-            DecodedFrame deliveredFrame = MessengerFrameParcel.decoded(WIDTH, HEIGHT, STRIDE,
-                    data.getLong(MessengerFrameHostService.KEY_PTS), 0, 0, 0, WIDTH, HEIGHT, result);
+            pendingResponseDescriptor = returned;
+        }
+        boolean posted = sender != null && sender.post(new Runnable() {
+            public void run() {
+                synchronized (responseLock) {
+                    if (pendingResponseDescriptor != returned) return;
+                    pendingResponseDescriptor = null;
+                }
+                DecodedFrame deliveredFrame = null;
+                boolean mismatch = false;
+                Exception failure = null;
+                try {
+                    byte[] result = MessengerFrameParcel.read(returned, byteCount);
+                    mismatch = !Arrays.equals(expectedPixels, result);
+                    if (mismatch) throw new IOException("pixel_identity_failure");
+                    deliveredFrame = MessengerFrameParcel.decoded(WIDTH, HEIGHT, STRIDE,
+                            pts, 0, 0, 0, WIDTH, HEIGHT, result);
+                } catch (Exception problem) {
+                    failure = problem;
+                }
+                final DecodedFrame completedFrame = deliveredFrame;
+                final Exception completedFailure = failure;
+                final boolean pixelMismatch = mismatch;
+                ui.post(new Runnable() {
+                    public void run() {
+                        completeAcceptedReply(replyGeneration, replySequence,
+                                completedFrame, completedFailure, pixelMismatch);
+                    }
+                });
+            }
+        });
+        if (!posted) {
+            synchronized (responseLock) {
+                if (pendingResponseDescriptor == returned) pendingResponseDescriptor = null;
+            }
+            close(returned);
+            transportErrors++;
+            releaseActiveFrame(replyGeneration, replySequence);
+            if (finishPending) finishTimedRun();
+        }
+    }
+
+    private void completeAcceptedReply(long replyGeneration, long replySequence,
+            DecodedFrame deliveredFrame, Exception failure, boolean pixelMismatch) {
+        if (activeGeneration != replyGeneration || activeSequence != replySequence) {
+            hostRejected++;
+            return;
+        }
+        if (generation != replyGeneration) {
+            hostRejected++;
+            releaseActiveFrame(replyGeneration, replySequence);
+            if (finishPending) finishTimedRun();
+            return;
+        }
+        if (failure != null) {
+            if (pixelMismatch) pixelMismatches++;
+            transportErrors++;
+            Log.e(TAG, "R12B_DELIVERY_FAILED delivered=" + delivered, failure);
+            releaseActiveFrame(replyGeneration, replySequence);
+            if (finishPending) finishTimedRun();
+            return;
+        }
+        try {
             if (renderer == null) {
                 renderer = new Display1OutputBackend(new HondaStyleSimulatorRendererHost(simulator),
                         new Display1OutputBackend.Viewport(0, 0, 800, 480), generation);
@@ -321,15 +447,20 @@ public final class MessengerFramePerformanceActivity extends Activity {
             hostAccepted++;
             delivered++;
             if (latencyCount < latencyNs.length) latencyNs[latencyCount++] = System.nanoTime() - sentAtNs;
-            captureHostStats(data, false);
-        } catch (Exception failure) {
+        } catch (Exception renderFailure) {
             transportErrors++;
-            Log.e(TAG, "R12B_DELIVERY_FAILED delivered=" + delivered, failure);
-        } finally {
-            inFlight = false;
-            activeFrame = null;
+            Log.e(TAG, "R12B_DELIVERY_FAILED delivered=" + delivered, renderFailure);
         }
+        releaseActiveFrame(replyGeneration, replySequence);
         if (finishPending) finishTimedRun();
+    }
+
+    private void releaseActiveFrame(long frameGeneration, long frameSequence) {
+        if (activeGeneration != frameGeneration || activeSequence != frameSequence) return;
+        inFlight = false;
+        activePixels = null;
+        activeGeneration = 0L;
+        activeSequence = 0L;
     }
 
     private void captureHostStats(Bundle data, boolean baseline) {
@@ -518,6 +649,11 @@ public final class MessengerFramePerformanceActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        synchronized (responseLock) {
+            activityDestroyed = true;
+            close(pendingResponseDescriptor);
+            pendingResponseDescriptor = null;
+        }
         if (scheduler != null) scheduler.removeCallbacks(frameTick);
         ui.removeCallbacks(finishStats);
         closeRenderer();
