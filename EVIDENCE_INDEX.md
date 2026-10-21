@@ -44,12 +44,6 @@
 
 # Evidence index
 
-## R6D factory oracle (2026-10-04)
-
-- `HONDA_STATIC_CONFIRMED`: [call graph](research/runtime/r6d-honda-mfi-oracle-callgraph.md) joins AirPlay MFi-SAP and iAP2 authentication through `uwh_ipod_cp_*` to the factory I²C primitive; [semantics](research/runtime/r6d-honda-mfi-oracle-semantics.md) and [locking](research/runtime/r6d-honda-auth-lifecycle-locking.md) scope the operation family.
-- `HONDA_STATIC_CONFIRMED`: [address trace](research/runtime/r6d-honda-i2c-address-semantics.md) passes configured `0x10` unchanged to Linux `I2C_SLAVE`; target execution is unobserved.
-- `PUBLIC_PRIOR_ART`: [Apple/xcertplay/OCBM comparison](research/runtime/r6d-public-vs-honda-auth-comparison.md) motivates an oracle design but does not establish Honda runtime viability.
-- `MODEL_ONLY`: [host oracle and orchestration](src/claritylink-jmcs/claritylink_jmcs/mfi_oracle.py) are inert/synthetic; [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md) records open gates.
 ## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
 
 - [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md): exact R6H merge and R6H1 starting HEAD; CPC200 absent; stopped before provisioning/authentication; below G1-T0.

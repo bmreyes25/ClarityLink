@@ -16,8 +16,9 @@ from check_r6d_oracle_boundary import check
 
 def test_honda_oracle_is_inert():
     oracle = HondaFactoryMfiOracle()
-    assert oracle.bus_path == "/dev/i2c-2"
-    assert oracle.configured_address == 0x10
+    assert not hasattr(oracle, "bus_path")
+    assert not hasattr(oracle, "configured_address")
+    assert not hasattr(oracle, "address_semantics")
     for action in (lambda: oracle.acquire(1), oracle.protocol_major,
                    lambda: oracle.read_certificate(100), lambda: oracle.sign_challenge(b"x")):
         with pytest.raises(OracleError, match="EVIDENCE_REQUIRED"):
@@ -84,3 +85,22 @@ def test_oracle_failure_releases_state_without_logging(caplog):
         auth.signature(5, marker)
     assert auth.phase is AuthPhase.CLOSED
     assert marker.decode() not in caplog.text
+
+
+def test_oracle_boundary_rejects_attribute_file_open(tmp_path):
+    target = tmp_path / "unsafe.py"
+    target.write_text("from pathlib import Path\nPath('x').open('w')\n")
+    assert any("forbidden call open" in error for error in check(target))
+
+
+def test_oracle_boundary_rejects_builtins_file_open(tmp_path):
+    target = tmp_path / "unsafe.py"
+    target.write_text("import builtins\nbuiltins.open('x')\n")
+    assert any("forbidden call open" in error for error in check(target))
+
+
+@pytest.mark.parametrize("operation", ["read_bytes", "read_text", "write_bytes", "write_text"])
+def test_oracle_boundary_rejects_path_file_operations(tmp_path, operation):
+    target = tmp_path / "candidate.py"
+    target.write_text(f"from pathlib import Path\nPath('x').{operation}()\n")
+    assert any(f"forbidden call {operation}" in error for error in check(target))

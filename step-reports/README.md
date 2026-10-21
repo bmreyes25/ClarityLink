@@ -4,8 +4,6 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 ## Current / latest milestones
 
-- [43T1-R6D factory MFi oracle static closure](43t1-r6d-factory-mfi-oracle-static-closure.md): shared Honda iAP2/AirPlay auth primitive established statically; ARCH_D selected as target, no live adapter.
-- [43T1-R6C1 public oracle pivot](43t1-r6c1-factory-mfi-oracle-pivot.md): public research addendum and inert oracle scaffold.
 - [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.
 
 - [43T1-R7C2 — Android API17 runtime integration closure](43t1-r7c2-android-runtime-integration-closure.md) — actual API17 Dalvik x86 JNI/Surface/Presentation and selected Java adapter execution; 100 receiver cycles with zero native resource counters; R7C remains partial and R7D gate closed.

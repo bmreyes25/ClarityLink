@@ -20,9 +20,6 @@ Next: `GO_FOR_R7C_INTEGRATION_CLOSURE`. Complete Android/JNI runtime coverage, i
 
 # ClarityLink roadmap
 
-## R6D factory oracle path
-
-Target candidate: `ARCH_D_FULL_CLARITYLINK_RECEIVER_WITH_FACTORY_AUTH_ORACLE`. Honda's factory IC supplies certificate/signature operations through a still-unimplemented, opaque adapter. ClarityLink must build its own iAP2 authentication and AirPlay session logic above it, then one Type110/Type111 receiver session. The [static call graph](research/runtime/r6d-honda-mfi-oracle-callgraph.md) supports the primitive, while [readiness](research/runtime/r6d-factory-oracle-readiness.md) keeps live sharing and receiver wire compatibility open. Next: host iAP2 auth stack plus offline target ABI/lifecycle refinement. No target I/O or deployment authorized.
 ## R7C4 closure status — blocked — 2026-10-07
 
 R7C4 restored the local JDK/pytest environment and ran the updated APK on the isolated API17 Dalvik emulator. One fragmented Type110 native socket route, JNI exception probes, and a 100-cycle synthetic-ingest lifecycle run passed. Deterministic framework races and full socket/fault/resource coverage remain incomplete; the final ARMv7 audit and exact-head hosted checks are also outstanding. R7C remains blocked as `R7C_FRAMEWORK_RACE_BLOCKED`; R7D is CLOSED. Next action: complete those gates on one final revision. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md).

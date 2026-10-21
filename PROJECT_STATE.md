@@ -14,9 +14,6 @@ R7B PR #16 merged at `087f17fb9268f623eabd520c3542b00db0d512b9`; R7C started at 
 
 # ClarityLink project state
 
-## R6D factory MFi oracle static closure — 2026-10-04
-
-Custom receiver remains primary. The hash-matched Honda image statically links iAP2 authentication and AirPlay MFi-SAP to one factory certificate/signature primitive. `R6D_FACTORY_MFI_ORACLE_CONFIRMED_STATIC` / `R6D_AUTH_PRIMITIVE_SHARED` / `R6D_HONDA_I2C_ADDRESS_7BIT_CONFIRMED`; selected target `ARCH_D_FULL_CLARITYLINK_RECEIVER_WITH_FACTORY_AUTH_ORACLE`. The factory oracle is still inert in ClarityLink. Cross-process ownership, live permissions, wire-compatible iAP2/AirPlay and real-iPhone authentication are unproved. [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md).
 ## R7C4 final Android integration closure — blocked — 2026-10-07
 
 R7C4 started at `0804bc0b3c6f6b7a63483562ce539eaa8550d778`. Local JDK 17 and existing pytest were restored. The updated API17 Dalvik APK passed a test-only Type110 native loopback socket→ReceiverGeneration→H.264→Surface path, JNI exception probes, and 100 lifecycle cycles using synthetic ingest; the full repository suite passed (902 passed, 14 skipped). Deterministic framework races, the full socket/fault matrix, socket inclusion in every cycle, final ARMv7 rebuild/import audit, and hosted exact-head checks remain incomplete. Decision `R7C_FRAMEWORK_RACE_BLOCKED`; R7D CLOSED. See [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md). No Honda or vehicle action occurred.

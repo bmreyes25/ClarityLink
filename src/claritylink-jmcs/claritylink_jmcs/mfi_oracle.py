@@ -49,12 +49,7 @@ class CarPlayControlSession(Protocol):
 
 
 class HondaFactoryMfiOracle:
-    """Static factory-channel metadata. Every authentication operation fails closed."""
-
-    bus_path = "/dev/i2c-2"
-    configured_address = 0x10
-    # R6D confirms direct I2C_SLAVE use in jmcs, but no target I/O is allowed.
-    address_semantics = "HONDA_STATIC_7BIT_I2C_SLAVE"
+    """Unavailable factory oracle. Every operation fails closed."""
 
     def acquire(self, generation: int) -> None:
         raise OracleError("EVIDENCE_REQUIRED_LIVE_HONDA_ORACLE")
@@ -113,10 +108,9 @@ class SyntheticMfiOracle:
 
 
 class HondaFactoryMfiOracleModel(SyntheticMfiOracle):
-    """SYNTHETIC_ONLY single-owner lifecycle model for the Honda call graph.
+    """SYNTHETIC_ONLY single-owner lifecycle model.
 
-    No device path is opened; inherited outputs are visibly fake. Reacquire
-    after release models Honda's obtain/release around each auth operation.
+    No device path is opened; inherited outputs are visibly fake.
     """
 
 

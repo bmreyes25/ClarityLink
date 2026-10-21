@@ -8,8 +8,12 @@ import sys
 
 
 TARGET = Path(__file__).resolve().parents[1] / "src/claritylink-jmcs/claritylink_jmcs/mfi_oracle.py"
-FORBIDDEN_IMPORTS = {"os", "fcntl", "smbus", "smbus2", "periphery", "subprocess", "io", "ctypes"}
-FORBIDDEN_CALLS = {"open", "exec", "eval", "__import__"}
+FORBIDDEN_IMPORTS = {"os", "fcntl", "smbus", "smbus2", "periphery", "subprocess", "io", "ctypes", "builtins"}
+FORBIDDEN_CALLS = {
+    "open", "exec", "eval", "__import__",
+    # pathlib file operations bypass the built-in open() check.
+    "read_bytes", "read_text", "write_bytes", "write_text",
+}
 
 
 def check(path: Path = TARGET) -> list[str]:
@@ -22,8 +26,11 @@ def check(path: Path = TARGET) -> list[str]:
                     errors.append(f"line {node.lineno}: forbidden import {alias.name}")
         elif isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] in FORBIDDEN_IMPORTS:
             errors.append(f"line {node.lineno}: forbidden import {node.module}")
-        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
-            errors.append(f"line {node.lineno}: forbidden call {node.func.id}")
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
+                errors.append(f"line {node.lineno}: forbidden call {node.func.id}")
+            elif isinstance(node.func, ast.Attribute) and node.func.attr in FORBIDDEN_CALLS:
+                errors.append(f"line {node.lineno}: forbidden call {node.func.attr}")
     return errors
 
 

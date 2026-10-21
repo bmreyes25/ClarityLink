@@ -1,8 +1,5 @@
 # Next action
 
-## R6D factory MFi oracle target — 2026-10-04
-
-**PRIMARY ARCHITECTURE:** custom receiver. Static Honda traces connect both iAP2 authentication and AirPlay MFi-SAP to the same internal factory certificate/signature primitive. The selected implementation target is `ARCH_D_FULL_CLARITYLINK_RECEIVER_WITH_FACTORY_AUTH_ORACLE`: ClarityLink owns iAP2/AirPlay and Type110/Type111 while the genuine factory IC remains an opaque trust anchor. This is a static architecture decision, not an operating adapter. **NEXT:** `GO_FOR_R6E_CUSTOM_IAP2_AUTH_STACK`, with offline Honda ABI/lifecycle refinement. Mac lab authentication remains separate. Honda/ADB/vehicle/I²C operation is unauthorized. See the [R6D report](step-reports/43t1-r6d-factory-mfi-oracle-static-closure.md) and [readiness](research/runtime/r6d-factory-oracle-readiness.md).
 ## R7C5 final software closure — blocked — 2026-10-08
 
 R7C5 preserved the existing R7C4 work and passed the full suite (902 passed, 14 skipped), API17 Java/APK build, host socket/R7C1 ASan/UBSan and TSan, and local NDK r23c ARMv7/API17 build/import audit (zero unknown imports). The API17 emulator runner failed before boot because its system image lacks `devices.xml`; no further ADB calls were made after an unowned target appeared. Deterministic framework races, Android native socket fault/per-cycle coverage, and complete per-cycle resource accounting remain open. Decision: `R7C_FRAMEWORK_RACE_BLOCKED`; R7D stays closed and PR #17 is not merged. **NEXT:** restore a safely isolated API17 AVD and finish the deterministic framework and native socket closure matrix. See [R7C5 report](step-reports/43t1-r7c5-final-software-closure.md). No Honda or vehicle execution occurred.
