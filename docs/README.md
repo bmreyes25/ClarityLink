@@ -27,6 +27,7 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 - [Blocker resolution workflow](development/blocker-resolution.md)
 - [Local ECC review roles](development/ecc-review.md)
 - [Development setup](getting-started/development-setup.md)
+- [REA Android reverse-engineering toolchain](development/rea-android-toolchain.md)
 - [Source tree guide](../src/README.md)
 - [Tests guide](../tests/README.md)
 - [Tools guide](../tools/README.md)

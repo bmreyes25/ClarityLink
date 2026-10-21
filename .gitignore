@@ -177,3 +177,5 @@
 *.raw
 
 /android/r7e1-display/assets/r7e1-diagnostic-frame.png
+
+!/tools/doctor_re_toolchain.sh
