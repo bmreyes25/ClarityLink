@@ -10,7 +10,8 @@ ANDROID = "{http://schemas.android.com/apk/res/android}"
 def test_lab_compositor_is_private_and_runs_in_a_distinct_process():
     manifest = ET.parse(APP / "AndroidManifest.lab.xml").getroot()
     app = manifest.find("application")
-    service = app.find("service")
+    services = {item.get(ANDROID + "name"): item for item in app.findall("service")}
+    service = services.get("org.claritylink.android.CompositorService")
     assert service is not None
     assert service.get(ANDROID + "process") == ":compositor"
     assert service.get(ANDROID + "exported") == "false"
