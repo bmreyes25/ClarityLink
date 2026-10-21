@@ -92,7 +92,9 @@ grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
 run_performance() {
   local variant="$1" apk_path="$2" mode="${3:-short}" started="$receipt/perf-$1-start.txt"
   [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
-  "$adb" -s "$serial" install -r "$apk_path" | tee "$receipt/perf-$variant-install.txt"
+  "$adb" -s "$serial" uninstall org.claritylink.independentdisplay.lab \
+    > "$receipt/perf-$variant-uninstall.txt" 2>&1 || true
+  "$adb" -s "$serial" install "$apk_path" | tee "$receipt/perf-$variant-install.txt"
   "$adb" -s "$serial" logcat -c
   "$adb" -s "$serial" shell am start -W \
     -n org.claritylink.independentdisplay.lab/org.claritylink.android.MessengerFramePerformanceActivity \

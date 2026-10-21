@@ -91,7 +91,7 @@ cp "$repo/tests/fixtures/cl-imp-08/type111-blue-32x32.h264.b64" "$out/assets/typ
 cp "$repo/tests/fixtures/cl-imp-08/type111-green-64x64.h264.b64" "$out/assets/type111-green-64x64.h264.b64"
 "$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$out/dex" \
   $(find "$out/classes" -name '*.class' -print)
-key="$out/cl-imp-03-debug.keystore"
+key=${CL_IMP_03_KEYSTORE:-"$out/cl-imp-03-debug.keystore"}
 if [ ! -f "$key" ]; then
   "$java_home/bin/keytool" -genkeypair -keystore "$key" -storepass android -keypass android \
     -alias climp03lab -dname 'CN=ClarityLink CL-IMP-03 Offline Lab' -keyalg RSA -keysize 2048 \
