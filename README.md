@@ -82,6 +82,7 @@ It starts an owned API17 emulator and isolated ADB server, fingerprints the sour
 - [Android and Python source](src/README.md), [contribution guidance](CONTRIBUTING.md), and [test instructions](docs/development/testing.md)
 - [Current status](docs/status/current.md), [blockers](docs/status/blockers.md), and [safety guidance](docs/safety/vehicle-testing.md)
 - [Research and evidence classification](research/README.md), [evidence index](EVIDENCE_INDEX.md), and [milestone reports](step-reports/README.md)
+- [CL-R13-A REA and xcertplay reference library](docs/research/references/README.md)
 
 ## Safety, evidence, and license
 

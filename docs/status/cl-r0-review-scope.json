@@ -8,7 +8,7 @@
   "candidate_base": "edea469044c1e259a43e3dd441600e95e148670a",
   "remote_publication": "VERIFIED_IN_MAIN",
   "scope_excludes": "Raw emulator captures, private firmware, local path inventories, and generated binary artifacts.",
-  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged.",
+  "workflow_review_note": "For CL-OPS-PRIVATE-PRESERVATION, the AGENTS.md and .gitignore workflow delta was reviewed against the ECC security-review checklist for sensitive-data exposure and public/private boundary handling; this is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed working-tree contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current campaign scope hashes were refreshed to the reviewed staged source contents on 2026-10-19 after the CL-R4 and CL-R7 candidate updates; this refresh is not an independent approval claim. Current CL-R4 P08 scope hashes were refreshed after ECC review and the 2026-10-19 API17 P08 run; the acceptance result is focused and does not claim full CL-R4 completion. Codex automatic Git workflow policy update reviewed by separate read-only code and security reviewers on 2026-10-20; actionable findings were corrected and no independent approval is claimed. The AGENTS.md scope hash was refreshed for this policy update; historical CL-R0 approval status remains unchanged. CL-R13-A reference campaign updated the pinned README.md, docs/README.md, docs/status/current.md, and docs/status/milestones.json hashes to match this public-safe documentation candidate; historical review ranges and approval_claimed=false remain unchanged. This hash refresh is not an independent review or approval.",
   "files": [
     {
       "path": ".github/pull_request_template.md",
@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "99ea73a24c5f844ff810d458cf3e10d8126fd3b196587b71dc7d4fb73575133e"
+      "sha256": "a9bb6235e781d696e4c64adb2269161b4a8b4f550bb76b869baf563683dd5d8e"
     },
     {
       "path": "android/cl-imp-03-app/java/org/claritylink/android/ClarityLinkDisplayActivity.java",
@@ -48,7 +48,7 @@
     },
     {
       "path": "docs/README.md",
-      "sha256": "3f57ec6260346336086e8f82841b6d51c332bf79d09a66b1df24b10b2b00c61e"
+      "sha256": "1a039d2c1fbee2a07979b8296d0c7eb58b38512bb5173babf978740a89d05dc3"
     },
     {
       "path": "docs/development/blocker-resolution.md",
@@ -92,11 +92,11 @@
     },
     {
       "path": "docs/status/current.md",
-      "sha256": "2b35d3cb504726e14cd23377a101b05ff8a76f7af98959d51acea62004f03e02"
+      "sha256": "4ba01ded735e0664deee770df7cc9ca5852381a9bd8a3f1ff80672a151866c78"
     },
     {
       "path": "docs/status/milestones.json",
-      "sha256": "9a9653f58aec290150ef8ba2a1017249aa4a0a5f5064eb2f4302a5f801390032"
+      "sha256": "43f6e77c57ba44fbca40e57c18d10f5bb7c300b915836bfebe2f12e58cdcc9ae"
     },
     {
       "path": "tests/display/test_cl_imp_04_ipc_contract.py",

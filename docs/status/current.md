@@ -2,6 +2,8 @@
 
 **Updated:** 2026-10-20
 
+**Reference campaign:** CL-R13-A — REA and xcertplay public-source research. REA 6.7.0 is configured for Codex; the selected Ghidra 12.1.4 provider passed a self-authored fixture smoke test through direct MCP calls. The active desktop session still needs reload before its tool list reflects the new entry. The research library is documented under [CL-R13-A references](../research/references/README.md); publication/review status is tracked by its pull request. No genuine Type111 bench test occurred. Honda integration remains NO-GO and `safeForHonda()` remains `false`.
+
 **Campaign:** CL-R9 genuine Honda integration feasibility
 
 **Verified online main at CL-R9 start:** `fadcdad7654683c6c94ba341ab77d47843e14863`
