@@ -158,6 +158,7 @@ jobs:
           SH
           chmod +x "$RUNNER_TEMP/cl-int-02-bin/arch"
           echo "$RUNNER_TEMP/cl-int-02-bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/cl-int-02-bin:$PATH"
           CL_IMP_03_SDK_ROOT="$legacy_sdk" \
           CL_IMP_03_BUILD_DIR="$CL_IMP_03_BUILD_DIR" \
             tools/run_cl_imp_03_emulator.sh --cl-r4b-multiple-view-replacements \
