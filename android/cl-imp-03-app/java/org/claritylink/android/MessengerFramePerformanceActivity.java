@@ -53,6 +53,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
     };
 
     private final Handler ui = new Handler();
+    // A single frame is in flight at a time, so validated/replied storage can
+    // be reused without allocating and zeroing 1.5 MiB for every frame.
+    private final byte[] syntheticFramePixels = new byte[FRAME_BYTES];
     private HandlerThread schedulerThread;
     private HandlerThread senderThread;
     private Handler scheduler;
@@ -165,7 +168,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 }
             }
             Log.e(TAG, "R12B_UNEXPECTED_IPC_CLOSED mode=" + mode + " delivered=" + delivered);
-            if (running) finishWithError("unexpected_ipc_closure");
+            finishWithError("unexpected_ipc_closure");
         }
     };
 
@@ -284,7 +287,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
         final long senderStartedNs = profileStages ? System.nanoTime() : 0L;
         if (profileStages) activeProfile[0] = senderStartedNs - offerTime;
         long stageStartedNs = profileStages ? System.nanoTime() : 0L;
-        byte[] pixels = new byte[FRAME_BYTES];
+        byte[] pixels = syntheticFramePixels;
         byte marker = (byte) (currentSequence & 0xff);
         Arrays.fill(pixels, marker);
         if (profileStages) activeProfile[1] = System.nanoTime() - stageStartedNs;

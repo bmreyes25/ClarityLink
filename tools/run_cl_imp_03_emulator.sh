@@ -6,8 +6,9 @@ out=${CL_IMP_03_BUILD_DIR:-"$repo/build/cl-imp-03"}
 java_home=${JAVA_HOME:-"$HOME/.local/toolchains/temurin-17.0.20.1+1-aarch64/jdk-17.0.20.1+1/Contents/Home"}
 export JAVA_HOME="$java_home" PATH="$java_home/bin:$PATH"
 adb="$sdk/platform-tools/adb"
-emulator="$sdk/.emulator-intel/emulator/emulator"
-avdmanager="$sdk/cmdline-tools/latest/bin/avdmanager"
+emulator=${CL_IMP_03_EMULATOR_BIN:-"$sdk/.emulator-intel/emulator/emulator"}
+emulator_root=$(dirname -- "$emulator")
+avdmanager=${CL_IMP_03_AVDMANAGER_BIN:-"$sdk/cmdline-tools/latest/bin/avdmanager"}
 package=org.claritylink.independentdisplay.lab
 attacker_package=org.claritylink.labattacker
 attacker_component=org.claritylink.attacker.ExportBoundaryAttackService
@@ -200,7 +201,7 @@ emulator_process_owned() {
   [ -n "$emulator_pid" ] && kill -0 "$emulator_pid" 2>/dev/null || return 1
   executable=$(lsof -a -p "$emulator_pid" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
   command=$(ps -p "$emulator_pid" -o command= 2>/dev/null || true)
-  case "$executable" in "$sdk/.emulator-intel/emulator/qemu/"*) :;; *) return 1;; esac
+  case "$executable" in "$emulator_root/qemu/"*) :;; *) return 1;; esac
   case "$command" in *"-avd $avd "*"-port $port "*) :;; *) return 1;; esac
 }
 find_emulator_pid() {
@@ -208,7 +209,7 @@ find_emulator_pid() {
     'index($0, "-avd " avd " ") && index($0, "-port " port " ") {print $1}')
   for candidate in $candidates; do
     candidate_executable=$(lsof -a -p "$candidate" -d txt -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
-    case "$candidate_executable" in "$sdk/.emulator-intel/emulator/qemu/"*) printf '%s\n' "$candidate"; return 0;; esac
+    case "$candidate_executable" in "$emulator_root/qemu/"*) printf '%s\n' "$candidate"; return 0;; esac
   done
   return 1
 }
@@ -410,9 +411,15 @@ printf 'no\n' | "$avdmanager" create avd --name "$avd" \
 python3 "$guard" mark-avd "$run_root" "$avd"
 avd_created=1
 grep -q '^abi.type=x86$' "$avd_dir/config.ini" || { echo 'AVD ABI mismatch.' >&2; exit 4; }
-arch -x86_64 "$emulator" -avd "$avd" -port "$port" -no-window -no-audio \
-  -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
-  > "$run_root/emulator.log" 2>&1 &
+if [ "$(uname -s)" = Darwin ]; then
+  arch -x86_64 "$emulator" -avd "$avd" -port "$port" -no-window -no-audio \
+    -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
+    > "$run_root/emulator.log" 2>&1 &
+else
+  "$emulator" -avd "$avd" -port "$port" -no-window -no-audio \
+    -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
+    > "$run_root/emulator.log" 2>&1 &
+fi
 emulator_launcher_pid=$!
 ready=0
 for attempt in $(seq 1 300); do
