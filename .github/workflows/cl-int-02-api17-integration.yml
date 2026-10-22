@@ -160,7 +160,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/cl-int-02-bin/arch"
           echo "$RUNNER_TEMP/cl-int-02-bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/cl-int-02-bin:$PATH"
-          r4_build="$RUNNER_TEMP/cl-imp-03-int02-$GITHUB_RUN_ID"
+          r4_build="$GITHUB_WORKSPACE/build/cl-imp-03-int02-$GITHUB_RUN_ID"
           CL_IMP_03_SDK_ROOT="$legacy_sdk" CL_IMP_03_BUILD_DIR="$r4_build" \
             tools/build_cl_imp_03_apks.sh | tee build/cl-int-02-api17-receipt/type110-build.txt
           CL_IMP_03_SDK_ROOT="$legacy_sdk" \
