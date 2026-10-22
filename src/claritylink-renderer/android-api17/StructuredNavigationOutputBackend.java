@@ -39,9 +39,16 @@ public final class StructuredNavigationOutputBackend implements StructuredNaviga
             params.leftMargin = viewport.left;
             params.topMargin = viewport.top;
             created.setLayoutParams(params);
-            if (!created.beginSession(newGeneration) || !host.attachContent(created, newGeneration)) {
+            if (!host.attachContent(created, newGeneration)) {
                 created.close();
                 throw new IllegalStateException("synthetic host rejected navigation content");
+            }
+            // Attach resumes lifecycle-aware content in a withdrawn state. Arm the
+            // new generation after that callback so its first update is admissible.
+            if (!created.beginSession(newGeneration)) {
+                host.detachContent(created, newGeneration);
+                created.close();
+                throw new IllegalStateException("synthetic navigation session could not start");
             }
             view = created;
             attachmentGeneration = newGeneration;
