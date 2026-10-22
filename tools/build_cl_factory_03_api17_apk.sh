@@ -49,11 +49,11 @@ key="$out/cl-factory-03-debug.keystore"
   -validity 3650 >/dev/null 2>&1
 "$build_tools/apksigner" sign --ks "$key" --ks-pass pass:android --key-pass pass:android \
   --ks-key-alias clfactory03lab --min-sdk-version 17 --v1-signing-enabled true \
-  --v2-signing-enabled false --v3-signing-enabled false --out "$out/cl-factory-03-navlab.apk" "$aligned"
-"$build_tools/apksigner" verify --min-sdk-version 17 "$out/cl-factory-03-navlab.apk"
-permissions=$("$build_tools/aapt" dump permissions "$out/cl-factory-03-navlab.apk")
+  --v2-signing-enabled false --v3-signing-enabled false --out "$out/claritylink-display-lab.apk" "$aligned"
+"$build_tools/apksigner" verify --min-sdk-version 17 "$out/claritylink-display-lab.apk"
+permissions=$("$build_tools/aapt" dump permissions "$out/claritylink-display-lab.apk")
 printf '%s\n' "$permissions" | grep -E -q '^uses-permission:' && {
   echo "Synthetic nav lab must request no permissions: $permissions" >&2; exit 3;
 }
-shasum -a 256 "$out/cl-factory-03-navlab.apk"
+shasum -a 256 "$out/claritylink-display-lab.apk"
 echo 'CL_FACTORY_03_API17_APK_BUILT min_sdk=17 target_sdk=17 permissions=none factory_output=disabled'
