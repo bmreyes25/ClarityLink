@@ -16,11 +16,11 @@
     },
     {
       "path": ".gitignore",
-      "sha256": "dd8d43bd72940b06631d7f7266c31e48fb99ad67c0b5c39c31cfee03301ceebd"
+      "sha256": "cfa1ccf57b6168f4d4f94e952795e7fb44c9d7bcea0313b3411c0a293511bb7f"
     },
     {
       "path": "AGENTS.md",
-      "sha256": "764a0c5219945fd3f40c1c321d595c0e5d2ebf21383521b36383f9437d408368"
+      "sha256": "99302ac2ea71663ee0118972946470c80c5558c5028fae4bf64df04817a9e327"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -220,5 +220,6 @@
   "cl_r4b_p04_scope_refresh_note": "Refreshed four pinned CL-R0 scope hashes after exact-source P04 code and security reviews. The API17 View-death-during-parent-teardown test passed with one pending PFD at the deterministic barrier, the exact View PID exited, Type110 survived, both streams unregistered, and PFD/frame bytes returned to zero. Original CL-R0 review ranges and approval_claimed=false remain unchanged.",
   "cl_r4_final_acceptance_scope_note": "Pinned hashes were refreshed after the final CL-R4 reliability implementation, acceptance-report integrity fixes, and public status updates. Separate ECC code and security reviewers examined the lifecycle/process and acceptance changes with no remaining actionable findings. The exact-source API17 runner passed all 12 CL-R4 cases and 12 priority combinations, then passed CL-R7 in both setup orders; configured offline checks passed 1,289 tests with 29 skipped plus smoke, simulator, and whitespace checks. This records a later campaign review and does not claim independent CL-R0 approval; the historical source snapshot and approval_claimed=false remain unchanged.",
   "cl_r9_status_scope_refresh_note": "Refreshed the pinned docs/status/current.md hash after recording the CL-R9 Honda receiver/display evidence gates and current publication state. Separate CL-R9 ECC code and security reviews found no actionable boundary-adapter findings; this status/hash refresh does not alter historical CL-R0 review ranges or claim independent CL-R0 approval.",
- "cl_ops_recovery_01_scope_refresh_note": "CL-OPS-RECOVERY-01 scope digest refresh (2026-10-22): .gitignore now unignores the new .gitleaks.toml (a manual-scan configuration documenting known false positives). Integrity refresh only: it extends no ECC or independent review, leaves review_status unchanged, and keeps approval_claimed=false."
+ "cl_ops_recovery_01_scope_refresh_note": "CL-OPS-RECOVERY-01 scope digest refresh (2026-10-22): .gitignore now unignores the new .gitleaks.toml (a manual-scan configuration documenting known false positives). Integrity refresh only: it extends no ECC or independent review, leaves review_status unchanged, and keeps approval_claimed=false.",
+ "cl_ops_recovery_02_scope_refresh_note": "CL-OPS-RECOVERY-02 scope digest refresh (2026-10-22): AGENTS.md now governs Claude Code and Codex alike and documents stacked publication; .gitignore unignores CLAUDE.md. Integrity refresh only: it extends no ECC or independent review, leaves review_status unchanged, and keeps approval_claimed=false."
 }
