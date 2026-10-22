@@ -5,6 +5,8 @@
 /AGENTS.md                     @bmreyes25
 /.github/                      @bmreyes25
 /tools/publish_checkpoint.py   @bmreyes25
+/tools/check_public_safety.py  @bmreyes25
+/CLAUDE.md                     @bmreyes25
 /docs/security/                @bmreyes25
 /docs/status/                  @bmreyes25
 /src/claritylink-honda/        @bmreyes25

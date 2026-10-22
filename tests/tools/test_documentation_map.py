@@ -22,14 +22,21 @@ def test_historical_logs_point_to_the_status_map():
         assert "Historical log." in head and "docs/status/README.md" in head, name
 
 
+# Paths introduced by PR #83 (public-safety gate) and PR #84 (agent contract). They are listed now so the
+# gate and the agent contract are owned from the commit that merges them; they are the only paths allowed
+# to be absent, and the allowance ends when both PRs are on main (then this set can be emptied).
+PENDING_PATHS = {"/tools/check_public_safety.py", "/CLAUDE.md"}
+
+
 def test_codeowners_names_only_a_real_account_and_existing_paths():
     lines = [l for l in (REPO / ".github/CODEOWNERS").read_text().splitlines() if l.strip() and not l.startswith("#")]
     assert lines
     for line in lines:
         pattern, *owners = line.split()
         assert owners == ["@bmreyes25"], line
-        if pattern != "*":
+        if pattern != "*" and pattern not in PENDING_PATHS:
             assert (REPO / pattern.lstrip("/")).exists(), pattern
+    assert PENDING_PATHS <= {l.split()[0] for l in lines}
 
 
 def test_pr_template_asks_for_the_evidence_that_matters():
