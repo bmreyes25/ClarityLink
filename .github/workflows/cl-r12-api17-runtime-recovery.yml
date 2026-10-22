@@ -163,6 +163,43 @@ jobs:
           echo "CL_PANE_LEASE_TEST_APK=$pane_dir/claritylink-pane-lease-test.apk" >> "$GITHUB_ENV"
           sha256sum "$pane_dir/claritylink-pane-lease-test.apk" | tee pane-test-apk.sha256
 
+      - name: Verify the classes inside the built DEX (not the source list)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dexdump="$ANDROID_HOME/build-tools/35.0.0/dexdump"
+          test -x "$dexdump"
+          src="$(git rev-parse HEAD)"
+          lab=(--require org.claritylink.renderer.PaneEvent --require org.claritylink.renderer.PaneLease
+               --require org.claritylink.renderer.Display1OutputBackend --require org.claritylink.renderer.ClarityLinkContentView
+               --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
+               --require org.claritylink.android.MessengerFrameParcel
+               --require-method org.claritylink.android.SyntheticFrameFill#fill
+               --require-method org.claritylink.android.MessengerFrameParcel#read
+               --require-method org.claritylink.renderer.Display1OutputBackend#setRendererViewport
+               --require-method org.claritylink.renderer.ClarityLinkContentView#useSharedConverter)
+          tests=(--require org.claritylink.renderer.PaneLease --require org.claritylink.renderer.PaneEvent
+                 --require org.claritylink.renderer.Display1PaneLeaseLifecycleTest
+                 --require org.claritylink.renderer.Display1RendererViewportInPlaceTest
+                 --require org.claritylink.renderer.PaneLeaseFdLifecycleTest
+                 --require org.claritylink.renderer.PaneLeaseTest
+                 --require org.claritylink.android.SyntheticFrameFillTest)
+          {
+            echo "tested_merge_commit=$src"
+            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_CANDIDATE_APK" --dexdump "$dexdump" --label candidate-lab --source-commit "$src" "${lab[@]}"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_PANE_LEASE_TEST_APK" --dexdump "$dexdump" --label pane-lease-test --source-commit "$src" "${tests[@]}"
+            if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
+              python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" "${lab[@]}"
+            else
+              # Renderer A/B: the baseline is the pre-PaneLease renderer, so the lease classes must be absent
+              # while the candidate's workload helper (overlaid into the baseline) is present.
+              python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" \
+                --forbid org.claritylink.renderer.PaneLease --forbid org.claritylink.renderer.PaneEvent \
+                --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
+            fi
+          } | tee dex-verification.txt
+
       - name: Enable KVM for the GitHub x86-64 runner
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -209,6 +246,7 @@ jobs:
             apk-ab.sha256
             pane-test-apk.sha256
             source-ab.sha256
+            dex-verification.txt
             build/cl-r12-api17-ci/receipt/
           if-no-files-found: ignore
           retention-days: 14

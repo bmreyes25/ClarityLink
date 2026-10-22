@@ -2,7 +2,7 @@
 
 Offline and CI-only work. No Honda ADB, live iPhone, receiver patching, Xposed, CAN, cluster control, firmware change or vehicle test occurred. `safeForHonda() == false`. Both Honda admission gates remain **NO-GO**.
 
-Branch `claude/cl-honda-111-02-verification-recovery`, stacked PR #82 (base: PR #81's branch `codex/cl-honda-111-01-api17-pane-lease`, starting reference `c90390ddfb6f285af5a2044f1332598c76048978`). The exact tested head is the PR head recorded in the PR description at hand-off.
+Branch `claude/cl-honda-111-02-verification-recovery`, PR #82. It was created stacked on PR #81 (starting reference `c90390ddfb6f285af5a2044f1332598c76048978`) and is now based on `main`: it contains #81's commits as ancestors and is the **integrated Phase 1 candidate**, so #81 is superseded by it, not merged first. The exact tested head is the PR head recorded in the PR description and in `docs/development/codex-handoff-cl-ops-recovery-01.md`; this report is a record of method and findings, not of a head SHA. Status vocabulary: `CL_R12_FUNCTIONAL_PASS` (scenario, instrumentation, pixel-exact delivery) is separate from `CL_R12_ABSOLUTE_PERFORMANCE` (the unchanged gate), which is **PARTIAL**: see section 3.
 
 ## 1. Defects found and corrected
 
@@ -32,7 +32,9 @@ Baseline 46 to final 49 in every run measured the old way, both variants; host 3
 | Run 39826788951 showed 0 even before collection: a collection ran by chance in that run | Observed; GC timing is not deterministic, which is why the old, unsettled count passed or failed by luck |
 | `producer_fd_returns_within_two` is `PASS` on every variant of the latest run, using the settled count | Observed (`perf-*-gate.txt`) |
 
-Conclusion: a delayed-release effect of a quit helper thread, demonstrated before and after in one build; not an unbounded leak and not a PaneLease regression. The final count is now taken after a forced collection, the pre-collection count is logged beside it, and added descriptors and threads are named. **A descriptor that survives collection still fails the unchanged `+2` gate.** This corrects an observation taken before a required cleanup phase; no threshold was relaxed and nothing was hidden. The renderer was not changed for this.
+Conclusion at that point: a delayed-release effect of a quit helper thread, demonstrated before and after in one build; not an unbounded leak and not a PaneLease regression. The final count is now taken after a forced collection, the pre-collection count is logged beside it, and added descriptors and threads are named. **A descriptor that survives collection still fails the unchanged `+2` gate.** This corrects an observation taken before a required cleanup phase; no threshold was relaxed and nothing was hidden. The renderer was not changed for this measurement.
+
+**Revocation storm and the shared converter thread (fixed afterwards).** The same mechanism is worse under the PaneLease design, where every attach creates a View and every revoke quits its converter. An instrumentation test of 60 attach/revoke cycles measured the process at **178 descriptors at the peak** (base 37, so base + 141) before the fix. The backend now owns one `ClarityLinkFrameConvert` HandlerThread, created lazily on attach and quit in `close()`; `ClarityLinkContentView.useSharedConverter` borrows it, and a view's `close()` quits only a converter it owns. At the exact head tested in run 39867353829 the test logged `PANE_FD_CYCLES cycles=60 base=37 peak=40 before_settle=40 after_settle=37` (peak at most base + 12 is asserted; settled count at most base + 2). The test now also asserts reuse itself, not only the bound: exactly one live converter thread during every cycle, the same `Thread` instance across all 60, and none alive after `close()`. Callback fencing and stale-frame rejection are covered by `Display1PaneLeaseLifecycleTest` (delayed stale callback does not revoke the current lease; `STALE_SEQUENCE`, `IDENTITY_MISMATCH`, `GEOMETRY` and `MALFORMED` are typed rejections; listener and content cleanup on revoke). The renderer was changed only for the demonstrated defect.
 
 ## 3. CL-R12 results (every number is from a CI receipt)
 
@@ -46,29 +48,41 @@ Environment: GitHub `ubuntu-22.04`, 4 vCPU, `/dev/kvm` present and `emulator -ac
 | 39826788951 | `7aa9b03` | Three alternating pairs, about 12.4 fps both; no metric distinguishable; FD delta 0 even before collection |
 | 39829068486 | `4375d70` | Three alternating pairs, about 15.1 vs 15.0 fps, a 0.7% difference (labelled negligible); **PaneLease instrumentation `OK (2 tests)`**; FD delta +3 before and 0 after collection in 8 of 8; teardown present |
 
-Across the repeated runs the PaneLease renderer shows no material throughput, latency, drop-rate or descriptor difference from the pre-PR-#81 renderer. **The unchanged gate still fails both variants** on delivered rate (needs 27 fps), valid-drop rate and, in some runs, p95; the soak is therefore not run. Classification: **environmental/workload capacity limit shared by both variants, not a PaneLease regression, and not resolved.** The profile run shows the dominant stage on the producer: synthetic `frame_generation` p50 about 26 ms per 800×480 frame, an allocation and fill of a new 1.5 MB array per frame under a 128 MB emulator heap. PR #75 (frame-storage reuse) targets that stage; it was not touched here to avoid overlapping Codex's work. **No representative performance PASS is claimed.**
+Across the repeated runs above the PaneLease renderer shows no material throughput, latency, drop-rate or descriptor difference from the pre-PR-#81 renderer. Up to this point **the unchanged gate failed both variants**, because the synthetic producer was the bottleneck: `frame_generation` p50 was about 26 ms per 800x480 frame, dominated by `Arrays.fill` (a Java loop on Dalvik) over a freshly allocated 1.5 MB array.
+
+Later runs, after the producer was changed (native-assisted byte-identical fill, one reused frame buffer and one reused returned-frame buffer; the gate script and thresholds are untouched):
+
+| Run | Head | What it shows |
+|---|---|---|
+| 39840065674 | native fill + buffer reuse | workload A/B: candidate about 28 fps, p95 36 ms, p99 45 ms, drops 6-8%, FD delta 0; 3 of 3 candidate gates and the soak PASS; the old-producer baseline FAILS in the same run |
+| 39850908696, 39854243866 | `6cce00c`, `b31d766` | renderer A/B, PaneLease vs pre-#81 renderer: NOT_DISTINGUISHABLE on every metric; all six per-run gates and the soak PASS |
+| 39862437324 / 39862243764 | `aafdaa3` (identical product code) | pull_request: SUCCESS, all 7 gates, 27.5-28.1 fps. workflow_dispatch: **FAILURE**, baseline FAIL on 1 of 3 and candidate FAIL on 3 of 3 (22.3-25.5 fps, drops 15-25%) |
+| 39865061220 | `411e707` vs `aafdaa3` activity | workload A/B, all 7 gates PASS; p50 21.3 to 19.6 ms and p95 26.4 to 25.0 ms (candidate better); fps equal at about 29.8 on a fast host |
+| 39865066603 | `411e707` | FAILURE at the A/B build step (the baseline tree lacked a new `MessengerFrameParcel` overload); a harness defect, no performance data; fixed by overlaying that workload class |
+| 39867353829 | `a0ed09f` | pull_request SUCCESS: scenario, baseline, candidate and soak gates PASS; instrumentation `OK (7 tests)`; renderer A/B about 28.7 fps, p95 about 32 ms, p99 about 41 ms, drops about 4%, FD delta 0, 0 pixel mismatches, every metric NOT_DISTINGUISHABLE. Soak: 600 s, 29.15 fps delivered, p95 31.4 ms, p99 37.8 ms, 513 backpressure drops of 18,001 offered, 0 pixel mismatches, producer FDs 46 to 46 |
+
+**Classification.** `CL_R12_FUNCTIONAL_PASS`: the scenario, pixel-exact delivery, teardown evidence and the PaneLease instrumentation pass at the exact tested head. `CL_R12_ABSOLUTE_PERFORMANCE_PARTIAL`: the unchanged gate passes in most but not all executions on shared runners. Across the five full executions of the fast-producer builds four passed and one failed (`39862243764`) with identical product code, so the margin over the 27 fps floor (about 1 fps on a typical host) is thin and host speed varied from about 12 to about 30 fps. This is environment sensitivity, not a stable PASS, and it was not resolved by repeated runs; no run was repeated until green. What would resolve it is a documented representative runner (or a dedicated one) for the absolute thresholds; the informational A/B summary cannot substitute for the gate. Remaining per-frame costs are `pixel_compare` p50 about 7.8 ms (the exact byte-identity oracle, deliberately kept), `return_read_copy` about 2.3 ms and `decoded_frame_create` about 2.0 ms.
 
 ## 4. Other verification
 
 | Check | Result |
 |---|---|
-| API17 APK build (lab, disabled candidate, boundary attacker) | Passes locally and in CI; `PaneEvent`/`PaneLease` classes are in the dex input |
+| API17 APK build (lab, disabled candidate, boundary attacker) | Passes locally and in CI. The CL-R12 workflow now inspects the built DEX with the SDK `dexdump` (`tools/verify_apk_dex_classes.py`) for required classes and methods in the lab and pane-test APKs, and for the absence of the lease classes in the renderer-mode baseline, and uploads `dex-verification.txt` (hashes and verdicts; no APK is uploaded). Source-list inspection is not counted as DEX verification |
 | Disabled candidate, no permissions, signing, fresh-directory policy | Unchanged; the pane-test APK also requests no permissions (checked by its builder) |
 | `tests/tools`, `tests/display` | Pass |
-| Full configured suite (`tools/run_tests.sh`) | Before fix 8: 1545 passed, 1 failed (defect 8), 29 skipped. Rerun on the final head is recorded in the PR |
+| Full configured suite (`tools/run_tests.sh`) | Before fix 8: 1545 passed, 1 failed (defect 8), 29 skipped. At `a0ed09f`: all configured offline checks passed. The result on the exact final head is recorded in the PR and the hand-off |
 | `tools/check_repo_health.py`, `tools/check_source_discovery.py` | Pass (0 ignored source) |
 | Gitleaks | Clean on the changed files |
-| CodeQL and Offline CI | Workflows trigger for PRs based on `main` only; see the PR for the run at the final head |
+| CodeQL, Offline CI and CL-FACTORY-03 | Pass at `a0ed09f` with the PR based on `main` (they trigger for PRs based on `main` only) |
 | `@ECC` | Not available. A self-review by the author is not independent review and no approval is claimed |
 
 ## 5. What stays open, with evidence
 
-1. Representative CL-R12 performance gate: fails for both variants, environmental or workload-bound, unresolved. Owner: whoever owns the synthetic producer (PR #75) and the runner capacity decision.
-2. A red CL-R12 job is now the honest result on shared runners. Whether to keep the job blocking, move the absolute thresholds to a dedicated runner, or make the job informational is a policy decision for the maintainers; the threshold script was not changed.
-3. The `ClarityLinkFrameConvert` thread is created per attach and its descriptors persist until a collection finalizes its queue. With the settled measurement the unchanged gate passes, but a lifecycle storm of attach/revoke cycles (the PaneLease design) could hold several such queues at once until the next collection. A shared or pre-created converter thread would remove that; it is a renderer design change left to its owner and not measured here.
-4. Overlap risk: `MessengerFramePerformanceActivity.java` (diagnostics, additive only) and `tools/run_cl_r12_api17_ci.sh`/the R12 workflow overlap files owned by PRs #74, #75 and #79 and will conflict on merge. Resolve in favour of keeping both sides.
-5. Stacking consequence: Offline CI, CodeQL and CL-FACTORY-03 do not run for a PR whose base is not `main`.
-6. `tools/publish_checkpoint.sh` refuses new branches that do not start at `origin/main`; this branch was created by a plain non-force push of PR #81's already-public head, after which the tool was used for every checkpoint.
+1. Absolute CL-R12 performance is `PARTIAL` (section 3). The remaining decision is policy for the maintainers: keep the job blocking on shared runners, move the absolute thresholds to a representative or dedicated runner, or split required checks. The threshold script was not changed.
+2. The converter-thread storm finding of earlier drafts is **fixed** (section 2) and covered by the instrumentation test.
+3. Overlap with PRs #74, #75 and #79: trial merges show #82 with `main` and with #74 clean; #82 with #75 conflicts in the CL-R12 workflow and the performance activity; #82 with #79 conflicts in the activity. PR #75's own contract test pins the literal `Arrays.fill(pixels, marker);`, which this PR deliberately replaces with a byte-identical native-assisted fill; `tests/display/test_cl_ops_recovery_producer_contract.py` carries the equivalent contract. #75's owner should re-derive it on top of this PR rather than merge blindly. #74 is a sound one-line fix.
+4. Stacking: this PR is based on `main`, so Offline CI, CodeQL and CL-FACTORY-03 run for it. PRs that remain stacked on another branch do not get those checks until their base is `main`.
+5. Independent review has not happened.
 
 ## 6. Exact commands for Codex
 

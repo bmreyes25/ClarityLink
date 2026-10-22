@@ -127,3 +127,28 @@ def test_no_adb_call_can_block_the_runner_forever():
 
 def test_an_aborted_runner_records_its_cause_in_the_receipt():
     assert "trap " in RUNNER and "CL_R12_RUNNER_ABORTED" in RUNNER and "ERR" in RUNNER
+
+
+def test_workflow_verifies_classes_in_the_built_dex_not_the_source_list():
+    assert "tools/verify_apk_dex_classes.py" in WORKFLOW and "dex-verification.txt" in WORKFLOW
+    assert "build-tools/35.0.0/dexdump" in WORKFLOW
+    # candidate lab APK, pane-test APK and baseline APK are each inspected
+    for label in ("candidate-lab", "pane-lease-test", "baseline-lab"):
+        assert f"--label {label}" in WORKFLOW, label
+    # the lab APK must carry the lease classes and the shared-converter and in-place viewport methods
+    for needed in ("org.claritylink.renderer.PaneLease", "org.claritylink.renderer.PaneEvent",
+                   "Display1OutputBackend#setRendererViewport", "ClarityLinkContentView#useSharedConverter",
+                   "SyntheticFrameFill#fill", "MessengerFrameParcel#read"):
+        assert needed in WORKFLOW, needed
+    # in renderer A/B the pre-lease baseline must not contain the lease classes
+    assert "--forbid org.claritylink.renderer.PaneLease" in WORKFLOW
+    # the APK itself is never uploaded; only the text report and hashes are
+    upload = WORKFLOW.split("upload-artifact@")[1]
+    assert ".apk" not in upload.replace("apk.sha256", "").replace("apk-ab.sha256", "").replace("pane-test-apk.sha256", "")
+
+
+def test_fd_instrumentation_asserts_converter_thread_reuse_not_only_a_bound():
+    source = (REPO / "android/src/test/java/org/claritylink/renderer/PaneLeaseFdLifecycleTest.java").read_text()
+    assert "liveConverterThreads()" in source and "exactly one converter thread" in source
+    assert "assertSame" in source and "PANE_CONVERTER_REUSE" in source
+    assert "converter thread must be gone after close" in source

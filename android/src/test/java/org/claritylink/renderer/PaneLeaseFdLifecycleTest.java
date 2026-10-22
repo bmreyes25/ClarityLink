@@ -28,10 +28,18 @@ public final class PaneLeaseFdLifecycleTest extends InstrumentationTestCase {
         settle();
         final int base = fdCount();
         int peak = base;
+        Thread firstConverter = null;
+        int maxConverterThreads = 0;
         for (long generation = 1; generation <= CYCLES; generation++) {
             final long next = generation;
             runTestOnUiThread(new Runnable() { public void run() { backend.attach(next); } });
             assertTrue(backend.paneLease().isValid());
+            // Reuse, not just a bound: every attach in the storm runs on the one converter thread the backend owns.
+            final java.util.List<Thread> converters = liveConverterThreads();
+            maxConverterThreads = Math.max(maxConverterThreads, converters.size());
+            assertEquals("exactly one converter thread while attached", 1, converters.size());
+            if (firstConverter == null) firstConverter = converters.get(0);
+            assertSame("the converter thread must be the same instance across cycles", firstConverter, converters.get(0));
             runTestOnUiThread(new Runnable() { public void run() { host.simulatePageDeselected(); } });
             assertFalse(backend.paneLease().isValid());
             runTestOnUiThread(new Runnable() { public void run() { host.simulatePageSelected(); } });
@@ -43,6 +51,7 @@ public final class PaneLeaseFdLifecycleTest extends InstrumentationTestCase {
         final int after = fdCount();
         Log.i("ClarityLinkR12B", "PANE_FD_CYCLES cycles=" + CYCLES + " base=" + base + " peak=" + peak +
                 " before_settle=" + beforeSettle + " after_settle=" + after);
+        Log.i("ClarityLinkR12B", "PANE_CONVERTER_REUSE cycles=" + CYCLES + " max_converter_threads=" + maxConverterThreads);
         assertTrue("peak " + peak + " grew by more than " + PEAK_GROWTH_LIMIT + " over base " + base,
                 peak <= base + PEAK_GROWTH_LIMIT);
         assertFalse("the shared converter thread must be gone after close", converterThreadAlive());
@@ -50,9 +59,14 @@ public final class PaneLeaseFdLifecycleTest extends InstrumentationTestCase {
     }
 
     private static boolean converterThreadAlive() {
+        return !liveConverterThreads().isEmpty();
+    }
+
+    private static java.util.List<Thread> liveConverterThreads() {
+        final java.util.List<Thread> found = new java.util.ArrayList<Thread>();
         for (Thread t : Thread.getAllStackTraces().keySet())
-            if ("ClarityLinkFrameConvert".equals(t.getName()) && t.isAlive()) return true;
-        return false;
+            if ("ClarityLinkFrameConvert".equals(t.getName()) && t.isAlive()) found.add(t);
+        return found;
     }
 
     private static int fdCount() {
