@@ -104,13 +104,204 @@ def test_public_sample_vin_is_allowed_only_when_listed(tmp_path):
     assert code == 0, out
 
 
-def test_a_candidate_that_edits_the_allowlist_is_flagged_for_the_reviewer(tmp_path):
-    root = make_repo(tmp_path, {})
+def candidate(root, files=None, allow=None, delete=(), symlinks=None):
+    """Branch off main and commit a candidate; returns the repo. Everything is built at run time."""
     git(root, "checkout", "-q", "-b", "feature")
-    (root / ALLOW).write_text(json.dumps({"schema": 1, "vin_samples": [], "allow": []}, indent=1))
-    git(root, "add", "-A"); git(root, "commit", "-q", "-m", "a")
-    code, out = run(root, "--base", "main")
-    assert code == 0 and "PUBLIC_SAFETY_NOTICE" in out
+    if allow is not None:
+        (root / ALLOW).write_text(json.dumps(allow))
+    for name, data in (files or {}).items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data if isinstance(data, bytes) else data.encode())
+    for name in delete:
+        (root / name).unlink()
+    for name, target in (symlinks or {}).items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).symlink_to(target)
+    git(root, "add", "-A"); git(root, "commit", "-q", "-m", "candidate")
+    return root
+
+
+def gate(root):
+    return run(root, "--base", "main")
+
+
+TRUSTED = {"schema": 1, "vin_samples": [], "allow": [
+    {"path": "research/old/a.md", "rule": "PS006", "max": 1, "reason": "historical"}]}
+BASE_FILES = {"research/old/a.md": "x " + account_path() + "\n"}
+
+
+def trusted_repo(tmp_path, extra=None):
+    return make_repo(tmp_path, {**BASE_FILES, **(extra or {})}, TRUSTED)
+
+
+def test_an_unchanged_trusted_allowlist_still_exempts_the_documented_baseline(tmp_path):
+    root = candidate(trusted_repo(tmp_path), {"docs/new.md": "fine\n"})
+    code, out = gate(root)
+    assert code == 0, out
+
+
+def test_new_permissive_allowlist_entry_fails_closed(tmp_path):
+    root = trusted_repo(tmp_path)
+    widened = {**TRUSTED, "allow": TRUSTED["allow"] + [
+        {"path": "docs/leak.md", "rule": "PS006", "max": 5, "reason": "please"}]}
+    candidate(root, {"docs/leak.md": f"{account_path()}\n"}, widened)
+    code, out = gate(root)
+    assert code == 1 and {"PS009"} <= rules(out)
+
+
+def test_raising_an_existing_exception_count_fails_closed(tmp_path):
+    root = trusted_repo(tmp_path)
+    raised = {**TRUSTED, "allow": [{**TRUSTED["allow"][0], "max": 9}]}
+    candidate(root, {"research/old/a.md": f"{account_path()}\n" * 3}, raised)
+    code, out = gate(root)
+    assert code == 1 and "PS009" in rules(out) and "PS006" in rules(out)   # the content is also judged by the trusted ceiling
+
+
+def test_broadening_a_path_wildcard_fails_closed(tmp_path):
+    root = trusted_repo(tmp_path)
+    broad = {**TRUSTED, "allow": [{**TRUSTED["allow"][0], "path": "research/*"}]}
+    candidate(root, {"research/new/b.md": f"{account_path()}\n"}, broad)
+    code, out = gate(root)
+    assert code == 1 and "PS009" in rules(out) and "PS006" in rules(out)
+
+
+def test_an_exception_for_a_restricted_binary_fails_closed(tmp_path):
+    root = trusted_repo(tmp_path)
+    allow = {**TRUSTED, "allow": TRUSTED["allow"] + [
+        {"path": "firmware/boot.img", "rule": "PS001", "max": 1, "reason": "needed"}]}
+    candidate(root, {"firmware/boot.img": b"x"}, allow)
+    code, out = gate(root)
+    assert code == 1 and {"PS009", "PS001"} <= rules(out)
+
+
+def test_altering_the_exempted_sample_list_fails_closed(tmp_path):
+    root = trusted_repo(tmp_path)
+    allow = {**TRUSTED, "vin_samples": [vin()]}
+    candidate(root, {"docs/v.md": f"VIN {vin()}\n"}, allow)
+    code, out = gate(root)
+    assert code == 1 and {"PS009", "PS005"} <= rules(out)
+    assert vin() not in out                                     # the value is never echoed
+
+
+def test_removing_or_lowering_exceptions_is_permitted(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, {"research/old/a.md": "clean\n"}, {"schema": 1, "vin_samples": [], "allow": []})
+    code, out = gate(root)
+    assert code == 0, out
+
+
+def test_a_secret_hidden_in_the_allowlist_file_is_still_found(tmp_path):
+    root = trusted_repo(tmp_path)
+    allow = {**TRUSTED, "allow": [{**TRUSTED["allow"][0], "reason": secret()}]}
+    candidate(root, {}, allow)
+    code, out = gate(root)
+    assert code == 1 and "PS004" in rules(out) and ALLOW in out
+
+
+@pytest.mark.parametrize("control", ["tools/check_public_safety.py", ".github/workflows/public-safety.yml"])
+def test_modifying_the_gate_itself_requires_owner_approval(tmp_path, control):
+    root = trusted_repo(tmp_path, {control: "original\n"})
+    candidate(root, {control: "weakened\n"})
+    code, out = gate(root)
+    assert code == 1 and "PS008" in rules(out) and control in out
+
+
+def test_deleting_the_gate_is_also_flagged(tmp_path):
+    control = "tools/check_public_safety.py"
+    root = trusted_repo(tmp_path, {control: "original\n"})
+    candidate(root, delete=[control])
+    code, out = gate(root)
+    assert code == 1 and "PS008" in rules(out)
+
+
+def test_invalid_candidate_allowlist_cannot_be_used_even_with_a_valid_baseline(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, allow={"schema": 1, "allow": [{"path": "a", "rule": "PS006", "max": 1}]})
+    code, out = gate(root)
+    assert code == 2 and "invalid allowlist" in out
+
+
+def test_deleting_the_candidate_allowlist_is_an_error_not_a_pass(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, delete=[ALLOW])
+    assert gate(root)[0] == 2
+
+
+def test_an_allowlist_that_is_not_json_is_an_error(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, {"docs/x.md": "fine\n"})
+    (root / ALLOW).write_text("{not json")
+    git(root, "add", "-A"); git(root, "commit", "-q", "-m", "broken")
+    assert gate(root)[0] == 2
+
+
+def test_an_unresolvable_trusted_ref_is_an_error(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, {"docs/x.md": "fine\n"})
+    code, out = run(root, "--base", "main", "--trusted-ref", "no-such-ref")
+    assert code == 2 and "PUBLIC_SAFETY_ERROR" in out
+
+
+def test_a_missing_trusted_allowlist_refuses_unless_bootstrap_is_explicit(tmp_path):
+    git(tmp_path, "init", "-q", "-b", "main")
+    (tmp_path / "README.md").write_text("x\n")
+    git(tmp_path, "add", "-A"); git(tmp_path, "commit", "-q", "-m", "base")
+    candidate(tmp_path, {ALLOW: json.dumps({"schema": 1, "vin_samples": [], "allow": []})})
+    code, out = gate(tmp_path)
+    assert code == 2 and "no allowlist" in out
+    code, out = run(tmp_path, "--base", "main", "--allow-bootstrap")
+    assert code == 0 and "PUBLIC_SAFETY_BOOTSTRAP_UNTRUSTED" in out and "trust=bootstrap-untrusted" in out
+
+
+def test_bootstrap_still_judges_content_and_cannot_be_reused_once_a_baseline_exists(tmp_path):
+    root = trusted_repo(tmp_path)
+    widened = {**TRUSTED, "allow": TRUSTED["allow"] + [
+        {"path": "docs/leak.md", "rule": "PS006", "max": 5, "reason": "x"}]}
+    candidate(root, {"docs/leak.md": f"{account_path()}\n"}, widened)
+    code, out = run(root, "--base", "main", "--allow-bootstrap")   # the flag changes nothing when a baseline exists
+    assert code == 1 and "PS009" in rules(out)
+
+
+def test_symlink_outside_the_repository_fails(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, symlinks={"docs/link": "../../../outside", "docs/abs": "/etc/passwd"})
+    code, out = gate(root)
+    assert code == 1 and "PS010" in rules(out) and "docs/link" in out and "docs/abs" in out
+
+
+def test_symlink_inside_the_repository_is_accepted(tmp_path):
+    root = trusted_repo(tmp_path, {"docs/real.md": "ok\n"})
+    candidate(root, symlinks={"docs/alias": "real.md"})
+    code, out = gate(root)
+    assert code == 0, out
+
+
+def test_gitlink_is_not_inspectable_and_fails(tmp_path):
+    root = trusted_repo(tmp_path)
+    git(root, "checkout", "-q", "-b", "feature")
+    git(root, "update-index", "--add", "--cacheinfo", "160000," + "a" * 40 + ",vendor/sub")
+    git(root, "commit", "-q", "-m", "gitlink")
+    code, out = gate(root)
+    assert code == 1 and "PS010" in rules(out) and "vendor/sub" in out
+
+
+def test_a_git_read_failure_is_an_error_not_a_pass(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, {"docs/x.md": "fine\n"})
+    code, out = run(root, "--base", "does-not-exist")
+    assert code == 2
+
+
+def test_staged_mode_compares_against_the_committed_allowlist(tmp_path):
+    root = trusted_repo(tmp_path)
+    (root / "docs").mkdir(exist_ok=True)
+    (root / "docs/leak.md").write_text(f"{account_path()}\n")
+    (root / ALLOW).write_text(json.dumps({**TRUSTED, "allow": TRUSTED["allow"] + [
+        {"path": "docs/leak.md", "rule": "PS006", "max": 5, "reason": "x"}]}))
+    git(root, "add", "docs/leak.md", ALLOW)
+    code, out = run(root, "--staged", "--trusted-ref", "HEAD")
+    assert code == 1 and "PS009" in rules(out)
 
 
 def test_allowance_is_a_ceiling_per_path_and_rule(tmp_path):
@@ -192,3 +383,38 @@ def test_the_checked_out_repository_head_passes_its_own_gate():
         pytest.skip("allowlist not yet committed at HEAD")
     code, out = run(REPO, "--all", "--head", "HEAD")
     assert code == 0, out
+
+
+WORKFLOW = (REPO / ".github/workflows/public-safety.yml").read_text()
+
+
+def test_protected_workflow_never_runs_or_checks_out_candidate_code():
+    assert "pull_request_target" in WORKFLOW
+    # the only checkout is the protected base commit; the candidate is fetched as objects, never checked out
+    assert WORKFLOW.count("actions/checkout") == 1
+    assert "ref: ${{ github.event.pull_request.base.sha }}" in WORKFLOW
+    checkout_block = WORKFLOW.split("actions/checkout@")[1].split("- name:")[0]
+    assert "head" not in checkout_block
+    for forbidden in ("pip install", "npm ", "setup-python", "setup-node", "make ", "./tools/", "bash tools/",
+                      "secrets.", "pull_request.head.ref", "head.repo", "github.head_ref", "workflow_run"):
+        assert forbidden not in WORKFLOW, forbidden
+    assert "git checkout" not in WORKFLOW and "git switch" not in WORKFLOW
+
+
+def test_protected_workflow_has_read_only_permissions_and_no_inline_expression_injection():
+    assert "permissions:\n  contents: read\n" in WORKFLOW
+    for write in ("contents: write", "pull-requests: write", "id-token", "actions: write", "checks: write"):
+        assert write not in WORKFLOW
+    # untrusted-looking values reach shell commands only through env variables
+    run_lines = [l for l in WORKFLOW.splitlines() if l.strip().startswith("run:")]
+    assert run_lines and not any("${{" in l for l in run_lines)
+
+
+def test_protected_workflow_uses_the_base_commit_as_the_trusted_ref():
+    assert '--trusted-ref "$BASE_SHA"' in WORKFLOW and '--base "$BASE_SHA"' in WORKFLOW
+    assert "refs/candidate/head" in WORKFLOW
+
+
+def test_ci_gate_step_is_labelled_supplementary():
+    ci = (REPO / ".github/workflows/ci.yml").read_text()
+    assert "supplementary" in ci and "public-safety.yml" in ci

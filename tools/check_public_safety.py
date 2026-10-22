@@ -13,11 +13,25 @@ Rules
   PS005 VIN-like identifier
   PS006 absolute path that names a local user account
   PS007 file under a restricted research directory that is not explicitly allowlisted
+  PS008 the gate itself (this scanner or its protected workflow) is modified by the candidate
+  PS009 the candidate's allowlist grants more than the trusted allowlist (new or broader entry,
+        higher count, new sample)
+  PS010 a Git object the gate cannot safely inspect (gitlink, escaping symlink, unsupported mode)
 
-Every rule is evaluated per (path, rule) against an allowance in
+PS001-PS007 are evaluated per (path, rule) against an allowance in
 docs/security/public-safety-allowlist.json. The default allowance is zero, so a new
 violation fails while existing, reviewed content is recorded explicitly with a reason.
 An allowance is a ceiling: more matches than allowed fail even in an allowlisted file.
+
+Trust model: the allowance that applies is read from a TRUSTED ref (the protected base branch),
+never from the candidate being judged. The candidate's own allowlist is only compared with the
+trusted one, and any expansion fails closed (PS009). Widening an exemption therefore needs a
+separate, reviewed update to the trusted baseline. PS008-PS010 cannot be allowlisted. Anything
+the gate cannot read or parse is an error (exit 2), never a pass.
+
+When the trusted ref has no allowlist at all (the one-time bootstrap that introduces this gate)
+the gate refuses unless --allow-bootstrap is given, and then reports PUBLIC_SAFETY_BOOTSTRAP_UNTRUSTED:
+the candidate's allowlist was not independently trusted and a reviewer must read all of it.
 
 This gate is a mechanical backstop, not a review. It does not replace reading the diff.
 """
@@ -26,6 +40,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import posixpath
 import re
 import subprocess
 import sys
@@ -79,7 +94,15 @@ RULES = {
     "PS005": "VIN-like identifier",
     "PS006": "absolute path naming a local account",
     "PS007": "restricted research directory not allowlisted",
+    "PS008": "gate control file modified by the candidate",
+    "PS009": "allowlist expanded beyond the trusted baseline",
+    "PS010": "Git object the gate cannot safely inspect",
 }
+ALLOWABLE = {f"PS00{n}" for n in range(1, 8)}
+CONTROL_PATHS = (
+    "tools/check_public_safety.py",
+    ".github/workflows/public-safety.yml",
+)
 
 
 @dataclass(frozen=True)
@@ -102,20 +125,39 @@ def git(root: Path, *args: str, binary: bool = False):
 
 
 def load_allowlist(text: str | None) -> dict:
+    try:
+        return _load_allowlist(text)
+    except ValueError as error:
+        raise ValueError(f"invalid allowlist: {error}") from error
+
+
+def _load_allowlist(text: str | None) -> dict:
     if text is None:
         return {"vin_samples": [], "allow": []}
-    data = json.loads(text)
-    if data.get("schema") != 1:
-        raise ValueError("allowlist schema must be 1")
-    for entry in data.get("allow", []):
-        for field in ("path", "rule", "max", "reason"):
-            if field not in entry:
-                raise ValueError(f"allowlist entry missing {field!r}: {entry}")
-        if entry["rule"] not in RULES or not str(entry["reason"]).strip():
-            raise ValueError(f"allowlist entry has an unknown rule or empty reason: {entry}")
-        if not isinstance(entry["max"], int) or entry["max"] < 0:
-            raise ValueError(f"allowlist max must be a non-negative integer: {entry}")
-    return data
+    try:
+        data = json.loads(text)
+        if not isinstance(data, dict) or data.get("schema") != 1:
+            raise ValueError("allowlist schema must be 1")
+        samples, allow = data.get("vin_samples", []), data.get("allow", [])
+        if not isinstance(samples, list) or not all(isinstance(x, str) for x in samples):
+            raise ValueError("vin_samples must be a list of strings")
+        if not isinstance(allow, list):
+            raise ValueError("allow must be a list")
+        for entry in allow:
+            if not isinstance(entry, dict):
+                raise ValueError(f"allowlist entry must be an object: {entry!r}")
+            for field in ("path", "rule", "max", "reason"):
+                if field not in entry:
+                    raise ValueError(f"allowlist entry missing {field!r}: {entry}")
+            if not isinstance(entry["path"], str) or not entry["path"]:
+                raise ValueError(f"allowlist path must be a non-empty string: {entry}")
+            if entry["rule"] not in ALLOWABLE or not str(entry["reason"]).strip():
+                raise ValueError(f"allowlist entry has an unknown or non-allowable rule or empty reason: {entry}")
+            if not isinstance(entry["max"], int) or isinstance(entry["max"], bool) or entry["max"] < 0:
+                raise ValueError(f"allowlist max must be a non-negative integer: {entry}")
+        return data
+    except json.JSONDecodeError as error:
+        raise ValueError(str(error)) from error
 
 
 def allowance(allow: dict, path: str, rule: str) -> int:
@@ -126,13 +168,44 @@ def allowance(allow: dict, path: str, rule: str) -> int:
     return best
 
 
+def expansions(trusted: dict, candidate: dict) -> list[str]:
+    """Everything the candidate's allowlist grants that the trusted one does not. Removing or
+    lowering an entry is not an expansion. Messages name the rule and path only."""
+    base = {(e["rule"], e["path"]): e["max"] for e in trusted.get("allow", [])}
+    out: list[str] = []
+    for entry in candidate.get("allow", []):
+        key = (entry["rule"], entry["path"])
+        if key not in base:
+            out.append(f"new {entry['rule']} exception for {entry['path']}")
+        elif entry["max"] > base[key]:
+            out.append(f"{entry['rule']} count for {entry['path']} raised from {base[key]} to {entry['max']}")
+    extra = set(candidate.get("vin_samples", [])) - set(trusted.get("vin_samples", []))
+    if extra:
+        out.append(f"{len(extra)} new sample exclusion(s) (values withheld)")
+    return out
+
+
+def inspect_object(path: str, mode: str, data_loader) -> Violation | None:
+    """Only regular files, and symlinks that stay inside the repository, can be inspected."""
+    if mode in ("100644", "100755"):
+        return None
+    if mode == "120000":
+        target = data_loader().decode(errors="replace")
+        resolved = posixpath.normpath(posixpath.join(posixpath.dirname(path), target))
+        if target.startswith("/") or "\\" in target or resolved.startswith("..") or "\x00" in target:
+            return Violation("PS010", path, 0, "symlink target outside the repository")
+        return None
+    kind = {"160000": "gitlink (submodule)"}.get(mode, f"unsupported mode {mode}")
+    return Violation("PS010", path, 0, kind)
+
+
 def scan_blob(path: str, data: bytes, allow: dict) -> list[Violation]:
     found: list[Violation] = []
     suffix = Path(path).suffix.lower()
     parts = path.split("/")
 
     # Rules that count occurrences are collected first and compared to the ceiling.
-    counts: dict[str, list[Violation]] = {r: [] for r in RULES}
+    counts: dict[str, list[Violation]] = {r: [] for r in ALLOWABLE}
 
     if suffix in FORBIDDEN_SUFFIXES:
         counts["PS001"].append(Violation("PS001", path, 0, f"suffix {suffix}"))
@@ -174,10 +247,39 @@ def scan_blob(path: str, data: bytes, allow: dict) -> list[Violation]:
     return found
 
 
-def changed_paths(root: Path, base: str, head: str) -> list[str]:
-    merge_base = git(root, "merge-base", base, head).strip()
-    out = git(root, "diff", "--name-only", "--diff-filter=ACMR", "-z", f"{merge_base}", head)
-    return [p for p in out.split("\0") if p]
+def resolve_commit(root: Path, ref: str) -> str:
+    return git(root, "rev-parse", "--verify", "--quiet", ref + "^{commit}").strip()
+
+
+def entries_for(root: Path, args) -> tuple[list[tuple[str, str, str]], object]:
+    """(path, mode, status) for everything the candidate adds or changes, and a reader for it.
+    Status D (deleted) is reported only so that deleting a control file is visible."""
+    if args.staged:
+        raw = git(root, "diff", "--cached", "--raw", "-z", "--no-renames", "--diff-filter=ACMRTD")
+        reader = lambda p: read_blob(root, ":" + p)
+    else:
+        reader = lambda p: read_blob(root, f"{args.head}:{p}")
+        if args.base:
+            merge_base = git(root, "merge-base", args.base, args.head).strip()
+            raw = git(root, "diff", "--raw", "-z", "--no-renames", "--diff-filter=ACMRTD", merge_base, args.head)
+        else:
+            raw = None
+    out: list[tuple[str, str, str]] = []
+    if raw is not None:
+        fields = raw.split("\0")
+        i = 0
+        while i + 1 < len(fields) and fields[i].startswith(":"):
+            meta, path = fields[i].split(), fields[i + 1]
+            out.append((path, meta[1], meta[4][0]))
+            i += 2
+        if any(f for f in fields[i:]):
+            raise RuntimeError("unparseable git diff output")
+    else:
+        listing = git(root, "ls-tree", "-r", "-z", args.head)
+        for record in [r for r in listing.split("\0") if r]:
+            meta, path = record.split("\t", 1)
+            out.append((path, meta.split()[0], "A"))
+    return out, reader
 
 
 def read_blob(root: Path, spec: str) -> bytes:
@@ -192,50 +294,86 @@ def main(argv: list[str]) -> int:
     mode.add_argument("--staged", action="store_true", help="check the index")
     mode.add_argument("--all", action="store_true", help="audit every tracked file at --head")
     ap.add_argument("--head", default="HEAD")
-    ap.add_argument("--allowlist-ref", default=None,
-                    help="read the allowlist from this ref (default: the checked head, or the index)")
+    ap.add_argument("--trusted-ref", "--allowlist-ref", dest="trusted_ref", default=None,
+                    help="ref whose allowlist and gate files are trusted (default: the --base ref; "
+                         "origin/main for --staged; the checked head for --all, which is an audit)")
+    ap.add_argument("--allow-bootstrap", action="store_true",
+                    help="permit the one-time introduction of the gate when the trusted ref has no allowlist")
     args = ap.parse_args(argv)
     root = Path(args.root).resolve()
-
-    if args.staged:
-        paths = [p for p in git(root, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z").split("\0") if p]
-        spec = lambda p: ":" + p
-        allow_spec = ":" + ALLOWLIST_PATH
-    else:
-        if args.base:
-            paths = changed_paths(root, args.base, args.head)
-        else:
-            paths = [p for p in git(root, "ls-tree", "-r", "--name-only", "-z", args.head).split("\0") if p]
-        spec = lambda p: f"{args.head}:{p}"
-        allow_spec = f"{args.allowlist_ref or args.head}:{ALLOWLIST_PATH}"
     try:
-        allow = load_allowlist(read_blob(root, allow_spec).decode())
-    except RuntimeError:
-        print(f"PUBLIC_SAFETY_ERROR allowlist not found at {allow_spec}", file=sys.stderr)
-        return 2
-    except (ValueError, json.JSONDecodeError) as error:
-        print(f"PUBLIC_SAFETY_ERROR invalid allowlist: {error}", file=sys.stderr)
+        return run_gate(root, args)
+    except (RuntimeError, ValueError, OSError, UnicodeError) as error:
+        print(f"PUBLIC_SAFETY_ERROR {error}", file=sys.stderr)
         return 2
 
+
+def run_gate(root: Path, args) -> int:
+    audit = args.all and not args.trusted_ref
+    if args.trusted_ref:
+        trusted_ref = args.trusted_ref
+    elif args.base:
+        trusted_ref = args.base
+    elif args.staged:
+        trusted_ref = "origin/main"
+    else:
+        trusted_ref = args.head
+    local_fallback = False
+    try:
+        resolve_commit(root, trusted_ref)
+    except RuntimeError:
+        if not (args.staged and not args.trusted_ref):
+            raise RuntimeError(f"trusted ref {trusted_ref} does not resolve") from None
+        trusted_ref, local_fallback = "HEAD", True
+
+    cand_spec = (":" + ALLOWLIST_PATH) if args.staged else f"{args.head}:{ALLOWLIST_PATH}"
+    candidate_allow = load_allowlist(read_blob(root, cand_spec).decode())    # missing or invalid: error
+    try:
+        trusted_text = read_blob(root, f"{trusted_ref}:{ALLOWLIST_PATH}").decode()
+    except RuntimeError:
+        trusted_text = None
+    bootstrap = trusted_text is None
+    local_publish = args.staged and not args.trusted_ref   # the publisher's pre-commit check, not the authoritative gate
+    if bootstrap and not (args.allow_bootstrap or local_fallback or audit or local_publish):
+        raise RuntimeError(f"trusted ref {trusted_ref} has no allowlist; the gate cannot establish a trusted "
+                           "baseline (use --allow-bootstrap only for the reviewed introduction of this gate)")
+    trusted_allow = candidate_allow if (bootstrap or audit) else load_allowlist(trusted_text)
+
+    entries, reader = entries_for(root, args)
     violations: list[Violation] = []
-    if ALLOWLIST_PATH in paths:
-        print(f"PUBLIC_SAFETY_NOTICE {ALLOWLIST_PATH} is modified by this candidate; a reviewer must read the diff of its entries")
-    for path in paths:
-        if path == ALLOWLIST_PATH:
-            continue   # reviewed through the diff; its entries are validated above
-        try:
-            data = read_blob(root, spec(path))
-        except RuntimeError:
-            continue   # gitlinks and other non-blob entries
-        violations.extend(scan_blob(path, data, allow))
+    if not (bootstrap or audit):
+        for message in expansions(trusted_allow, candidate_allow):
+            violations.append(Violation("PS009", ALLOWLIST_PATH, 0, message))
+        control_in_trusted = [c for c in CONTROL_PATHS
+                              if subprocess.run(["git", "-C", str(root), "cat-file", "-e", f"{trusted_ref}:{c}"],
+                                                capture_output=True).returncode == 0]
+        for path, _mode, status in entries:
+            if path in control_in_trusted:
+                violations.append(Violation("PS008", path, 0, f"status {status}; needs owner approval of the gate change"))
+    if bootstrap or audit:
+        notice = ("PUBLIC_SAFETY_BOOTSTRAP_UNTRUSTED the allowlist and gate come from the candidate itself, "
+                  "not from a trusted baseline; a reviewer must read the whole allowlist and scanner"
+                  if bootstrap else "PUBLIC_SAFETY_AUDIT the checked tree's own allowlist is used; this is an audit, not a gate")
+        print(notice)
+
+    for path, file_mode, status in entries:
+        if status == "D":
+            continue
+        problem = inspect_object(path, file_mode, lambda p=path: reader(p))
+        if problem:
+            violations.append(problem)
+            continue
+        violations.extend(scan_blob(path, reader(path), trusted_allow))
 
     for v in sorted(violations, key=lambda v: (v.rule, v.path, v.line)):
         print(v.render())
     scope = "staged" if args.staged else ("changed since " + args.base if args.base else "all tracked")
+    live = [e for e in entries if e[2] != "D"]
     if violations:
-        print(f"PUBLIC_SAFETY_FAIL violations={len(violations)} files_checked={len(paths)} scope={scope}")
+        print(f"PUBLIC_SAFETY_FAIL violations={len(violations)} files_checked={len(live)} scope={scope}")
         return 1
-    print(f"PUBLIC_SAFETY_PASS files_checked={len(paths)} scope={scope}")
+    print(f"PUBLIC_SAFETY_PASS files_checked={len(live)} scope={scope}"
+          + (" trust=bootstrap-untrusted" if bootstrap else ""))
     return 0
 
 

@@ -33,10 +33,13 @@ jobs:
         run: tools/build_r7b_host.sh
       - name: Check repository documentation and hygiene
         run: python tools/check_repo_health.py
-      - name: Public-safety gate for the publication candidate
+      # Supplementary evidence only: this runs the candidate's own copy of the scanner. The authoritative
+      # check is public-safety.yml, which runs the protected base's scanner. --allow-bootstrap only matters
+      # while the base has no allowlist (the reviewed introduction of this gate); it is ignored afterwards.
+      - name: Public-safety gate for the publication candidate (candidate-controlled, supplementary)
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            python tools/check_public_safety.py --base "origin/${{ github.base_ref }}" --head HEAD
+            python tools/check_public_safety.py --base "origin/${{ github.base_ref }}" --head HEAD --allow-bootstrap
           else
             python tools/check_public_safety.py --all --head HEAD
           fi
