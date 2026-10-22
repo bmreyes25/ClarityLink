@@ -1,3 +1,14 @@
+## Task and owner
+
+<!-- Task ID, purpose, and the agent or person who owns this branch. -->
+
+## Exact tested state
+
+- Branch and PR base:
+- Local HEAD and verified remote SHA (`tools/verify_remote_publication.py`):
+- Stacked on another PR? (`--stack-parent-pr`; name it and its SHA):
+- Dependencies and overlapping PRs:
+
 ## Summary
 
 <!-- What changed and why? -->
@@ -37,12 +48,23 @@
 - [ ] NONE
 - [ ] Proposed — describe only within a separately reviewed milestone
 
+## Publication and public safety
+
+- [ ] Published through `tools/publish_checkpoint.sh` with an explicit file list (no blanket staging, no force-push)
+- [ ] `tools/check_public_safety.py` passed on this candidate; any allowlist change is explained below
+- [ ] The exact head received the required checks (a stale run is not evidence)
+
+## Independent review
+
+- [ ] `@ECC` or another independent reviewer examined this exact head — name them; otherwise write **none** (a self-review or another AI agent's review is not an eligible approval)
+- Review state:
+
 ## Privacy review
 
 - [ ] No private captures, credentials, identifiers, or proprietary binaries added
 - [ ] Sanitized logs only
 
-## Unknowns
+## Unknowns and remaining blockers
 
 <!-- What remains unproven? -->
 
