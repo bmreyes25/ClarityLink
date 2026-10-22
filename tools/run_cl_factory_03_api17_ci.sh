@@ -35,7 +35,7 @@ abi=$("$adb" -s "$serial" shell getprop ro.product.cpu.abi | tr -d '\r')
 
 "$adb" -s "$serial" logcat -c
 "$adb" -s "$serial" install "$apk" | tee "$receipt/install.txt"
-"$adb" -s "$serial" shell am start -W \
+"$adb" -s "$serial" shell am start \
   -n org.claritylink.clfactory03.navlab/org.claritylink.android.StructuredNavigationLabActivity \
   | tee "$receipt/activity-start.txt"
 deadline=$((SECONDS + 90))
