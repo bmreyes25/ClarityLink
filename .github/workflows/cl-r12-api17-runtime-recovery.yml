@@ -14,6 +14,7 @@ on:
       - 'tools/run_cl_r12_api17_ci.sh'
       - 'tools/build_cl_r12_renderer_ab.sh'
       - 'tools/check_cl_r12_perf_gate.py'
+      - 'tools/summarize_cl_r12_ab.py'
 
 permissions:
   contents: read
@@ -33,6 +34,7 @@ jobs:
       CL_IMP_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
       CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r12-api17-ci
       CL_R12_RECEIPT_DIR: ${{ github.workspace }}/build/cl-r12-api17-ci/receipt
+      CL_R12_AB_REPEATS: '3'
     steps:
       - name: Check out exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

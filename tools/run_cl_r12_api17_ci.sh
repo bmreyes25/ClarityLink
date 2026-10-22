@@ -103,7 +103,7 @@ run_performance() {
   local result_seen_at=-1
   local destroy_seen=false
   local destroy_grace=20
-  local keep='R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|FD|FD_DIFF|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)'
+  local keep='R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|FD|FD_DIFF|THREADS|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)'
   [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
   "$adb" -s "$serial" uninstall org.claritylink.independentdisplay.lab \
     > "$receipt/perf-$variant-uninstall.txt" 2>&1 || true
@@ -124,6 +124,8 @@ run_performance() {
       destroy_seen=true
     fi
     if (( result_seen_at >= 0 )) && [[ "$destroy_seen" == true ]]; then
+      sleep 6   # let the delayed post-teardown FD measurement run before the final dump
+      "$adb" -s "$serial" logcat -d -s ClarityLinkR12B > "$receipt/perf-$variant-logcat.txt"
       grep -E "$keep" "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
       echo "destroy_evidence=present" > "$receipt/perf-$variant-destroy.txt"
       return 0
@@ -154,21 +156,41 @@ candidate_apk="${CL_R12_CANDIDATE_APK:-$apk}"
 baseline_gate=NOT_RUN
 candidate_gate=NOT_RUN
 soak_gate=NOT_RUN
+repeats="${CL_R12_AB_REPEATS:-1}"
+[[ "$repeats" =~ ^[1-9][0-9]*$ ]] || { echo "CL_R12_AB_REPEATS must be a positive integer" >&2; exit 2; }
 if [[ -n "$baseline_apk" ]]; then
-  run_performance baseline "$baseline_apk"
-  run_performance optimized "$candidate_apk"
+  candidate_gate=PASS
+  # Interleave and alternate the order (A B, B A, A B ...) so a drifting shared emulator
+  # does not systematically favour one variant. Run 1 keeps the original receipt names.
+  for ((i = 1; i <= repeats; i++)); do
+    suffix=""; (( i > 1 )) && suffix="-r$i"
+    if (( i % 2 == 1 )); then
+      run_performance "baseline$suffix" "$baseline_apk"
+      run_performance "optimized$suffix" "$candidate_apk"
+    else
+      run_performance "optimized$suffix" "$candidate_apk"
+      run_performance "baseline$suffix" "$baseline_apk"
+    fi
+  done
   run_performance optimized-profile-control "$candidate_apk"
   run_performance optimized-profile "$candidate_apk" short true
-  gate_check "$receipt/perf-baseline-logcat.txt" "$receipt/perf-baseline-gate.txt"; baseline_gate=$GATE
-  gate_check "$receipt/perf-optimized-logcat.txt" "$receipt/perf-optimized-gate.txt"; candidate_gate=$GATE
+  baseline_gate=PASS
+  for ((i = 1; i <= repeats; i++)); do
+    suffix=""; (( i > 1 )) && suffix="-r$i"
+    gate_check "$receipt/perf-baseline$suffix-logcat.txt" "$receipt/perf-baseline$suffix-gate.txt"
+    echo "CL_R12_GATE_BASELINE_RUN_$i=$GATE"; [[ "$GATE" == PASS ]] || baseline_gate=FAIL
+    gate_check "$receipt/perf-optimized$suffix-logcat.txt" "$receipt/perf-optimized$suffix-gate.txt"
+    echo "CL_R12_GATE_CANDIDATE_RUN_$i=$GATE"; [[ "$GATE" == PASS ]] || candidate_gate=FAIL
+  done
   echo "CL_R12_GATE_BASELINE=$baseline_gate"
   echo "CL_R12_GATE_CANDIDATE=$candidate_gate"
-  if [[ "$baseline_gate" == PASS && "$candidate_gate" == PASS ]]; then
+  python3 "$repo/tools/summarize_cl_r12_ab.py" "$receipt" | tee "$receipt/ab-summary.md" || true
+  if [[ "$candidate_gate" == PASS ]]; then
     run_performance optimized-soak "$candidate_apk" soak
     gate_check "$receipt/perf-optimized-soak-logcat.txt" "$receipt/perf-optimized-soak-gate.txt"; soak_gate=$GATE
     echo "CL_R12_GATE_SOAK=$soak_gate"
   else
-    echo 'CL_R12_SOAK_SKIPPED short-run correctness/performance/resource gates did not pass.' \
+    echo 'CL_R12_SOAK_SKIPPED the candidate did not pass the unchanged short-run gate on every run.' \
       | tee "$receipt/perf-soak-skipped.txt"
   fi
 fi

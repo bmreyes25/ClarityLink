@@ -216,6 +216,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
         producerFdBaseline = fdCount();
         fdBaselineMap = fdMap();
         logFdDetail("baseline");
+        logThreads("baseline");
         Runtime runtime = Runtime.getRuntime();
         producerJavaBaseline = runtime.totalMemory() - runtime.freeMemory();
         producerNativeBaseline = Debug.getNativeHeapAllocatedSize();
@@ -681,8 +682,16 @@ public final class MessengerFramePerformanceActivity extends Activity {
             finish();
             return;
         }
+        // Native Looper descriptors of a helper thread that has been told to quit are released
+        // only when its MessageQueue is finalized (API 17 has no public dispose). Count what is
+        // held immediately, then force a collection and count what remains. A descriptor that
+        // survives collection is a real leak and still fails the unchanged gate.
+        logFdDiff("final_pre_settle");
+        logThreads("final_pre_settle");
+        settleResources();
         producerFdFinal = fdCount();
         logFdDiff("final");
+        logThreads("final");
         logFdDetail("final");
         Runtime runtime = Runtime.getRuntime();
         producerJavaFinal = runtime.totalMemory() - runtime.freeMemory();
@@ -839,6 +848,26 @@ public final class MessengerFramePerformanceActivity extends Activity {
         Log.i(TAG, "R12B_FD phase=" + phase + " count=" + fdCount() + " detail=" + fdDetail());
     }
 
+    private static void settleResources() {
+        for (int pass = 0; pass < 3; pass++) {
+            System.gc();
+            System.runFinalization();
+            try { Thread.sleep(200L); } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private static void logThreads(String phase) {
+        StringBuilder names = new StringBuilder();
+        for (java.util.Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
+            if (names.length() > 0) names.append(';');
+            names.append(e.getKey().getName().replace(' ', '_')).append(':').append(e.getKey().getState());
+        }
+        Log.i(TAG, "R12B_THREADS phase=" + phase + " " + names);
+    }
+
     private java.util.Map<String, String> fdBaselineMap;
 
     /** Compact attribution of what differs from the baseline snapshot. */
@@ -889,6 +918,13 @@ public final class MessengerFramePerformanceActivity extends Activity {
         // The helper threads were told to quit above; measure again after they have had time
         // to exit so teardown is judged on the settled state, not the instant of the request.
         final Handler later = new Handler(android.os.Looper.getMainLooper());
-        later.postDelayed(new Runnable() { public void run() { logFdDiff("post_destroy_3s"); } }, 3000L);
+        later.postDelayed(new Runnable() {
+            public void run() {
+                logFdDiff("post_destroy_3s");
+                settleResources();
+                logFdDiff("post_destroy_settled");
+                logThreads("post_destroy_settled");
+            }
+        }, 3000L);
     }
 }

@@ -62,3 +62,12 @@ def test_acceptance_gate_thresholds_are_unchanged():
     ]
     for fragment in expected:
         assert fragment in GATE, fragment
+
+
+def test_runner_interleaves_repeated_pairs_and_reports_every_run():
+    assert "CL_R12_AB_REPEATS" in RUNNER and "CL_R12_AB_REPEATS" in WORKFLOW
+    assert "i % 2 == 1" in RUNNER                       # alternate A B / B A
+    assert "summarize_cl_r12_ab.py" in RUNNER
+    assert "CL_R12_GATE_CANDIDATE_RUN_" in RUNNER      # one unchanged-gate verdict per run
+    # the candidate verdict can only worsen across runs
+    assert 'candidate_gate=FAIL' in RUNNER and RUNNER.count('candidate_gate=PASS') == 1
