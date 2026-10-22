@@ -172,7 +172,7 @@
     },
     {
       "path": "src/claritylink-renderer/android-api17/Display1OutputBackend.java",
-      "sha256": "19288389c8cd044e3846770f99ddb9ad361c808e5c856afa6217dbd5135f4914"
+      "sha256": "a276015c8f4104d5a2fbd454d64a70455644c83b22e645ff35a468422d71c570"
     },
     {
       "path": "src/claritylink-renderer/android-api17/RendererViewport.java",
@@ -180,7 +180,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_03_application_contract.py",
-      "sha256": "06090cb258529fe67a760cc85cf140277f730152f572a50992e7564be6a195e5"
+      "sha256": "d875cc1870bf4452e0abc62f664a391cec3119530b5658b80cfa07bf669c611c"
     },
     {
       "path": "tests/display/test_cl_r4b_view_close_contract.py",
@@ -220,5 +220,5 @@
   "cl_r4b_p04_scope_refresh_note": "Refreshed four pinned CL-R0 scope hashes after exact-source P04 code and security reviews. The API17 View-death-during-parent-teardown test passed with one pending PFD at the deterministic barrier, the exact View PID exited, Type110 survived, both streams unregistered, and PFD/frame bytes returned to zero. Original CL-R0 review ranges and approval_claimed=false remain unchanged.",
   "cl_r4_final_acceptance_scope_note": "Pinned hashes were refreshed after the final CL-R4 reliability implementation, acceptance-report integrity fixes, and public status updates. Separate ECC code and security reviewers examined the lifecycle/process and acceptance changes with no remaining actionable findings. The exact-source API17 runner passed all 12 CL-R4 cases and 12 priority combinations, then passed CL-R7 in both setup orders; configured offline checks passed 1,289 tests with 29 skipped plus smoke, simulator, and whitespace checks. This records a later campaign review and does not claim independent CL-R0 approval; the historical source snapshot and approval_claimed=false remain unchanged.",
   "cl_r9_status_scope_refresh_note": "Refreshed the pinned docs/status/current.md hash after recording the CL-R9 Honda receiver/display evidence gates and current publication state. Separate CL-R9 ECC code and security reviews found no actionable boundary-adapter findings; this status/hash refresh does not alter historical CL-R0 review ranges or claim independent CL-R0 approval.",
-  "cl_honda_111_02_scope_refresh_note": "CL-HONDA-111-02 scope digest refresh (2026-10-22): two pinned hashes were updated to the exact committed contents. src/claritylink-renderer/android-api17/Display1OutputBackend.java changed in PR #81 (simulated Navigation pane leases, Codex), and tools/build_cl_imp_03_apks.sh now also compiles PaneEvent.java and PaneLease.java, which PR #81 requires. This is an integrity refresh only: it extends no ECC or independent review, leaves review_status and the historical CL-R0 ranges unchanged, and keeps approval_claimed=false."
+  "cl_honda_111_02_scope_refresh_note": "CL-HONDA-111-02 scope digest refresh (2026-10-22): two pinned hashes were updated to the exact committed contents. src/claritylink-renderer/android-api17/Display1OutputBackend.java changed in PR #81 (simulated Navigation pane leases, Codex), and tools/build_cl_imp_03_apks.sh now also compiles PaneEvent.java and PaneLease.java, which PR #81 requires. This is an integrity refresh only: it extends no ECC or independent review, leaves review_status and the historical CL-R0 ranges unchanged, and keeps approval_claimed=false. Follow-up (2026-10-22): Display1OutputBackend.java was updated again so setRendererViewport applies accepted Type111 ViewArea/SafeArea in place inside the valid lease instead of revoking it, restoring the CL-R6 live-output contract that PR #81 broke; tests/display/test_cl_imp_03_application_contract.py now asserts the synchronized signature and that this method never revokes. Both pinned hashes were refreshed to the exact committed contents. This extends no review and claims no approval."
 }

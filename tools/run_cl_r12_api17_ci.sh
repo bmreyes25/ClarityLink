@@ -107,11 +107,11 @@ if [[ -n "${CL_PANE_LEASE_TEST_APK:-}" ]]; then
   "$adb" -s "$serial" install "$CL_PANE_LEASE_TEST_APK" | tee "$receipt/pane-lease-install.txt"
   "$adb" -s "$serial" logcat -c
   "$adb" -s "$serial" shell am instrument -w \
-    -e class org.claritylink.renderer.Display1PaneLeaseLifecycleTest \
+    -e class org.claritylink.renderer.Display1PaneLeaseLifecycleTest,org.claritylink.renderer.Display1RendererViewportInPlaceTest \
     org.claritylink.panelease.test/android.test.InstrumentationTestRunner \
     | tr -d '\r' | tee "$receipt/pane-lease-instrumentation.txt" || true
   "$adb" -s "$serial" logcat -d > "$receipt/pane-lease-logcat.txt" 2>&1 || true
-  if grep -q '^OK (1 test)' "$receipt/pane-lease-instrumentation.txt"; then
+  if grep -q '^OK (2 tests)' "$receipt/pane-lease-instrumentation.txt"; then
     pane_lease_instrumentation=PASS
   else
     pane_lease_instrumentation=FAIL

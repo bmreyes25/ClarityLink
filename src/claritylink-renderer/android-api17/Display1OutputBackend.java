@@ -197,13 +197,20 @@ public final class Display1OutputBackend {
 
     public void clear() { requireUiThread(); if (view != null) view.clearFrame(); }
 
-    /** A viewport transition revokes authority; it never changes a live lease in place. */
-    public synchronized void setRendererViewport(RendererViewport next) {
+    /**
+     * Applies an accepted Type111 ViewArea/SafeArea to the live View inside the current lease.
+     * This is presentation geometry admitted by the matching control identity, not a change of
+     * the host's destination viewport. A host viewport change arrives as a PaneEvent and revokes
+     * the lease; this method never does, and it refuses to act without a valid lease and View.
+     */
+    public synchronized void setRendererViewport(RendererViewport viewport) {
         requireUiThread();
-        if (next == null) throw new IllegalArgumentException("viewport required");
-        if (next == rendererViewport) return;
-        rendererViewport = next;
-        revokeLease();
+        if (viewport == null) throw new IllegalArgumentException("viewport required");
+        ClarityLinkContentView current = view;
+        if (lease == null || !lease.isValid() || current == null || closed)
+            throw new IllegalStateException("not attached");
+        current.setRendererViewport(viewport);
+        rendererViewport = viewport;
     }
 
     /** Changes frame/config identity inside the current pane lease only. */

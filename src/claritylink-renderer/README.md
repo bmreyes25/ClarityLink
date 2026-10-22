@@ -37,12 +37,13 @@ runtime marker.
 ## Simulated Navigation pane leases (API 17)
 
 `Display1OutputBackend` obtains a single-use `PaneLease` from its caller-owned
-simulator host. Page exit, interrupt activation, host loss, viewport change, or
+simulator host. Page exit, interrupt activation, host loss, a host viewport-change event, or
 close revokes the lease, detaches the View, and clears queued frame work.
 Selection, interrupt clear, and host restoration never restore old authority;
 recovery requires an explicit attach with a higher pane generation. Frame
 submission reports typed runtime rejection while programmer contract errors
 continue to throw. Only the existing synthetic-test viewport contract is
-accepted. This is simulator-only renderer behavior; it does not identify a
+accepted. Accepted Type111 ViewArea/SafeArea geometry is applied in place with
+`setRendererViewport` while the lease is valid and never revokes it. This is simulator-only renderer behavior; it does not identify a
 physical Navigation aperture, authorize a Honda host, or change either Honda
 feasibility gate. `safeForHonda()` remains false.

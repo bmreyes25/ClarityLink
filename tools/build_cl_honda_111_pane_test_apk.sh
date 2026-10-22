@@ -22,6 +22,7 @@ mkdir -p "$out/classes" "$out/dex"
 sources=(
   "$repo/android/src/test/java/org/claritylink/renderer/PaneLeaseTest.java"
   "$repo/android/src/test/java/org/claritylink/renderer/Display1PaneLeaseLifecycleTest.java"
+  "$repo/android/src/test/java/org/claritylink/renderer/Display1RendererViewportInPlaceTest.java"
 )
 {
   find "$repo/android/src/main/java" -name '*.java' -print

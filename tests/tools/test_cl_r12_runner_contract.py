@@ -76,7 +76,7 @@ def test_runner_interleaves_repeated_pairs_and_reports_every_run():
 def test_pane_lease_instrumentation_is_built_run_and_reported_separately():
     assert "build_cl_honda_111_pane_test_apk.sh" in WORKFLOW and "CL_PANE_LEASE_TEST_APK" in WORKFLOW
     assert "am instrument -w" in RUNNER and "Display1PaneLeaseLifecycleTest" in RUNNER
-    assert "OK (1 test)" in RUNNER
+    assert "OK (2 tests)" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
     assert "CL_PANE_LEASE_INSTRUMENTATION=" in RUNNER
     assert RUNNER.index("exit 13") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
 
