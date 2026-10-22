@@ -148,7 +148,8 @@ jobs:
           legacy_sdk="$RUNNER_TEMP/cl-int-02-legacy-sdk"
           mkdir -p "$legacy_sdk/.emulator-intel" "$RUNNER_TEMP/cl-int-02-bin"
           cp -a "$ANDROID_HOME/emulator" "$legacy_sdk/.emulator-intel/emulator"
-          for component in platform-tools platforms build-tools cmdline-tools system-images; do
+          cp -a "$ANDROID_HOME/platform-tools" "$legacy_sdk/platform-tools"
+          for component in platforms build-tools cmdline-tools system-images; do
             ln -s "$ANDROID_HOME/$component" "$legacy_sdk/$component"
           done
           cat > "$RUNNER_TEMP/cl-int-02-bin/arch" <<'SH'
