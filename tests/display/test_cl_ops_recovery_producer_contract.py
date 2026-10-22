@@ -20,7 +20,9 @@ def test_one_buffer_is_reused_and_filled_only_by_the_sender():
     assert "private final byte[] syntheticFramePixels = new byte[FRAME_BYTES];" in ACTIVITY
     assert "byte[] pixels = syntheticFramePixels;" in ACTIVITY
     assert ACTIVITY.count("SyntheticFrameFill.fill(") == 1
-    assert "new byte[FRAME_BYTES]" in ACTIVITY and ACTIVITY.count("new byte[FRAME_BYTES]") == 1
+    # exactly the two reusable fields (outgoing and returned frame) allocate a frame-sized array
+    assert ACTIVITY.count("new byte[FRAME_BYTES]") == 2
+    assert ACTIVITY.count("private final byte[]") >= 2
     send = _between(ACTIVITY, "private void sendSyntheticFrame", "private void onReply")
     assert "SyntheticFrameFill.fill(pixels, marker);" in send
 
@@ -53,3 +55,16 @@ def test_the_fill_is_a_seed_plus_native_copy_and_never_a_java_loop_over_the_fram
     code = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", FILL, flags=re.S))
     assert "Arrays.fill" not in code                # the comment may name it; the code must not call it
     assert "private static final int SEED = 4096;" in FILL
+
+
+def test_the_returned_frame_is_read_into_one_buffer_that_is_copied_before_the_task_ends():
+    assert "private final byte[] returnedFramePixels = new byte[FRAME_BYTES];" in ACTIVITY
+    read = ACTIVITY[ACTIVITY.index("MessengerFrameParcel.read(returned, byteCount, returnReadTiming,"):]
+    assert "returnedFramePixels);" in read[:140]
+    task = read[:read.index("completedFrame")]
+    # compared first, then wrapped into a DecodedFrame, whose constructor takes its own copy
+    assert task.index("Arrays.equals(expectedPixels, result)") < task.index("MessengerFrameParcel.decoded(")
+    renderer = (REPO / "src/claritylink-renderer/android-api17/DecodedFrame.java").read_text()
+    assert "ByteBuffer.allocate((int) frameBytes)" in renderer and "owned.put(source)" in renderer
+    parcel = (REPO / "android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameParcel.java").read_text()
+    assert "into.length == expectedBytes" in parcel

@@ -73,12 +73,22 @@ final class MessengerFrameParcel {
 
     static byte[] read(ParcelFileDescriptor descriptor, int expectedBytes, IoTiming timing)
             throws IOException {
+        return read(descriptor, expectedBytes, timing, null);
+    }
+
+    /**
+     * Reads exactly {@code expectedBytes}. When {@code into} has exactly that length it is filled and
+     * returned instead of allocating a new array; the caller then owns the rule that it is not read or
+     * kept past the point where the next read into it begins.
+     */
+    static byte[] read(ParcelFileDescriptor descriptor, int expectedBytes, IoTiming timing, byte[] into)
+            throws IOException {
         if (descriptor == null || expectedBytes <= 0 || expectedBytes > MAX_BYTES)
             throw new IOException("invalid_frame_descriptor");
         long started = timing == null ? 0L : System.nanoTime();
         InputStream input = new ParcelFileDescriptor.AutoCloseInputStream(descriptor);
         try {
-            byte[] result = new byte[expectedBytes];
+            byte[] result = (into != null && into.length == expectedBytes) ? into : new byte[expectedBytes];
             int offset = 0;
             while (offset < expectedBytes) {
                 int count = input.read(result, offset, expectedBytes - offset);

@@ -57,6 +57,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
     // before the frame is released, so the next offer cannot overwrite bytes still being checked.
     // Reusing the buffer removes a zeroed 1.5 MB allocation per offered frame.
     private final byte[] syntheticFramePixels = new byte[FRAME_BYTES];
+    // The returned frame is read into one reusable buffer on the sender thread, compared, and copied into an
+    // owned DecodedFrame before the task ends; the next reply cannot be read until the frame is released.
+    private final byte[] returnedFramePixels = new byte[FRAME_BYTES];
     private HandlerThread schedulerThread;
     private HandlerThread senderThread;
     private Handler scheduler;
@@ -478,7 +481,8 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 try {
                     MessengerFrameParcel.IoTiming returnReadTiming = profileStages
                             ? new MessengerFrameParcel.IoTiming() : null;
-                    byte[] result = MessengerFrameParcel.read(returned, byteCount, returnReadTiming);
+                    byte[] result = MessengerFrameParcel.read(returned, byteCount, returnReadTiming,
+                            returnedFramePixels);
                     if (profileStages) activeProfile[14] = returnReadTiming.readNs;
                     long compareStartedNs = profileStages ? System.nanoTime() : 0L;
                     mismatch = !Arrays.equals(expectedPixels, result);
