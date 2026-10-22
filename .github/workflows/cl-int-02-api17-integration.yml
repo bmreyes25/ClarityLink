@@ -160,8 +160,11 @@ jobs:
           chmod +x "$RUNNER_TEMP/cl-int-02-bin/arch"
           echo "$RUNNER_TEMP/cl-int-02-bin" >> "$GITHUB_PATH"
           export PATH="$RUNNER_TEMP/cl-int-02-bin:$PATH"
+          r4_build="$RUNNER_TEMP/cl-imp-03-int02-$GITHUB_RUN_ID"
+          CL_IMP_03_SDK_ROOT="$legacy_sdk" CL_IMP_03_BUILD_DIR="$r4_build" \
+            tools/build_cl_imp_03_apks.sh | tee build/cl-int-02-api17-receipt/type110-build.txt
           CL_IMP_03_SDK_ROOT="$legacy_sdk" \
-          CL_IMP_03_BUILD_DIR="$CL_IMP_03_BUILD_DIR" \
+          CL_IMP_03_BUILD_DIR="$r4_build" \
             tools/run_cl_imp_03_emulator.sh --cl-r4b-multiple-view-replacements \
             | tee build/cl-int-02-api17-receipt/type110-continuity.txt
           grep -Fq 'CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS' build/cl-int-02-api17-receipt/type110-continuity.txt
