@@ -100,10 +100,10 @@ jobs:
           baseline_dir="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID"
           CL_IMP_03_BUILD_DIR="$baseline_dir" tools/build_cl_imp_03_apks.sh | tee baseline-build.txt
           cp "$baseline_dir/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-int-02-baseline.apk"
+          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java" "$source_file"
           candidate_dir="$GITHUB_WORKSPACE/build/cl-r12-candidate-$GITHUB_RUN_ID"
           CL_IMP_03_BUILD_DIR="$candidate_dir" CL_IMP_03_KEYSTORE="$baseline_dir/cl-imp-03-debug.keystore" \
             tools/build_cl_imp_03_apks.sh | tee candidate-build.txt
-          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java" "$source_file"
           trap - EXIT
           cp "$candidate_dir/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk"
           cmp -s "$RUNNER_TEMP/cl-int-02-baseline.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk" && {
