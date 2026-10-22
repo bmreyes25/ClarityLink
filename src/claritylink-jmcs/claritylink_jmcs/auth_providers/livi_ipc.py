@@ -201,6 +201,9 @@ def _decode_control_plist(encoded: object) -> dict[str, object]:
         raise LiviIpcError("malformed_bridge_plist_base64") from None
     if len(raw) > MAX_PLIST_BYTES:
         raise LiviIpcError("bridge_plist_too_large")
+    if not raw:
+        # Bodyless requests (for example a plain GET /info) carry no plist.
+        return {}
     try:
         parsed = plistlib.loads(raw)
     except (plistlib.InvalidFileException, ValueError, TypeError, OverflowError, RecursionError):
