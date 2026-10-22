@@ -1,0 +1,205 @@
+name: CL-INT-02 combined Android API 17 integration
+
+on:
+  push:
+    branches: [codex/cl-int-02-android-api17-integration]
+  pull_request:
+    paths:
+      - '.github/workflows/cl-int-02-api17-integration.yml'
+      - 'android/cl-factory-03-app/**'
+      - 'android/cl-imp-03-app/**'
+      - 'android/src/main/java/**'
+      - 'src/claritylink-renderer/android-api17/**'
+      - 'tests/fixtures/cl-imp-08/**'
+      - 'tools/build_cl_factory_03_api17_apk.sh'
+      - 'tools/build_cl_imp_03_apks.sh'
+      - 'tools/run_cl_factory_03_api17_ci.sh'
+      - 'tools/run_cl_r12_api17_ci.sh'
+      - 'tools/run_cl_int_02_api17_ci.sh'
+      - 'tools/check_cl_r12_perf_gate.py'
+      - 'tests/display/test_cl_int_02_performance_contract.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cl-int-02-api17-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  combined-api17-runtime:
+    name: Combined Android 4.2.2 API 17 x86 integration
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/.ci-android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      CL_FACTORY_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      CL_IMP_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      CL_FACTORY_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r13-factory-03-int02-${{ github.run_id }}
+      CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r12-candidate-${{ github.run_id }}
+      CL_R12_RECEIPT_DIR: ${{ github.workspace }}/build/cl-int-02-api17-receipt/r12
+    steps:
+      - name: Check out exact source and base history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install fixed Java toolchain
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # setup-java v4
+        with:
+          distribution: temurin
+          java-version: '17.0.12+7'
+
+      - name: Install Android SDK command line tools
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+
+      - name: Install API 17 platform, x86 image, emulator, and build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME" -type f -path '*/bin/sdkmanager' -print -quit)"
+          "$sdkmanager" --list --include_obsolete > sdk-package-query.txt
+          for package in 'build-tools;35.0.0' 'emulator' 'system-images;android-17;default;x86'; do
+            grep -F -q "$package" sdk-package-query.txt || { echo "Missing SDK package $package" >&2; exit 20; }
+          done
+          if grep -F -q 'platforms;android-17' sdk-package-query.txt; then
+            "$sdkmanager" --install 'platform-tools' 'build-tools;35.0.0' 'platforms;android-17' 'emulator' 'system-images;android-17;default;x86'
+          else
+            "$sdkmanager" --install 'platform-tools' 'build-tools;35.0.0' 'emulator' 'system-images;android-17;default;x86'
+            archive="$RUNNER_TEMP/android-17_r03.zip"
+            curl --fail --location --silent --show-error https://dl.google.com/android/repository/android-17_r03.zip -o "$archive"
+            test "$(stat -c %s "$archive")" = 57030216
+            echo 'b66e73fb2639f8c916fde4369aa29012a5c531e156dbb205fe3788fe998fbbe8  '"$archive" | sha256sum --check
+            unzip -q "$archive" -d "$RUNNER_TEMP/android-17-platform"
+            platform_source="$RUNNER_TEMP/android-17-platform/android-4.2.2"
+            grep -F -q 'AndroidVersion.ApiLevel=17' "$platform_source/source.properties"
+            mkdir -p "$ANDROID_HOME/platforms/android-17"
+            cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
+          fi
+          test -f "$ANDROID_HOME/platforms/android-17/android.jar"
+
+      - name: Build structured navigation and performance baseline/candidate APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          java_home="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
+          export JAVA_HOME
+          mkdir -p build
+          tools/build_cl_factory_03_api17_apk.sh
+          source_file='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
+          baseline_ref="$(git merge-base HEAD origin/main)"
+          test -n "$baseline_ref"
+          cp "$source_file" "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java"
+          restore_source() { cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java" "$source_file"; }
+          trap restore_source EXIT
+          git show "$baseline_ref:$source_file" > "$source_file"
+          baseline_dir="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID"
+          CL_IMP_03_BUILD_DIR="$baseline_dir" tools/build_cl_imp_03_apks.sh | tee baseline-build.txt
+          cp "$baseline_dir/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-int-02-baseline.apk"
+          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java" "$source_file"
+          candidate_dir="$GITHUB_WORKSPACE/build/cl-r12-candidate-$GITHUB_RUN_ID"
+          CL_IMP_03_BUILD_DIR="$candidate_dir" CL_IMP_03_KEYSTORE="$baseline_dir/cl-imp-03-debug.keystore" \
+            tools/build_cl_imp_03_apks.sh | tee candidate-build.txt
+          trap - EXIT
+          cp "$candidate_dir/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk"
+          cmp -s "$RUNNER_TEMP/cl-int-02-baseline.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk" && {
+            echo 'Baseline and candidate APKs are byte-identical.' >&2; exit 9;
+          }
+          echo "CL_R12_BASELINE_APK=$RUNNER_TEMP/cl-int-02-baseline.apk" >> "$GITHUB_ENV"
+          echo "CL_R12_CANDIDATE_APK=$RUNNER_TEMP/cl-int-02-candidate.apk" >> "$GITHUB_ENV"
+          sha256sum "$RUNNER_TEMP/cl-int-02-baseline.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk" | tee apk-fingerprints.txt
+
+      - name: Enable KVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lsof
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+          test "$(uname -m)" = x86_64
+          test -r /dev/kvm && test -w /dev/kvm
+
+      - name: Run both synthetic applications on one API 17 emulator
+        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        with:
+          api-level: 17
+          system-image-api-level: 17
+          target: default
+          arch: x86
+          profile: Nexus 5
+          ram-size: 1024M
+          heap-size: 128M
+          disk-size: 2048M
+          avd-name: cl-int-02-api17-x86
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          disable-linux-hw-accel: false
+          script: tools/run_cl_int_02_api17_ci.sh
+
+      - name: Verify active Type110 continuity across Type111 view restarts
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy_sdk="$RUNNER_TEMP/cl-int-02-legacy-sdk"
+          mkdir -p "$legacy_sdk/.emulator-intel" "$RUNNER_TEMP/cl-int-02-bin"
+          cp -a "$ANDROID_HOME/emulator" "$legacy_sdk/.emulator-intel/emulator"
+          cp -a "$ANDROID_HOME/platform-tools" "$legacy_sdk/platform-tools"
+          for component in platforms build-tools cmdline-tools system-images; do
+            ln -s "$ANDROID_HOME/$component" "$legacy_sdk/$component"
+          done
+          avdmanager_path="$(find "$ANDROID_HOME/cmdline-tools" -type f -name avdmanager -print -quit)"
+          test -n "$avdmanager_path"
+          if [[ ! -x "$legacy_sdk/cmdline-tools/latest/bin/avdmanager" ]]; then
+            cmdline_tools_dir="$(dirname "$(dirname "$avdmanager_path")")"
+            ln -s "$cmdline_tools_dir" "$legacy_sdk/cmdline-tools/latest"
+          fi
+          cat > "$RUNNER_TEMP/cl-int-02-bin/arch" <<'SH'
+          #!/bin/sh
+          if [ "${1:-}" = '-x86_64' ]; then shift; fi
+          exec "$@"
+          SH
+          chmod +x "$RUNNER_TEMP/cl-int-02-bin/arch"
+          echo "$RUNNER_TEMP/cl-int-02-bin" >> "$GITHUB_PATH"
+          export PATH="$RUNNER_TEMP/cl-int-02-bin:$PATH"
+          r4_build="$GITHUB_WORKSPACE/build/cl-imp-03-int02-$GITHUB_RUN_ID"
+          CL_IMP_03_SDK_ROOT="$legacy_sdk" CL_IMP_03_BUILD_DIR="$r4_build" \
+            tools/build_cl_imp_03_apks.sh | tee build/cl-int-02-api17-receipt/type110-build.txt
+          CL_IMP_03_SDK_ROOT="$legacy_sdk" \
+          CL_IMP_03_BUILD_DIR="$r4_build" \
+            tools/run_cl_imp_03_emulator.sh --cl-r4b-multiple-view-replacements \
+            | tee build/cl-int-02-api17-receipt/type110-continuity.txt || runner_status=$?
+          grep -Fq 'CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS' build/cl-int-02-api17-receipt/type110-continuity.txt
+          grep -Fq 'replacements=3 unique_pids=true increasing_generations=true parent_session_preserved=true type110_frames_increased=true' \
+            build/cl-int-02-api17-receipt/type110-continuity.txt
+          grep -Fq 'final_streams_unregistered=true pfd_transfers=0 retained_frame_bytes=0' \
+            build/cl-int-02-api17-receipt/type110-continuity.txt
+          echo "CL_INT_02_TYPE110_CONTINUITY_PASS runner_exit=${runner_status:-0} full_legacy_suite_pass=$([[ ${runner_status:-0} -eq 0 ]] && echo true || echo false)"
+
+      - name: Enforce baseline, candidate, and soak performance gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check_cl_r12_perf_gate.py build/cl-int-02-api17-receipt/r12/perf-baseline-logcat.txt
+          python3 tools/check_cl_r12_perf_gate.py build/cl-int-02-api17-receipt/r12/perf-optimized-logcat.txt
+          python3 tools/check_cl_r12_perf_gate.py build/cl-int-02-api17-receipt/r12/perf-optimized-soak-logcat.txt
+          grep -q 'CL_INT_02_API17_FUNCTIONAL_PASS' build/cl-int-02-api17-receipt/final-status.txt
+          echo 'CL_INT_02_API17_ACCEPTANCE_PASS' >> build/cl-int-02-api17-receipt/final-status.txt
+
+      - name: Upload bounded API 17 integration receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cl-int-02-api17-${{ github.run_id }}
+          path: |
+            sdk-package-query.txt
+            baseline-build.txt
+            candidate-build.txt
+            apk-fingerprints.txt
+            build/cl-int-02-api17-receipt/
+          if-no-files-found: ignore
+          retention-days: 14
