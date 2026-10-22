@@ -35,5 +35,7 @@
             android:configChanges="orientation|screenSize" />
         <activity android:name="org.claritylink.android.Api17DecoderLabActivity"
             android:exported="true" android:permission="android.permission.DUMP" />
+        <activity android:name="org.claritylink.android.StructuredNavigationLabActivity"
+            android:exported="true" android:permission="android.permission.DUMP" />
     </application>
 </manifest>

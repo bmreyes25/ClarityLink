@@ -15,3 +15,21 @@ The R4B `turn_cards.py` module is a separate **host-only** route-card state mode
 Run the host unit tests from the repository root:
 
     python3 -m unittest discover -s src/claritylink-renderer/tests -v
+
+## Synthetic structured navigation (API 17)
+
+`NavigationUpdate` is a plain-Java semantic contract carrying session, generation,
+sequence, maneuver, distance/unit, and a road name bounded to 256 characters.
+`StructuredNavigationSink` and `StructuredNavigationOutputBackend` accept this type on a separate path from
+`DecodedFrame`; it attaches only to a caller-supplied synthetic host. A
+`NavigationGenerationLedger` must be retained by the caller across host recreation
+so a replacement host cannot reuse an old generation. Warning interruption and
+host loss clear guidance synchronously. Resuming a host never restores old guidance;
+the caller must explicitly begin a newer generation. The generic view is a test
+fixture and does not establish factory warning precedence or authorize factory
+output. `safeForHonda()` remains false.
+
+The focused Java contract is `android/src/test/java/org/claritylink/renderer/NavigationUpdateTest.java`.
+`android/cl-imp-03-app/java/org/claritylink/android/StructuredNavigationLabActivity.java`
+drives the lifecycle scenario on the API 17 emulator and emits a machine-readable
+runtime marker.
