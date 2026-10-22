@@ -64,3 +64,18 @@ def test_runs_without_a_result_line_are_ignored_and_integrity_is_counted(tmp_pat
 def test_the_summarizer_never_decides_an_acceptance_gate():
     text = (REPO / "tools/summarize_cl_r12_ab.py").read_text()
     assert "PERFORMANCE_GATE" not in text and "exit(1)" not in text
+
+
+def test_non_overlapping_but_tiny_differences_are_labelled_negligible(tmp_path):
+    fill(tmp_path, [15.066, 15.133, 15.249], [15.033, 15.016, 15.046])   # a real CI receipt: 0.7%
+    m = summ.summarize(tmp_path)["metrics"]["delivered_fps"]
+    assert m["verdict"] == "CANDIDATE_WORSE_NEGLIGIBLE"
+    fill(tmp_path, [20.0, 20.1, 20.2], [14.0, 14.1, 14.2])
+    assert summ.summarize(tmp_path)["metrics"]["delivered_fps"]["verdict"] == "CANDIDATE_WORSE"
+
+
+def test_a_descriptor_count_difference_is_material_even_from_a_zero_baseline(tmp_path):
+    for i in (1, 2, 3):
+        write(tmp_path, "baseline", i, fps=25, p50=1, p95=1, p99=1, dropped=0, fd_base=46, fd_final=46)
+        write(tmp_path, "optimized", i, fps=25, p50=1, p95=1, p99=1, dropped=0, fd_base=46, fd_final=49)
+    assert summ.summarize(tmp_path)["metrics"]["source_fd_delta"]["verdict"] == "CANDIDATE_WORSE"

@@ -8,7 +8,7 @@ a noisy shared emulator is not read as a renderer regression, and a real regress
 not hidden behind a single lucky run.
 
 A metric is called distinguishable only when the ranges of the two variants do not
-overlap. With three runs each that happens by chance one time in ten, so it is evidence
+overlap, and material only when the medians differ by at least 5%. With three runs each that happens by chance one time in ten, so it is evidence
 to investigate, not proof.
 """
 import json
@@ -67,20 +67,24 @@ def collect(receipt: Path):
 MIN_RUNS_PER_VARIANT = 3
 
 
+NEGLIGIBLE_RELATIVE = 0.05   # a difference of medians below 5% is not material
+NEGLIGIBLE_ABSOLUTE = 1.0    # used when the baseline median is zero (descriptor counts)
+
+
 def compare(base, cand, larger_is_better):
     if len(base) < MIN_RUNS_PER_VARIANT or len(cand) < MIN_RUNS_PER_VARIANT:
         return "INSUFFICIENT_RUNS"   # one pair on a shared emulator says nothing about the renderer
     if larger_is_better:
-        if min(cand) > max(base):
-            return "CANDIDATE_BETTER"
-        if max(cand) < min(base):
-            return "CANDIDATE_WORSE"
+        better, worse = min(cand) > max(base), max(cand) < min(base)
     else:
-        if max(cand) < min(base):
-            return "CANDIDATE_BETTER"
-        if min(cand) > max(base):
-            return "CANDIDATE_WORSE"
-    return "NOT_DISTINGUISHABLE"
+        better, worse = max(cand) < min(base), min(cand) > max(base)
+    if not better and not worse:
+        return "NOT_DISTINGUISHABLE"
+    b_med, c_med = statistics.median(base), statistics.median(cand)
+    delta = abs(c_med - b_med)
+    material = (delta >= NEGLIGIBLE_RELATIVE * abs(b_med)) if b_med else (delta >= NEGLIGIBLE_ABSOLUTE)
+    verdict = "CANDIDATE_BETTER" if better else "CANDIDATE_WORSE"
+    return verdict if material else verdict + "_NEGLIGIBLE"
 
 
 def summarize(receipt: Path):
