@@ -13,6 +13,7 @@ mkdir -p "$out/test"
   "$repo/android/src/test/java/org/claritylink/renderer/DecodedFrameTest.java" \
   "$repo/android/src/test/java/org/claritylink/renderer/DiagnosticFrameSourceTest.java" \
   "$repo/android/src/test/java/org/claritylink/renderer/SimulatedExternalDisplayCompositorTest.java" \
+  "$repo/android/src/test/java/org/claritylink/renderer/NavigationUpdateTest.java" \
   "$repo/android/src/test/java/org/claritylink/renderer/FrameDispatchGateTest.java"
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.android.OfflinePolicyTest
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.android.HondaStyleHostModelTest
@@ -20,4 +21,5 @@ mkdir -p "$out/test"
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.renderer.DecodedFrameTest
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.renderer.DiagnosticFrameSourceTest
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.renderer.SimulatedExternalDisplayCompositorTest
+"${JAVA:-java}" -cp "$out/test:$out" org.claritylink.renderer.NavigationUpdateTest
 "${JAVA:-java}" -cp "$out/test:$out" org.claritylink.renderer.FrameDispatchGateTest
