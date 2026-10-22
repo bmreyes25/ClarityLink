@@ -1,7 +1,10 @@
 """Drive one receiver generation from an authenticated or explicit replay transport."""
 from __future__ import annotations
 
-from .authentication import AuthenticationProvider, SessionOrigin
+import threading
+
+from .authentication import (AuthenticatedSessionHandoff, AuthenticationProvider, SessionLedger,
+                             SessionOrigin, TrustClass)
 from .info import InfoProfile, build_info
 from .receiver import Receiver, ReceiverError
 from .session_transport import (CarPlaySessionTransport, ControlRequest, ControlResponse,
@@ -18,15 +21,21 @@ class SessionError(RuntimeError):
 class ReceiverSession:
     def __init__(self, provider: AuthenticationProvider, receiver: Receiver,
                  info_profile: InfoProfile, *, trace: SanitizedTrace | None = None,
-                 allow_replay: bool = False) -> None:
+                 allow_replay: bool = False, allow_synthetic_authority: bool = False,
+                 session_ledger: SessionLedger | None = None) -> None:
         self.provider = provider
         self.receiver = receiver
         self.info_profile = info_profile
         self.trace = trace if trace is not None else SanitizedTrace()
         self.allow_replay = allow_replay
+        self.allow_synthetic_authority = allow_synthetic_authority
+        self.session_ledger = session_ledger
         self.transport: CarPlaySessionTransport | None = None
         self.generation: int | None = None
+        self.trust: TrustClass | None = None
         self._info_sent = False
+        self._handoff: AuthenticatedSessionHandoff | None = None
+        self._lock = threading.RLock()
 
     def open(self, replay_transport: ReplaySessionTransport | None = None) -> None:
         if self.transport is not None:
@@ -43,6 +52,11 @@ class ReceiverSession:
                 raise SessionError("session_generation_mismatch")
             handoff.claim(expected_generation)
             owns_handoff = True
+            if (handoff.trust is TrustClass.SYNTHETIC_TEST and
+                    not self.allow_synthetic_authority):
+                raise SessionError("synthetic_authority_not_enabled")
+            if self.session_ledger is not None:
+                self.session_ledger.admit(handoff.session_identifier)
             if handoff.origin is SessionOrigin.SANITIZED_REPLAY:
                 if not self.allow_replay or replay_transport is None:
                     raise SessionError("replay_not_enabled")
@@ -64,6 +78,11 @@ class ReceiverSession:
                 raise SessionError("session_generation_mismatch")
             self.generation = generation
             self.transport = transport
+            self.trust = handoff.trust
+            self._handoff = handoff
+            # Loss of the authenticated parent revokes this generation and every
+            # dependent stream without waiting for the next control read.
+            handoff.add_close_callback(self._parent_lost)
             self.trace.emit(TraceEvent.AUTH_SUCCESS, generation=generation, status="ok")
             self.trace.emit(TraceEvent.SESSION_OPEN, generation=generation)
         except Exception:
@@ -123,11 +142,23 @@ class ReceiverSession:
             return response
         raise SessionError("unsupported_control_request")
 
+    def _parent_lost(self) -> None:
+        with self._lock:
+            if self.generation is None:
+                return  # our own close is already running
+            self._close_locked()
+
     def close(self) -> None:
+        with self._lock:
+            self._close_locked()
+
+    def _close_locked(self) -> None:
         generation = self.generation
         transport = self.transport
         self.transport = None
         self.generation = None
+        self.trust = None
+        self._handoff = None
         self._info_sent = False
         try:
             if generation is not None:
