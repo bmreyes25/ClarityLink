@@ -24,6 +24,7 @@ sources=(
   "$repo/android/src/test/java/org/claritylink/renderer/Display1PaneLeaseLifecycleTest.java"
   "$repo/android/src/test/java/org/claritylink/renderer/Display1RendererViewportInPlaceTest.java"
   "$repo/android/src/test/java/org/claritylink/android/SyntheticFrameFillTest.java"
+  "$repo/android/src/test/java/org/claritylink/renderer/PaneLeaseFdLifecycleTest.java"
 )
 {
   find "$repo/android/src/main/java" -name '*.java' -print

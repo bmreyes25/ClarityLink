@@ -76,7 +76,7 @@ def test_runner_interleaves_repeated_pairs_and_reports_every_run():
 def test_pane_lease_instrumentation_is_built_run_and_reported_separately():
     assert "build_cl_honda_111_pane_test_apk.sh" in WORKFLOW and "CL_PANE_LEASE_TEST_APK" in WORKFLOW
     assert "am instrument -w" in RUNNER and "Display1PaneLeaseLifecycleTest" in RUNNER
-    assert "OK (6 tests)" in RUNNER and "SyntheticFrameFillTest" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
+    assert "OK (7 tests)" in RUNNER and "SyntheticFrameFillTest" in RUNNER and "PaneLeaseFdLifecycleTest" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
     assert "CL_PANE_LEASE_INSTRUMENTATION=" in RUNNER
     assert RUNNER.index("exit 13") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
 
@@ -103,3 +103,15 @@ def test_renderer_mode_gives_the_baseline_the_candidates_workload_files():
     assert "ab_mode=renderer" in script
     # the activity and its helper are the only overlaid files; the renderer is never overlaid
     assert "src/claritylink-renderer" not in script.split("overlay=()")[1].split("done")[0]
+
+
+def test_no_adb_call_can_block_the_runner_forever():
+    assert "adbq()" in RUNNER and "timeout" in RUNNER
+    # every adb invocation against the emulator goes through the bounded wrapper
+    raw = [l for l in RUNNER.splitlines() if '"$adb" -s' in l and not l.lstrip().startswith("adbq()")]
+    assert raw == [], raw
+    assert "CL_R12_INSTRUMENT_TIMEOUT" in RUNNER      # am instrument has its own, longer bound
+
+
+def test_an_aborted_runner_records_its_cause_in_the_receipt():
+    assert "trap " in RUNNER and "CL_R12_RUNNER_ABORTED" in RUNNER and "ERR" in RUNNER
