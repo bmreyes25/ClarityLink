@@ -53,6 +53,10 @@ public final class MessengerFramePerformanceActivity extends Activity {
     };
 
     private final Handler ui = new Handler();
+    // One frame is in flight at a time, and the reply is byte-compared on the sender thread
+    // before the frame is released, so the next offer cannot overwrite bytes still being checked.
+    // Reusing the buffer removes a zeroed 1.5 MB allocation per offered frame.
+    private final byte[] syntheticFramePixels = new byte[FRAME_BYTES];
     private HandlerThread schedulerThread;
     private HandlerThread senderThread;
     private Handler scheduler;
@@ -287,9 +291,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
         final long senderStartedNs = profileStages ? System.nanoTime() : 0L;
         if (profileStages) activeProfile[0] = senderStartedNs - offerTime;
         long stageStartedNs = profileStages ? System.nanoTime() : 0L;
-        byte[] pixels = new byte[FRAME_BYTES];
+        byte[] pixels = syntheticFramePixels;
         byte marker = (byte) (currentSequence & 0xff);
-        Arrays.fill(pixels, marker);
+        SyntheticFrameFill.fill(pixels, marker);
         if (profileStages) activeProfile[1] = System.nanoTime() - stageStartedNs;
         long pts = offerTime;
         ParcelFileDescriptor descriptor = null;

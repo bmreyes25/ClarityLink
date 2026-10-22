@@ -76,7 +76,7 @@ def test_runner_interleaves_repeated_pairs_and_reports_every_run():
 def test_pane_lease_instrumentation_is_built_run_and_reported_separately():
     assert "build_cl_honda_111_pane_test_apk.sh" in WORKFLOW and "CL_PANE_LEASE_TEST_APK" in WORKFLOW
     assert "am instrument -w" in RUNNER and "Display1PaneLeaseLifecycleTest" in RUNNER
-    assert "OK (2 tests)" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
+    assert "OK (6 tests)" in RUNNER and "SyntheticFrameFillTest" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
     assert "CL_PANE_LEASE_INSTRUMENTATION=" in RUNNER
     assert RUNNER.index("exit 13") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
 
@@ -87,3 +87,11 @@ def test_pane_test_apk_inputs_are_explicit_and_request_no_permission():
     assert "uses-permission" not in manifest and "<activity" not in manifest and "<service" not in manifest
     assert "PaneLeaseTest.java" in script and "Display1PaneLeaseLifecycleTest.java" in script
     assert "must request no permissions" in script
+
+
+def test_workload_mode_changes_only_the_activity_and_is_recorded():
+    script = (REPO / "tools/build_cl_r12_workload_ab.sh").read_text()
+    assert "ab_mode=workload" in script and "renderer_tree_sha256_both" in script
+    assert script.count('show "$baseline_sha:$activity"') == 1       # the only substituted file
+    assert "build_cl_r12_workload_ab.sh" in WORKFLOW and "ab_mode" in WORKFLOW
+    assert "workflow_dispatch" in WORKFLOW and "type: choice" in WORKFLOW

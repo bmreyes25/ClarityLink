@@ -2,6 +2,16 @@ name: CL-R12 API 17 runtime recovery
 
 on:
   workflow_dispatch:
+    inputs:
+      ab_mode:
+        description: 'renderer = pre-PR renderer vs this tree (same workload); workload = this tree with the baseline ref performance Activity vs this tree (same renderer)'
+        type: choice
+        options: [renderer, workload]
+        default: renderer
+      baseline_ref:
+        description: 'Baseline ref for the chosen mode (default: merge-base with origin/main)'
+        required: false
+        default: ''
   pull_request:
     paths:
       - '.github/workflows/cl-r12-api17-runtime-recovery.yml'
@@ -13,6 +23,7 @@ on:
       - 'tools/run_cl_r12_messenger_lab_emulator.sh'
       - 'tools/run_cl_r12_api17_ci.sh'
       - 'tools/build_cl_r12_renderer_ab.sh'
+      - 'tools/build_cl_r12_workload_ab.sh'
       - 'tools/check_cl_r12_perf_gate.py'
       - 'tools/summarize_cl_r12_ab.py'
       - 'tools/build_cl_honda_111_pane_test_apk.sh'
@@ -123,7 +134,12 @@ jobs:
           baseline_ref="$(git merge-base HEAD origin/main)"
           if [ "$baseline_ref" = "$(git rev-parse HEAD)" ]; then baseline_ref="$(git rev-parse HEAD^)"; fi
           ab_dir="$GITHUB_WORKSPACE/build/cl-r12-ab-$GITHUB_RUN_ID"
-          tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          if [ -n "${{ github.event.inputs.baseline_ref }}" ]; then baseline_ref="${{ github.event.inputs.baseline_ref }}"; fi
+          if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
+            tools/build_cl_r12_workload_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          else
+            tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          fi
           {
             echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
             echo "pull_request_base=${{ github.event.pull_request.base.ref }}"
