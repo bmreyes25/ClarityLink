@@ -152,6 +152,12 @@ jobs:
           for component in platforms build-tools cmdline-tools system-images; do
             ln -s "$ANDROID_HOME/$component" "$legacy_sdk/$component"
           done
+          avdmanager_path="$(find "$ANDROID_HOME/cmdline-tools" -type f -name avdmanager -print -quit)"
+          test -n "$avdmanager_path"
+          if [[ ! -x "$legacy_sdk/cmdline-tools/latest/bin/avdmanager" ]]; then
+            cmdline_tools_dir="$(dirname "$(dirname "$avdmanager_path")")"
+            ln -s "$cmdline_tools_dir" "$legacy_sdk/cmdline-tools/latest"
+          fi
           cat > "$RUNNER_TEMP/cl-int-02-bin/arch" <<'SH'
           #!/bin/sh
           if [ "${1:-}" = '-x86_64' ]; then shift; fi
