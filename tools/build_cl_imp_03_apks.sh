@@ -59,7 +59,6 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/CompositorOwnerDeathTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/SameUidRegistrationAttackTestService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Api17DecoderLabActivity.java" \
-  "$repo/android/cl-imp-03-app/java/org/claritylink/android/StructuredNavigationLabActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameHostService.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameLabActivity.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java" \
@@ -85,11 +84,6 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/src/claritylink-renderer/android-api17/FrameBackpressureGate.java" \
   "$repo/src/claritylink-renderer/android-api17/SimulatedExternalDisplayCompositor.java" \
   "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java" \
-  "$repo/src/claritylink-renderer/android-api17/NavigationUpdate.java" \
-  "$repo/src/claritylink-renderer/android-api17/StructuredNavigationSink.java" \
-  "$repo/src/claritylink-renderer/android-api17/NavigationGenerationLedger.java" \
-  "$repo/src/claritylink-renderer/android-api17/StructuredNavigationContentView.java" \
-  "$repo/src/claritylink-renderer/android-api17/StructuredNavigationOutputBackend.java" \
   "$repo/src/claritylink-renderer/android-api17/HondaStyleSimulatorRendererHost.java"
 mkdir -p "$out/assets"
 cp "$repo/tests/fixtures/cl-imp-08/type110-red-32x32.h264.b64" "$out/assets/type110-red-32x32.h264.b64"

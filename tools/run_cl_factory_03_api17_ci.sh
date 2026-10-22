@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-build_dir="${CL_IMP_03_BUILD_DIR:-$repo/build/cl-r13-factory-03-api17}"
+build_dir="${CL_FACTORY_03_BUILD_DIR:-$repo/build/cl-r13-factory-03-navlab}"
 receipt="${CL_FACTORY_03_RECEIPT_DIR:-$repo/build/cl-factory-03-api17-receipt}"
 mkdir -p "$receipt"
 adb="$sdk_root/platform-tools/adb"
@@ -36,7 +36,7 @@ abi=$("$adb" -s "$serial" shell getprop ro.product.cpu.abi | tr -d '\r')
 "$adb" -s "$serial" logcat -c
 "$adb" -s "$serial" install "$apk" | tee "$receipt/install.txt"
 "$adb" -s "$serial" shell am start -W \
-  -n org.claritylink.independentdisplay.lab/org.claritylink.android.StructuredNavigationLabActivity \
+  -n org.claritylink.clfactory03.navlab/org.claritylink.android.StructuredNavigationLabActivity \
   | tee "$receipt/activity-start.txt"
 deadline=$((SECONDS + 90))
 while (( SECONDS < deadline )); do

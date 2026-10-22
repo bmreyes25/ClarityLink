@@ -68,9 +68,9 @@ jobs:
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           export JAVA_HOME="$java_home" ANDROID_HOME
           tools/test_r7c_java_api17.sh | tee api17-java-tests.txt
-          CL_IMP_03_SDK_ROOT="$ANDROID_HOME" \
-            CL_IMP_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r13-factory-03-api17" \
-            tools/build_cl_imp_03_apks.sh | tee api17-apk-build.txt
+          CL_FACTORY_03_SDK_ROOT="$ANDROID_HOME" \
+            CL_FACTORY_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r13-factory-03-navlab" \
+            tools/build_cl_factory_03_api17_apk.sh | tee api17-apk-build.txt
 
       - name: Enable KVM on the hosted x86 runner
         run: |
