@@ -24,8 +24,8 @@ reported as a blocker, and only the independently testable offline components ar
 | M4 | Custom compatibility architecture decision | **IN PROGRESS** (report 09) — Option E selected; B/C gated on authorized hw + admission |
 | M5 | Type111 control/transport (offline, testable) | **IN PROGRESS** — `frame_gate.py` (11) + structured cluster-nav model `cluster_navigation_model.py` (11) |
 | M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `factory_integration_contract.py` (8) + `cluster_navigation_model.py` (G-04, 11) |
-| M7 | Synthetic concurrent Type110/Type111 integration tests | **IN PROGRESS** — `tests/integration/test_cl_factory_01_dual_stream_gate.py` (7 scenarios) |
-| M8 | Android API17 compatibility regression | not started |
+| M7 | Synthetic concurrent Type110/Type111 integration tests | **EXTENDED** (CL-FACTORY-02) — `test_cl_factory_01_dual_stream_gate.py` (7) + `test_cl_factory_02_dual_stream_isolation.py` (A–H) + `test_cl_factory_02_fault_matrix.py` (24) |
+| M8 | Android API17 compatibility regression | **BLOCKED** — Python models are platform-independent; no API17 build evidence (no JDK/Android SDK this session). Java mirror + compile is the next step (see Codex handoff §6/§9) |
 | M9 | Bounded read-only ADB collection plan (for separate approval) | **DRAFTED** (report 11) — inert; awaits owner approval |
 | M10 | Feasibility + deployment prerequisites | **IN PROGRESS** (report 10) — evidence-gap matrix |
 
@@ -42,6 +42,16 @@ reported as a blocker, and only the independently testable offline components ar
 - [05 — Native decoder & video path](05-native-decoder-and-video-path.md)
 - [04 — Type110/Type111 & presentation contracts](04-type110-type111-analysis.md)
 - (forthcoming) 12 integration feasibility.
+
+## CL-FACTORY-02 — integrated synthetic navigation laboratory (implemented code)
+Offline, synthetic, fail-closed; `safe_for_honda() == False`. Codex handoff:
+[docs/development/cl-factory-02-codex-integration-handoff.md](../../../docs/development/cl-factory-02-codex-integration-handoff.md).
+- Pipeline: `src/claritylink-honda/synthetic_navigation_pipeline.py` — integrates transport + nav-state + fail-closed contract; four-way per-update outcome; lifetime-monotonic generation. Tests: `tests/honda/test_synthetic_navigation_pipeline.py` (18).
+- Simulated cluster host: `src/claritylink-honda/simulated_cluster_host.py` — independent main + top-most interrupt layers, validity-gated rebuild. Tests: `tests/honda/test_simulated_cluster_host.py` (15).
+- Type-separation: `tests/honda/test_contract_type_separation.py` (5) — structured nav ≠ Type111 video; no video→TBT conversion.
+- Dual-stream isolation (A–H): `tests/integration/test_cl_factory_02_dual_stream_isolation.py` (8).
+- Fault matrix + resource invariants: `tests/integration/test_cl_factory_02_fault_matrix.py` (24).
+- End-to-end demo: `src/claritylink-sim/cl_factory_02_demo.py` (`run_demo()`), tests `tests/integration/test_cl_factory_02_end_to_end_demo.py` (4).
 
 ## Key standing facts (see report 01 for evidence)
 - Preserved platform: Honda ADA (Andromeda-class) head unit, Android 4.2.2 / API 17 / armeabi-v7a.
