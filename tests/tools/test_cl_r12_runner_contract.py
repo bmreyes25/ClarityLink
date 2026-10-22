@@ -105,6 +105,18 @@ def test_renderer_mode_gives_the_baseline_the_candidates_workload_files():
     assert "src/claritylink-renderer" not in script.split("overlay=()")[1].split("done")[0]
 
 
+def test_renderer_mode_overlays_workload_support_classes_the_activity_calls():
+    script = (REPO / "tools/build_cl_r12_renderer_ab.sh").read_text()
+    support = "android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameParcel.java"
+    assert support in script and "workload_support" in script
+    # the candidate activity reads the returned frame into a reusable buffer through this class;
+    # a baseline tree that predates the overload must receive the candidate's copy, or it cannot build
+    activity = (REPO / "android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java").read_text()
+    assert "MessengerFrameParcel.read(" in activity
+    assert "Workload support source differs between variants" in script   # identity is verified, not assumed
+    assert "src/claritylink-renderer" not in script.split("workload_support=")[1].split("\n")[0]
+
+
 def test_no_adb_call_can_block_the_runner_forever():
     assert "adbq()" in RUNNER and "timeout" in RUNNER
     # every adb invocation against the emulator goes through the bounded wrapper

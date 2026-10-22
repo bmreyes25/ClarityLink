@@ -32,6 +32,8 @@ git -C "$repo" merge-base --is-ancestor "$baseline_sha" "$candidate_sha" || {
   echo 'Baseline must be an ancestor of the candidate.' >&2; exit 4; }
 
 activity='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
+# Workload-side sources that the candidate's activity calls and the baseline tree may predate.
+workload_support=('android/cl-imp-03-app/java/org/claritylink/android/MessengerFrameParcel.java')
 renderer_dir='src/claritylink-renderer/android-api17'
 mkdir -p "$out"
 work="$(mktemp -d /tmp/cl-r12-ab-XXXXXX)"
@@ -39,6 +41,9 @@ trap 'git -C "$repo" worktree remove --force "$work/baseline" >/dev/null 2>&1 ||
 
 git -C "$repo" worktree add --detach "$work/baseline" "$baseline_sha" >/dev/null
 git -C "$repo" show "HEAD:$activity" > "$work/baseline/$activity"
+for support in "${workload_support[@]}"; do
+  git -C "$repo" show "HEAD:$support" > "$work/baseline/$support"
+done
 # The workload must be the candidate's, including helper classes it uses that the baseline tree
 # predates. Overlay those files and register them in the baseline's explicit source list, so the
 # only thing that differs between the arms is the renderer.
@@ -85,6 +90,10 @@ fi
 base_activity_sha="$(sha256sum "$work/baseline/$activity" | awk '{print $1}')"
 cand_activity_sha="$(sha256sum "$repo/$activity" | awk '{print $1}')"
 [[ "$base_activity_sha" == "$cand_activity_sha" ]] || { echo 'Workload source differs between variants.' >&2; exit 5; }
+for support in "${workload_support[@]}"; do
+  [[ "$(sha256sum "$work/baseline/$support" | awk '{print $1}')" == "$(sha256sum "$repo/$support" | awk '{print $1}')" ]] || {
+    echo "Workload support source differs between variants: $support" >&2; exit 5; }
+done
 
 {
   echo "baseline_ref=$baseline_ref"
@@ -93,6 +102,7 @@ cand_activity_sha="$(sha256sum "$repo/$activity" | awk '{print $1}')"
   echo "ab_mode=renderer"
   echo "workload_overlay_files=${overlay[*]:-none}"
   echo "workload_activity_sha256=$cand_activity_sha"
+  echo "workload_support_files=${workload_support[*]}"
   echo "baseline_renderer_tree_sha256=$(tree_digest "$work/baseline")"
   echo "candidate_renderer_tree_sha256=$(tree_digest "$repo")"
   echo "baseline_build_script_sha256=$(sha256sum "$work/baseline/tools/build_cl_imp_03_apks.sh" | awk '{print $1}')"
