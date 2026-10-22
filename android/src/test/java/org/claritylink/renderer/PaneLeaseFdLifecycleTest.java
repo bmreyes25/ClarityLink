@@ -13,7 +13,11 @@ import org.claritylink.android.HondaStyleDisplayHostSimulator;
  */
 public final class PaneLeaseFdLifecycleTest extends InstrumentationTestCase {
     private static final int CYCLES = 60;
-    private static final int PEAK_SANITY_LIMIT = 600;   // the process limit is about 1024 descriptors
+    /**
+     * Bounded ownership: the converter thread is shared, so a revocation storm adds a handful of
+     * descriptors, not a few per cycle. Before this was shared, 60 cycles reached base + 141.
+     */
+    private static final int PEAK_GROWTH_LIMIT = 12;
 
     public void testRevocationStormReturnsEveryDescriptorAfterCollection() throws Throwable {
         final HondaStyleDisplayHostSimulator simulator = new HondaStyleDisplayHostSimulator(
@@ -39,8 +43,16 @@ public final class PaneLeaseFdLifecycleTest extends InstrumentationTestCase {
         final int after = fdCount();
         Log.i("ClarityLinkR12B", "PANE_FD_CYCLES cycles=" + CYCLES + " base=" + base + " peak=" + peak +
                 " before_settle=" + beforeSettle + " after_settle=" + after);
-        assertTrue("peak " + peak + " exceeds sanity limit", peak < PEAK_SANITY_LIMIT);
+        assertTrue("peak " + peak + " grew by more than " + PEAK_GROWTH_LIMIT + " over base " + base,
+                peak <= base + PEAK_GROWTH_LIMIT);
+        assertFalse("the shared converter thread must be gone after close", converterThreadAlive());
         assertTrue("descriptors not returned after collection: base=" + base + " after=" + after, after <= base + 2);
+    }
+
+    private static boolean converterThreadAlive() {
+        for (Thread t : Thread.getAllStackTraces().keySet())
+            if ("ClarityLinkFrameConvert".equals(t.getName()) && t.isAlive()) return true;
+        return false;
     }
 
     private static int fdCount() {

@@ -1,6 +1,7 @@
 package org.claritylink.renderer;
 
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
@@ -56,6 +57,8 @@ public final class Display1OutputBackend {
     private volatile RendererViewport rendererViewport;
     private FrameLayout root;
     private volatile ClarityLinkContentView view;
+    /** One converter thread for the backend's lifetime, shared by every View it attaches. */
+    private HandlerThread sharedConverter;
     private volatile PaneLease lease;
     private PaneEventListener listener;
     private volatile FrameDispatchGate activeGate;
@@ -131,7 +134,12 @@ public final class Display1OutputBackend {
             public void onRevoked(PaneLease revoked) { releaseView(revoked, serial); }
         });
         try {
+            if (sharedConverter == null || !sharedConverter.isAlive()) {
+                sharedConverter = new HandlerThread("ClarityLinkFrameConvert");
+                sharedConverter.start();
+            }
             view = new ClarityLinkContentView(root.getContext());
+            view.useSharedConverter(sharedConverter);
             view.setRendererViewport(rendererViewport);
             view.beginSession(generation);
             attachmentGeneration = newPaneGeneration;
@@ -229,6 +237,10 @@ public final class Display1OutputBackend {
         closed = true;
         unsubscribe();
         revokeLease();
+        if (sharedConverter != null) {
+            sharedConverter.quit();   // discards any queued conversion; no View remains to use it
+            sharedConverter = null;
+        }
     }
 
     public PaneLease paneLease() { return lease; }
