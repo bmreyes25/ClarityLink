@@ -20,7 +20,7 @@ reported as a blocker, and only the independently testable offline components ar
 |---|---|---|
 | M1 | Factory artifact & build-compatibility verification | **COMPLETE** (reports 01, 02) — inventory + deodex pipeline verified |
 | M2 | CarPlay receiver + Type110 reconstruction | **COMPLETE** (reports 03,05) — Java+native graph; MediaCodec decode; singleton registration code-confirmed |
-| M3 | Factory Navigation + Display 1 architecture | **IN PROGRESS** (reports 06,07,08) — structured-data flow + two-layer warning composition mapped |
+| M3 | Factory Navigation + Display 1 architecture | **COMPLETE (static)** (reports 06,07,08) — structured-data flow; two-layer warning composition = separate windows, interrupt top-most (G-02); display-link death→teardown & validity-gated rebuild→resume (G-03). Runtime precedence/aperture → M9 |
 | M4 | Custom compatibility architecture decision | **IN PROGRESS** (report 09) — Option E selected; B/C gated on authorized hw + admission |
 | M5 | Type111 control/transport (offline, testable) | **IN PROGRESS** — `frame_gate.py` (11) + structured cluster-nav model `cluster_navigation_model.py` (11) |
 | M6 | Fail-closed factory integration contracts/adapters | **IN PROGRESS** — `factory_integration_contract.py` (8) + `cluster_navigation_model.py` (G-04, 11) |
@@ -47,7 +47,7 @@ reported as a blocker, and only the independently testable offline components ar
 - Preserved platform: Honda ADA (Andromeda-class) head unit, Android 4.2.2 / API 17 / armeabi-v7a.
 - Factory APKs are **ODEX-separated** (code in `.odex`); manifests/permissions/components are analyzable now, Java
   bodies require a Dalvik-API17 deodex step. Native binaries (`jmcs`, `libcarplay_proxy`) are ARM, unstripped.
-- M3: factory cluster Navigation is **structured turn-by-turn data** rendered host-side into Android Views on Display 1; the host composes a **main layer + a preempting interrupt/warning layer** (factory warning precedence exists; its preservation under third-party content is UNPROVEN, U-05).
+- M3: factory cluster Navigation is **structured turn-by-turn data** rendered host-side into Android Views on Display 1; the host composes a **main layer + a preempting interrupt/warning layer** as **separate WindowManager windows** (interrupt attached last/top-most — G-02; factory warning precedence exists; its preservation under third-party content is UNPROVEN, U-05). The host is self-healing against the Display-1 link dropping: immediate teardown on removal, delayed validity-gated rebuild + resume on return (G-03).
 - Prior CL-SYS-01A: native `jmcs → libcarplay_proxy` screen-stream callback family is **singleton** (no second-screen
   / Type111 evidence at the proxy); receiver→Display-1 edge **UNKNOWN**. This campaign re-verifies against artifacts.
 

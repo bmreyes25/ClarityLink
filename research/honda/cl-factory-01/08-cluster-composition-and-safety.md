@@ -8,14 +8,25 @@ This report states safety **limits**; it does not certify any safe integration.
    Android Views. ClarityLink can therefore model an *independent* renderer for structured nav data without
    capturing factory pixels.
 2. The factory host composes in **two layers**, with a dedicated **interrupt/warning layer** that preempts the main
-   layer. A factory warning-precedence mechanism **exists**.
+   layer. A factory warning-precedence mechanism **exists**. (G-02) Mechanism confirmed: main and interrupt are
+   **separate top-most-ordered windows** (interrupt attached last, above main), not one shared view tree, so a
+   factory interrupt composites above main content while the main tree is preserved. This is static add-order
+   evidence, not a runtime precedence guarantee (see U-05).
 3. The host renders onto an existing Android **Display 1**; it does not create that display.
+4. (G-03) The host is **self-healing against the display link dropping**: on display removal it tears down its
+   window stack and stands content down; on display return it performs a **validity-gated** rebuild and resume, and
+   refuses to attach to an invalid display (fail-closed). This protects the factory's **own** content only.
 
 ## What the evidence does NOT establish (UNKNOWN / UNSUPPORTED)
 - **Warning precedence under third-party content (U-05):** that the interrupt layer's precedence is *preserved* when
-  non-factory content is injected into (or composited with) the host. HondaHack inserted into the main layer, which
-  is nominally below the interrupt layer, but in-process third-party code could still perturb measure/layout/focus
-  or the host itself. **Precedence preservation is UNPROVEN.**
+  non-factory content is injected into (or composited with) the host. G-02 proves the factory *attaches* the
+  interrupt window above the main window at init; it does **not** prove that ordering is guaranteed at runtime among
+  same-type windows, nor that it survives in-process third-party code, which could perturb measure/layout/focus, add
+  to the interrupt window, or change window params. HondaHack inserted into the main layer (nominally below
+  interrupt), but **precedence preservation under injected content remains UNPROVEN.**
+- **Content behavior across a host teardown/rebuild (G-03 limit):** the validity-gated rebuild protects factory
+  content, but whether injected/third-party content is cleanly removed, and how warnings behave during the
+  teardown→rebuild gap, is **UNKNOWN** (runtime-only).
 - **Admission / caller authorization:** no supported interface admits third-party content; the only demonstrated
   route (HondaHack) is an unauthorized in-process insertion. There is **no OEM lease or delegated ownership**.
 - **Physical cluster aperture (U-04):** the Android logical display size (hist. 800×480) does **not** define the
