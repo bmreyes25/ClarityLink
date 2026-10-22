@@ -54,3 +54,24 @@ Classifications: `IMPLEMENTED_OFFLINE`, `TESTED_SYNTHETIC`, `SOURCE_VERIFIED_EXT
 6. Tests for each, plus the 24 negative cases (existing coverage mapped in the readiness document).
 
 Redundant or contradictory lifecycle code (N1, twin vs receiver) is documented but intentionally not consolidated.
+
+## Resolution after implementation
+
+| ID | Result | Proof |
+|---|---|---|
+| D1 | Fixed. A synthetic bridge has trust `SYNTHETIC_TEST`; `ReceiverSession` rejects it unless `allow_synthetic_authority=True`. | `test_cl_auth_01_provenance` |
+| D2 | Fixed. Trust is derived; the constructor cannot assign `ATTESTED`; `attest_handoff` uses an empty source allowlist and denies every verifier. | `test_cl_auth_01_provenance` |
+| D3 | Fixed for the `ReceiverSession` path. A parent-owned, single-use, session/generation/stream-bound `Type111SecurityGrant` supplies the provider. Unknown profile, legacy AES, mismatched binding, synthetic without opt-in and unattested non-synthetic are denied. A bare `Receiver.security_factory` remains an open lab hook (documented). | `test_cl_auth_01_type111_security` |
+| D4 | Fixed. One outstanding request; exactly one response per request; malformed status rejected. | `test_cl_auth_01_provenance` |
+| D5 | Fixed. Handoff close callbacks revoke the receiver generation and dependents; grant-bound security also refuses frames after parent closure. | both new files |
+| D6 | Fixed as opt-in `SessionLedger` (bounded window). | `test_cl_auth_01_provenance` |
+| D7 | Residual, documented. Trust stays `UNVERIFIED_HARDWARE`. | n/a |
+| N1 | Documented, not consolidated. | n/a |
+
+## Findings added after the first audit
+
+| ID | Finding | State |
+|---|---|---|
+| U1 | The recorded LIVI patch targets TypeScript files that upstream removed in `v9.3.0` (Rust core). The seam does not exist on current releases. | UNKNOWN for the new core; see [currency check](../../research/runtime/cl-auth-01-livi-upstream-currency.md) |
+| U2 | Bodyless `GET /info` was rejected by the bridge. | Fixed defensively (`test_cl_auth_01_livi_readiness`) |
+| U3 | `opcode 1` (VideoConfig) frames bypass the security provider in `receive_secondary_frame`. Whether real config frames are sealed is `UNKNOWN`. Behavior was not changed because no evidence supports either choice. | UNKNOWN; needs real-session evidence |
