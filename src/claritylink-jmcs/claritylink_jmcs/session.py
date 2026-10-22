@@ -7,6 +7,7 @@ from .authentication import (AuthenticatedSessionHandoff, AuthenticationProvider
                              SessionOrigin, TrustClass)
 from .info import InfoProfile, build_info
 from .receiver import Receiver, ReceiverError
+from .security import HandoffSecurityFactory, Type111SecurityGrant
 from .session_transport import (CarPlaySessionTransport, ControlRequest, ControlResponse,
                                 LabSessionTransport, ReplaySessionTransport, TransportError)
 from .trace import SanitizedTrace, TraceEvent
@@ -22,7 +23,8 @@ class ReceiverSession:
     def __init__(self, provider: AuthenticationProvider, receiver: Receiver,
                  info_profile: InfoProfile, *, trace: SanitizedTrace | None = None,
                  allow_replay: bool = False, allow_synthetic_authority: bool = False,
-                 session_ledger: SessionLedger | None = None) -> None:
+                 session_ledger: SessionLedger | None = None,
+                 allow_test_security: bool = False) -> None:
         self.provider = provider
         self.receiver = receiver
         self.info_profile = info_profile
@@ -30,6 +32,8 @@ class ReceiverSession:
         self.allow_replay = allow_replay
         self.allow_synthetic_authority = allow_synthetic_authority
         self.session_ledger = session_ledger
+        self.allow_test_security = allow_test_security
+        self._owns_security_factory = False
         self.transport: CarPlaySessionTransport | None = None
         self.generation: int | None = None
         self.trust: TrustClass | None = None
@@ -80,6 +84,11 @@ class ReceiverSession:
             self.transport = transport
             self.trust = handoff.trust
             self._handoff = handoff
+            if (isinstance(handoff.security_context, Type111SecurityGrant) and
+                    self.receiver.security_factory is None):
+                self.receiver.security_factory = HandoffSecurityFactory(
+                    handoff, allow_test_profiles=self.allow_test_security)
+                self._owns_security_factory = True
             # Loss of the authenticated parent revokes this generation and every
             # dependent stream without waiting for the next control read.
             handoff.add_close_callback(self._parent_lost)
@@ -160,6 +169,9 @@ class ReceiverSession:
         self.trust = None
         self._handoff = None
         self._info_sent = False
+        if self._owns_security_factory:
+            self.receiver.security_factory = None
+            self._owns_security_factory = False
         try:
             if generation is not None:
                 self.receiver.teardown(generation)
