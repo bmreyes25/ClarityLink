@@ -68,7 +68,7 @@ These rules apply to every AI-agent campaign in this repository, whether run by 
 
 ## Publication candidates and public safety
 
-- Offline CI runs `tools/check_public_safety.py` on every pull request to `main`; `tools/publish_checkpoint.py` runs it on the staged content. A pass means none of its checks failed; it is not a review. See `docs/security/public-safety-gate.md`.
+- The authoritative public-safety check is `.github/workflows/public-safety.yml`, which runs `tools/check_public_safety.py` and its allowlist from the protected base commit and reads the candidate only as Git objects once it is on `main`; the step in Offline CI runs the candidate's own scanner and is supplementary. A candidate may not widen the allowlist or change the gate (the check fails); `tools/publish_checkpoint.py` runs the scanner on the staged content. A pass means none of its checks failed; it is not a review. See `docs/security/public-safety-gate.md`.
 - PR titles are one short line. Put the explanation in the body.
 
 ## Review
