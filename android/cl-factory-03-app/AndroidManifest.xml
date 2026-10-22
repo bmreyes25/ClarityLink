@@ -2,7 +2,7 @@
     package="org.claritylink.clfactory03.navlab">
     <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="17" />
     <application android:label="ClarityLink Structured Navigation Lab"
-        android:allowBackup="false" android:debuggable="true">
+        android:allowBackup="false">
         <activity android:name="org.claritylink.android.StructuredNavigationLabActivity"
             android:exported="true" />
     </application>
