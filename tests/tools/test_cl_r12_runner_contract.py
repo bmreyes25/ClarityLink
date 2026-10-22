@@ -71,3 +71,19 @@ def test_runner_interleaves_repeated_pairs_and_reports_every_run():
     assert "CL_R12_GATE_CANDIDATE_RUN_" in RUNNER      # one unchanged-gate verdict per run
     # the candidate verdict can only worsen across runs
     assert 'candidate_gate=FAIL' in RUNNER and RUNNER.count('candidate_gate=PASS') == 1
+
+
+def test_pane_lease_instrumentation_is_built_run_and_reported_separately():
+    assert "build_cl_honda_111_pane_test_apk.sh" in WORKFLOW and "CL_PANE_LEASE_TEST_APK" in WORKFLOW
+    assert "am instrument -w" in RUNNER and "Display1PaneLeaseLifecycleTest" in RUNNER
+    assert "OK (1 test)" in RUNNER
+    assert "CL_PANE_LEASE_INSTRUMENTATION=" in RUNNER
+    assert RUNNER.index("exit 13") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
+
+
+def test_pane_test_apk_inputs_are_explicit_and_request_no_permission():
+    script = (REPO / "tools/build_cl_honda_111_pane_test_apk.sh").read_text()
+    manifest = (REPO / "android/cl-honda-111-pane-test/AndroidManifest.xml").read_text()
+    assert "uses-permission" not in manifest and "<activity" not in manifest and "<service" not in manifest
+    assert "PaneLeaseTest.java" in script and "Display1PaneLeaseLifecycleTest.java" in script
+    assert "must request no permissions" in script

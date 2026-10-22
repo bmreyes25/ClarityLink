@@ -98,6 +98,27 @@ grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
   exit 6
 }
 
+pane_lease_instrumentation=NOT_RUN
+if [[ -n "${CL_PANE_LEASE_TEST_APK:-}" ]]; then
+  # The simulated Navigation-pane lease acceptance matrix runs as a real instrumentation test
+  # on the Android 4.2.2 UI thread. Its verdict is separate from the performance gates.
+  [[ -f "$CL_PANE_LEASE_TEST_APK" ]] || { echo "Missing PaneLease test APK: $CL_PANE_LEASE_TEST_APK" >&2; exit 7; }
+  "$adb" -s "$serial" uninstall org.claritylink.panelease.test > "$receipt/pane-lease-uninstall.txt" 2>&1 || true
+  "$adb" -s "$serial" install "$CL_PANE_LEASE_TEST_APK" | tee "$receipt/pane-lease-install.txt"
+  "$adb" -s "$serial" logcat -c
+  "$adb" -s "$serial" shell am instrument -w \
+    -e class org.claritylink.renderer.Display1PaneLeaseLifecycleTest \
+    org.claritylink.panelease.test/android.test.InstrumentationTestRunner \
+    | tr -d '\r' | tee "$receipt/pane-lease-instrumentation.txt" || true
+  "$adb" -s "$serial" logcat -d > "$receipt/pane-lease-logcat.txt" 2>&1 || true
+  if grep -q '^OK (1 test)' "$receipt/pane-lease-instrumentation.txt"; then
+    pane_lease_instrumentation=PASS
+  else
+    pane_lease_instrumentation=FAIL
+  fi
+  echo "CL_PANE_LEASE_INSTRUMENTATION=$pane_lease_instrumentation"
+fi
+
 run_performance() {
   local variant="$1" apk_path="$2" mode="${3:-short}" profile="${4:-false}" started="$receipt/perf-$1-start.txt"
   local result_seen_at=-1
@@ -207,7 +228,12 @@ destroy_missing=$(find "$receipt" -maxdepth 1 -name 'perf-*-destroy-missing.txt'
   echo "CL_R12_GATE_CANDIDATE=$candidate_gate"
   echo "CL_R12_GATE_SOAK=$soak_gate"
   echo "CL_R12_DESTROY_EVIDENCE_MISSING_COUNT=$destroy_missing"
+  echo "CL_PANE_LEASE_INSTRUMENTATION=$pane_lease_instrumentation"
 } | tee "$receipt/final-status.txt"
+if [[ "$pane_lease_instrumentation" == FAIL ]]; then
+  echo 'CL_PANE_LEASE_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+  exit 13
+fi
 if [[ "$candidate_gate" == FAIL || "$soak_gate" == FAIL ]]; then
   echo 'CL_R12_API17_RUNTIME_SCENARIO_PASS_BUT_PERFORMANCE_GATE_FAILED' | tee -a "$receipt/final-status.txt"
   exit 11
