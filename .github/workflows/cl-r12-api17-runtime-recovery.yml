@@ -12,6 +12,8 @@ on:
       - 'tools/build_cl_imp_03_apks.sh'
       - 'tools/run_cl_r12_messenger_lab_emulator.sh'
       - 'tools/run_cl_r12_api17_ci.sh'
+      - 'tools/build_cl_r12_renderer_ab.sh'
+      - 'tools/check_cl_r12_perf_gate.py'
 
 permissions:
   contents: read
@@ -103,40 +105,31 @@ jobs:
           cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
           sha256sum "$archive" "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
 
-      - name: Build fresh synthetic ClarityLink APKs
+      - name: Build source-identified renderer A/B APKs
         shell: bash
         run: |
           set -euo pipefail
           java_home="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           export JAVA_HOME="$java_home"
-          source_file='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
-          baseline_ref='eb50c212faf405bbcef469f062893c8be211ff1f'
-          git show "$baseline_ref:$source_file" > "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java"
-          baseline_source_sha="$(sha256sum "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" | awk '{print $1}')"
-          test "$baseline_source_sha" = '2d4c5f74a9460b76ecf6239b27889b0e8920d6f3ce5153ea8f6ac34f94c864f7'
-          echo "baseline_source_sha256=$baseline_source_sha" | tee source-ab.sha256
-          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" "$source_file"
-          CL_IMP_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID" \
-            "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee build-output.txt
-          cp "$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-baseline.apk"
-          shared_keystore="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID/cl-imp-03-debug.keystore"
-          git checkout HEAD -- "$source_file"
-          CL_IMP_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r12-optimized-$GITHUB_RUN_ID" \
-            CL_IMP_03_KEYSTORE="$shared_keystore" \
-            "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee -a build-output.txt
-          cp "$GITHUB_WORKSPACE/build/cl-r12-optimized-$GITHUB_RUN_ID/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"
-          optimized_source_sha="$(sha256sum "$source_file" | awk '{print $1}')"
-          echo "optimized_source_sha256=$optimized_source_sha" | tee -a source-ab.sha256
-          if cmp -s "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"; then
-            echo 'Baseline and optimized APKs are byte-identical; refusing to report an A/B result.' >&2
-            exit 9
-          fi
-          echo "CL_R12_BASELINE_APK=$RUNNER_TEMP/cl-r12-baseline.apk" >> "$GITHUB_ENV"
-          echo "CL_R12_CANDIDATE_APK=$RUNNER_TEMP/cl-r12-optimized.apk" >> "$GITHUB_ENV"
+          # Baseline = the last commit shared with main; candidate = the tested tree.
+          # Both run the candidate's workload activity, so only the renderer differs.
+          git fetch --no-tags origin main
+          baseline_ref="$(git merge-base HEAD origin/main)"
+          if [ "$baseline_ref" = "$(git rev-parse HEAD)" ]; then baseline_ref="$(git rev-parse HEAD^)"; fi
+          ab_dir="$GITHUB_WORKSPACE/build/cl-r12-ab-$GITHUB_RUN_ID"
+          tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          {
+            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+            echo "pull_request_base=${{ github.event.pull_request.base.ref }}"
+            echo "tested_merge_commit=$(git rev-parse HEAD)"
+            cat "$ab_dir/ab-identity.txt"
+          } | tee source-ab.sha256
+          echo "CL_R12_BASELINE_APK=$ab_dir/baseline.apk" >> "$GITHUB_ENV"
+          echo "CL_R12_CANDIDATE_APK=$ab_dir/candidate.apk" >> "$GITHUB_ENV"
           mkdir -p "$CL_IMP_03_BUILD_DIR"
-          cp "$RUNNER_TEMP/cl-r12-optimized.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
-          sha256sum "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk" | tee apk-ab.sha256
+          cp "$ab_dir/candidate.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
+          sha256sum "$ab_dir/baseline.apk" "$ab_dir/candidate.apk" | tee apk-ab.sha256
           sha256sum build/cl-r12-api17-ci/claritylink-display-lab.apk | tee apk.sha256
 
       - name: Enable KVM for the GitHub x86-64 runner

@@ -214,6 +214,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private void requestBaselineStats() {
         if (remote == null || running) return;
         producerFdBaseline = fdCount();
+        logFdDetail("baseline");
         Runtime runtime = Runtime.getRuntime();
         producerJavaBaseline = runtime.totalMemory() - runtime.freeMemory();
         producerNativeBaseline = Debug.getNativeHeapAllocatedSize();
@@ -680,6 +681,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
             return;
         }
         producerFdFinal = fdCount();
+        logFdDetail("final");
         Runtime runtime = Runtime.getRuntime();
         producerJavaFinal = runtime.totalMemory() - runtime.freeMemory();
         producerNativeFinal = Debug.getNativeHeapAllocatedSize();
@@ -795,6 +797,37 @@ public final class MessengerFramePerformanceActivity extends Activity {
         return descriptors == null ? -1 : descriptors.length;
     }
 
+    /**
+     * Diagnostic only: one "fd=target" entry per open descriptor, so a count
+     * difference can be attributed to a kind of descriptor instead of guessed at.
+     * The enumeration's own directory handle is listed as well. This does not
+     * change any acceptance threshold or any counted value.
+     */
+    private static String fdDetail() {
+        String[] names = new File("/proc/self/fd").list();
+        if (names == null) return "unavailable";
+        Arrays.sort(names, new java.util.Comparator<String>() {
+            public int compare(String a, String b) {
+                try { return Integer.valueOf(a).compareTo(Integer.valueOf(b)); }
+                catch (NumberFormatException ignored) { return a.compareTo(b); }
+            }
+        });
+        StringBuilder out = new StringBuilder();
+        for (String name : names) {
+            String target;
+            try { target = new File("/proc/self/fd/" + name).getCanonicalPath(); }
+            catch (IOException failure) { target = "unresolved"; }
+            if (target.startsWith("/proc/self/fd/")) target = target.substring(14);
+            if (out.length() > 0) out.append(',');
+            out.append(name).append('=').append(target.replace(' ', '_'));
+        }
+        return out.toString();
+    }
+
+    private static void logFdDetail(String phase) {
+        Log.i(TAG, "R12B_FD phase=" + phase + " count=" + fdCount() + " detail=" + fdDetail());
+    }
+
     private static void close(ParcelFileDescriptor descriptor) {
         if (descriptor != null) try { descriptor.close(); } catch (IOException ignored) { }
     }
@@ -812,6 +845,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
         if (bound) { unbindService(connection); bound = false; }
         if (schedulerThread != null) schedulerThread.quit();
         if (senderThread != null) senderThread.quit();
+        logFdDetail("destroy");
         Log.i(TAG, "R12B_DESTROY mode=" + mode + " source_fd_after_destroy=" + fdCount() +
                 " source_memoryfiles_created=" + MessengerFrameParcel.memoryFilesCreated() +
                 " source_memoryfiles_closed=" + MessengerFrameParcel.memoryFilesClosed() +

@@ -66,6 +66,15 @@ abi=$("$adb" -s "$serial" shell getprop ro.product.cpu.abi | tr -d '\r')
   exit 5
 }
 
+# Acceleration evidence: report what the host actually offered and what the running
+# emulator process was started with, so "KVM" is a recorded fact and not an assumption.
+{
+  echo '== kvm device'; ls -l /dev/kvm 2>&1 || true
+  echo '== emulator -accel-check'; "$sdk_root/emulator/emulator" -accel-check 2>&1 || true
+  echo '== running emulator command lines'; ps -eo args 2>/dev/null | grep '[q]emu-system' | cut -c1-400 || true
+  echo '== guest cpu'; "$adb" -s "$serial" shell cat /proc/cpuinfo 2>&1 | grep -m3 -E 'model name|flags' | cut -c1-200 || true
+} > "$receipt/accel.txt" 2>&1 || true
+
 apk="$build_dir/claritylink-display-lab.apk"
 "$adb" -s "$serial" logcat -c
 "$adb" -s "$serial" install "$apk" | tee "$receipt/install.txt"
@@ -91,8 +100,10 @@ grep -q 'CL_R12_MESSENGER_LAB_PASS' "$receipt/test-logcat.txt" || {
 
 run_performance() {
   local variant="$1" apk_path="$2" mode="${3:-short}" profile="${4:-false}" started="$receipt/perf-$1-start.txt"
-  local result_seen=false
+  local result_seen_at=-1
   local destroy_seen=false
+  local destroy_grace=20
+  local keep='R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|FD|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)'
   [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
   "$adb" -s "$serial" uninstall org.claritylink.independentdisplay.lab \
     > "$receipt/perf-$variant-uninstall.txt" 2>&1 || true
@@ -106,22 +117,24 @@ run_performance() {
   local deadline=$((SECONDS + timeout))
   while (( SECONDS < deadline )); do
     "$adb" -s "$serial" logcat -d -s ClarityLinkR12B > "$receipt/perf-$variant-logcat.txt"
-    if grep -q "R12B_RESULT mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
-      result_seen=true
+    if (( result_seen_at < 0 )) && grep -q "R12B_RESULT mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
+      result_seen_at=$SECONDS
     fi
     if grep -q "R12B_DESTROY mode=$mode" "$receipt/perf-$variant-logcat.txt"; then
       destroy_seen=true
     fi
-    if [[ "$result_seen" == true && "$destroy_seen" == true ]]; then
-      grep -E 'R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
-        "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
+    if (( result_seen_at >= 0 )) && [[ "$destroy_seen" == true ]]; then
+      grep -E "$keep" "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
+      echo "destroy_evidence=present" > "$receipt/perf-$variant-destroy.txt"
       return 0
     fi
-    if [[ "$result_seen" == true && "$mode" != soak && $((SECONDS - deadline + timeout)) -ge 5 ]]; then
-      echo "R12B_DESTROY_MISSING mode=$mode; continuing with teardown evidence incomplete" \
+    # The result is logged before the Activity finishes, so a missing DESTROY is only
+    # reported after a real grace period measured from when the result was first seen.
+    if (( result_seen_at >= 0 )) && [[ "$mode" != soak ]] && (( SECONDS - result_seen_at >= destroy_grace )); then
+      echo "R12B_DESTROY_MISSING mode=$mode waited_s=$destroy_grace; teardown evidence incomplete" \
         | tee "$receipt/perf-$variant-destroy-missing.txt"
-      grep -E 'R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)' \
-        "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
+      echo "destroy_evidence=missing" > "$receipt/perf-$variant-destroy.txt"
+      grep -E "$keep" "$receipt/perf-$variant-logcat.txt" | tee "$receipt/perf-$variant-result.txt"
       return 0
     fi
     sleep 1
@@ -130,20 +143,30 @@ run_performance() {
   exit 8
 }
 
+gate_check() {  # sets GATE to PASS or FAIL from the unchanged gate script alone and echoes its output
+  local log="$1" out="$2"
+  if python3 "$repo/tools/check_cl_r12_perf_gate.py" "$log" > "$out" 2>&1; then GATE=PASS; else GATE=FAIL; fi
+  cat "$out"
+}
+
 baseline_apk="${CL_R12_BASELINE_APK:-}"
 candidate_apk="${CL_R12_CANDIDATE_APK:-$apk}"
+baseline_gate=NOT_RUN
+candidate_gate=NOT_RUN
+soak_gate=NOT_RUN
 if [[ -n "$baseline_apk" ]]; then
   run_performance baseline "$baseline_apk"
   run_performance optimized "$candidate_apk"
   run_performance optimized-profile-control "$candidate_apk"
   run_performance optimized-profile "$candidate_apk" short true
-  if python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-baseline-logcat.txt" \
-      > "$receipt/perf-baseline-gate.txt" 2>&1 &&
-      python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-optimized-logcat.txt" \
-      > "$receipt/perf-optimized-gate.txt" 2>&1; then
+  gate_check "$receipt/perf-baseline-logcat.txt" "$receipt/perf-baseline-gate.txt"; baseline_gate=$GATE
+  gate_check "$receipt/perf-optimized-logcat.txt" "$receipt/perf-optimized-gate.txt"; candidate_gate=$GATE
+  echo "CL_R12_GATE_BASELINE=$baseline_gate"
+  echo "CL_R12_GATE_CANDIDATE=$candidate_gate"
+  if [[ "$baseline_gate" == PASS && "$candidate_gate" == PASS ]]; then
     run_performance optimized-soak "$candidate_apk" soak
-    python3 "$repo/tools/check_cl_r12_perf_gate.py" "$receipt/perf-optimized-soak-logcat.txt" \
-      > "$receipt/perf-optimized-soak-gate.txt" 2>&1 || true
+    gate_check "$receipt/perf-optimized-soak-logcat.txt" "$receipt/perf-optimized-soak-gate.txt"; soak_gate=$GATE
+    echo "CL_R12_GATE_SOAK=$soak_gate"
   else
     echo 'CL_R12_SOAK_SKIPPED short-run correctness/performance/resource gates did not pass.' \
       | tee "$receipt/perf-soak-skipped.txt"
@@ -151,4 +174,24 @@ if [[ -n "$baseline_apk" ]]; then
 fi
 
 "$adb" -s "$serial" shell am force-stop org.claritylink.independentdisplay.lab
-echo 'CL_R12_API17_RUNTIME_PASS' | tee "$receipt/final-status.txt"
+# The lifecycle scenario and the performance gates are separate verdicts. The
+# runtime marker is printed for the scenario alone; the gates are reported next to
+# it and a failed or missing candidate gate fails the job. No verdict is inferred
+# from another one.
+destroy_missing=$(ls "$receipt"/perf-*-destroy-missing.txt 2>/dev/null | wc -l | tr -d ' ')
+{
+  echo 'CL_R12_API17_RUNTIME_SCENARIO=PASS'
+  echo "CL_R12_GATE_BASELINE=$baseline_gate"
+  echo "CL_R12_GATE_CANDIDATE=$candidate_gate"
+  echo "CL_R12_GATE_SOAK=$soak_gate"
+  echo "CL_R12_DESTROY_EVIDENCE_MISSING_COUNT=$destroy_missing"
+} | tee "$receipt/final-status.txt"
+if [[ "$candidate_gate" == FAIL || "$soak_gate" == FAIL ]]; then
+  echo 'CL_R12_API17_RUNTIME_SCENARIO_PASS_BUT_PERFORMANCE_GATE_FAILED' | tee -a "$receipt/final-status.txt"
+  exit 11
+fi
+if [[ "$destroy_missing" != 0 ]]; then
+  echo 'CL_R12_API17_RUNTIME_SCENARIO_PASS_BUT_TEARDOWN_EVIDENCE_MISSING' | tee -a "$receipt/final-status.txt"
+  exit 12
+fi
+echo 'CL_R12_API17_RUNTIME_PASS' | tee -a "$receipt/final-status.txt"
