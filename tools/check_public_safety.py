@@ -327,12 +327,24 @@ def run_gate(root: Path, args) -> int:
         trusted_ref, local_fallback = "HEAD", True
 
     cand_spec = (":" + ALLOWLIST_PATH) if args.staged else f"{args.head}:{ALLOWLIST_PATH}"
-    candidate_allow = load_allowlist(read_blob(root, cand_spec).decode())    # missing or invalid: error
     try:
         trusted_text = read_blob(root, f"{trusted_ref}:{ALLOWLIST_PATH}").decode()
     except RuntimeError:
         trusted_text = None
     bootstrap = trusted_text is None
+    try:
+        candidate_text = read_blob(root, cand_spec).decode()
+    except RuntimeError:
+        candidate_text = None
+    if candidate_text is None and (bootstrap or audit):
+        raise RuntimeError(f"allowlist not found at {cand_spec}")
+    if candidate_text is None:
+        # A branch cut before the trusted allowlist existed has none of its own. It grants nothing, so the
+        # trusted allowlist alone applies; only an unparseable allowlist is an error.
+        print("PUBLIC_SAFETY_NOTICE the candidate has no allowlist file; the trusted allowlist alone applies")
+        candidate_allow = {"vin_samples": [], "allow": []}
+    else:
+        candidate_allow = load_allowlist(candidate_text)    # invalid: error
     local_publish = args.staged and not args.trusted_ref   # the publisher's pre-commit check, not the authoritative gate
     if bootstrap and not (args.allow_bootstrap or local_fallback or audit or local_publish):
         raise RuntimeError(f"trusted ref {trusted_ref} has no allowlist; the gate cannot establish a trusted "

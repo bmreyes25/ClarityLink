@@ -222,10 +222,28 @@ def test_invalid_candidate_allowlist_cannot_be_used_even_with_a_valid_baseline(t
     assert code == 2 and "invalid allowlist" in out
 
 
-def test_deleting_the_candidate_allowlist_is_an_error_not_a_pass(tmp_path):
+def test_a_candidate_without_an_allowlist_gets_no_exemptions_but_is_not_an_error(tmp_path):
+    # a branch cut before the trusted allowlist existed (or one that deletes it) grants nothing itself
     root = trusted_repo(tmp_path)
-    candidate(root, delete=[ALLOW])
-    assert gate(root)[0] == 2
+    candidate(root, {"docs/new.md": "fine\n"}, delete=[ALLOW])
+    code, out = gate(root)
+    assert code == 0 and "no allowlist file" in out, out
+
+
+def test_deleting_the_allowlist_does_not_hide_a_violation_or_widen_anything(tmp_path):
+    root = trusted_repo(tmp_path)
+    candidate(root, {"docs/leak.md": f"{account_path()}\n"}, delete=[ALLOW])
+    code, out = gate(root)
+    assert code == 1 and "PS006" in rules(out)          # judged by the trusted allowlist, which exempts only one other path
+
+
+def test_without_any_allowlist_at_all_the_gate_still_refuses(tmp_path):
+    git(tmp_path, "init", "-q", "-b", "main")
+    (tmp_path / "a.md").write_text("x\n")
+    git(tmp_path, "add", "-A"); git(tmp_path, "commit", "-q", "-m", "c")
+    assert run(tmp_path, "--all")[0] == 2
+    candidate(tmp_path, {"b.md": "y\n"})
+    assert gate(tmp_path)[0] == 2
 
 
 def test_an_allowlist_that_is_not_json_is_an_error(tmp_path):

@@ -34,7 +34,7 @@ an entry is fine, widening anything fails with PS009 until a separate update to 
 reviewed and merged. A candidate that changes the scanner or the protected workflow fails with PS008 by
 design; such a change needs the owner's explicit approval rather than passing its own check. In the
 protected workflow the candidate is fetched as Git objects and read with `git show` and `git diff`; it is
-never checked out, installed, built or executed, the job has read-only permissions and no secrets, and
+never checked out, installed, built or executed (a candidate with no allowlist file of its own, such as a branch cut before the trusted allowlist existed, simply gets no exemptions beyond the trusted ones; an unparseable allowlist is an error), the job has read-only permissions and no secrets, and
 values from the event reach the shell only through environment variables.
 
 Limits of that design, stated plainly:
