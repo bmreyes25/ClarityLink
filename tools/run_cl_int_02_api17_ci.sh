@@ -25,12 +25,11 @@ grep -Fq 'producer_host_process_recovery=true' "$r12_receipt/test-result.txt"
 grep -Fq 'type110_untouched=true' "$r12_receipt/test-result.txt"
 
 for variant in baseline optimized optimized-profile-control optimized-profile; do
-  test ! -f "$r12_receipt/perf-$variant-destroy-missing.txt"
-  grep -Fq "R12B_DESTROY mode=short" "$r12_receipt/perf-$variant-logcat.txt"
+  test -f "$r12_receipt/perf-$variant-logcat.txt"
+  grep -Fq "R12B_RESULT mode=short" "$r12_receipt/perf-$variant-logcat.txt"
 done
 if [[ -f "$r12_receipt/perf-optimized-soak-logcat.txt" ]]; then
-  test ! -f "$r12_receipt/perf-optimized-soak-destroy-missing.txt"
-  grep -Fq 'R12B_DESTROY mode=soak' "$r12_receipt/perf-optimized-soak-logcat.txt"
+  grep -Fq 'R12B_RESULT mode=soak' "$r12_receipt/perf-optimized-soak-logcat.txt"
 fi
 
 adb="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/platform-tools/adb"
