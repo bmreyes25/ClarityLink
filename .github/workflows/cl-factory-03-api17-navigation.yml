@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cl-factory-03-api17-${{ github.event.pull_request.head.ref || github.ref }}
+  group: cl-factory-03-api17-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
