@@ -214,6 +214,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private void requestBaselineStats() {
         if (remote == null || running) return;
         producerFdBaseline = fdCount();
+        fdBaselineMap = fdMap();
         logFdDetail("baseline");
         Runtime runtime = Runtime.getRuntime();
         producerJavaBaseline = runtime.totalMemory() - runtime.freeMemory();
@@ -681,6 +682,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
             return;
         }
         producerFdFinal = fdCount();
+        logFdDiff("final");
         logFdDetail("final");
         Runtime runtime = Runtime.getRuntime();
         producerJavaFinal = runtime.totalMemory() - runtime.freeMemory();
@@ -798,34 +800,65 @@ public final class MessengerFramePerformanceActivity extends Activity {
     }
 
     /**
-     * Diagnostic only: one "fd=target" entry per open descriptor, so a count
-     * difference can be attributed to a kind of descriptor instead of guessed at.
-     * The enumeration's own directory handle is listed as well. This does not
-     * change any acceptance threshold or any counted value.
+     * Diagnostic only: descriptor number to resolved target, so a count difference
+     * can be attributed to a kind of descriptor instead of guessed at. The listing's
+     * own directory handle is included, as it is in fdCount(). Nothing here changes
+     * a counted value or an acceptance threshold.
      */
-    private static String fdDetail() {
+    private static java.util.Map<String, String> fdMap() {
+        java.util.LinkedHashMap<String, String> map = new java.util.LinkedHashMap<String, String>();
         String[] names = new File("/proc/self/fd").list();
-        if (names == null) return "unavailable";
+        if (names == null) return map;
         Arrays.sort(names, new java.util.Comparator<String>() {
             public int compare(String a, String b) {
                 try { return Integer.valueOf(a).compareTo(Integer.valueOf(b)); }
                 catch (NumberFormatException ignored) { return a.compareTo(b); }
             }
         });
-        StringBuilder out = new StringBuilder();
         for (String name : names) {
             String target;
             try { target = new File("/proc/self/fd/" + name).getCanonicalPath(); }
             catch (IOException failure) { target = "unresolved"; }
-            if (target.startsWith("/proc/self/fd/")) target = target.substring(14);
-            if (out.length() > 0) out.append(',');
-            out.append(name).append('=').append(target.replace(' ', '_'));
+            int slash = target.indexOf("/fd/");
+            if (target.startsWith("/proc/") && slash >= 0) target = target.substring(slash + 4);
+            map.put(name, target.replace(' ', '_'));
         }
-        return out.toString();
+        return map;
+    }
+
+    private static String fdDetail() {
+        StringBuilder out = new StringBuilder();
+        for (java.util.Map.Entry<String, String> e : fdMap().entrySet()) {
+            if (out.length() > 0) out.append(',');
+            out.append(e.getKey()).append('=').append(e.getValue());
+        }
+        return out.length() == 0 ? "unavailable" : out.toString();
     }
 
     private static void logFdDetail(String phase) {
         Log.i(TAG, "R12B_FD phase=" + phase + " count=" + fdCount() + " detail=" + fdDetail());
+    }
+
+    private java.util.Map<String, String> fdBaselineMap;
+
+    /** Compact attribution of what differs from the baseline snapshot. */
+    private void logFdDiff(String phase) {
+        java.util.Map<String, String> now = fdMap();
+        java.util.Map<String, String> base = fdBaselineMap;
+        StringBuilder added = new StringBuilder(), removed = new StringBuilder(), changed = new StringBuilder();
+        if (base != null) {
+            for (java.util.Map.Entry<String, String> e : now.entrySet()) {
+                String before = base.get(e.getKey());
+                if (before == null) added.append(e.getKey()).append('=').append(e.getValue()).append(';');
+                else if (!before.equals(e.getValue()))
+                    changed.append(e.getKey()).append(':').append(before).append("->").append(e.getValue()).append(';');
+            }
+            for (java.util.Map.Entry<String, String> e : base.entrySet())
+                if (!now.containsKey(e.getKey())) removed.append(e.getKey()).append('=').append(e.getValue()).append(';');
+        }
+        Log.i(TAG, "R12B_FD_DIFF phase=" + phase + " base=" + (base == null ? -1 : base.size()) +
+                " now=" + now.size() + " added=[" + added + "] removed=[" + removed +
+                "] changed=[" + changed + "]");
     }
 
     private static void close(ParcelFileDescriptor descriptor) {
@@ -845,7 +878,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
         if (bound) { unbindService(connection); bound = false; }
         if (schedulerThread != null) schedulerThread.quit();
         if (senderThread != null) senderThread.quit();
-        logFdDetail("destroy");
+        logFdDiff("destroy");
         Log.i(TAG, "R12B_DESTROY mode=" + mode + " source_fd_after_destroy=" + fdCount() +
                 " source_memoryfiles_created=" + MessengerFrameParcel.memoryFilesCreated() +
                 " source_memoryfiles_closed=" + MessengerFrameParcel.memoryFilesClosed() +
@@ -853,5 +886,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 " in_flight=" + inFlight + " pending_response_pfd=" +
                 (pendingResponseDescriptor != null));
         super.onDestroy();
+        // The helper threads were told to quit above; measure again after they have had time
+        // to exit so teardown is judged on the settled state, not the instant of the request.
+        final Handler later = new Handler(android.os.Looper.getMainLooper());
+        later.postDelayed(new Runnable() { public void run() { logFdDiff("post_destroy_3s"); } }, 3000L);
     }
 }

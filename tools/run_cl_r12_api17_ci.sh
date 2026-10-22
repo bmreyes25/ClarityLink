@@ -103,7 +103,7 @@ run_performance() {
   local result_seen_at=-1
   local destroy_seen=false
   local destroy_grace=20
-  local keep='R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|FD|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)'
+  local keep='R12B_(START|RESULT|STAGE|VIEW_STAGE|VIEW_FRAME_IDS|FD|FD_DIFF|DESTROY|SETUP_FAILED|FRAME_SEND_FAILED|DELIVERY_FAILED)'
   [[ -f "$apk_path" ]] || { echo "Missing $variant APK: $apk_path" >&2; exit 7; }
   "$adb" -s "$serial" uninstall org.claritylink.independentdisplay.lab \
     > "$receipt/perf-$variant-uninstall.txt" 2>&1 || true
@@ -178,7 +178,7 @@ fi
 # runtime marker is printed for the scenario alone; the gates are reported next to
 # it and a failed or missing candidate gate fails the job. No verdict is inferred
 # from another one.
-destroy_missing=$(ls "$receipt"/perf-*-destroy-missing.txt 2>/dev/null | wc -l | tr -d ' ')
+destroy_missing=$(find "$receipt" -maxdepth 1 -name 'perf-*-destroy-missing.txt' | wc -l | tr -d ' ')
 {
   echo 'CL_R12_API17_RUNTIME_SCENARIO=PASS'
   echo "CL_R12_GATE_BASELINE=$baseline_gate"
