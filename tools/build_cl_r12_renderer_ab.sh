@@ -39,6 +39,29 @@ trap 'git -C "$repo" worktree remove --force "$work/baseline" >/dev/null 2>&1 ||
 
 git -C "$repo" worktree add --detach "$work/baseline" "$baseline_sha" >/dev/null
 git -C "$repo" show "HEAD:$activity" > "$work/baseline/$activity"
+# The workload must be the candidate's, including helper classes it uses that the baseline tree
+# predates. Overlay those files and register them in the baseline's explicit source list, so the
+# only thing that differs between the arms is the renderer.
+overlay=()
+for helper in android/src/main/java/org/claritylink/android/SyntheticFrameFill.java; do
+  if git -C "$repo" cat-file -e "HEAD:$helper" 2>/dev/null && ! git -C "$repo" cat-file -e "$baseline_sha:$helper" 2>/dev/null; then
+    mkdir -p "$(dirname "$work/baseline/$helper")"
+    git -C "$repo" show "HEAD:$helper" > "$work/baseline/$helper"
+    python3 - "$work/baseline/tools/build_cl_imp_03_apks.sh" "$helper" <<'PY'
+import sys
+path, helper = sys.argv[1:3]
+text = open(path).read()
+anchor = '  "$repo/android/src/main/java/org/claritylink/android/Yuv420FrameAdapter.java" \\\n'
+line = '  "$repo/' + helper + '" \\\n'
+if line in text:
+    sys.exit(0)
+if anchor not in text:
+    sys.exit("baseline build script has no insertion anchor for the workload helper")
+open(path, "w").write(text.replace(anchor, anchor + line, 1))
+PY
+    overlay+=("$helper")
+  fi
+done
 
 tree_digest() {  # stable digest of a directory of tracked files at a given worktree
   (cd "$1" && git ls-files -s -- "$renderer_dir" | sha256sum | awk '{print $1}')
@@ -67,6 +90,8 @@ cand_activity_sha="$(sha256sum "$repo/$activity" | awk '{print $1}')"
   echo "baseline_ref=$baseline_ref"
   echo "baseline_commit=$baseline_sha"
   echo "candidate_commit=$candidate_sha"
+  echo "ab_mode=renderer"
+  echo "workload_overlay_files=${overlay[*]:-none}"
   echo "workload_activity_sha256=$cand_activity_sha"
   echo "baseline_renderer_tree_sha256=$(tree_digest "$work/baseline")"
   echo "candidate_renderer_tree_sha256=$(tree_digest "$repo")"

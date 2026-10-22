@@ -95,3 +95,11 @@ def test_workload_mode_changes_only_the_activity_and_is_recorded():
     assert script.count('show "$baseline_sha:$activity"') == 1       # the only substituted file
     assert "build_cl_r12_workload_ab.sh" in WORKFLOW and "ab_mode" in WORKFLOW
     assert "workflow_dispatch" in WORKFLOW and "type: choice" in WORKFLOW
+
+
+def test_renderer_mode_gives_the_baseline_the_candidates_workload_files():
+    script = (REPO / "tools/build_cl_r12_renderer_ab.sh").read_text()
+    assert "SyntheticFrameFill.java" in script and "workload_overlay_files" in script
+    assert "ab_mode=renderer" in script
+    # the activity and its helper are the only overlaid files; the renderer is never overlaid
+    assert "src/claritylink-renderer" not in script.split("overlay=()")[1].split("done")[0]
