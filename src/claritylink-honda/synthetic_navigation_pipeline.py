@@ -70,6 +70,7 @@ P_NO_SESSION = "NO_SESSION"
 P_NOT_VISIBLE = "NOT_VISIBLE"
 P_WITHDRAWN = "WITHDRAWN"
 P_FACTORY_OUTPUT_UNAVAILABLE = "FACTORY_OUTPUT_UNAVAILABLE"
+P_UPDATE_REJECTED = "UPDATE_REJECTED"  # this update was not accepted; nothing to present
 
 
 @dataclass(frozen=True)
@@ -335,7 +336,13 @@ class SyntheticNavigationPipeline:
         return d
 
     def _outcome(self, admission, tstatus, nstatus, factory) -> UpdateOutcome:
-        eligible, reason = self.presentation_eligibility()
+        # Presentation eligibility is a per-update property: only an update that
+        # was actually accepted into navigation state can be eligible. A rejected
+        # update is never presentable, regardless of the pipeline's state.
+        if admission is Admission.ACCEPTED:
+            eligible, reason = self.presentation_eligibility()
+        else:
+            eligible, reason = False, P_UPDATE_REJECTED
         if eligible:
             self.stats.presentation_eligible += 1
         return UpdateOutcome(
