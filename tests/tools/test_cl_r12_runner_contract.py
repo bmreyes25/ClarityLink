@@ -149,6 +149,9 @@ def test_workflow_verifies_classes_in_the_built_dex_not_the_source_list():
 
 def test_fd_instrumentation_asserts_converter_thread_reuse_not_only_a_bound():
     source = (REPO / "android/src/test/java/org/claritylink/renderer/PaneLeaseFdLifecycleTest.java").read_text()
-    assert "liveConverterThreads()" in source and "exactly one converter thread" in source
-    assert "assertSame" in source and "PANE_CONVERTER_REUSE" in source
+    assert "liveConverterThreadIds()" in source and "exactly one converter thread" in source
+    assert "PANE_CONVERTER_REUSE" in source and "firstConverterId" in source
+    # the test must not retain Thread objects: a held HandlerThread keeps its quit Looper's queue (and its
+    # descriptors) reachable, which made the settled-descriptor assertion fail in run 39873809281
+    assert "Thread firstConverter" not in source and "List<Thread>" not in source
     assert "converter thread must be gone after close" in source
