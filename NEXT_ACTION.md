@@ -1,3 +1,5 @@
+> **Historical log.** This file accumulates dated records and is kept for provenance. For current status read [docs/status/README.md](docs/status/README.md).
+
 # Next action
 
 ## Current action — CL-MASTER-01 public roadmap and campaign tracking — 2026-10-20
