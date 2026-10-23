@@ -5,7 +5,7 @@
 Without all three approvals in [section 8](#8-approval-packet) the status is `VEHICLE_SESSION_NOT_AUTHORIZED`.
 
 - **Controlling scope:** the CL-OBS-02 proposal in [PR #87](https://github.com/bmreyes25/ClarityLink/pull/87), file `docs/development/cl-obs-02-parked-observation-proposal.md` at PR head `fc4623f9e0b7798f9f3f335f2ca4d5d448bdc799` (blob `21d126c40637575f49f2eff68c23bcdcd7d70cee`). That file is not on `main` until PR #87 merges, so it is cited by revision rather than linked. This packet only clarifies it. If the two disagree, the stricter text governs and the disagreement is a defect to fix before approval.
-- **Companion:** [evidence acceptance rules](cl-obs-02-evidence-acceptance.md), [vehicle testing boundaries](../safety/vehicle-testing.md), [observation gate](vehicle-observation-gate.md), [evidence labels](evidence-classification.md).
+- **Companion:** [operator packet](cl-obs-02-operator-packet.md), [safety review packet](cl-obs-02-safety-review-packet.md), [owner authorization template](cl-obs-02-owner-authorization-template.md), [camera rehearsal](cl-obs-02-camera-rehearsal.md), [evidence acceptance rules](cl-obs-02-evidence-acceptance.md), [vehicle testing boundaries](../safety/vehicle-testing.md), [observation gate](vehicle-observation-gate.md), [evidence labels](evidence-classification.md).
 - **Context (not re-derived):** PR #88 (CL-IF-02A, Type111 receiver discovery, `NO_SUPPORTED_PATH_FOUND_IN_REVIEWED_SCOPE`), PR #80 (Navigation-pane contract), PR #87 (display-host discovery). Their findings are references, not current acceptance results.
 
 The observation is **one parked session, one transition sequence, at most 10 minutes of recording**.
@@ -38,7 +38,7 @@ Findings are corrections or tightenings for this packet. None adds a test or an 
 | F-3 | "Select another existing factory page" does not say which. | The owner names one page in advance and writes it in the approval record. It must be reachable by the normal page control alone, with no menu, confirmation or setting change. |
 | F-4 | Return-to-Navigation is unconditional in the text. | It is conditional on a normal Q3 result. If casting is visible off Navigation, stop. |
 | F-5 | The casting-off baseline is assumed. | The operator confirms casting is off and factory Navigation is shown before recording. If casting is already on, do not start (R-2 lets the reviewer permit one normal Stop Casting before recording; default is no start). |
-| F-6 | Static analysis says Stop Casting leaves the injected view attached with an alternate layout, so "restored" may legitimately fail. | Both outcomes are recorded. A non-restored result ends the session as `RESTORATION_UNVERIFIED`; the operator does not retry, toggle, or fix. Any later recovery is a separate owner decision outside this packet. |
+| F-6 | Static analysis says Stop Casting leaves the injected view attached with an alternate layout, so "restored" may legitimately fail. | Both outcomes are recorded. A non-restored result ends the session as `RESTORATION_FAILED_OBSERVED`; the operator does not retry, toggle, or fix. Any later recovery is a separate owner decision outside this packet. |
 | F-7 | No timer rules. | A visible timer starts with the recording. At 8:00 skip to Stop Casting. At 10:00 stop the recording even if steps remain. |
 | F-8 | "Common marker" is undefined. | Fixed marker vocabulary (section 4). |
 | F-9 | Camera mount safety is not stated. | The mount must not touch the cluster, steering controls or airbag cover, and the steering wheel position must not change during the session. The safety reviewer confirms the mount (R-3). |
@@ -113,6 +113,8 @@ Rehearse with a **dummy recording** (any harmless scene or a generated test clip
 
 Camera placement, focus, exposure and real-world conditions at the car are **PENDING** and are checked by the operator at the session. The rehearsal says nothing about them.
 
+The full operator-run rehearsal (twelve checks, storage procedure, independent hash check) is in [camera rehearsal](cl-obs-02-camera-rehearsal.md) and supersedes this table where they differ.
+
 Commands (offline, no vehicle access; `ROOT` is the private session folder outside every repository):
 
 ```
@@ -133,7 +135,7 @@ python3 tools/cl_obs02_evidence.py classify --root "$ROOT"
 | Time limit | One session, at most 10 minutes of recording. |
 | Privacy | Raw media private only; sanitized table only; no VIN, phone id, GPS, account. |
 | Stop and restoration | Sections 5 and 6; acceptance rules in the companion document. |
-| Open reviewer items | R-1 center display in frame or by spoken marker; R-2 whether one pre-recording Stop Casting is allowed; R-3 camera mount. |
+| Open reviewer items | R-1 center display in frame or by spoken marker; R-2 whether one pre-recording Stop Casting is allowed; R-3 camera mount. Analysis and the exact questions are in the [safety review packet](cl-obs-02-safety-review-packet.md); the signoff form is the [owner authorization template](cl-obs-02-owner-authorization-template.md). |
 | Excluded | Section 9. |
 
 Three signoffs are required, recorded privately against the PR head SHA reviewed:
@@ -150,7 +152,7 @@ Honda ADB; live iPhone work; receiver changes; Xposed changes; APK install; priv
 
 ## 10. Preparation status
 
-- Documentation, evidence checklist, failure scenarios, tool and tests: complete in this PR.
+- Documentation, evidence checklist, failure scenarios, tool and tests: complete in this PR, including the operator packet, safety review packet, owner authorization template and camera rehearsal procedure.
 - Camera placement at the vehicle: PENDING until the session.
 - Optional geometry method: READY only if a known pattern is already displayed by the existing UI; otherwise `GEOMETRY_NOT_TESTED`.
-- Exact plan independently reviewed: NO. Written owner approval: NO.
+- Exact plan independently reviewed: NO. Written owner approval: NO. Real-camera rehearsal: PENDING. Private storage owner approval: PENDING. Reviewer decisions R-1, R-2, R-3: PENDING.

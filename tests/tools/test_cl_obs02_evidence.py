@@ -18,6 +18,8 @@ import cl_obs02_evidence as ev  # noqa: E402
 
 PACKET = REPO / "docs/development/cl-obs-02-preflight-packet.md"
 ACCEPT = REPO / "docs/development/cl-obs-02-evidence-acceptance.md"
+NEW_DOCS = [REPO / f"docs/development/cl-obs-02-{n}.md" for n in
+            ("operator-packet", "safety-review-packet", "owner-authorization-template", "camera-rehearsal")]
 
 COMPLETE_RECORD = {
     "baseline_recorded": "OBSERVED", "casting_on_navigation": "OBSERVED", "page_exit_result": "OBSERVED",
@@ -117,10 +119,18 @@ SCENARIOS = [
     ("unexpected warning, restored", dict(session_status="STOPPED_EARLY", stop_reason="WARNING_OR_PROMPT",
         page_reentry_result="NOT_REACHED"), True, ev.ABORTED),
     ("unexpected warning, not restored", dict(session_status="STOPPED_EARLY", stop_reason="WARNING_OR_PROMPT",
-        restoration_result="NOT_RESTORED_OBSERVED"), True, ev.RESTORATION_UNVERIFIED),
+        restoration_result="NOT_RESTORED_OBSERVED"), True, ev.RESTORATION_FAILED),
     ("casting visible on another page", dict(session_status="STOPPED_EARLY", stop_reason="CASTING_ON_OTHER_PAGE",
         page_reentry_result="NOT_REACHED"), True, ev.ABORTED),
-    ("factory content not restored", dict(restoration_result="NOT_RESTORED_OBSERVED"), True, ev.RESTORATION_UNVERIFIED),
+    ("factory content not restored", dict(restoration_result="NOT_RESTORED_OBSERVED"), True, ev.RESTORATION_FAILED),
+    ("not restored and recording corrupt", dict(restoration_result="NOT_RESTORED_OBSERVED"), False, ev.RESTORATION_FAILED),
+    ("restoration inconclusive", dict(restoration_result="RESTORATION_INCONCLUSIVE"), True, ev.RESTORATION_UNVERIFIED),
+    ("Q7 unobservable", dict(stale_crop_overlap_anomaly="UNOBSERVABLE"), True, ev.PARTIAL),
+    ("Q7 anomaly seen is a result, not a gap", dict(stale_crop_overlap_anomaly="ANOMALY_SEEN"), True, ev.COMPLETE),
+    ("geometry unobservable is optional", dict(geometry="UNOBSERVABLE"), True, ev.COMPLETE),
+    ("over time, casting not observed", dict(casting_on_navigation="NOT_OBSERVED", recording_duration_s=700),
+        True, ev.INCONCLUSIVE),
+    ("over time, casting never started", dict(NO_CASTING, recording_duration_s=700), True, ev.INCONCLUSIVE),
     ("re-entry not reached but session finished", dict(page_reentry_result="NOT_REACHED"), True, ev.PARTIAL),
     ("over the time limit", dict(recording_duration_s=601), True, ev.PARTIAL),
     ("no owner authorization", dict(owner_written_approval=False), True, ev.NOT_AUTHORIZED),
@@ -176,7 +186,8 @@ def test_documents_agree_with_tool_and_policy():
     packet, accept = PACKET.read_text(), ACCEPT.read_text()
     for field in ev.REQUIRED_FIELDS:
         assert f"`{field}`" in accept or field in {"recording_duration_s"} and "recording_duration_s" in accept, field
-    for cls in (ev.COMPLETE, ev.PARTIAL, ev.INCONCLUSIVE, ev.ABORTED, ev.RESTORATION_UNVERIFIED, ev.NOT_AUTHORIZED):
+    for cls in (ev.COMPLETE, ev.PARTIAL, ev.INCONCLUSIVE, ev.ABORTED, ev.RESTORATION_UNVERIFIED, ev.RESTORATION_FAILED,
+                ev.NOT_AUTHORIZED):
         assert cls in accept, cls
     # every question maps to a field that the record validates
     rows = re.findall(r"^\| (Q[1-8]) \|.*\| `(\w+)`(?:, `\w+`)? \|$", packet, re.M)
@@ -189,12 +200,12 @@ def test_documents_agree_with_tool_and_policy():
         assert must in packet, must
     assert ev.MAX_RECORDING_SECONDS == 600
     # no private paths, identifiers or media in the public text
-    for text in (packet, accept):
+    for text in (packet, accept, *(d.read_text() for d in NEW_DOCS)):
         assert "/Users/" not in text and not re.search(r"\b[A-HJ-NPR-Z0-9]{17}\b", text)
 
 
 def test_relative_links_resolve():
-    for doc in (PACKET, ACCEPT):
+    for doc in (PACKET, ACCEPT, *NEW_DOCS):
         for target in re.findall(r"\]\(([^)#:]+\.md)(?:#[^)]*)?\)", doc.read_text()):
             assert (doc.parent / target).resolve().exists(), (doc.name, target)
 
@@ -288,10 +299,124 @@ def test_contradictory_fields_are_rejected(changes):
 
 
 def test_missing_restoration_evidence_never_completes():
-    for result in ("NOT_REACHED", "RESTORED_DIRECT_SIGHT_ONLY", "NOT_RESTORED_OBSERVED"):
+    expected = {"NOT_REACHED": ev.RESTORATION_UNVERIFIED, "RESTORED_DIRECT_SIGHT_ONLY": ev.RESTORATION_UNVERIFIED,
+                "RESTORATION_INCONCLUSIVE": ev.RESTORATION_UNVERIFIED, "NOT_RESTORED_OBSERVED": ev.RESTORATION_FAILED}
+    for result, cls in expected.items():
         for integrity in (True, False):
             label = ev.classify(rec(restoration_result=result), integrity)[0]
-            assert label == ev.RESTORATION_UNVERIFIED, (result, integrity)
+            assert label == cls and label != ev.COMPLETE, (result, integrity)
+
+
+def test_observed_restoration_failure_is_never_dropped_from_the_report():
+    label, reasons = ev.classify(rec(restoration_result="NOT_RESTORED_OBSERVED"), False)
+    assert label == ev.RESTORATION_FAILED and any("failure observed" in r for r in reasons)
+    _, reasons = ev.classify(rec(owner_written_approval=False, restoration_result="NOT_RESTORED_OBSERVED"), True)
+    assert any("NOT_RESTORED_OBSERVED" in r for r in reasons)
+
+
+def test_restoration_values_are_distinguished():
+    # restored / failed / not observed / inconclusive / not reached are five different recorded facts
+    classes = {r: ev.classify(rec(restoration_result=r), True)[0] for r in
+               ("RESTORED_ON_RECORDING", "NOT_RESTORED_OBSERVED", "RESTORED_DIRECT_SIGHT_ONLY",
+                "RESTORATION_INCONCLUSIVE", "NOT_REACHED")}
+    assert classes["RESTORED_ON_RECORDING"] == ev.COMPLETE
+    assert classes["NOT_RESTORED_OBSERVED"] == ev.RESTORATION_FAILED
+    assert {classes[r] for r in ("RESTORED_DIRECT_SIGHT_ONLY", "RESTORATION_INCONCLUSIVE", "NOT_REACHED")} == {ev.RESTORATION_UNVERIFIED}
+
+
+def test_unobservable_q7_never_completes_and_says_so():
+    label, reasons = ev.classify(rec(stale_crop_overlap_anomaly="UNOBSERVABLE"), True)
+    assert label == ev.PARTIAL and any("Q7" in r for r in reasons)
+
+
+def test_verify_rejects_symlinked_recording_dir_and_unsealed_extra_files(private_root):
+    raw = private_root / "original-recording" / "a.bin"
+    raw.write_bytes(b"x" * 10)
+    ev.seal(private_root, raw)
+    (private_root / "original-recording" / ".DS_Store").write_bytes(b"finder")
+    assert ev.verify(private_root) == (True, "match")
+    extra = private_root / "original-recording" / "b.bin"
+    extra.write_bytes(b"y")
+    assert ev.verify(private_root) == (False, "unsealed files present in original-recording/")
+    extra.unlink()
+    moved = private_root / "moved"
+    (private_root / "original-recording").rename(moved)
+    (private_root / "original-recording").symlink_to(moved)
+    assert ev.verify(private_root) == (False, "original-recording is not a real directory")
+
+
+def test_seal_refuses_extra_files_and_hard_linked_recordings(private_root, tmp_path):
+    raw = private_root / "original-recording" / "a.bin"
+    raw.write_bytes(b"x" * 10)
+    (private_root / "original-recording" / "other.bin").write_bytes(b"z")
+    with pytest.raises(ev.RecordError):
+        ev.seal(private_root, raw)
+    (private_root / "original-recording" / "other.bin").unlink()
+    alias = tmp_path / "alias.bin"
+    os.link(raw, alias)
+    before = stat_mode(raw)
+    with pytest.raises(ev.RecordError):
+        ev.seal(private_root, raw)
+    assert stat_mode(raw) == before and stat_mode(alias) == before     # nothing was chmod-ed
+    alias.unlink()
+    ev.seal(private_root, raw)
+    os.link(raw, alias)                            # alias created after sealing is detected by verify
+    assert ev.verify(private_root) == (False, "raw recording has other hard links")
+
+
+def stat_mode(path):
+    return os.stat(path).st_mode & 0o777
+
+
+def test_seal_rollback_survives_a_failing_unlink(private_root, monkeypatch):
+    raw = private_root / "original-recording" / "a.bin"
+    raw.write_bytes(b"x" * 10)
+    original_mode = stat_mode(raw)
+    real_unlink = ev.Path.unlink
+    state = {"sha_calls": 0}
+    real_sha = ev.sha256_file
+
+    def flaky_sha(path):
+        state["sha_calls"] += 1
+        return real_sha(path) if state["sha_calls"] == 1 else "0" * 64   # post-publish check fails
+
+    def failing_unlink(self, *a, **k):
+        if self.name == "raw-sha256.json":
+            raise PermissionError("simulated")
+        return real_unlink(self, *a, **k)
+
+    monkeypatch.setattr(ev, "sha256_file", flaky_sha)
+    monkeypatch.setattr(ev.Path, "unlink", failing_unlink)
+    with pytest.raises(ev.RecordError, match="changed while sealing"):    # original error, not PermissionError
+        ev.seal(private_root, raw)
+    assert stat_mode(raw) == original_mode                                  # raw mode restored despite unlink failure
+
+
+def test_verify_requires_a_hex_digest(private_root):
+    raw = private_root / "original-recording" / "a.bin"
+    raw.write_bytes(b"x")
+    ev.seal(private_root, raw)
+    mf = private_root / "integrity-manifest" / "raw-sha256.json"
+    mf.chmod(0o600)
+    mf.write_text('{"file": "a.bin", "sha256": "NOT-HEX", "bytes": 1}')
+    assert ev.verify(private_root) == (False, "malformed integrity manifest")
+
+
+def test_dsstore_exemption_is_only_for_a_plain_file(private_root):
+    raw = private_root / "original-recording" / "a.bin"
+    raw.write_bytes(b"x")
+    ev.seal(private_root, raw)
+    (private_root / "original-recording" / ".DS_Store").mkdir()
+    assert ev.verify(private_root) == (False, "unsealed files present in original-recording/")
+
+
+def test_acceptance_doc_has_no_stale_class_for_observed_failure():
+    assert "`RESTORATION_UNVERIFIED` if not restored" not in ACCEPT.read_text()
+    assert "ends the session as `RESTORATION_UNVERIFIED`" not in PACKET.read_text()
+
+
+def test_template_is_owner_only(private_root):
+    assert stat_mode(private_root / "private-observation-notes/manifest.template.json") == 0o600
 
 
 def test_aborted_and_restoration_unverified_are_preserved():

@@ -10,7 +10,8 @@ session. Rules are specified in docs/development/cl-obs-02-evidence-acceptance.m
   seal      hash a recording already in original-recording/, write the integrity manifest, make it read-only
   verify    re-hash the raw recording against the integrity manifest
   classify  classify observation.json -> COMPLETE_EVIDENCE | PARTIAL_EVIDENCE | INCONCLUSIVE | ABORTED |
-            RESTORATION_UNVERIFIED | VEHICLE_SESSION_NOT_AUTHORIZED
+            RESTORATION_UNVERIFIED | RESTORATION_FAILED_OBSERVED | VEHICLE_SESSION_NOT_AUTHORIZED
+            (exit 0 for any class; exit 2 for an invalid or contradictory record)
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -33,6 +35,8 @@ GIT_PROBE_TIMEOUT_S = 10
 
 COMPLETE, PARTIAL, INCONCLUSIVE, ABORTED, RESTORATION_UNVERIFIED = (
     "COMPLETE_EVIDENCE", "PARTIAL_EVIDENCE", "INCONCLUSIVE", "ABORTED", "RESTORATION_UNVERIFIED")
+RESTORATION_FAILED = "RESTORATION_FAILED_OBSERVED"   # failure positively observed, not merely unproven
+IGNORED_RECORDING_DIR_FILES = frozenset({".DS_Store"})   # Finder metadata, not footage
 NOT_AUTHORIZED = "VEHICLE_SESSION_NOT_AUTHORIZED"
 
 # Step fields. Each must be one of these values; anything else is rejected rather than guessed.
@@ -46,7 +50,7 @@ STEP_FIELDS = (
     "center_display_normal",      # Q6
 )
 RESTORATION_VALUES = {"RESTORED_ON_RECORDING", "RESTORED_DIRECT_SIGHT_ONLY", "NOT_RESTORED_OBSERVED",
-                      "NOT_REACHED", "NOT_CASTING_STARTED"}               # Q5, Q7
+                      "RESTORATION_INCONCLUSIVE", "NOT_REACHED", "NOT_CASTING_STARTED"}   # Q5, Q7
 ANOMALY_VALUES = {"NONE_SEEN", "ANOMALY_SEEN", "UNOBSERVABLE"}            # Q7
 GEOMETRY_VALUES = {"MEASURED_SAMPLE", "GEOMETRY_NOT_TESTED", "UNOBSERVABLE"}   # Q8
 STOP_REASONS = {"NONE", "WARNING_OR_PROMPT", "CASTING_ON_OTHER_PAGE", "DISPLAY_FROZEN_OR_BLANK",
@@ -132,8 +136,15 @@ def init_layout(root: Path) -> list[str]:
     if template.is_symlink():
         raise RecordError("refusing: manifest.template.json is a symlink")
     if not template.exists():
-        template.write_text(json.dumps(manifest_template(), indent=2) + "\n")
+        _write_private_text(template, json.dumps(manifest_template(), indent=2) + "\n")
     return made
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    """Create path owner-only (0600), never following a symlink or replacing an existing file."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
 
 
 def manifest_template() -> dict:
@@ -162,6 +173,11 @@ def seal(root: Path, raw: Path) -> dict:
         raise RecordError("raw recording not found")
     if raw.parent != (root / "original-recording").resolve():
         raise RecordError("raw recording must already be in original-recording/")
+    if raw.stat().st_nlink > 1:
+        raise RecordError("raw recording has other hard links; sealing would change those files too")
+    others = _other_recording_files(root / "original-recording", raw.name)
+    if others:
+        raise RecordError("original-recording/ must hold exactly the one recording being sealed")
     out = root / "integrity-manifest" / "raw-sha256.json"
     if out.exists() or out.is_symlink():
         raise RecordError("integrity manifest already exists; refusing to overwrite")
@@ -186,15 +202,23 @@ def seal(root: Path, raw: Path) -> dict:
             raise RecordError("raw recording changed while sealing")
     except BaseException:
         if published:                              # only remove a manifest this call created
-            out.unlink(missing_ok=True)
-            try:
-                os.chmod(raw, raw_mode)
-            except OSError:
-                pass                               # keep the original error visible
+            for undo in (lambda: out.unlink(missing_ok=True), lambda: os.chmod(raw, raw_mode)):
+                try:
+                    undo()
+                except OSError as undo_exc:        # keep the original error visible; each step is independent
+                    print(f"WARNING: seal rollback step failed ({type(undo_exc).__name__}); check {out.name}",
+                          file=sys.stderr)
         raise
     finally:
         tmp.unlink(missing_ok=True)
     return entry
+
+
+def _other_recording_files(directory: Path, sealed_name: str) -> list[str]:
+    def is_ignorable(name: str) -> bool:        # only a plain Finder file, never a link or directory
+        path = directory / name
+        return name in IGNORED_RECORDING_DIR_FILES and path.is_file() and not path.is_symlink()
+    return sorted(n for n in os.listdir(directory) if n != sealed_name and not is_ignorable(n))
 
 
 def _is_plain_name(name: object) -> bool:
@@ -203,18 +227,26 @@ def _is_plain_name(name: object) -> bool:
 
 
 def verify(root: Path) -> tuple[bool, str]:
+    for name in ("original-recording", "integrity-manifest"):
+        if (root / name).is_symlink() or not (root / name).is_dir():
+            return False, f"{name} is not a real directory"
     mf = root / "integrity-manifest" / "raw-sha256.json"
     if mf.is_symlink() or not mf.is_file():
         return False, "no integrity manifest"
     try:
         entry = _loads(mf.read_text())
         if not isinstance(entry, dict) or not _is_plain_name(entry.get("file")) \
-                or not isinstance(entry.get("sha256"), str) or not isinstance(entry.get("bytes"), int) \
+                or not isinstance(entry.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) \
+                or not isinstance(entry.get("bytes"), int) \
                 or isinstance(entry.get("bytes"), bool) or entry["bytes"] <= 0:
             return False, "malformed integrity manifest"
         raw = root / "original-recording" / entry["file"]
         if raw.is_symlink() or not raw.is_file():
             return False, "raw recording missing"
+        if _other_recording_files(root / "original-recording", entry["file"]):
+            return False, "unsealed files present in original-recording/"
+        if raw.stat().st_nlink > 1:
+            return False, "raw recording has other hard links"
         if sha256_file(raw) != entry["sha256"]:
             return False, "digest mismatch"
         if raw.stat().st_size != entry["bytes"]:
@@ -293,35 +325,44 @@ def validate(rec: object) -> None:
 
 
 def classify(rec: dict, integrity_ok: bool) -> tuple[str, list[str]]:
-    """Return (classification, reasons). Order matters: authorization, integrity, restoration, abort."""
+    """Return (classification, reasons). Order matters: authorization, observed failure, integrity, restoration, abort."""
     validate(rec)
-    why: list[str] = []
+    restoration = rec["restoration_result"]
     if not all(rec[k] for k in AUTH_FIELDS):
-        return NOT_AUTHORIZED, ["missing: " + ", ".join(k for k in AUTH_FIELDS if not rec[k])]
+        return NOT_AUTHORIZED, ["missing: " + ", ".join(k for k in AUTH_FIELDS if not rec[k]),
+                                "restoration_result=" + restoration + " (recorded, not valid evidence)"]
     started = casting_started(rec)   # validate() ties this to restoration_result
+    if started and restoration == "NOT_RESTORED_OBSERVED":
+        reasons = ["restoration failure observed: factory content was seen not restored"]
+        if not integrity_ok:
+            reasons.append("raw recording missing, unreadable or failing its SHA-256 check")
+        return RESTORATION_FAILED, reasons
     if not integrity_ok:
         if started:
-            return RESTORATION_UNVERIFIED, ["raw recording unusable, so restoration is not evidenced"]
+            return RESTORATION_UNVERIFIED, ["raw recording unusable, so restoration is not evidenced",
+                                            "restoration_result=" + restoration]
         return INCONCLUSIVE, ["raw recording missing, unreadable or failing its SHA-256 check"]
-    if started and rec["restoration_result"] != "RESTORED_ON_RECORDING":
-        return RESTORATION_UNVERIFIED, ["restoration_result=" + rec["restoration_result"]]
-    stopped = rec["session_status"] == "STOPPED_EARLY"
-    if stopped:
+    if started and restoration != "RESTORED_ON_RECORDING":
+        return RESTORATION_UNVERIFIED, ["restoration_result=" + restoration]
+    if rec["session_status"] == "STOPPED_EARLY":
         return ABORTED, ["stop_reason=" + rec["stop_reason"]]
+    deviations: list[str] = []
     if rec["recording_duration_s"] > MAX_RECORDING_SECONDS:
-        why.append("recording exceeded the 10-minute limit (protocol deviation)")
+        deviations.append("recording exceeded the 10-minute limit (protocol deviation)")
     if (rec["baseline_recorded"] != "OBSERVED" or not rec["recording_legible"]
             or not rec["event_timeline_preserved"] or rec["recording_duration_s"] <= 0):
-        return INCONCLUSIVE, ["baseline, legibility, event timeline or recording duration missing"]
-    if why:
-        return PARTIAL, why
+        return INCONCLUSIVE, ["baseline, legibility, event timeline or recording duration missing", *deviations]
+    if rec["casting_on_navigation"] != "OBSERVED":
+        return INCONCLUSIVE, ["casting on Navigation not observed", *deviations]
+    if rec["stale_crop_overlap_anomaly"] == "UNOBSERVABLE":
+        deviations.append("Q7 (stale image, cropping, overlap) was not observable with the available view")
+    if deviations:
+        return PARTIAL, deviations
     full = (all(rec[k] == "OBSERVED" for k in STEP_FIELDS) and rec["integrity_manifest_created"]
-            and rec["restoration_result"] == "RESTORED_ON_RECORDING")
+            and restoration == "RESTORED_ON_RECORDING")
     if full:
-        return COMPLETE, ["all planned observations recorded"]
-    if rec["casting_on_navigation"] == "OBSERVED":
-        return PARTIAL, ["some planned observations unobserved or not reached"]
-    return INCONCLUSIVE, ["casting on Navigation not observed"]
+        return COMPLETE, ["all mandatory observations recorded"]
+    return PARTIAL, ["some planned observations unobserved or not reached"]
 
 
 def main(argv: list[str]) -> int:
