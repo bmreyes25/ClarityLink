@@ -1,10 +1,10 @@
 # Repository workflow rules
 
-These rules apply to every Codex campaign in this repository.
+These rules apply to every AI-agent campaign in this repository, whether run by Claude Code or Codex. This file is the single authoritative contract; `CLAUDE.md` is a short entrypoint that points here, and `docs/development/agent-task-prompt-template.md` is the checklist every task prompt must satisfy. Do not copy these rules into other documents: link to them.
 
 ## Autonomous Milestone Completion Policy
 
-- At the beginning of every Codex task, read this file; identify the active repository, branch, and worktree; fetch remote references; inspect current `origin/main`, local changes, untracked files, unpublished commits, related worktrees, existing commit/push/PR automation, and current GitHub rulesets/protection; and establish acceptance criteria. Preserve unrelated work.
+- At the beginning of every agent task, read this file; identify the active repository, branch, and worktree; fetch remote references; inspect current `origin/main`, local changes, untracked files, unpublished commits, related worktrees, existing commit/push/PR automation, and current GitHub rulesets/protection; and establish acceptance criteria. Preserve unrelated work.
 - Establish acceptance criteria before implementation, then keep working after ordinary test failures, races, emulator timeouts, and review findings. Investigate root causes, add regression coverage, correct defects, and rerun affected checks instead of stopping at the first failure.
 - Do not claim PASS without the required runtime evidence. Do not weaken mandatory tests or replace runtime proof with simulation or static validation.
 - Commit every completed, verified development unit before ending the task. Use a descriptive message; do not create empty commits or mix unrelated changes. A missing reviewer does not prevent a verified local commit. If a genuine blocker prevents verification, preserve the work and report the blocker; use a clearly marked local WIP checkpoint only when safe, without claiming it passed.
@@ -44,11 +44,11 @@ These rules apply to every Codex campaign in this repository.
 
 - Execute ClarityLink work locally on the authorized Mac. REA/Ghidra/JADX, macOS development tools, Android API 17 build tools, USB/test equipment, and separately authorized private evidence remain local. Do not move development to Codex Cloud and do not create another repository.
 - `origin` must identify `bmreyes25/ClarityLink`. Use the `gh` credential helper/Keychain-backed login; never put credentials in files, commands, or logs. Do not weaken sandboxing globally.
-- Every coherent approved development unit must end with a live GitHub checkpoint before unrelated work begins. A local commit, clean worktree, or Codex response is not proof of publication. Verify `git ls-remote` SHA equals local `HEAD` using `tools/verify_remote_publication.py`.
+- Every coherent approved development unit must end with a live GitHub checkpoint before unrelated work begins. A local commit, clean worktree, or an agent's own report is not proof of publication. Verify `git ls-remote` SHA equals local `HEAD` using `tools/verify_remote_publication.py`.
 - Use `tools/publish_checkpoint.sh` with explicit task ID, branch, file list, message, verification level, optional existing PR, and `--public-safe-reviewed` only after reviewing every scoped file. Never stage repository-wide. Review full staged content and classify ignored files before publication. The designated maintenance workflow alone may use `--maintenance-owner` for shared status files.
 - `VERIFIED` requires a successful verification command. `WIP_UNVERIFIED` may be pushed only when its entire explicit scope is public-safe; this repository is public, so never include newly sensitive or restricted material. Clearly label WIP, do not create a PR for a first WIP, resume on the same branch, and never merge it automatically. Record failing or incomplete checks honestly.
 - Never publish a WIP or any source whose public safety is uncertain. Preserve it locally and use an approved restricted backup; report that exception and blocker. No publish operation requires or triggers car access.
-- Each concurrent Codex session owns its own feature branch/worktree and explicit file scope. Do not switch to, update, or publish another session's branch. Do not routinely edit shared roadmap/status files; only a designated maintenance task reconciles canonical global status.
+- Each concurrent agent session owns its own feature branch/worktree and explicit file scope. Do not switch to, update, or publish another session's branch. Do not routinely edit shared roadmap/status files; only a designated maintenance task reconciles canonical global status.
 - Read actual remote ancestry before branch changes. Do not create speculative merges or rewrite history to make a branch appear current. Never force-push or push directly to protected `main`.
 - A final PASS requires remote SHA verification. Every final development report includes repository, branch, local SHA, remote SHA, commit URL, PR URL (or none), tests, worktree status, unpushed commit count, uncommitted source count, and pending blockers. If any source or commit is unpublished, say so and do not report completion.
 - `.codex/hooks.json` configures read-only SessionStart and Stop audits. The Stop hook may request another bounded turn but must never commit/push unknown files; honor `stop_hook_active` and report a blocker after the continuation has already been used. Hooks are not crash protection and run only after project trust approval in Codex Desktop.
@@ -60,3 +60,17 @@ These rules apply to every Codex campaign in this repository.
 - `safeForHonda()` must remain false.
 - Do not perform automatic vehicle access, Honda ADB operations, authentication bypasses, firmware modifications, private display-control operations, or CAN transmission.
 - Do not use destructive Git commands or reset/overwrite existing worktrees.
+
+## Stacked work
+
+- A branch that depends on another open PR is published through `tools/publish_checkpoint.sh --stack-parent-pr N`. The tool reads the parent live and refuses unless the parent is open, not from a fork, based directly on `main`, free of merge conflicts, and its live branch SHA equals the PR head; the commits between `origin/main` and the parent head must equal the commits the parent PR shows; the new branch must start exactly at that head and descend from the current `origin/main`. It records `Stacked-On` in the commit and bases the new PR on the parent's branch. Never seed a branch with a plain push of someone else's history to get around this check.
+- A stacked PR does not trigger the `main`-based required checks. Validate the exact head and the exact final merge result before integration; a stale run is never evidence for a new SHA. Do not change a PR's base repeatedly to force CI.
+
+## Publication candidates and public safety
+
+- The authoritative public-safety check is `.github/workflows/public-safety.yml`, which runs `tools/check_public_safety.py` and its allowlist from the protected base commit and reads the candidate only as Git objects once it is on `main`; the step in Offline CI runs the candidate's own scanner and is supplementary. A candidate may not widen the allowlist or change the gate (the check fails); `tools/publish_checkpoint.py` runs the scanner on the staged content. A pass means none of its checks failed; it is not a review. See `docs/security/public-safety-gate.md`.
+- PR titles are one short line. Put the explanation in the body.
+
+## Review
+
+- Use `@ECC` when a callable independent review capability exists. Never record an AI agent's review, another agent's review, or a self-review as an eligible human approval, and never record an approval that did not happen. When no independent reviewer exists, say so.
