@@ -140,7 +140,7 @@
     },
     {
       "path": "tools/build_cl_imp_03_apks.sh",
-      "sha256": "1e9e45670c01659d7c560bcffd1150a5a1d3ea654ea5bad763c4f105b399f517"
+      "sha256": "33b19d13d3e39c733dce64ad32ed0539a790436e978173cdf536f12408329da3"
     },
     {
       "path": "tools/check_repo_health.py",
@@ -172,7 +172,7 @@
     },
     {
       "path": "src/claritylink-renderer/android-api17/Display1OutputBackend.java",
-      "sha256": "fc2a112edd860a4aa746c0ba2bb14b38f9c38dbe28e75c8c320ff90f7ef1367c"
+      "sha256": "b72ad276cad14f9887042d6f334cfb5fc899b0d89a76f4503848cda92d7b589c"
     },
     {
       "path": "src/claritylink-renderer/android-api17/RendererViewport.java",
@@ -180,7 +180,7 @@
     },
     {
       "path": "tests/display/test_cl_imp_03_application_contract.py",
-      "sha256": "06090cb258529fe67a760cc85cf140277f730152f572a50992e7564be6a195e5"
+      "sha256": "d875cc1870bf4452e0abc62f664a391cec3119530b5658b80cfa07bf669c611c"
     },
     {
       "path": "tests/display/test_cl_r4b_view_close_contract.py",
@@ -221,5 +221,6 @@
   "cl_r4b_p04_scope_refresh_note": "Refreshed four pinned CL-R0 scope hashes after exact-source P04 code and security reviews. The API17 View-death-during-parent-teardown test passed with one pending PFD at the deterministic barrier, the exact View PID exited, Type110 survived, both streams unregistered, and PFD/frame bytes returned to zero. Original CL-R0 review ranges and approval_claimed=false remain unchanged.",
   "cl_r4_final_acceptance_scope_note": "Pinned hashes were refreshed after the final CL-R4 reliability implementation, acceptance-report integrity fixes, and public status updates. Separate ECC code and security reviewers examined the lifecycle/process and acceptance changes with no remaining actionable findings. The exact-source API17 runner passed all 12 CL-R4 cases and 12 priority combinations, then passed CL-R7 in both setup orders; configured offline checks passed 1,289 tests with 29 skipped plus smoke, simulator, and whitespace checks. This records a later campaign review and does not claim independent CL-R0 approval; the historical source snapshot and approval_claimed=false remain unchanged.",
   "cl_r9_status_scope_refresh_note": "Refreshed the pinned docs/status/current.md hash after recording the CL-R9 Honda receiver/display evidence gates and current publication state. Separate CL-R9 ECC code and security reviews found no actionable boundary-adapter findings; this status/hash refresh does not alter historical CL-R0 review ranges or claim independent CL-R0 approval.",
- "cl_ops_recovery_01_scope_refresh_note": "CL-OPS-RECOVERY-01 scope digest refresh (2026-10-22): .gitignore now unignores the new .gitleaks.toml (a manual-scan configuration documenting known false positives). Integrity refresh only: it extends no ECC or independent review, leaves review_status unchanged, and keeps approval_claimed=false."
+ "cl_ops_recovery_01_scope_refresh_note": "CL-OPS-RECOVERY-01 scope digest refresh (2026-10-22): .gitignore now unignores the new .gitleaks.toml (a manual-scan configuration documenting known false positives). Integrity refresh only: it extends no ECC or independent review, leaves review_status unchanged, and keeps approval_claimed=false.",
+  "cl_honda_111_02_scope_refresh_note": "CL-HONDA-111-02 scope digest refresh (2026-10-22): two pinned hashes were updated to the exact committed contents. src/claritylink-renderer/android-api17/Display1OutputBackend.java changed in PR #81 (simulated Navigation pane leases, Codex), and tools/build_cl_imp_03_apks.sh now also compiles PaneEvent.java and PaneLease.java, which PR #81 requires. This is an integrity refresh only: it extends no ECC or independent review, leaves review_status and the historical CL-R0 ranges unchanged, and keeps approval_claimed=false. Follow-up (2026-10-22): Display1OutputBackend.java was updated again so setRendererViewport applies accepted Type111 ViewArea/SafeArea in place inside the valid lease instead of revoking it, restoring the CL-R6 live-output contract that PR #81 broke; tests/display/test_cl_imp_03_application_contract.py now asserts the synchronized signature and that this method never revokes. Both pinned hashes were refreshed to the exact committed contents. This extends no review and claims no approval. Producer follow-up (2026-10-22): tools/build_cl_imp_03_apks.sh also compiles the new SyntheticFrameFill helper used by the CL-R12 producer; its pinned hash was refreshed to the exact committed contents. This extends no review and claims no approval. Converter-thread follow-up (2026-10-22): Display1OutputBackend now owns one converter thread for its lifetime and ClarityLinkContentView accepts it, instead of creating a thread per attached View; pinned hashes were refreshed to the exact committed contents. This extends no review and claims no approval."
 }

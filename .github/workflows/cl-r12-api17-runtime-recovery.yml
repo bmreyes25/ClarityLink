@@ -2,6 +2,16 @@ name: CL-R12 API 17 runtime recovery
 
 on:
   workflow_dispatch:
+    inputs:
+      ab_mode:
+        description: 'renderer = pre-PR renderer vs this tree (same workload); workload = this tree with the baseline ref performance Activity vs this tree (same renderer)'
+        type: choice
+        options: [renderer, workload]
+        default: renderer
+      baseline_ref:
+        description: 'Baseline ref for the chosen mode (default: merge-base with origin/main)'
+        required: false
+        default: ''
   pull_request:
     paths:
       - '.github/workflows/cl-r12-api17-runtime-recovery.yml'
@@ -12,6 +22,13 @@ on:
       - 'tools/build_cl_imp_03_apks.sh'
       - 'tools/run_cl_r12_messenger_lab_emulator.sh'
       - 'tools/run_cl_r12_api17_ci.sh'
+      - 'tools/build_cl_r12_renderer_ab.sh'
+      - 'tools/build_cl_r12_workload_ab.sh'
+      - 'tools/check_cl_r12_perf_gate.py'
+      - 'tools/summarize_cl_r12_ab.py'
+      - 'tools/build_cl_honda_111_pane_test_apk.sh'
+      - 'android/cl-honda-111-pane-test/**'
+      - 'android/src/test/java/org/claritylink/renderer/**'
 
 permissions:
   contents: read
@@ -31,6 +48,7 @@ jobs:
       CL_IMP_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
       CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r12-api17-ci
       CL_R12_RECEIPT_DIR: ${{ github.workspace }}/build/cl-r12-api17-ci/receipt
+      CL_R12_AB_REPEATS: '3'
     steps:
       - name: Check out exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -103,41 +121,84 @@ jobs:
           cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
           sha256sum "$archive" "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
 
-      - name: Build fresh synthetic ClarityLink APKs
+      - name: Build source-identified renderer A/B APKs
         shell: bash
         run: |
           set -euo pipefail
           java_home="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           export JAVA_HOME="$java_home"
-          source_file='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
-          baseline_ref='eb50c212faf405bbcef469f062893c8be211ff1f'
-          git show "$baseline_ref:$source_file" > "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java"
-          baseline_source_sha="$(sha256sum "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" | awk '{print $1}')"
-          test "$baseline_source_sha" = '2d4c5f74a9460b76ecf6239b27889b0e8920d6f3ce5153ea8f6ac34f94c864f7'
-          echo "baseline_source_sha256=$baseline_source_sha" | tee source-ab.sha256
-          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.baseline.java" "$source_file"
-          CL_IMP_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID" \
-            "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee build-output.txt
-          cp "$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-baseline.apk"
-          shared_keystore="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID/cl-imp-03-debug.keystore"
-          git checkout HEAD -- "$source_file"
-          CL_IMP_03_BUILD_DIR="$GITHUB_WORKSPACE/build/cl-r12-optimized-$GITHUB_RUN_ID" \
-            CL_IMP_03_KEYSTORE="$shared_keystore" \
-            "$GITHUB_WORKSPACE/tools/build_cl_imp_03_apks.sh" | tee -a build-output.txt
-          cp "$GITHUB_WORKSPACE/build/cl-r12-optimized-$GITHUB_RUN_ID/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"
-          optimized_source_sha="$(sha256sum "$source_file" | awk '{print $1}')"
-          echo "optimized_source_sha256=$optimized_source_sha" | tee -a source-ab.sha256
-          if cmp -s "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk"; then
-            echo 'Baseline and optimized APKs are byte-identical; refusing to report an A/B result.' >&2
-            exit 9
+          # Baseline = the last commit shared with main; candidate = the tested tree.
+          # Both run the candidate's workload activity, so only the renderer differs.
+          git fetch --no-tags origin main
+          baseline_ref="$(git merge-base HEAD origin/main)"
+          if [ "$baseline_ref" = "$(git rev-parse HEAD)" ]; then baseline_ref="$(git rev-parse HEAD^)"; fi
+          ab_dir="$GITHUB_WORKSPACE/build/cl-r12-ab-$GITHUB_RUN_ID"
+          if [ -n "${{ github.event.inputs.baseline_ref }}" ]; then baseline_ref="${{ github.event.inputs.baseline_ref }}"; fi
+          if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
+            tools/build_cl_r12_workload_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          else
+            tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
           fi
-          echo "CL_R12_BASELINE_APK=$RUNNER_TEMP/cl-r12-baseline.apk" >> "$GITHUB_ENV"
-          echo "CL_R12_CANDIDATE_APK=$RUNNER_TEMP/cl-r12-optimized.apk" >> "$GITHUB_ENV"
+          {
+            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+            echo "pull_request_base=${{ github.event.pull_request.base.ref }}"
+            echo "tested_merge_commit=$(git rev-parse HEAD)"
+            cat "$ab_dir/ab-identity.txt"
+          } | tee source-ab.sha256
+          echo "CL_R12_BASELINE_APK=$ab_dir/baseline.apk" >> "$GITHUB_ENV"
+          echo "CL_R12_CANDIDATE_APK=$ab_dir/candidate.apk" >> "$GITHUB_ENV"
           mkdir -p "$CL_IMP_03_BUILD_DIR"
-          cp "$RUNNER_TEMP/cl-r12-optimized.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
-          sha256sum "$RUNNER_TEMP/cl-r12-baseline.apk" "$RUNNER_TEMP/cl-r12-optimized.apk" | tee apk-ab.sha256
+          cp "$ab_dir/candidate.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
+          sha256sum "$ab_dir/baseline.apk" "$ab_dir/candidate.apk" | tee apk-ab.sha256
           sha256sum build/cl-r12-api17-ci/claritylink-display-lab.apk | tee apk.sha256
+
+      - name: Build the synthetic PaneLease instrumentation APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          pane_dir="$GITHUB_WORKSPACE/build/cl-pane-test-$GITHUB_RUN_ID"
+          tools/build_cl_honda_111_pane_test_apk.sh "$pane_dir" | tee -a build-output.txt
+          echo "CL_PANE_LEASE_TEST_APK=$pane_dir/claritylink-pane-lease-test.apk" >> "$GITHUB_ENV"
+          sha256sum "$pane_dir/claritylink-pane-lease-test.apk" | tee pane-test-apk.sha256
+
+      - name: Verify the classes inside the built DEX (not the source list)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dexdump="$ANDROID_HOME/build-tools/35.0.0/dexdump"
+          test -x "$dexdump"
+          src="$(git rev-parse HEAD)"
+          lab=(--require org.claritylink.renderer.PaneEvent --require org.claritylink.renderer.PaneLease
+               --require org.claritylink.renderer.Display1OutputBackend --require org.claritylink.renderer.ClarityLinkContentView
+               --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
+               --require org.claritylink.android.MessengerFrameParcel
+               --require-method org.claritylink.android.SyntheticFrameFill#fill
+               --require-method org.claritylink.android.MessengerFrameParcel#read
+               --require-method org.claritylink.renderer.Display1OutputBackend#setRendererViewport
+               --require-method org.claritylink.renderer.ClarityLinkContentView#useSharedConverter)
+          tests=(--require org.claritylink.renderer.PaneLease --require org.claritylink.renderer.PaneEvent
+                 --require org.claritylink.renderer.Display1PaneLeaseLifecycleTest
+                 --require org.claritylink.renderer.Display1RendererViewportInPlaceTest
+                 --require org.claritylink.renderer.PaneLeaseFdLifecycleTest
+                 --require org.claritylink.renderer.PaneLeaseTest
+                 --require org.claritylink.android.SyntheticFrameFillTest)
+          {
+            echo "tested_merge_commit=$src"
+            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_CANDIDATE_APK" --dexdump "$dexdump" --label candidate-lab --source-commit "$src" "${lab[@]}"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_PANE_LEASE_TEST_APK" --dexdump "$dexdump" --label pane-lease-test --source-commit "$src" "${tests[@]}"
+            if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
+              python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" "${lab[@]}"
+            else
+              # Renderer A/B: the baseline is the pre-PaneLease renderer, so the lease classes must be absent
+              # while the candidate's workload helper (overlaid into the baseline) is present.
+              python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" \
+                --forbid org.claritylink.renderer.PaneLease --forbid org.claritylink.renderer.PaneEvent \
+                --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
+            fi
+          } | tee dex-verification.txt
 
       - name: Enable KVM for the GitHub x86-64 runner
         run: |
@@ -183,7 +244,9 @@ jobs:
             build-output.txt
             apk.sha256
             apk-ab.sha256
+            pane-test-apk.sha256
             source-ab.sha256
+            dex-verification.txt
             build/cl-r12-api17-ci/receipt/
           if-no-files-found: ignore
           retention-days: 14
