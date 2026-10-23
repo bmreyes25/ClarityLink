@@ -1,0 +1,351 @@
+{
+ "schema": 1,
+ "vin_samples": [
+  "1HGCM82633A004352"
+ ],
+ "vin_samples_reason": "Well-known public sample VIN used only as a redaction test fixture in tests/honda/test_readonly_preflight.py.",
+ "allow": [
+  {
+   "path": "research/REPORT.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/acquisition/ACQUISITION_COMPLETION_20260926.md",
+   "rule": "PS006",
+   "max": 2,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/acquisition/FORENSIC_STATUS_20260925.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/acquisition/ON_CAR_FORENSIC_ACQUISITION_RUN_CARD.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/acquisition/RESUME_RUN_CARD_20260925.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/acquisition/USB_LAYOUT.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/carplay/jmcs-acquisition-identity.md",
+   "rule": "PS006",
+   "max": 2,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/deployment/runtime-preload-probe.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/handoff/new-chat/HISTORICAL_STEP5B.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/POST_ACQUISITION_PROMPTS.md",
+   "rule": "PS006",
+   "max": 6,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/PROJECT_BRIEF.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/PROMPT_PLAYBOOK.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/master-plan-prompts/STEP_01.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/master-plan-prompts/STEP_02.md",
+   "rule": "PS006",
+   "max": 4,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/master-plan-prompts/STEP_03.md",
+   "rule": "PS006",
+   "max": 4,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/master-plan-prompts/STEP_04.md",
+   "rule": "PS006",
+   "max": 4,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/local-model/master-plan-prompts/STEP_05.md",
+   "rule": "PS006",
+   "max": 4,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/plans/CARPLAY_SECOND_DISPLAY_REVIEW.plan.md",
+   "rule": "PS006",
+   "max": 3,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/plans/cluster-integration.plan.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/progress/STEP_01_CHANGELOG.md",
+   "rule": "PS006",
+   "max": 3,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/progress/STEP_02_CHANGELOG.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/runtime/adbd-privilege-model.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/runtime/r7c4-jdk-toolchain-recovery.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/runtime/r7c5-ndk-recovery.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/simulator/README.md",
+   "rule": "PS006",
+   "max": 4,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/verification/STEP_02_REVIEW.md",
+   "rule": "PS006",
+   "max": 2,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "step-reports/01-evidence-baseline.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "step-reports/43t1-r5d-artifact-provenance-closure.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "step-reports/43t1-r6c-honda-auth-substrate-reuse.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "step-reports/43t1-r6f-authority-integration.md",
+   "rule": "PS006",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: historical text naming the maintainer's local account in an absolute path. Public history cannot be rewritten without owner authorization; the count is a ceiling so no new occurrence passes."
+  },
+  {
+   "path": "research/acquisition/ACQUISITION_COMPLETION_20260926.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/FINALIZER_VERIFICATION_20260926.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/FORENSIC_STATUS_20260925.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/LIVE_INVENTORY_REVIEW.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/ON_CAR_FORENSIC_ACQUISITION_RUN_CARD.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/READ_ONLY_INVENTORY.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/RESUME_RUN_CARD_20260925.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/SPACE_BUDGET.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/STORAGE_MAP.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/TERMINAL_RESUME_GUIDE.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/USB_LAYOUT.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/acquire_headunit.sh.in",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/build_acquisition_plan.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/catalog_storage.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/finalize_on_mac.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/read_only_inventory.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/reconstruct_emmc.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/runtime_snapshot.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/test_acquisition_plan.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/test_finalize_on_mac.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/acquisition/test_reconstruct_emmc.py",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: acquisition procedure documents and generic scripts or tests only; no acquired data. Exact path."
+  },
+  {
+   "path": "research/captures/step5b/20260928T130534Z/CAPTURE_PLAN.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: text or tooling kept under a restricted research directory name. Listed by exact path; a new file under such a directory needs its own entry with a reviewed reason."
+  },
+  {
+   "path": "research/captures/step5b/20260928T130534Z/CAPTURE_STATUS.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: text or tooling kept under a restricted research directory name. Listed by exact path; a new file under such a directory needs its own entry with a reviewed reason."
+  },
+  {
+   "path": "research/evidence/second-display-ledger.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: text or tooling kept under a restricted research directory name. Listed by exact path; a new file under such a directory needs its own entry with a reviewed reason."
+  },
+  {
+   "path": "research/lab/captures/43p/oracle-events.redacted.jsonl",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: redacted oracle event log under the PlayPort redaction contract (docs/research redaction rules); no raw capture. Exact path, one file."
+  },
+  {
+   "path": "research/lab/captures/43p/session-metadata.md",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: text or tooling kept under a restricted research directory name. Listed by exact path; a new file under such a directory needs its own entry with a reviewed reason."
+  },
+  {
+   "path": "research/lab/captures/43p/session-summary.json",
+   "rule": "PS007",
+   "max": 1,
+   "reason": "Baseline b9fa1a0: text or tooling kept under a restricted research directory name. Listed by exact path; a new file under such a directory needs its own entry with a reviewed reason."
+  }
+ ]
+}
