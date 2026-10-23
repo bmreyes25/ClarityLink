@@ -40,9 +40,18 @@ All fields are required. The classifier rejects a missing or out-of-range value 
 | `geometry` | Q8 | `MEASURED_SAMPLE`, `GEOMETRY_NOT_TESTED`, `UNOBSERVABLE` |
 | `session_status` | | `COMPLETED`, `STOPPED_EARLY` |
 | `stop_reason` | | `NONE`, `WARNING_OR_PROMPT`, `CASTING_ON_OTHER_PAGE`, `DISPLAY_FROZEN_OR_BLANK`, `HOST_RESTART`, `CAMERA_FAILURE`, `TIME_LIMIT`, `OPERATOR_UNCERTAINTY`, `UNEXPECTED_UI` |
-| `recording_duration_s` | | number, at most 600 |
+| `recording_duration_s` | | finite number, 0 to 86400; above 600 is a protocol deviation (PARTIAL), 0 never completes |
 | `recording_legible`, `event_timeline_preserved`, `integrity_manifest_created` | | true / false |
 | `owner_written_approval`, `independent_safety_review`, `operator_read_stop_procedure` | | true / false |
+
+Contradictory records are rejected, not classified. Unknown extra fields, wrong types, `NaN`/`Infinity`, and these combinations are validation errors:
+
+- `casting_on_navigation` of `NOT_TESTED` or `NOT_REACHED` (casting never started) if and only if `restoration_result = NOT_CASTING_STARTED`; with casting not started, exit, re-entry and stop-casting cannot be `OBSERVED`.
+- Casting counts as started for `OBSERVED`, `NOT_OBSERVED` and `UNOBSERVABLE`, so those with `restoration_result = NOT_REACHED` classify as `RESTORATION_UNVERIFIED`.
+- `session_status = STOPPED_EARLY` if and only if `stop_reason` is not `NONE`.
+- `RESTORED_ON_RECORDING` requires a legible recording and `OBSERVED` for both `stop_casting_result` and `center_display_normal`. Missing restoration evidence is never inferred as restored.
+
+The tool also refuses a private root that is inside a Git work tree (the root is resolved through symlinks first; a pre-existing symlinked layout subdirectory is refused), or whose Git state cannot be determined (it fails closed). A malformed or path-bearing integrity manifest fails verification. `seal` publishes the manifest atomically, never overwrites one, and removes only a manifest it created if sealing then fails (raw file cannot be made read-only, or it changed while sealing). It needs a filesystem with hard-link support (not exFAT); on one that lacks it, `seal` fails closed.
 
 Step values: `OBSERVED`, `NOT_OBSERVED`, `UNOBSERVABLE`, `NOT_REACHED`, `NOT_TESTED`. Mapping to per-item labels: `OBSERVED` is OBSERVED; `NOT_OBSERVED` and `UNOBSERVABLE` are INCONCLUSIVE for that item; `NOT_REACHED` follows an ABORTED stop; `NOT_TESTED` is NOT_TESTED. A result such as "cast content stayed visible off Navigation" is an OBSERVED finding recorded in the notes, not a missing observation.
 
