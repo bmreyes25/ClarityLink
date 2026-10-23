@@ -1,0 +1,17 @@
+# Local and manual scanning configuration (gitleaks detect --config .gitleaks.toml).
+# The default generic-api-key rule matches the substring "api" in labels such as
+# "API17 lab APK SHA-256: <digest>". Those are build digests, not credentials.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "SHA-256 build digests next to API17 labels and the acceptance record key"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = [
+  '''(?i)api ?17[^\n]{0,60}(sha-?256|uid|logcat)[^\n]{0,40}[0-9a-f]{64}''',
+  '''(?i)api ?17[^\n]{0,40}`[0-9a-f]{64}`''',
+  '''actual_api17_execution"\s*:\s*"[^"]+"''',
+  '''(?i)api ?17 uid[^\n]*''',
+  '''API 17, `[^`]*`''',
+]
