@@ -31,6 +31,8 @@ Use these words, and keep the classes apart. One passing class never promotes an
 
 `CUSTOM_INTEGRATION_RESEARCH_AUTHORIZED_OFFLINE` is a development-track status only. `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED` remains the vehicle status, and `safeForHonda()` remains `false`.
 
+Legacy labels remain useful when qualified by scope: **Honda receiver NO-GO** and **Honda display NO-GO** mean the OEM interfaces are unresolved for vehicle deployment. They do not prohibit the newly authorized offline custom-integration research.
+
 ## Rules for updating status
 
 - Change `current.md`, `blockers.md`, `milestones.json` and `NEXT_ACTION.md` only through the maintenance workflow, in a PR that names the evidence.
