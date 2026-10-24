@@ -9,7 +9,7 @@ These rules apply to every Codex campaign in this repository.
 - Do not claim PASS without the required runtime evidence. Do not weaken mandatory tests or replace runtime proof with simulation or static validation.
 - Commit every completed, verified development unit before ending the task. Use a descriptive message; do not create empty commits or mix unrelated changes. A missing reviewer does not prevent a verified local commit. If a genuine blocker prevents verification, preserve the work and report the blocker; use a clearly marked local WIP checkpoint only when safe, without claiming it passed.
 - Stop only for a specific external blocker that prevents authorized progress; state the blocker and evidence while continuing independent work.
-- Retain all project safety restrictions, including no Honda or live-iPhone operations and `safeForHonda() == false`.
+- Retain all project safety restrictions: offline research/prototypes may follow the authorization levels in `docs/safety/vehicle-testing.md`, but no Honda or live-iPhone operation is authorized here and `safeForHonda() == false`.
 
 ## Campaign start and closeout
 
@@ -60,3 +60,11 @@ These rules apply to every Codex campaign in this repository.
 - `safeForHonda()` must remain false.
 - Do not perform automatic vehicle access, Honda ADB operations, authentication bypasses, firmware modifications, private display-control operations, or CAN transmission.
 - Do not use destructive Git commands or reset/overwrite existing worktrees.
+
+## ClarityLink development authorization
+
+- Offline factory APK/native-binary research, decompiled-code analysis, adapter prototypes, reversible modification prototypes, synthetic receiver/cluster simulation, API17 emulator work, disconnect/recovery regression tests, and separately approved bench-only experiments are permitted within repository public/private-data rules.
+- Runtime hooks, factory delegate changes, display ownership/rendering changes, inter-process video delivery, in-memory extensions, binary modification proposals, and custom receiver lifecycle work require technical design and safety/security review before any vehicle use. They may be researched and prototyped offline.
+- Installation, Honda ADB, firmware/service replacement, persistent head-unit changes, cluster modifications, vehicle-side display experiments, connected-iPhone integration, and any operation that may affect factory display behavior require separate explicit owner authorization and qualified safety review. This authorization is not present by default.
+- CAN/control-message experiments, warning suppression/interception, safety-critical ECU changes, unreviewed cluster firmware flashing, unrecoverable writes, authentication-secret extraction/disclosure, testing while driving, automatic deployment, and bypassing review/safety gates are prohibited.
+- Required design invariant: `CARPLAY_DISCONNECTED => FACTORY_BEHAVIOR_ONLY`. It is a target requiring evidence, not a demonstrated property. Do not set `safeForHonda()` true or represent offline permission as vehicle permission.
