@@ -1,3 +1,5 @@
+> **Historical log.** This file accumulates dated records and is kept for provenance. For current status read [docs/status/README.md](docs/status/README.md).
+
 - [43T1-R7C3 — final Android integration closure attempt](step-reports/43t1-r7c3-final-android-integration-closure.md) — test-only JNI socket/exception seams and native builds added, but APK/Dalvik and complete race/fault closure remain blocked; R7C stays partial and R7D closed.
 
 ## R7C2 Android runtime integration closure — partial — 2026-10-07

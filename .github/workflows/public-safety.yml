@@ -1,0 +1,44 @@
+name: Public safety (protected baseline)
+
+# Authoritative public-safety check. It runs the scanner and the allowlist from the PROTECTED BASE
+# commit and reads the pull request only as Git objects. It never checks out, installs, builds or
+# executes anything from the candidate, and it has no secrets and read-only permissions.
+# The same check inside ci.yml runs the candidate's own copy of the scanner and is supplementary.
+# See docs/security/public-safety-gate.md.
+#
+# pull_request_target workflows run from the default branch, so this check starts to apply only after
+# it has been merged through a reviewed bootstrap; until then ci.yml is the only (untrusted) evidence.
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-safety-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Public-safety gate (protected baseline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the protected base (trusted scanner and allowlist)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch the candidate as Git objects only
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/candidate/head"
+      - name: Run the trusted gate over the candidate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GIT_CONFIG_NOSYSTEM: "1"
+        run: python3 tools/check_public_safety.py --base "$BASE_SHA" --head refs/candidate/head --trusted-ref "$BASE_SHA"

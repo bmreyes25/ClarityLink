@@ -1,3 +1,5 @@
+> **Historical log.** This file accumulates dated records and is kept for provenance. For current status read [docs/status/README.md](docs/status/README.md).
+
 ## R7C2 Android API17 runtime integration — partial — 2026-10-07
 
 Continued PR #17 from exact candidate `9ee07dac2b6eda842567b8dbdb3a36cdd7336e54`. Actual Android 4.2.2/API17 Dalvik ran on an isolated x86 emulator. The real JNI bridge, DisplayManager/Presentation/Surface path, ANativeWindow sink, H.264 Type110/Type111 outputs, and selected Java adapters were exercised; 100/100 runtime cycles returned test-build native resource counters to zero. This is `ANDROID_API17_DALVIK_RUNTIME_CONFIRMED_X86`, not ARM runtime or Honda proof. Production ARMv7/API17 remains separately build-confirmed.
