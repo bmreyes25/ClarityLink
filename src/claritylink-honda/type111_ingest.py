@@ -114,8 +114,25 @@ class FaultRecord:
     cleanup_ok: bool = True  # False: receiver-side cleanup left something behind (see cleanup_failures)
 
 
+class SinkRejection(DisplayError):
+    """Rejection raised by ``LeaseGatedOutput`` after it has already withdrawn host content.
+
+    ``cleanup_error`` is the exception from the withdrawal itself when that failed; the
+    original failure stays the ``__cause__`` and is never replaced by it.
+    """
+
+    def __init__(self, code: str, cleanup_error: Exception | None = None) -> None:
+        super().__init__(code)
+        self.cleanup_error = cleanup_error
+
+
 class LeaseGatedOutput:
-    """``FrameOutput`` sink: decoded PNG in, lease-bound RGB24 out. Fails closed."""
+    """``FrameOutput`` sink: decoded PNG in, lease-bound RGB24 out. Fails closed.
+
+    Any ordinary ``Exception`` while presenting a frame withdraws project content and
+    deactivates the output before the error reaches the caller. ``BaseException`` is
+    never caught.
+    """
 
     def __init__(self, coordinator: fsc.FailSafeCoordinator, *, lab_mode: bool) -> None:
         self._coordinator = coordinator
@@ -127,6 +144,8 @@ class LeaseGatedOutput:
         self._last_timestamp = -1
         self.accepted = 0
         self.rejected: list[str] = []
+        self.cleanup_failures: list[str] = []  # withdrawals that themselves raised
+        self.withdrawal_pending = False  # a withdrawal failed and has not yet succeeded
         self.last_bound: LeaseBoundFrame | None = None
         self.convert_seconds: deque[float] = deque(maxlen=CONVERT_SAMPLES)
 
@@ -146,14 +165,34 @@ class LeaseGatedOutput:
         with self._lock:
             self._active = False
             self.last_bound = None
+            self.withdrawal_pending = True  # cleared only once the host confirms the revoke
             self._coordinator.host.revoke(reason)
+            self.withdrawal_pending = False
 
-    def _reject(self, code: str) -> DisplayError:
+    def _reject(self, code: str) -> SinkRejection:
+        """Withdraw first, then build the error; a failed withdrawal is reported, not raised."""
         self.rejected.append(code)
-        self.fail_closed(code)
-        return DisplayError(code)
+        cleanup_error: Exception | None = None
+        try:
+            self.fail_closed(code)
+        except Exception as exc:  # noqa: BLE001 - the original failure must still reach the caller
+            cleanup_error = exc
+            self.cleanup_failures.append(getattr(exc, "code", type(exc).__name__))
+        return SinkRejection(code, cleanup_error)
+
+    def _failure(self, exc: Exception) -> SinkRejection:
+        code = exc.code if isinstance(exc, FrameError) else f"sink_exception:{type(exc).__name__}"
+        return self._reject(code)
 
     def show(self, frame: DecodedFrame) -> None:
+        try:
+            self._present(frame)
+        except SinkRejection:
+            raise  # already withdrawn by _reject
+        except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
+            raise self._failure(exc) from exc
+
+    def _present(self, frame: DecodedFrame) -> None:
         with self._lock:  # cheap admission checks first
             if not self._lab_mode:
                 raise self._reject("lab_mode_required")
@@ -163,47 +202,54 @@ class LeaseGatedOutput:
             if frame.generation != identity.stream_generation:
                 raise self._reject("stale_stream_generation")
         started = perf_counter()  # the slow conversion runs without holding the lock
-        try:
-            width, height, pixels = png_to_rgb24(frame.png)
-            if (frame.width, frame.height) != (width, height):
-                raise FrameError("decoder_dimension_mismatch")
-        except FrameError as exc:
-            raise self._reject(exc.code) from exc
+        width, height, pixels = png_to_rgb24(frame.png)
+        if (frame.width, frame.height) != (width, height):
+            raise FrameError("decoder_dimension_mismatch")
         converted = perf_counter() - started
         with self._lock:
             if not self._active or self._identity is not identity:  # revoked while converting
                 raise self._reject("output_inactive")
-            try:
-                if frame.timestamp < self._last_timestamp:
-                    raise FrameError("timestamp_regression")
-                lease = self._coordinator.lease
-                if lease is None:
-                    raise FrameError("lease_rejected:REJECTED_NO_LEASE")
-                video = VideoFrame(pixels, width, height, width * 3, frame.timestamp,
-                                   identity.session_generation, identity.stream_type,
-                                   identity.connection_id, identity.stream_generation,
-                                   Provenance.SYNTHETIC_LAB_CONTENT)
-            except FrameError as exc:
-                raise self._reject(exc.code) from exc
-            self.convert_seconds.append(converted)
-            bound = LeaseBoundFrame(video, lease.epoch, lease.generation, self._coordinator.sequence)
-            self._local.in_show = True
-            try:
-                result = self._coordinator.submit_frame(bound)
-            finally:
-                self._local.in_show = False
-            if result is not fsc.SubmitResult.ACCEPTED:
-                raise self._reject(f"lease_rejected:{result.value}")
-            self._last_timestamp = frame.timestamp
-            self.accepted += 1
-            self.last_bound = bound
+            try:  # withdraw under the same lock hold as the admission check above
+                self._commit(frame, identity, (width, height, pixels), converted)
+            except SinkRejection:
+                raise
+            except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
+                raise self._failure(exc) from exc
+
+    def _commit(self, frame: DecodedFrame, identity: StreamIdentity,
+                converted_frame: tuple[int, int, bytes], converted: float) -> None:
+        """Bind and submit one converted frame. Caller holds ``self._lock``."""
+        width, height, pixels = converted_frame
+        if frame.timestamp < self._last_timestamp:
+            raise FrameError("timestamp_regression")
+        lease = self._coordinator.lease
+        if lease is None:
+            raise FrameError("lease_rejected:REJECTED_NO_LEASE")
+        video = VideoFrame(pixels, width, height, width * 3, frame.timestamp,
+                           identity.session_generation, identity.stream_type,
+                           identity.connection_id, identity.stream_generation,
+                           Provenance.SYNTHETIC_LAB_CONTENT)
+        self.convert_seconds.append(converted)
+        bound = LeaseBoundFrame(video, lease.epoch, lease.generation, self._coordinator.sequence)
+        self._local.in_show = True
+        try:
+            result = self._coordinator.submit_frame(bound)
+        finally:
+            self._local.in_show = False
+        if result is not fsc.SubmitResult.ACCEPTED:
+            raise self._reject(f"lease_rejected:{result.value}")
+        self._last_timestamp = frame.timestamp
+        self.accepted += 1
+        self.last_bound = bound
 
     def clear(self) -> None:
         """Receiver/dispatcher cleanup: withdraw host content; idempotent."""
         with self._lock:
             self._active = False
             self.last_bound = None
+            self.withdrawal_pending = True
             self._coordinator.host.revoke("type111 output cleared")
+            self.withdrawal_pending = False
 
 
 class Type111IngestPipeline:
@@ -346,9 +392,14 @@ class Type111IngestPipeline:
         return self._fault(Fault.DISPLAY_HOST_RESTART, "display_host_restart")
 
     def _fault(self, kind: Fault, code: str) -> fsc.CleanupReport:
-        self.output.fail_closed(code)  # visible content first, before any cleanup
+        withdrawn = True
+        try:
+            self.output.fail_closed(code)  # visible content first, before any cleanup
+        except Exception as exc:  # noqa: BLE001 - recorded; the coordinator still revokes and cleans up
+            self.cleanup_failures.append(getattr(exc, "code", type(exc).__name__))
+            withdrawn = False
         report = self.coordinator.fault(kind)
-        self.faults.append(FaultRecord(kind, code, report, self._finalize(kind)))
+        self.faults.append(FaultRecord(kind, code, report, self._finalize(kind) and withdrawn))
         return report
 
     def _finalize(self, kind: Fault | None) -> bool:
@@ -391,6 +442,7 @@ class Type111IngestPipeline:
                                           ("security", self.receiver.security),
                                           ("display_frame", self.output.last_bound),
                                           ("display_uncleared", self.receiver.display_uncleared),
+                                          ("withdrawal_pending", self.output.withdrawal_pending),
                                           ("cleanup_deferred", self._cleanup_deferred))
                  if value]
         if SECONDARY_STREAM in self.receiver.dispatch_registry_snapshot():
