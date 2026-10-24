@@ -295,6 +295,16 @@ class FailSafeCoordinator:
     _sequence: int = 0
     _next_generation: int = 1
 
+    @property
+    def lease(self) -> LeaseGrant | None:
+        """The lease this coordinator currently holds (read-only; None when withdrawn)."""
+        return self._lease
+
+    @property
+    def sequence(self) -> int:
+        """Sequence the next ``submit_frame`` will carry to the host."""
+        return self._sequence
+
     # ---- forward path: each step is explicit and can be refused ----
     def phone_attached(self) -> None:
         if self.state is LinkState.FACTORY_ONLY:
