@@ -5,7 +5,9 @@ Type111 protocol handling of generated lab bytes only. No iPhone, Honda or
 physical Display 1 evidence is established here.
 """
 import os
+import struct
 import threading
+import zlib
 
 import pytest
 
@@ -565,3 +567,27 @@ def test_unknown_session_key_cannot_authenticate_frames(make, stream):
     client.close()
     assert outcome.code == "screen_authentication_failed" and outcome.fault is TRANSPORT
     assert_withdrawn(pipe)
+
+
+@pytest.mark.parametrize("defect", ["noncontiguous_png_idat", "invalid_png_iend"])
+def test_structurally_invalid_png_withdraws_previous_type111_content(pipeline, defect):
+    pipeline.open_session()
+    assert pipeline.setup_type111(12).accepted
+    generation = pipeline.receiver.stream_identity(111).stream_generation
+    good = synth.make_png(synth.WIDTH, synth.HEIGHT, (1, 2, 3))
+    pipeline.output.show(DecodedFrame(good, 1, generation, synth.WIDTH, synth.HEIGHT))
+    assert pipeline.host.visible_content is not None
+    iend = good[-12:]
+    body = good[:-12]
+    if defect == "invalid_png_iend":
+        bad = body + struct.pack(">I", 1) + b"IEND" + b"x" + struct.pack(">I", zlib.crc32(b"IENDx"))
+    else:
+        text = struct.pack(">I", 3) + b"tEXt" + b"k\x00v" + struct.pack(">I", zlib.crc32(b"tEXtk\x00v"))
+        data = zlib.compress(b"".join(b"\x00" + bytes(synth.WIDTH * 3) for _ in range(synth.HEIGHT)))
+        half = len(data) // 2
+        def idat(part):
+            return struct.pack(">I", len(part)) + b"IDAT" + part + struct.pack(">I", zlib.crc32(b"IDAT" + part))
+        bad = good[:8 + 25] + idat(data[:half]) + text + idat(data[half:]) + iend
+    with pytest.raises(DisplayError, match=defect):
+        pipeline.output.show(DecodedFrame(bad, 2, generation, synth.WIDTH, synth.HEIGHT))
+    assert pipeline.host.visible_content is None

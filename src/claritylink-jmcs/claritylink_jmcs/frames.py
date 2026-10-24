@@ -24,6 +24,12 @@ MAX_FRAME_PIXELS = 1920 * 1080
 PIXEL_FORMAT_RGB24 = "RGB24"
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _CHANNELS = {2: 3, 6: 4}  # PNG colour type -> channels; 8-bit samples only
+_PNG_CRITICAL = {b"IHDR", b"PLTE", b"IDAT", b"IEND"}
+# Ancillary chunk placement per the PNG specification (positions are relative to PLTE and IDAT).
+_BEFORE_PLTE = {b"cHRM", b"gAMA", b"iCCP", b"sBIT", b"sRGB", b"cICP", b"mDCV", b"cLLI"}
+_AFTER_PLTE_BEFORE_IDAT = {b"bKGD", b"hIST", b"tRNS"}
+_BEFORE_IDAT = {b"pHYs", b"sPLT", b"acTL"}
+_AT_MOST_ONCE = (_BEFORE_PLTE | _AFTER_PLTE_BEFORE_IDAT | {b"pHYs", b"acTL", b"tIME", b"eXIf"})
 
 
 class FrameError(ValueError):
@@ -123,6 +129,20 @@ def _unfilter(raw: bytes, width: int, height: int, channels: int) -> bytes:
     return bytes(rows)
 
 
+def _check_ancillary_placement(kind: bytes, seen: set[bytes], palette: bool, idat_started: bool) -> None:
+    """Refuse a known ancillary chunk that is duplicated or outside its legal position."""
+    if kind in seen and kind in _AT_MOST_ONCE:
+        raise FrameError("duplicate_png_chunk")
+    if kind in _BEFORE_PLTE and (palette or idat_started):
+        raise FrameError("invalid_png_chunk_order")
+    if kind in _AFTER_PLTE_BEFORE_IDAT and idat_started:
+        raise FrameError("invalid_png_chunk_order")
+    if kind == b"hIST" and not palette:
+        raise FrameError("invalid_png_chunk_order")  # hIST describes the palette
+    if kind in _BEFORE_IDAT and idat_started:
+        raise FrameError("invalid_png_chunk_order")
+
+
 def png_to_rgb24(png: bytes) -> tuple[int, int, bytes]:
     """Return ``(width, height, rgb24)``; alpha is dropped, never composited."""
     if not isinstance(png, bytes) or not png.startswith(_PNG_SIGNATURE) or len(png) > MAX_FRAME_BYTES:
@@ -130,7 +150,8 @@ def png_to_rgb24(png: bytes) -> tuple[int, int, bytes]:
     offset = len(_PNG_SIGNATURE)
     header: tuple[int, ...] | None = None
     compressed = bytearray()
-    ended = False
+    seen: set[bytes] = set()
+    palette = idat_started = idat_closed = ended = False
     while offset + 12 <= len(png) and not ended:
         length = struct.unpack(">I", png[offset:offset + 4])[0]
         kind = png[offset + 4:offset + 8]
@@ -138,22 +159,43 @@ def png_to_rgb24(png: bytes) -> tuple[int, int, bytes]:
         crc = png[offset + 8 + length:offset + 12 + length]
         if len(body) != length or len(crc) != 4 or struct.unpack(">I", crc)[0] != zlib.crc32(kind + body):
             raise FrameError("invalid_png_chunk")
+        if not all(65 <= byte <= 90 or 97 <= byte <= 122 for byte in kind) or kind[2] & 0x20:
+            raise FrameError("invalid_png_chunk")  # not a letter-only type, or the reserved bit is set
         if header is None and kind != b"IHDR":
             raise FrameError("invalid_png_header")  # IHDR must come first
         if kind == b"IHDR":
             if header is not None or length != 13:
                 raise FrameError("invalid_png_header")
             header = struct.unpack(">IIBBBBB", body)
+        elif kind == b"PLTE":
+            if (palette or idat_started or not length or length % 3 or length > 3 * 256
+                    or seen & _AFTER_PLTE_BEFORE_IDAT):
+                raise FrameError("invalid_png_palette")
+            palette = True
         elif kind == b"IDAT":
+            if idat_closed:
+                raise FrameError("noncontiguous_png_idat")
+            idat_started = True
             compressed += body
         elif kind == b"IEND":
+            if length or not idat_started:
+                raise FrameError("invalid_png_iend")
             ended = True
+        else:
+            if kind not in _PNG_CRITICAL and not kind[0] & 0x20:
+                raise FrameError("unsupported_png_critical_chunk")  # never silently skipped
+            if idat_started:
+                idat_closed = True  # anything between IDAT chunks breaks the contiguous run
+            _check_ancillary_placement(kind, seen, palette, idat_started)
+        seen.add(kind)
         offset += 12 + length
     if header is None or not ended or not compressed or offset != len(png):
         raise FrameError("invalid_png")  # missing parts or bytes after IEND
     width, height, depth, colour, compression, filtering, interlace = header
     if depth != 8 or colour not in _CHANNELS or compression or filtering or interlace:
         raise FrameError("unsupported_png_format")
+    if b"tRNS" in seen and colour == 6:
+        raise FrameError("invalid_png_chunk")  # tRNS is forbidden alongside a full alpha channel
     if (not (1 <= width <= MAX_DIMENSION and 1 <= height <= MAX_DIMENSION)
             or width * height > MAX_FRAME_PIXELS):
         raise FrameError("invalid_frame_dimensions")

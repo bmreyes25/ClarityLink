@@ -128,3 +128,113 @@ def test_only_synthetic_lab_provenance_exists_in_this_milestone():
     assert frame().pixel(1, 1) == (0, 0, 0)
     with pytest.raises(FrameError, match="pixel_out_of_range"):
         frame().pixel(2, 0)
+
+
+# --- strict PNG chunk structure (CL-FIX-92) ---------------------------------------------------------------
+
+SIGNATURE = b"\x89PNG\r\n\x1a\n"
+HEADER_2X2 = struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0)
+RAW_2X2 = b"".join(b"\x00" + bytes(range(6)) for _ in range(2))
+
+
+def assemble(*chunks, raw_tail=b""):
+    return SIGNATURE + b"".join(chunks) + raw_tail
+
+
+def ihdr():
+    return chunk(b"IHDR", HEADER_2X2)
+
+
+def idat_split(parts=1):
+    data = zlib.compress(RAW_2X2)
+    size = -(-len(data) // parts)
+    return [chunk(b"IDAT", data[i:i + size]) for i in range(0, len(data), size)]
+
+
+IEND = chunk(b"IEND", b"")
+
+
+def test_valid_multi_idat_matches_single_idat():
+    single = png_to_rgb24(assemble(ihdr(), *idat_split(1), IEND))
+    assert png_to_rgb24(assemble(ihdr(), *idat_split(3), IEND)) == single
+
+
+def test_non_empty_iend_is_refused():
+    with pytest.raises(FrameError, match="invalid_png_iend"):
+        png_to_rgb24(assemble(ihdr(), *idat_split(), chunk(b"IEND", b"x")))
+
+
+def test_idat_separated_by_text_chunk_is_refused():
+    first, second = idat_split(2)
+    with pytest.raises(FrameError, match="noncontiguous_png_idat"):
+        png_to_rgb24(assemble(ihdr(), first, chunk(b"tEXt", b"k\x00v"), second, IEND))
+
+
+@pytest.mark.parametrize("chunks, code", [
+    ((ihdr(), ihdr(), *idat_split(), IEND), "invalid_png_header"),
+    ((ihdr(), *idat_split(), IEND, IEND), "invalid_png"),
+    ((ihdr(), *idat_split()), "invalid_png"),                        # IEND missing
+    ((ihdr(), IEND), "invalid_png_iend"),                            # IDAT missing
+    ((*idat_split(), IEND), "invalid_png_header"),                   # IHDR missing
+    ((ihdr(), *idat_split(), IEND, chunk(b"tEXt", b"k\x00v")), "invalid_png"),
+    ((ihdr(), chunk(b"ABCD", b""), *idat_split(), IEND), "unsupported_png_critical_chunk"),
+    ((ihdr(), chunk(b"gAMA", bytes(4)), chunk(b"gAMA", bytes(4)), *idat_split(), IEND), "duplicate_png_chunk"),
+    ((ihdr(), chunk(b"PLTE", bytes(3)), chunk(b"gAMA", bytes(4)), *idat_split(), IEND), "invalid_png_chunk_order"),
+    ((ihdr(), *idat_split(), chunk(b"pHYs", bytes(9)), IEND), "invalid_png_chunk_order"),
+    ((ihdr(), chunk(b"PLTE", bytes(4)), *idat_split(), IEND), "invalid_png_palette"),
+    ((ihdr(), *idat_split(), chunk(b"PLTE", bytes(3)), IEND), "invalid_png_palette"),
+    ((ihdr(), chunk(b"hIST", bytes(2)), *idat_split(), IEND), "invalid_png_chunk_order"),
+    ((ihdr(), chunk(b"tIME", bytes(7)), chunk(b"tIME", bytes(7)), *idat_split(), IEND), "duplicate_png_chunk"),
+    ((ihdr(), chunk(b"cHRM", bytes(32)), chunk(b"PLTE", bytes(3)), chunk(b"sBIT", bytes(3)), *idat_split(), IEND),
+     "invalid_png_chunk_order"),
+    ((ihdr(), chunk(b"PLTE", bytes(3)), chunk(b"PLTE", bytes(3)), *idat_split(), IEND), "invalid_png_palette"),
+    ((ihdr(), chunk(b"tRNS", bytes(3)), chunk(b"PLTE", bytes(3)), *idat_split(), IEND), "invalid_png_palette"),
+    ((ihdr(), chunk(b"abcd", b""), *idat_split(), IEND), "invalid_png_chunk"),  # reserved bit set
+])
+def test_structurally_invalid_png_is_refused(chunks, code):
+    with pytest.raises(FrameError, match=code):
+        png_to_rgb24(assemble(*chunks))
+
+
+def corrupt_crc(data):
+    return data[:-1] + bytes([data[-1] ^ 1])
+
+
+@pytest.mark.parametrize("position", ["ihdr", "text", "idat", "iend"])
+def test_malformed_crc_on_any_chunk_is_refused(position):
+    parts = {"ihdr": ihdr(), "text": chunk(b"tEXt", b"k\x00v"), "idat": idat_split(1)[0], "iend": IEND}
+    parts[position] = corrupt_crc(parts[position])
+    with pytest.raises(FrameError, match="invalid_png"):
+        png_to_rgb24(assemble(parts["ihdr"], parts["text"], parts["idat"], parts["iend"]))
+
+
+def test_trns_is_refused_with_a_full_alpha_channel():
+    header = struct.pack(">IIBBBBB", 2, 2, 8, 6, 0, 0, 0)
+    data = zlib.compress(b"".join(b"\x00" + bytes(8) for _ in range(2)))
+    with pytest.raises(FrameError, match="invalid_png_chunk"):
+        png_to_rgb24(assemble(chunk(b"IHDR", header), chunk(b"tRNS", bytes(2)), chunk(b"IDAT", data), IEND))
+
+
+def test_repeated_unknown_ancillary_and_apng_style_chunks_are_not_wrongly_refused():
+    first = idat_split(1)[0]
+    plain = png_to_rgb24(assemble(ihdr(), first, IEND))
+    after = assemble(ihdr(), chunk(b"acTL", bytes(8)), chunk(b"prVT", b"a"), chunk(b"prVT", b"b"), first,
+                     chunk(b"fcTL", bytes(26)), chunk(b"fdAT", bytes(8)), chunk(b"fcTL", bytes(26)), IEND)
+    assert png_to_rgb24(after) == plain
+
+
+def test_ancillary_chunks_in_legal_positions_are_accepted_and_ignored():
+    plain = png_to_rgb24(assemble(ihdr(), *idat_split(), IEND))
+    decorated = assemble(
+        ihdr(), chunk(b"cHRM", bytes(32)), chunk(b"gAMA", bytes(4)), chunk(b"sRGB", b"\x00"), chunk(b"sBIT", bytes(3)),
+        chunk(b"iCCP", b"p\x00\x00x"), chunk(b"PLTE", bytes(6)),
+        chunk(b"bKGD", bytes(2)), chunk(b"pHYs", bytes(9)), chunk(b"tEXt", b"k\x00v"), chunk(b"tEXt", b"a\x00b"),
+        *idat_split(2), chunk(b"tIME", bytes(7)), chunk(b"eXIf", b"II"), chunk(b"zTXt", b"k\x00\x00x"), IEND)
+    assert png_to_rgb24(decorated) == plain
+
+
+def test_invalid_png_is_always_a_frame_error_never_a_partial_frame():
+    good = assemble(ihdr(), *idat_split(), IEND)
+    for cut in range(len(SIGNATURE), len(good)):
+        with pytest.raises(FrameError):
+            png_to_rgb24(good[:cut])
