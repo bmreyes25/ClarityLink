@@ -25,11 +25,11 @@ Use these words, and keep the classes apart. One passing class never promotes an
 | Synthetic lab PASS | Offline or host-side models and fixtures behave as specified | Behaviour of any real receiver, phone or vehicle |
 | API17 runtime PASS | Executed on an Android 4.2.2 emulator | Honda hardware or Honda software behaviour |
 | Performance FAIL / PASS | The unchanged CL-R12 gate's verdict on a named run | Anything about a different workload or environment |
-| Honda receiver NO-GO | No supported extension boundary or Type111 facts are established (`RECEIVER_AUTHORIZED_SPEC_REQUIRED`) | Impossible |
-| Honda display NO-GO | No authorized frame-admission path found (`DISPLAY_SUPPORTED_PATH_NOT_FOUND`) | Impossible |
-| Vehicle acceptance NOT AUTHORIZED | No vehicle operation has been approved | Planned |
+| Honda receiver interface unresolved | No supported extension boundary or Type111 facts are established (`RECEIVER_AUTHORIZED_SPEC_REQUIRED`) | Offline custom receiver research is now permitted; OEM authorization and vehicle deployment remain unapproved |
+| Honda display interface unresolved | No authorized frame-admission path found (`DISPLAY_SUPPORTED_PATH_NOT_FOUND`) | Offline host-owned rendering research is now permitted; vehicle deployment remains unapproved |
+| Vehicle deployment NOT AUTHORIZED | No vehicle operation has been approved | Requires separate explicit owner authorization and qualified safety review |
 
-`safeForHonda()` is `false` and stays `false` until a separate written authorization says otherwise.
+`CUSTOM_INTEGRATION_RESEARCH_AUTHORIZED_OFFLINE` is a development-track status only. `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED` remains the vehicle status, and `safeForHonda()` remains `false`.
 
 ## Rules for updating status
 

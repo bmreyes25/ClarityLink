@@ -2,7 +2,8 @@
 
 **Current program:** CL-MASTER-01 end-to-end Type111 Honda integration roadmap
 **Roadmap base:** `origin/main` `c30a385455449b3c1d7b5cc65bb74c88c694b7f8`
-**Integration decision:** NO-GO / NOT ESTABLISHED
+**Offline development track:** `CUSTOM_INTEGRATION_RESEARCH_AUTHORIZED_OFFLINE`
+**Vehicle deployment decision:** `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED` / NO-GO; `safeForHonda()` remains `false`.
 **`safeForHonda()`:** `false`
 
 ## Current state
@@ -12,7 +13,7 @@
 - CL-R12-F is partial in open PR [#52](https://github.com/bmreyes25/ClarityLink/pull/52): the PR reports an Android 4.2.2/API17 x86 runtime smoke, but the full scenario, performance A/B, ten reconnect cycles, and failure matrix remain open; its Offline CI check fails on stale CL-R0 review-scope hashes.
 - CL-R13-A remains in open PR [#53](https://github.com/bmreyes25/ClarityLink/pull/53). Its Offline CI and CodeQL checks pass; no approval is recorded.
 - Other open PRs at discovery: [#19](https://github.com/bmreyes25/ClarityLink/pull/19) and [#7](https://github.com/bmreyes25/ClarityLink/pull/7). The repository had no issues at discovery; CL-MASTER-01 adds campaign issues separately.
-- Receiver Type111 session/SETUP ownership and a supported Display 1 frame-admission contract are not established in reviewed evidence. These are the critical path blockers.
+- Receiver Type111 session/SETUP ownership and a supported Display 1 frame-admission contract are not established in reviewed evidence. Their historical gates remain vehicle-deployment blockers but no longer prohibit offline custom integration research. See [revised integration readiness](integration-readiness.md).
 - No Honda ADB, vehicle connection, live iPhone session, firmware modification, or vehicle test is authorized by this master plan.
 - Private archive backup and recovery are not verified by this campaign. Raw/proprietary evidence remains outside Git.
 
@@ -65,7 +66,9 @@ PR #37 and PR #38 are merged. PR #38 merged as `fadcdad7654683c6c94ba341ab77d478
 
 Generated emulator screenshots, runtime logs, APKs, and acceptance receipts are ignored local evidence, not public source. Historical research and worktrees remain preserved; private Honda research is not part of this publication.
 
-## CL-R9 Honda integration status
+## CL-R9 Honda integration findings (historical evidence)
+
+The following preserves the CL-R9 findings and fail-closed implementation state. Older reports used the more restrictive operating model then in effect. Under CL-POLICY-02, these unresolved OEM interface findings remain deployment blockers but do not prohibit offline custom integration research.
 
 **Receiver gate:** `RECEIVER_AUTHORIZED_SPEC_REQUIRED`. Static Honda evidence
 establishes a single main-display `/info` descriptor and the Type110 SETUP
