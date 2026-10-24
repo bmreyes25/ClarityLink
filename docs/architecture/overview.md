@@ -2,7 +2,9 @@
 
 ## Goal
 
-Keep factory CarPlay on the Honda Clarity center display while adding an independent navigation stream to the instrument cluster's existing Navigation region. Apple Maps is the initial target; Waze is a later target only if the negotiated secondary-screen behavior supports it. Other stock safety and cluster content must remain intact.
+> **PRIMARY GOAL: iPhone-origin Type111 secondary CarPlay video on factory Display 1, simultaneous with normal Type110 on Display 0.** See the canonical [primary goal](../project/primary-goal.md) for non-goals and the ten-stage traceability matrix.
+
+Keep factory CarPlay on the Honda Clarity center display while the connected iPhone's genuine secondary CarPlay video, delivered over Type111, is presented in the instrument cluster's existing Navigation region. What that video shows is decided by iOS and the app, not by ClarityLink; no particular app output (for example Apple Maps or Waze) is promised, and ClarityLink does not draw its own navigation. Other stock safety and cluster content must remain intact.
 
 ## Evidence-backed architecture boundary
 

@@ -1,6 +1,8 @@
 # CL-MASTER-01 finish-line definition
 
-The project objective is a **demonstrated, measurable, reversible** 2018 Honda Clarity integration in which factory CarPlay remains normal on the center display while a genuine secondary Type111 navigation stream appears in the cluster Navigation area. This is the product target, not a statement that the target is feasible or authorized.
+> **PRIMARY GOAL: iPhone-origin Type111 secondary CarPlay video on factory Display 1, simultaneous with normal Type110 on Display 0.** Canonical statement, non-goals, evidence categories and the ten-stage traceability matrix: [primary goal](../project/primary-goal.md). That document takes precedence over any ambiguous wording below.
+
+The project objective is a **demonstrated, measurable, reversible** 2018 Honda Clarity integration in which factory CarPlay remains normal on the center display while genuine iPhone-provided secondary CarPlay video, carried on Type111, appears in the cluster Navigation area. The content is whatever iOS and the app deliver over that session; it is not a custom navigation interface. This is the product target, not a statement that the target is feasible or authorized.
 
 `safeForHonda()` remains `false`. No finish-line item is passed by inference, a synthetic model, a third-party receiver, or static analysis alone.
 
@@ -25,6 +27,8 @@ The project objective is a **demonstrated, measurable, reversible** 2018 Honda C
 ## Non-equivalent evidence
 
 These results are useful but cannot satisfy F1–F13 on their own: synthetic Type111 SETUP or video, a second Android display, HondaHack casting, an emulator lifecycle test, a separate receiver, a third-party report, static decompilation, or multiple network connections. Two independent receivers do not prove that one iPhone session can be shared.
+
+Also non-equivalent, and never to be substituted for F3/F5: a custom navigation interface or map renderer, a route drawn from GPS, a turn-by-turn-only widget, a modified Honda Navigation APK, mirroring Display 0, replayed prerecorded video presented as live CarPlay, and structured navigation updates (the NAV-LAB track in the [primary goal](../project/primary-goal.md)). Reports must name which evidence category a result supports (synthetic lifecycle, Type111 protocol handling, iPhone-origin video, Honda receiver integration, physical Display 1 output); these categories are never interchangeable.
 
 ## Current conclusion
 
