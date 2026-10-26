@@ -114,8 +114,30 @@ class FaultRecord:
     cleanup_ok: bool = True  # False: receiver-side cleanup left something behind (see cleanup_failures)
 
 
+def _type_name(exc: BaseException) -> str:
+    """The exception's type name; a hostile metaclass ``__name__`` cannot raise out of here."""
+    try:
+        name = type(exc).__name__
+    except Exception:  # noqa: BLE001 - must not derail fail-closed handling
+        return "unnamed_exception"
+    return name if isinstance(name, str) else "unnamed_exception"
+
+
+def _safe_code(exc: BaseException, fallback: str) -> str:
+    """``exc.code`` when it reads cleanly as a string, else ``fallback``; never raises ``Exception``."""
+    try:
+        code = exc.code  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - a hostile or absent accessor must not derail fail-closed handling
+        return fallback
+    return code if isinstance(code, str) else fallback
+
+
 class SinkRejection(DisplayError):
-    """Rejection raised by ``LeaseGatedOutput`` after it has already withdrawn host content.
+    """Rejection raised by ``LeaseGatedOutput`` after it attempted to withdraw host content.
+
+    The type alone is not proof of that: a dependency can raise it too, and a retained
+    instance can be replayed. ``LeaseGatedOutput`` therefore trusts only the instances it
+    built during the current ``show()`` call (by identity), never the class or an attribute.
 
     ``cleanup_error`` is the exception from the withdrawal itself when that failed; the
     original failure stays the ``__cause__`` and is never replaced by it.
@@ -124,9 +146,6 @@ class SinkRejection(DisplayError):
     def __init__(self, code: str, cleanup_error: Exception | None = None) -> None:
         super().__init__(code)
         self.cleanup_error = cleanup_error
-        # Provenance: set only by ``LeaseGatedOutput._reject`` once it has attempted the withdrawal.
-        # The exception class alone proves nothing: a dependency can raise the same type.
-        self._issued_by: object | None = None
 
 
 class LeaseGatedOutput:
@@ -180,27 +199,38 @@ class LeaseGatedOutput:
             self.fail_closed(code)
         except Exception as exc:  # noqa: BLE001 - the original failure must still reach the caller
             cleanup_error = exc
-            self.cleanup_failures.append(getattr(exc, "code", type(exc).__name__))
+            self.cleanup_failures.append(_safe_code(exc, _type_name(exc)))
         rejection = SinkRejection(code, cleanup_error)
-        rejection._issued_by = self
+        issued = getattr(self._local, "issued", None)
+        if issued is not None:  # only inside a show(): the record lives exactly as long as that call
+            issued.append(rejection)
         return rejection
 
     def _failure(self, exc: Exception) -> SinkRejection:
-        code = exc.code if isinstance(exc, FrameError) else f"sink_exception:{type(exc).__name__}"
+        fallback = f"sink_exception:{_type_name(exc)}"
+        code = _safe_code(exc, fallback) if issubclass(type(exc), FrameError) else fallback
         return self._reject(code)
 
     def _already_withdrawn(self, exc: Exception) -> bool:
-        """True only for a rejection this sink built itself, after attempting the withdrawal."""
-        # getattr: a subclass that skips SinkRejection.__init__ has no stamp and must still fail closed
-        return isinstance(exc, SinkRejection) and getattr(exc, "_issued_by", None) is self
+        """True only for a rejection built by ``_reject`` during the current ``show()`` call.
+
+        Identity only: no attribute of ``exc`` is read, so a hostile or replayed exception
+        can neither raise from here nor claim a withdrawal it did not get.
+        """
+        issued = getattr(self._local, "issued", None)
+        return issued is not None and any(exc is rejection for rejection in issued)
 
     def show(self, frame: DecodedFrame) -> None:
+        previous = getattr(self._local, "issued", None)
+        self._local.issued = []  # fresh per call, so a nested or later call never inherits it
         try:
             self._present(frame)
         except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
             if self._already_withdrawn(exc):
                 raise
             raise self._failure(exc) from exc
+        finally:
+            self._local.issued = previous
 
     def _present(self, frame: DecodedFrame) -> None:
         with self._lock:  # cheap admission checks first
@@ -241,11 +271,12 @@ class LeaseGatedOutput:
                            Provenance.SYNTHETIC_LAB_CONTENT)
         self.convert_seconds.append(converted)
         bound = LeaseBoundFrame(video, lease.epoch, lease.generation, self._coordinator.sequence)
+        was_inside = self.inside_show()  # restore, not clear: a nested show() must not end the outer one
         self._local.in_show = True
         try:
             result = self._coordinator.submit_frame(bound)
         finally:
-            self._local.in_show = False
+            self._local.in_show = was_inside
         if result is not fsc.SubmitResult.ACCEPTED:
             raise self._reject(f"lease_rejected:{result.value}")
         self._last_timestamp = frame.timestamp
