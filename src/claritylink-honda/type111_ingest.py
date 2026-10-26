@@ -21,6 +21,13 @@ Scope and limits (not evidence about a Honda or an iPhone):
   * Lease expiry is evaluated lazily by the host and adopted here by ``tick()``
     in THIS process. A dead producer cannot run ``tick()``: guaranteed
     withdrawal then needs a host-owned timer (CL-INT-04, still open).
+  * Error handling order (every path): withdraw host content, run each independent
+    cleanup step in isolation, THEN record diagnostics best-effort (``_note``). Only
+    ordinary ``Exception`` is handled; ``BaseException`` (interrupts, exit) is not, and a
+    wedged host call or a dead process needs the host-owned fail-safe (CL-INT-04).
+  * Known limits, all in the safe direction or assigned to CL-INT-04: the control-thread
+    API (settle/tick/heartbeat) is not locked against the dispatcher worker; a stale-stream
+    rejection withdraws the whole Display 1 lease; diagnostic lists are unbounded.
   * ``safe_for_honda()`` stays False; nothing here touches a vehicle.
 """
 from __future__ import annotations
@@ -120,7 +127,7 @@ def _type_name(exc: BaseException) -> str:
         name = type(exc).__name__
     except Exception:  # noqa: BLE001 - must not derail fail-closed handling
         return "unnamed_exception"
-    return name if isinstance(name, str) else "unnamed_exception"
+    return str.__str__(name) if isinstance(name, str) else "unnamed_exception"  # exact str: no hostile hooks
 
 
 def _safe_code(exc: BaseException, fallback: str) -> str:
@@ -129,7 +136,23 @@ def _safe_code(exc: BaseException, fallback: str) -> str:
         code = exc.code  # type: ignore[attr-defined]
     except Exception:  # noqa: BLE001 - a hostile or absent accessor must not derail fail-closed handling
         return fallback
-    return code if isinstance(code, str) else fallback
+    return str.__str__(code) if isinstance(code, str) else fallback  # exact str: no hostile hooks
+
+
+def _note(owner: Any, log: list, item: Any) -> None:
+    """Best-effort diagnostic append. It runs only AFTER withdrawal and can never derail it.
+
+    A record that cannot be stored is counted in ``owner.diagnostics_dropped`` instead of
+    raising, so losing a diagnostic is visible but never a prerequisite for fail-closed.
+    """
+    try:
+        log.append(item)
+    except Exception:  # noqa: BLE001 - diagnostics must not interrupt safety handling
+        owner.diagnostics_dropped += 1
+
+
+def _cleanup_failure_code(exc: BaseException) -> str:
+    return _safe_code(exc, _type_name(exc))
 
 
 class SinkRejection(DisplayError):
@@ -168,6 +191,7 @@ class LeaseGatedOutput:
         self.rejected: list[str] = []
         self.cleanup_failures: list[str] = []  # withdrawals that themselves raised
         self.withdrawal_pending = False  # a withdrawal failed and has not yet succeeded
+        self.diagnostics_dropped = 0  # records that could not be stored (never blocks withdrawal)
         self.last_bound: LeaseBoundFrame | None = None
         self.convert_seconds: deque[float] = deque(maxlen=CONVERT_SAMPLES)
 
@@ -192,14 +216,14 @@ class LeaseGatedOutput:
             self.withdrawal_pending = False
 
     def _reject(self, code: str) -> SinkRejection:
-        """Withdraw first, then build the error; a failed withdrawal is reported, not raised."""
-        self.rejected.append(code)
+        """Withdraw first, record second; a failed withdrawal is reported, not raised."""
         cleanup_error: Exception | None = None
         try:
             self.fail_closed(code)
         except Exception as exc:  # noqa: BLE001 - the original failure must still reach the caller
             cleanup_error = exc
-            self.cleanup_failures.append(_safe_code(exc, _type_name(exc)))
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+        _note(self, self.rejected, code)
         rejection = SinkRejection(code, cleanup_error)
         issued = getattr(self._local, "issued", None)
         if issued is not None:  # only inside a show(): the record lives exactly as long as that call
@@ -316,6 +340,7 @@ class Type111IngestPipeline:
         self.generation = 0
         self.faults: list[FaultRecord] = []
         self.cleanup_failures: list[str] = []
+        self.diagnostics_dropped = 0  # records that could not be stored (never blocks cleanup)
         self._cleanup_deferred = False
 
     # ---- session lifecycle ----
@@ -340,10 +365,14 @@ class Type111IngestPipeline:
         if self.receiver.secondary is not None or self.coordinator.lease is not None:
             return IngestOutcome(False, "type111_already_active")  # never disturbs the live stream
         try:
-            self.receiver.setup({"streams": [{"type": 111, "streamConnectionID": stream_connection_id}]},
-                                self.generation)
-        except ReceiverError as exc:
-            return self._init_failed(exc.code)
+            return self._setup_type111(stream_connection_id)
+        except Exception as exc:  # noqa: BLE001 - a half-built stream must be withdrawn and released
+            fallback = f"setup_exception:{_type_name(exc)}"
+            return self._init_failed(_safe_code(exc, fallback) if isinstance(exc, ReceiverError) else fallback)
+
+    def _setup_type111(self, stream_connection_id: int) -> IngestOutcome:
+        self.receiver.setup({"streams": [{"type": 111, "streamConnectionID": stream_connection_id}]},
+                            self.generation)
         if self.receiver.secondary is None:  # receiver rolled back and kept only Type110
             return self._init_failed("type111_setup_refused")
         identity = self.receiver.stream_identity(SECONDARY_STREAM)
@@ -352,7 +381,7 @@ class Type111IngestPipeline:
             {"receiver_secondary": self._close_secondary, "output": self.output.deactivate})
         if not negotiated:  # the coordinator already ran the closers; finish and record, never raise
             cleaned = self._finalize(None)
-            self.faults.append(FaultRecord(None, "negotiation_refused", self.coordinator.reports[-1], cleaned))
+            self._record_fault(None, "negotiation_refused", self.coordinator.reports[-1], cleaned)
             return IngestOutcome(False, "negotiation_refused", None)
         self.output.activate(identity)
         self.host.select_page(True)
@@ -372,9 +401,10 @@ class Type111IngestPipeline:
         try:
             data = self.receiver.receive_secondary_frame(self.generation)
         except ReceiverError as exc:
-            return self._failed(exc.code, classify_receiver_code(exc.code))
+            code = _safe_code(exc, "receiver_error_unreadable")  # unreadable code: conservative fault
+            return self._failed(code, classify_receiver_code(code))
         except Exception as exc:  # noqa: BLE001 - an unexpected receiver failure is a death, not a frame error
-            return self._failed(f"receiver_exception:{type(exc).__name__}", Fault.RECEIVER_DEATH)
+            return self._failed(f"receiver_exception:{_type_name(exc)}", Fault.RECEIVER_DEATH)
         if self.settle():  # the lease went away while this frame was in flight
             return IngestOutcome(False, "lease_revoked_during_frame", None)
         if self.output.accepted > before:
@@ -403,16 +433,24 @@ class Type111IngestPipeline:
 
     def settle(self) -> bool:
         """Reconcile coordinator and receiver with whatever the host already revoked."""
-        if self.coordinator.lease is None or self.host.lease_held:
+        lost, withdrawn = self._lease_lost()
+        if not lost:
             if self._cleanup_deferred:
                 self._finalize(None)
             return False
         self.output.deactivate()
         reason = self.host.revocations[-1] if self.host.revocations else "host revoked lease"
-        self.coordinator.sync()
-        report = self.coordinator.reports[-1]
-        self.faults.append(FaultRecord(None, reason, report, self._finalize(None)))
+        report, synced = self._guarded(reason, self.coordinator.sync)
+        self._record_fault(None, reason, report, self._finalize(None) and synced and withdrawn)
         return True
+
+    def _lease_lost(self) -> tuple[bool, bool]:
+        """(lease lost, withdrawal ok). Reading the lease can itself apply an expiry and fail."""
+        try:
+            return self.coordinator.lease is not None and not self.host.lease_held, True
+        except Exception as exc:  # noqa: BLE001 - an unreadable host state is treated as a lost lease
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return True, self._attempt(lambda: self.output.fail_closed("host_state_unreadable"))
 
     # ---- faults ----
     def disconnect(self, kind: Fault = Fault.CARPLAY_ENDED) -> fsc.CleanupReport:
@@ -433,15 +471,48 @@ class Type111IngestPipeline:
         return self._fault(Fault.DISPLAY_HOST_RESTART, "display_host_restart")
 
     def _fault(self, kind: Fault, code: str) -> fsc.CleanupReport:
-        withdrawn = True
+        """Fixed order: withdraw, coordinator cleanup, receiver cleanup, THEN diagnostics.
+
+        Each step is isolated so one failure never skips the next, and nothing that
+        formats or stores a diagnostic runs before the first withdrawal attempt.
+        """
+        withdrawn = self._attempt(lambda: self.output.fail_closed(code))  # visible content first
+        report, coordinated = self._guarded(kind.value, lambda: self.coordinator.fault(kind))
+        cleaned = self._finalize(kind)
+        self._record_fault(kind, code, report, cleaned and withdrawn and coordinated)
+        incomplete = (() if withdrawn else ("withdrawal",)) + (() if cleaned else ("receiver_cleanup",))
+        return fsc.CleanupReport(report.reason, report.ran, report.failed + incomplete) if incomplete else report
+
+    def _guarded(self, reason: str, step: Callable[[], Any]) -> tuple[fsc.CleanupReport, bool]:
+        """Run a coordinator step; on failure report it truthfully instead of raising."""
         try:
-            self.output.fail_closed(code)  # visible content first, before any cleanup
-        except Exception as exc:  # noqa: BLE001 - recorded; the coordinator still revokes and cleans up
-            self.cleanup_failures.append(getattr(exc, "code", type(exc).__name__))
-            withdrawn = False
-        report = self.coordinator.fault(kind)
-        self.faults.append(FaultRecord(kind, code, report, self._finalize(kind) and withdrawn))
-        return report
+            before = len(self.coordinator.reports)
+            result = step()
+            if isinstance(result, fsc.CleanupReport):
+                return result, True
+            if len(self.coordinator.reports) > before:
+                return self.coordinator.reports[-1], True
+            return fsc.CleanupReport(reason, (), ()), True  # the step had nothing to do: no stale report
+        except Exception as exc:  # noqa: BLE001 - recorded; receiver cleanup must still run
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return fsc.CleanupReport(reason, (), ("coordinator",)), False
+
+    def _attempt(self, step: Callable[[], None]) -> bool:
+        """One independent cleanup step; failure is recorded (best effort), never raised."""
+        try:
+            step()
+        except Exception as exc:  # noqa: BLE001 - the remaining cleanup steps must still run
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return False
+        return True
+
+    def _record_fault(self, kind: Fault | None, code: str, report: fsc.CleanupReport, cleanup_ok: bool) -> None:
+        try:
+            record = FaultRecord(kind, code, report, cleanup_ok)
+        except Exception:  # noqa: BLE001 - diagnostics only
+            self.diagnostics_dropped += 1
+            return
+        _note(self, self.faults, record)
 
     def _finalize(self, kind: Fault | None) -> bool:
         """Idempotently finish receiver cleanup the coordinator could not do inline.
@@ -450,18 +521,17 @@ class Type111IngestPipeline:
         project-owned is still held afterwards; it never raises.
         """
         self._cleanup_deferred = False
-        try:
-            if kind in _FULL_TEARDOWN:
-                self.receiver.teardown(self.generation)
-                leftovers = self.session_residual()
-                if leftovers:
-                    raise IngestError("session_cleanup_incomplete:" + ",".join(leftovers))
-            else:
-                self._close_secondary()
-        except Exception as exc:  # noqa: BLE001 - cleanup failure is recorded, never raised
-            self.cleanup_failures.append(getattr(exc, "code", type(exc).__name__))
-            return False
-        return True
+        if kind not in _FULL_TEARDOWN:
+            return self._attempt(self._close_secondary)
+        torn_down = self._attempt(lambda: self.receiver.teardown(self.generation))
+        if not torn_down:  # independent: the secondary stream must still be released
+            self._attempt(self._close_secondary)
+        return self._attempt(self._require_session_clean) and torn_down
+
+    def _require_session_clean(self) -> None:
+        leftovers = self.session_residual()
+        if leftovers:
+            raise IngestError("session_cleanup_incomplete:" + ",".join(leftovers))
 
     def _close_secondary(self) -> None:
         if self.output.inside_show():  # on the dispatcher worker: cannot join itself
