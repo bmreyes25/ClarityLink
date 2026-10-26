@@ -388,3 +388,128 @@ def test_pipeline_records_a_failed_withdrawal_instead_of_losing_it(make, stream,
     monkeypatch.undo()
     pipe.output.clear()  # once the sink's path works again the pending flag clears
     assert not pipe.output.withdrawal_pending
+
+
+# ---- PR #97 review: a dependency-raised SinkRejection is NOT proof that the sink withdrew ----
+def raiser_exact(exc):
+    def fail(*_args, **_kwargs):
+        raise exc
+    return fail
+
+
+def _dependency_target(pipe, point):
+    return {
+        "conversion": (type111_ingest, "png_to_rgb24"),
+        "video_frame_construction": (type111_ingest, "VideoFrame"),
+        "frame_binding": (type111_ingest, "LeaseBoundFrame"),
+        "coordinator_submission": (pipe.coordinator, "submit_frame"),
+    }[point]
+
+
+@pytest.mark.parametrize("point", sorted(INJECTIONS))
+def test_dependency_raised_sink_rejection_still_fails_closed(shown, monkeypatch, point):
+    pipe, generation = shown
+    injected = type111_ingest.SinkRejection("dependency-raised")
+    monkeypatch.setattr(*_dependency_target(pipe, point), raiser_exact(injected))
+    observed = []
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        try:
+            pipe.output.show(decoded(generation, 2))
+        finally:
+            observed.append((pipe.host.visible_content, pipe.output.last_bound))
+    assert observed == [(None, None)]  # withdrawn before the caller regains control
+    assert caught.value is not injected and caught.value.__cause__ is injected
+    assert caught.value.code == "sink_exception:SinkRejection" and caught.value.cleanup_error is None
+    assert pipe.output.rejected[-1] == "sink_exception:SinkRejection"
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+    assert pipe.host.residual_state == ()
+    # A direct sink call withdraws Display 1 only; the receiver's own listener/dispatcher stay up.
+    residual = pipe.residual()
+    assert "display_frame" not in residual and "withdrawal_pending" not in residual
+    assert not [item for item in residual if item.startswith("host:")]
+
+
+def test_dependency_raised_sink_rejection_with_failed_revocation_is_reported(shown, monkeypatch):
+    pipe, generation = shown
+    injected = type111_ingest.SinkRejection("dependency-raised")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    monkeypatch.setattr(pipe.host, "revoke", raiser("host unavailable", OSError))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value.__cause__ is injected
+    assert isinstance(caught.value.cleanup_error, OSError)
+    assert pipe.output.cleanup_failures == ["OSError"]
+    assert pipe.output.withdrawal_pending and "withdrawal_pending" in pipe.residual()
+    assert pipe.host.visible_content is not None  # truthfully not withdrawn
+    monkeypatch.undo()
+    pipe.output.clear()
+    assert pipe.host.visible_content is None and not pipe.output.withdrawal_pending
+
+
+def test_internally_generated_rejection_is_withdrawn_once_and_keeps_its_code(shown, monkeypatch):
+    pipe, generation = shown
+    revokes = []
+    real_revoke = pipe.host.revoke
+
+    def counting_revoke(reason):
+        revokes.append(reason)
+        return real_revoke(reason)
+
+    monkeypatch.setattr(pipe.host, "revoke", counting_revoke)
+    with pytest.raises(type111_ingest.SinkRejection, match="stale_stream_generation") as caught:
+        pipe.output.show(decoded(generation + 1, 2))
+    assert caught.value.__cause__ is None and len(revokes) == 1  # no duplicate cleanup
+    assert pipe.output.rejected == ["stale_stream_generation"]
+
+
+def test_a_rejection_issued_by_another_sink_is_not_proof_of_withdrawal(shown, make, monkeypatch):
+    pipe, generation = shown
+    foreign = make().output._reject("foreign_code")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(foreign))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value is not foreign and caught.value.__cause__ is foreign
+    assert pipe.host.visible_content is None
+
+
+def test_unstamped_sink_rejection_subclass_still_fails_closed(shown, monkeypatch):
+    class NoInit(type111_ingest.SinkRejection):
+        def __init__(self):  # deliberately skips SinkRejection.__init__: no provenance attribute
+            Exception.__init__(self, "no-init")
+
+    injected = NoInit()
+    assert not hasattr(injected, "_issued_by")
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value is not injected and caught.value.__cause__ is injected
+    assert pipe.host.visible_content is None and pipe.output.last_bound is None
+
+
+def test_reactivation_after_a_dependency_raised_rejection_accepts_only_fresh_frames(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(type111_ingest.SinkRejection("x")))
+    with pytest.raises(type111_ingest.SinkRejection):
+        pipe.output.show(decoded(generation, 2))
+    monkeypatch.undo()
+    pipe.output.activate(pipe.receiver.stream_identity(111))
+    assert pipe.host.visible_content is None
+    with pytest.raises(DisplayError, match="stale_stream_generation"):
+        pipe.output.show(decoded(generation + 1, 3))
+    assert pipe.host.visible_content is None
+
+
+def test_dispatcher_survives_a_dependency_raised_sink_rejection(make, stream, monkeypatch):
+    pipe = make()
+    client = start_type111(pipe)
+    client.sendall(stream.config_message() + stream.frame_message(0, timestamp=5))
+    assert pipe.pump_frame().accepted and pipe.pump_frame().accepted
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24",
+                        raiser_exact(type111_ingest.SinkRejection("dependency-raised")))
+    client.sendall(stream.frame_message(1, timestamp=6))
+    outcome = pipe.pump_frame()  # must not raise
+    client.close()
+    assert not outcome.accepted and pipe.host.visible_content is None
+    assert pipe.host.residual_state == ()

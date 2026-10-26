@@ -124,6 +124,9 @@ class SinkRejection(DisplayError):
     def __init__(self, code: str, cleanup_error: Exception | None = None) -> None:
         super().__init__(code)
         self.cleanup_error = cleanup_error
+        # Provenance: set only by ``LeaseGatedOutput._reject`` once it has attempted the withdrawal.
+        # The exception class alone proves nothing: a dependency can raise the same type.
+        self._issued_by: object | None = None
 
 
 class LeaseGatedOutput:
@@ -178,18 +181,25 @@ class LeaseGatedOutput:
         except Exception as exc:  # noqa: BLE001 - the original failure must still reach the caller
             cleanup_error = exc
             self.cleanup_failures.append(getattr(exc, "code", type(exc).__name__))
-        return SinkRejection(code, cleanup_error)
+        rejection = SinkRejection(code, cleanup_error)
+        rejection._issued_by = self
+        return rejection
 
     def _failure(self, exc: Exception) -> SinkRejection:
         code = exc.code if isinstance(exc, FrameError) else f"sink_exception:{type(exc).__name__}"
         return self._reject(code)
 
+    def _already_withdrawn(self, exc: Exception) -> bool:
+        """True only for a rejection this sink built itself, after attempting the withdrawal."""
+        # getattr: a subclass that skips SinkRejection.__init__ has no stamp and must still fail closed
+        return isinstance(exc, SinkRejection) and getattr(exc, "_issued_by", None) is self
+
     def show(self, frame: DecodedFrame) -> None:
         try:
             self._present(frame)
-        except SinkRejection:
-            raise  # already withdrawn by _reject
         except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
+            if self._already_withdrawn(exc):
+                raise
             raise self._failure(exc) from exc
 
     def _present(self, frame: DecodedFrame) -> None:
@@ -211,9 +221,9 @@ class LeaseGatedOutput:
                 raise self._reject("output_inactive")
             try:  # withdraw under the same lock hold as the admission check above
                 self._commit(frame, identity, (width, height, pixels), converted)
-            except SinkRejection:
-                raise
             except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
+                if self._already_withdrawn(exc):
+                    raise
                 raise self._failure(exc) from exc
 
     def _commit(self, frame: DecodedFrame, identity: StreamIdentity,
