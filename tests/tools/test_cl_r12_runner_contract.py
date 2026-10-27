@@ -89,6 +89,19 @@ def test_pane_test_apk_inputs_are_explicit_and_request_no_permission():
     assert "must request no permissions" in script
 
 
+def test_renderer_ab_lease_class_expectation_follows_the_baseline_tree():
+    # A baseline from a main that already has PaneLease must REQUIRE the lease classes; only a
+    # baseline that predates them may FORBID them. A hard-coded --forbid fails every renderer PR
+    # branched from such a main, for a reason unrelated to the change under test.
+    assert "sed -n 's/^baseline_commit=//p'" in WORKFLOW and "ab-identity.txt" in WORKFLOW
+    assert 'git cat-file -e "$baseline_commit:src/claritylink-renderer/android-api17/PaneLease.java"' in WORKFLOW
+    branch = WORKFLOW.split('git cat-file -e "$baseline_commit:src/claritylink-renderer/android-api17/PaneLease.java"')[1]
+    then_part, else_part = branch.split("else", 1)
+    assert "--require org.claritylink.renderer.PaneLease" in then_part and "--forbid" not in then_part
+    assert "--forbid org.claritylink.renderer.PaneLease" in else_part.split("fi", 1)[0]
+    assert '"${lease_expectation[@]}"' in WORKFLOW
+
+
 def test_workload_mode_changes_only_the_activity_and_is_recorded():
     script = (REPO / "tools/build_cl_r12_workload_ab.sh").read_text()
     assert "ab_mode=workload" in script and "renderer_tree_sha256_both" in script

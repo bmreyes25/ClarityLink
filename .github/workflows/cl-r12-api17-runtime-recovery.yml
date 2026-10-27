@@ -192,10 +192,19 @@ jobs:
             if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" "${lab[@]}"
             else
-              # Renderer A/B: the baseline is the pre-PaneLease renderer, so the lease classes must be absent
-              # while the candidate's workload helper (overlaid into the baseline) is present.
+              # Renderer A/B: the baseline TREE decides what the lease classes must look like. A baseline that
+              # predates PaneLease must not contain them; a baseline that already has them (any PR branched
+              # from a main that includes PaneLease) must, so both APKs carry the same lease code.
+              # The candidate's workload helper (overlaid into the baseline) must be present either way.
+              baseline_commit="$(sed -n 's/^baseline_commit=//p' "$(dirname "$CL_R12_BASELINE_APK")/ab-identity.txt")"
+              test -n "$baseline_commit"
+              if git cat-file -e "$baseline_commit:src/claritylink-renderer/android-api17/PaneLease.java" 2>/dev/null; then
+                lease_expectation=(--require org.claritylink.renderer.PaneLease --require org.claritylink.renderer.PaneEvent)
+              else
+                lease_expectation=(--forbid org.claritylink.renderer.PaneLease --forbid org.claritylink.renderer.PaneEvent)
+              fi
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" \
-                --forbid org.claritylink.renderer.PaneLease --forbid org.claritylink.renderer.PaneEvent \
+                "${lease_expectation[@]}" \
                 --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
             fi
           } | tee dex-verification.txt
