@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from time import monotonic
-from typing import Any, Callable
+from typing import Any, Callable, NoReturn
 
 _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
@@ -56,6 +56,7 @@ class SubmitResult(str, Enum):
     REJECTED_OUT_OF_ORDER = "REJECTED_OUT_OF_ORDER"
     REJECTED_INTERRUPTED = "REJECTED_INTERRUPTED"
     REJECTED_NO_DISPLAY = "REJECTED_NO_DISPLAY"
+    REJECTED_SUPERSEDED = "REJECTED_SUPERSEDED"  # remote host only: this connection lost ownership
 
 
 class GrantResult(str, Enum):
@@ -64,6 +65,7 @@ class GrantResult(str, Enum):
     REJECTED_STALE_GENERATION = "REJECTED_STALE_GENERATION"
     REJECTED_INTERRUPTED = "REJECTED_INTERRUPTED"
     REJECTED_NO_DISPLAY = "REJECTED_NO_DISPLAY"
+    REJECTED_SUPERSEDED = "REJECTED_SUPERSEDED"  # remote host only: this connection lost ownership
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,10 @@ def _append_bounded(log: list[str], item: str) -> None:
     log.append(item)
     if len(log) > DIAGNOSTIC_LOG_LIMIT:
         del log[: len(log) - DIAGNOSTIC_LOG_LIMIT]
+
+
+def _note_withdrawal_failure(error: Exception, withdraw_error: Exception) -> None:
+    error.add_note(f"withdrawal unconfirmed: {type(withdraw_error).__name__}")
 
 
 def _require_nonneg_int(value: Any, name: str) -> None:
@@ -448,7 +454,11 @@ class FailSafeCoordinator:
             self._withdraw("superseded by renegotiation")
         for name, close in (closers or {}).items():
             self._closers.append(_Closer(name, close))
-        result, lease = self.host.grant(self._next_generation)
+        try:
+            result, lease = self.host.grant(self._next_generation)
+        except Exception as exc:  # noqa: BLE001 - no host decision: fail closed, keep the cause
+            self._next_generation += 1  # the host may have allocated it before the transport died
+            self._fail_closed_on_host_error("grant host error", exc)
         self._next_generation += 1
         if lease is None:
             self._withdraw(f"grant refused: {result.value}")
@@ -460,42 +470,87 @@ class FailSafeCoordinator:
     def submit_frame(self, content: Any) -> SubmitResult:
         if self._lease is None:
             return SubmitResult.REJECTED_NO_LEASE
-        result = self.host.submit(self._lease, self._sequence, content)
+        try:
+            result = self.host.submit(self._lease, self._sequence, content)
+        except Exception as exc:  # noqa: BLE001 - no host decision: fail closed, keep the cause
+            self._fail_closed_on_host_error("submit host error", exc)
         self._sequence += 1
         if result is SubmitResult.ACCEPTED:
             self.state = LinkState.STREAMING
+        elif result is SubmitResult.REJECTED_SUPERSEDED:
+            self._withdraw("superseded by another producer")  # the lease is permanently gone
+            self.state = LinkState.CARPLAY_ACTIVE
         else:
             self.sync()
         return result
 
     def heartbeat(self) -> bool:
-        alive = self._lease is not None and self.host.heartbeat(self._lease)
+        try:
+            alive = self._lease is not None and self.host.heartbeat(self._lease)
+        except Exception as exc:  # noqa: BLE001 - no host decision: fail closed, keep the cause
+            self._fail_closed_on_host_error("heartbeat host error", exc)
         if not alive:
-            self.sync()
+            # The host said this lease is not alive (expired, revoked, or superseded by another
+            # producer): withdraw now. The host-global ``lease_held`` that sync() reads may be True
+            # because of the NEW owner's lease and would leave this coordinator holding a dead one.
+            self._adopt_host_revocation()
         return alive
 
     # ---- fail-safe path ----
     def fault(self, kind: Fault) -> CleanupReport:
         """Withdraw everything custom and lower the state. Every closer runs; a host that cannot
         confirm the revoke is reported by raising AFTER cleanup (callers that own reporting catch it)."""
-        if kind is Fault.FACTORY_WARNING:
-            self.host.activate_interrupt()
-        elif kind is Fault.DISPLAY_HOST_RESTART:
-            self.host.lose_display()
-            self.host.restore_display()
+        host_error: Exception | None = None
         try:
-            return self._withdraw(kind.value)
+            if kind is Fault.FACTORY_WARNING:
+                self.host.activate_interrupt()
+            elif kind is Fault.DISPLAY_HOST_RESTART:
+                self.host.lose_display()
+                self.host.restore_display()
+        except Exception as exc:  # noqa: BLE001 - withdraw and clean up anyway, then report it
+            host_error = exc
+        try:
+            report = self._withdraw(kind.value)
+        except Exception as withdraw_error:
+            if host_error is None:
+                raise
+            _note_withdrawal_failure(host_error, withdraw_error)
+            raise host_error from None
         finally:
             target = _STATE_AFTER_FAULT[kind]
             if _STATE_RANK[target] < _STATE_RANK[self.state]:
                 self.state = target  # a fault only ever lowers the state, never raises it
+        if host_error is not None:
+            raise host_error
+        return report
 
     def sync(self) -> None:
         """Adopt a host-side revocation (expiry, supersession) the host made alone."""
-        if self._lease is not None and not self.host.lease_held:
-            self._withdraw("host revoked lease")
-            if self.state in (LinkState.TYPE111_NEGOTIATED, LinkState.STREAMING):
-                self.state = LinkState.CARPLAY_ACTIVE
+        try:
+            lost = self._lease is not None and not self.host.lease_held
+        except Exception as exc:  # noqa: BLE001 - unknown host state is not "revoked": report it
+            self._fail_closed_on_host_error("lease state host error", exc)
+        if lost:
+            self._adopt_host_revocation()
+
+    def _adopt_host_revocation(self) -> None:
+        if self._lease is None:
+            return
+        self._withdraw("host revoked lease")
+        if self.state in (LinkState.TYPE111_NEGOTIATED, LinkState.STREAMING):
+            self.state = LinkState.CARPLAY_ACTIVE
+
+    def _fail_closed_on_host_error(self, what: str, exc: Exception) -> NoReturn:
+        """The host gave no decision (e.g. its IPC channel failed): withdraw, run every closer,
+        then re-raise the ORIGINAL error. A withdrawal that could not be confirmed is noted on it,
+        never reported as done."""
+        try:
+            self._withdraw(f"{what}: {type(exc).__name__}")
+        except Exception as withdraw_error:  # noqa: BLE001
+            _note_withdrawal_failure(exc, withdraw_error)
+        if self.state in (LinkState.TYPE111_NEGOTIATED, LinkState.STREAMING):
+            self.state = LinkState.CARPLAY_ACTIVE  # the lease is gone either way
+        raise exc
 
     def _run_closers_only(self, closers: dict[str, Callable[[], None]] | None) -> None:
         """Refused negotiation: release what the caller already acquired."""

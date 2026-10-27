@@ -343,7 +343,7 @@ def test_dead_producer_cannot_revoke_a_newer_generation(sock_path):
         a, b = RemoteDisplay1Host(sock_path), RemoteDisplay1Host(sock_path)
         _r, lease_a = a.grant(1)
         _r, lease_b = b.grant(2)  # supersedes A
-        assert a.submit(lease_a, 0, "old") is SubmitResult.REJECTED_STALE_GENERATION
+        assert a.submit(lease_a, 0, "old") is SubmitResult.REJECTED_SUPERSEDED
         assert b.submit(lease_b, 0, "new") is SubmitResult.ACCEPTED
         a.close()  # the old producer dies late
         assert wait_for(lambda: len(server._conns) == 1)  # the host really processed that death
@@ -359,12 +359,12 @@ def test_transport_failure_fails_closed():
     host_less = RemoteDisplay1Host.__new__(RemoteDisplay1Host)
     host_less._lock, host_less._sock, host_less._buffer = threading.Lock(), None, b""
     host_less.transport_errors = 0
-    result, lease = host_less.grant(1)
-    assert lease is None and result is GrantResult.REJECTED_NO_DISPLAY
-    assert host_less.submit(LeaseGrant(1, 1), 0, "x") is SubmitResult.REJECTED_NO_DISPLAY
-    assert host_less.heartbeat(LeaseGrant(1, 1)) is False and host_less.lease_held is False
-    # unknown is never reported as clean or as withdrawn
-    for unknown in (lambda: host_less.revoke("x"), lambda: host_less.residual_state,
+    # no transport means no host decision: every operation raises, none invents a refusal
+    # (test_cl_int_04_qa_fixes.py covers valid refusal vs. each kind of IPC failure)
+    lease = LeaseGrant(1, 1)
+    for unknown in (lambda: host_less.grant(1), lambda: host_less.submit(lease, 0, "x"),
+                    lambda: host_less.heartbeat(lease), lambda: host_less.lease_held,
+                    lambda: host_less.revoke("x"), lambda: host_less.residual_state,
                     lambda: host_less.visible_content, host_less.status):
         with pytest.raises(HostIpcError):
             unknown()
@@ -458,7 +458,8 @@ def test_persistent_withdrawal_failure_keeps_diagnostics_bounded_and_status_read
         server.stop()
 
 
-def test_same_connection_can_reactivate_after_another_producer_advanced_the_generation(sock_path):
+def test_superseded_connection_cannot_reclaim_ownership_by_granting_again(sock_path):
+    """Regression for the CL-INT-04 QA defect: A -> B -> A's grant used to return generation 3."""
     service = Display1HostService(Display1LeaseHost(lease_seconds=5.0))
     service.host.select_page(True)
     server = Display1HostServer(service, sock_path)
@@ -468,10 +469,12 @@ def test_same_connection_can_reactivate_after_another_producer_advanced_the_gene
         _r, first = a.grant(1)
         _r, other = b.grant(1)  # the host allocates above a's generation
         assert other.generation > first.generation
-        _r, again = a.grant(2)  # a's own counter is behind the host's: it still reactivates
-        assert again is not None and again.generation > other.generation
-        assert a.submit(again, 0, "frame") is SubmitResult.ACCEPTED
-        assert b.submit(other, 1, "late") is SubmitResult.REJECTED_STALE_GENERATION
+        high_water = service.host.generation_high_water
+        assert a.grant(2) == (GrantResult.REJECTED_SUPERSEDED, None)  # A's counter cannot win it back
+        assert service.host.generation_high_water == high_water  # no generation was consumed
+        assert b.submit(other, 0, "owner") is SubmitResult.ACCEPTED
+        assert a.submit(first, 0, "late") is SubmitResult.REJECTED_SUPERSEDED
+        assert service.host.visible_content == "owner" and service.host.lease_held
         a.close()
         b.close()
     finally:
@@ -485,8 +488,9 @@ def test_out_of_range_wire_integers_are_rejected_and_cannot_inflate_the_generati
     try:
         client = RemoteDisplay1Host(sock_path)
         before = service.host.generation_high_water
-        assert client.grant(10 ** 18) == (GrantResult.REJECTED_NO_DISPLAY, None)
-        assert service.host.generation_high_water == before
+        with pytest.raises(HostIpcError, match="host_error:bad_request"):  # not a host decision
+            client.grant(10 ** 18)
+        assert service.host.generation_high_water == before and client.connected
         assert client.grant(1)[0] is GrantResult.GRANTED
         client.close()
     finally:

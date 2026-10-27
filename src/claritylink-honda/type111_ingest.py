@@ -426,7 +426,12 @@ class Type111IngestPipeline:
 
     # ---- liveness ----
     def heartbeat(self) -> bool:
-        alive = self.coordinator.heartbeat()
+        try:
+            alive = self.coordinator.heartbeat()
+        except Exception as exc:  # noqa: BLE001 - no host decision: end Type111 fail-closed, Type110 stays
+            self._fault(Fault.TYPE111_TRANSPORT_FAILURE, "host_ipc_error")  # withdraw before diagnostics
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return False
         if not alive:
             self.settle()
         return alive

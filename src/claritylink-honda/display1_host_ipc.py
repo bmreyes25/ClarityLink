@@ -12,7 +12,8 @@ that stays alive but silent is covered by the expiry timer, not by this path.
 
 ``RemoteDisplay1Host`` mirrors the ``Display1LeaseHost`` surface used by
 ``FailSafeCoordinator`` and ``Type111IngestPipeline``, so neither needs a second
-code path. Every transport error fails closed (rejects, never presents).
+code path. A transport or protocol failure raises ``HostIpcError``; it is never
+returned as a host refusal, and callers fail closed on it.
 
 Limits: the socket is mode 0600 in the caller's directory; epoch/lease remain
 staleness fences, not authenticators. Lab controls (interrupt, display loss) exist
@@ -47,6 +48,8 @@ CONNECTION_IDLE_SECONDS = 30.0
 CLIENT_TIMEOUT_SECONDS = 2.0
 THREAD_JOIN_SECONDS = 2.0
 MAX_SOCKET_PATH = 100  # sun_path is ~104 on macOS
+_STATUS_BOOLS = ("lease_held", "visible", "withdrawal_pending")
+MAX_RESIDUAL = 64  # a handful of project-owned items at most; bounds residual_state's allocation
 _LAB_OPS = frozenset({"interrupt_on", "interrupt_off", "lose_display", "restore_display", "select_page"})
 
 
@@ -59,9 +62,15 @@ def _send(conn: socket.socket, message: dict[str, Any]) -> None:
 
 
 class _Connection:
+    """One producer connection. ``lease``/``superseded``/``ever_granted`` change only under the
+    server's ownership lock, and ``superseded`` is never cleared: a connection that lost
+    ownership to another producer can only be replaced by a fresh connection."""
+
     def __init__(self, sock: socket.socket) -> None:
         self.sock = sock
         self.lease: fsc.LeaseGrant | None = None
+        self.ever_granted = False
+        self.superseded = False
         self.buffer = b""
 
     def read_line(self) -> bytes | None:
@@ -88,6 +97,7 @@ class Display1HostServer:
         self._listener: socket.socket | None = None
         self._accept_thread: threading.Thread | None = None
         self._lock = threading.Lock()
+        self._ownership_lock = threading.Lock()  # grant + supersession marking are one step
         self._conns: dict[int, tuple[_Connection, threading.Thread]] = {}
         self._next_id = 0
         self._stopping = threading.Event()
@@ -204,7 +214,8 @@ class Display1HostServer:
             self._on_connection_end(conn_id, conn)
 
     def _on_connection_end(self, conn_id: int, conn: _Connection) -> None:
-        lease, conn.lease = conn.lease, None
+        with self._ownership_lock:
+            lease, conn.lease = conn.lease, None
         try:
             if lease is not None:  # host-owned detection of producer death
                 self.service.revoke_if_current(lease, "producer connection lost")
@@ -238,9 +249,15 @@ class Display1HostServer:
         if op == "grant":
             # A producer process restarts its own counter, so the HOST allocates every generation
             # above all it has ever granted; the producer's number is only a lower bound.
-            result, lease = host.grant_above(_bounded_int(req["generation"]))
-            if lease is not None:
-                conn.lease = lease
+            minimum = _bounded_int(req["generation"])
+            with self._ownership_lock:
+                if conn.superseded:  # permanent: asking again can never win ownership back
+                    return {"ok": True, "result": fsc.GrantResult.REJECTED_SUPERSEDED.value,
+                            "epoch": host.epoch, "generation": 0}
+                result, lease = host.grant_above(minimum)
+                if lease is not None:
+                    conn.lease, conn.ever_granted = lease, True
+                    self._supersede_other_owners(conn)
             return {"ok": True, "result": result.value, "epoch": host.epoch,
                     "generation": lease.generation if lease is not None else 0}
         if op == "submit":
@@ -249,20 +266,28 @@ class Display1HostServer:
             content = req["content"]
             if not isinstance(content, str) or len(content) > MAX_CONTENT_CHARS:
                 return {"ok": False, "error": "bad_content"}
-            if conn.lease is None:
+            owned, superseded = self._ownership_of(conn)
+            if superseded:
+                return {"ok": True, "result": fsc.SubmitResult.REJECTED_SUPERSEDED.value}
+            if owned is None:
                 return {"ok": True, "result": fsc.SubmitResult.REJECTED_NO_LEASE.value}
-            if lease != conn.lease:  # another connection's lease, or a stale one
+            if lease != owned:  # another connection's lease, or a stale one
                 return {"ok": True, "result": fsc.SubmitResult.REJECTED_STALE_GENERATION.value}
             return {"ok": True, "result": host.submit(lease, req["sequence"], content).value}
         if op == "heartbeat":
             lease = fsc.LeaseGrant(_bounded_int(req["epoch"]), _bounded_int(req["generation"]))
-            return {"ok": True, "alive": conn.lease == lease and host.heartbeat(lease)}
+            owned, superseded = self._ownership_of(conn)
+            return {"ok": True, "alive": not superseded and owned == lease and host.heartbeat(lease)}
         if op == "revoke":
-            lease, conn.lease = conn.lease, None
+            with self._ownership_lock:
+                lease, conn.lease = conn.lease, None
+                superseded = conn.superseded
             revoked = lease is not None and self.service.revoke_if_current(
                 lease, str(req.get("reason", "producer release"))[:MAX_REASON_CHARS])
-            # Never claim "withdrawn" when the cluster refused: say so, and the client raises.
-            return {"ok": True, "revoked": revoked, "withdrawal_pending": host.withdrawal_pending}
+            # Never claim "withdrawn" when the cluster refused: say so, and the client raises. A
+            # fenced connection owns no content, so another owner's pending withdrawal is not its news.
+            return {"ok": True, "revoked": revoked,
+                    "withdrawal_pending": host.withdrawal_pending and not superseded}
         if op == "status":
             st = self.service.status()
             return {"ok": True, "status": {
@@ -274,6 +299,21 @@ class Display1HostServer:
         if op in _LAB_OPS and self.lab_controls:
             return self._lab(op, req)
         return {"ok": False, "error": "unknown_op"}
+
+    def _ownership_of(self, conn: _Connection) -> tuple[fsc.LeaseGrant | None, bool]:
+        """One consistent (lease, superseded) view of a connection, taken under the ownership lock."""
+        with self._ownership_lock:
+            return conn.lease, conn.superseded
+
+    def _supersede_other_owners(self, owner: _Connection) -> None:
+        """Called under the ownership lock after ``owner`` was granted. Every other connection that
+        ever held a lease (even one that already expired or was released) is fenced for good, so
+        it cannot reclaim ownership by sending ``grant`` again."""
+        with self._lock:
+            others = [c for c, _t in self._conns.values() if c is not owner]
+        for other in others:
+            if other.ever_granted:
+                other.superseded, other.lease = True, None
 
     def _lab(self, op: str, req: dict[str, Any]) -> dict[str, Any]:
         host = self.service.host
@@ -329,18 +369,24 @@ class RemoteDisplay1Host:
             self._sock.close()
             self._sock = None
             raise
-        reply = self._call({"op": "hello"})
-        if not reply or not reply.get("ok") or type(reply.get("epoch")) is not int:
+        try:
+            reply = self._call_ok({"op": "hello"})
+        except HostIpcError as exc:
+            self.close()
+            raise HostIpcError("hello_failed") from exc
+        if type(reply.get("epoch")) is not int:
             self.close()
             raise HostIpcError("hello_failed")
         self.epoch: int = reply["epoch"]
 
     # ---- transport ----
-    def _call(self, request: dict[str, Any]) -> dict[str, Any] | None:
+    def _call(self, request: dict[str, Any]) -> dict[str, Any]:
+        """One request/reply. RAISES ``HostIpcError`` when no well-formed reply arrived (unavailable
+        or closed transport, timeout, truncated or malformed line): that is never a host decision."""
         with self._lock:
             sock = self._sock
             if sock is None:
-                return None
+                raise HostIpcError("host_unavailable")
             try:
                 _send(sock, request)
                 while b"\n" not in self._buffer:
@@ -355,10 +401,22 @@ class RemoteDisplay1Host:
                 if not isinstance(reply, dict):
                     raise HostIpcError("bad_reply")
                 return reply
-            except (OSError, ValueError, HostIpcError):
+            except HostIpcError:
                 self.transport_errors += 1
                 self._close_locked()
-                return None
+                raise
+            except (OSError, ValueError) as exc:
+                self.transport_errors += 1
+                self._close_locked()
+                raise HostIpcError(f"host_transport_failed:{type(exc).__name__}") from exc
+
+    def _call_ok(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Like ``_call`` but the host must also report ``ok``. An ``ok: false`` reply is the host
+        saying it could not process the request (bad request, internal fault), not a decision."""
+        reply = self._call(request)
+        if reply.get("ok") is not True:
+            raise HostIpcError(f"host_error:{str(reply.get('error', 'unknown'))[:MAX_REASON_CHARS]}")
+        return reply
 
     def _close_locked(self) -> None:
         sock, self._sock = self._sock, None
@@ -376,41 +434,40 @@ class RemoteDisplay1Host:
     def connected(self) -> bool:
         return self._sock is not None
 
+    def _invalid_reply(self, what: str) -> HostIpcError:
+        """A well-formed line whose content breaks the protocol: count it, drop the connection."""
+        with self._lock:
+            self.transport_errors += 1
+            self._close_locked()
+        return HostIpcError(f"invalid_{what}_reply")
+
     # ---- Display1LeaseHost surface ----
+    # A returned GrantResult/SubmitResult is ALWAYS a decision the host actually made. Anything else
+    # raises HostIpcError, so callers can tell "the host said no" from "the channel is broken".
     def grant(self, generation: int) -> tuple[fsc.GrantResult, fsc.LeaseGrant | None]:
-        reply = self._call({"op": "grant", "generation": generation})
-        if not reply or not reply.get("ok"):
-            return fsc.GrantResult.REJECTED_NO_DISPLAY, None
+        reply = self._call_ok({"op": "grant", "generation": generation})
         try:
             result = fsc.GrantResult(reply["result"])
             if result is not fsc.GrantResult.GRANTED:
                 return result, None
             return result, fsc.LeaseGrant(_bounded_int(reply["epoch"]), _bounded_int(reply["generation"]))
-        except (KeyError, ValueError, TypeError):
-            self._protocol_error()
-            return fsc.GrantResult.REJECTED_NO_DISPLAY, None  # adopt generation: host allocated it
+        except (KeyError, ValueError, TypeError) as exc:
+            raise self._invalid_reply("grant") from exc
 
     def submit(self, lease: fsc.LeaseGrant, sequence: int, content: Any) -> fsc.SubmitResult:
         text = _describe(content)
-        reply = self._call({"op": "submit", "epoch": lease.epoch, "generation": lease.generation,
-                            "sequence": sequence, "content": text})
-        if not reply or not reply.get("ok"):
-            return fsc.SubmitResult.REJECTED_NO_DISPLAY
+        reply = self._call_ok({"op": "submit", "epoch": lease.epoch, "generation": lease.generation,
+                               "sequence": sequence, "content": text})
         try:
             return fsc.SubmitResult(reply["result"])
-        except (KeyError, ValueError, TypeError):
-            self._protocol_error()
-            return fsc.SubmitResult.REJECTED_NO_DISPLAY
-
-    def _protocol_error(self) -> None:
-        """A reply this client cannot parse: count it and drop the connection (fail closed)."""
-        with self._lock:
-            self.transport_errors += 1
-            self._close_locked()
+        except (KeyError, ValueError, TypeError) as exc:
+            raise self._invalid_reply("submit") from exc
 
     def heartbeat(self, lease: fsc.LeaseGrant) -> bool:
-        reply = self._call({"op": "heartbeat", "epoch": lease.epoch, "generation": lease.generation})
-        return bool(reply and reply.get("ok") and reply.get("alive"))
+        reply = self._call_ok({"op": "heartbeat", "epoch": lease.epoch, "generation": lease.generation})
+        if type(reply.get("alive")) is not bool:
+            raise self._invalid_reply("heartbeat")
+        return reply["alive"]
 
     def revoke(self, reason: str) -> bool:
         """True if a lease was withdrawn. RAISES when the host did not confirm the withdrawal.
@@ -419,26 +476,32 @@ class RemoteDisplay1Host:
         transport is gone) is an error, never a quiet False: callers keep ``withdrawal_pending``
         set and report it. A dead transport also makes the host revoke on its own.
         """
-        reply = self._call({"op": "revoke", "reason": reason})
-        if not reply or not reply.get("ok"):
-            raise HostIpcError("revoke_unconfirmed")
+        try:
+            reply = self._call_ok({"op": "revoke", "reason": reason})
+        except HostIpcError as exc:
+            raise HostIpcError("revoke_unconfirmed") from exc  # keeps the transport cause
         if reply.get("withdrawal_pending"):
             raise HostIpcError("host_withdrawal_pending")
         return bool(reply.get("revoked"))
 
     def status(self) -> dict[str, Any]:
         """The host's own report. RAISES when unavailable: unknown state is never reported as clean."""
-        reply = self._call({"op": "status"})
-        if not reply or not reply.get("ok") or not isinstance(reply.get("status"), dict):
-            raise HostIpcError("host_status_unavailable")
-        return reply["status"]
+        try:
+            reply = self._call_ok({"op": "status"})
+        except HostIpcError as exc:
+            raise HostIpcError("host_status_unavailable") from exc
+        status = reply.get("status")
+        if not isinstance(status, dict) \
+                or any(type(status.get(key)) is not bool for key in _STATUS_BOOLS) \
+                or type(status.get("residual")) is not int or not 0 <= status["residual"] <= MAX_RESIDUAL \
+                or not isinstance(status.get("revocations"), list):
+            raise self._invalid_reply("status")  # a field we act on is missing or mistyped
+        return status
 
     @property
     def lease_held(self) -> bool:
-        try:
-            return bool(self.status()["lease_held"])
-        except HostIpcError:
-            return False  # connection gone: the host revokes that connection's lease itself
+        """RAISES when the host cannot be asked: unknown is neither held nor released."""
+        return bool(self.status()["lease_held"])
 
     @property
     def visible_content(self) -> Any:
@@ -455,18 +518,18 @@ class RemoteDisplay1Host:
         except HostIpcError:
             return []  # diagnostic only
 
+    # Lab controls: a request the host never confirmed raises instead of looking applied.
     def activate_interrupt(self) -> None:
-        self._call({"op": "interrupt_on"})
+        self._call_ok({"op": "interrupt_on"})
 
     def clear_interrupt(self) -> None:
-        self._call({"op": "interrupt_off"})
+        self._call_ok({"op": "interrupt_off"})
 
     def lose_display(self) -> None:
-        self._call({"op": "lose_display"})
+        self._call_ok({"op": "lose_display"})
 
     def restore_display(self) -> bool:
-        reply = self._call({"op": "restore_display"})
-        return bool(reply and reply.get("ok") and reply.get("restored"))
+        return bool(self._call_ok({"op": "restore_display"}).get("restored"))
 
     def select_page(self, selected: bool) -> None:
-        self._call({"op": "select_page", "selected": bool(selected)})
+        self._call_ok({"op": "select_page", "selected": bool(selected)})

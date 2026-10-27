@@ -89,6 +89,38 @@ def test_pane_test_apk_inputs_are_explicit_and_request_no_permission():
     assert "must request no permissions" in script
 
 
+def test_host_withdrawal_instrumentation_is_built_run_and_reported_separately():
+    # CL-INT-04: Display1HostExpiryTest runs on the same Android 4.2.2 x86 emulator, in its own package,
+    # with its own verdict; the PaneLease and performance verdicts neither feed nor mask it.
+    assert "build_cl_int_04_host_test_apk.sh" in WORKFLOW and "CL_INT_04_HOST_TEST_APK" in WORKFLOW
+    assert "--label host-withdrawal-test" in WORKFLOW and "host-withdrawal-test-apk.sha256" in WORKFLOW
+    assert "org.claritylink.renderer.Display1HostExpiryTest" in RUNNER
+    assert "org.claritylink.hostwithdrawal.test/android.test.InstrumentationTestRunner" in RUNNER
+    assert "host_withdrawal_instrumentation=NOT_RUN" in RUNNER   # absent APK = not run, never inferred PASS
+    assert 'if [[ -n "${CL_INT_04_HOST_TEST_APK:-}" ]]' in RUNNER
+    block = RUNNER.split("host_withdrawal_instrumentation=NOT_RUN", 1)[1].split("run_performance()", 1)[0]
+    assert "OK (7 tests)" in block and "host_withdrawal_instrumentation=PASS" in block
+    assert "adbq uninstall org.claritylink.hostwithdrawal.test" in block.split("INSTRUMENTATION=", 1)[1]
+    assert "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION=" in RUNNER
+    assert RUNNER.index("exit 14") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
+    assert RUNNER.index("exit 13") < RUNNER.index("exit 14")   # the PaneLease verdict keeps its place
+    assert "tools/build_cl_int_04_host_test_apk.sh" in WORKFLOW.split("jobs:")[0]  # path-triggered
+
+
+def test_host_withdrawal_expected_test_count_matches_the_java_class():
+    source = (REPO / "android/src/test/java/org/claritylink/renderer/Display1HostExpiryTest.java").read_text()
+    assert source.count("public void test") == 7   # the runner demands exactly "OK (7 tests)"
+
+
+def test_host_withdrawal_apk_inputs_are_explicit_and_request_no_permission():
+    script = (REPO / "tools/build_cl_int_04_host_test_apk.sh").read_text()
+    manifest = (REPO / "android/cl-int-04-host-withdrawal-test/AndroidManifest.xml").read_text()
+    assert "uses-permission" not in manifest and "<activity" not in manifest
+    assert 'android:process=":producer"' in manifest and 'android:exported="false"' in manifest
+    assert "Display1HostExpiryTest.java" in script and "ProducerDeathService.java" in script
+    assert "must request no permissions" in script
+
+
 def test_renderer_ab_lease_class_expectation_follows_the_baseline_tree():
     # A baseline from a main that already has PaneLease must REQUIRE the lease classes; only a
     # baseline that predates them may FORBID them. A hard-coded --forbid fails every renderer PR
