@@ -263,12 +263,24 @@ destroy_missing=$(find "$receipt" -maxdepth 1 -name 'perf-*-destroy-missing.txt'
   echo "CL_PANE_LEASE_INSTRUMENTATION=$pane_lease_instrumentation"
   echo "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION=$host_withdrawal_instrumentation"
 } | tee "$receipt/final-status.txt"
-if [[ "$pane_lease_instrumentation" == FAIL ]]; then
-  echo 'CL_PANE_LEASE_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+# Both instrumentation suites are mandatory evidence: only an explicit PASS is accepted. NOT_RUN (APK
+# input unset) and any other value are rejected, so the runtime PASS marker is unreachable without them.
+if [[ "$pane_lease_instrumentation" != PASS ]]; then
+  if [[ "$pane_lease_instrumentation" == FAIL ]]; then
+    echo 'CL_PANE_LEASE_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+  else
+    echo "CL_PANE_LEASE_INSTRUMENTATION_NOT_PASS verdict=${pane_lease_instrumentation:-unset} (required: PASS)" \
+      | tee -a "$receipt/final-status.txt"
+  fi
   exit 13
 fi
-if [[ "$host_withdrawal_instrumentation" == FAIL ]]; then
-  echo 'CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+if [[ "$host_withdrawal_instrumentation" != PASS ]]; then
+  if [[ "$host_withdrawal_instrumentation" == FAIL ]]; then
+    echo 'CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+  else
+    echo "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION_NOT_PASS verdict=${host_withdrawal_instrumentation:-unset} (required: PASS)" \
+      | tee -a "$receipt/final-status.txt"
+  fi
   exit 14
 fi
 if [[ "$candidate_gate" == FAIL || "$soak_gate" == FAIL ]]; then
