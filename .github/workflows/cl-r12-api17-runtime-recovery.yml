@@ -28,6 +28,8 @@ on:
       - 'tools/summarize_cl_r12_ab.py'
       - 'tools/build_cl_honda_111_pane_test_apk.sh'
       - 'android/cl-honda-111-pane-test/**'
+      - 'tools/build_cl_int_04_host_test_apk.sh'
+      - 'android/cl-int-04-host-withdrawal-test/**'
       - 'android/src/test/java/org/claritylink/renderer/**'
 
 permissions:
@@ -163,6 +165,16 @@ jobs:
           echo "CL_PANE_LEASE_TEST_APK=$pane_dir/claritylink-pane-lease-test.apk" >> "$GITHUB_ENV"
           sha256sum "$pane_dir/claritylink-pane-lease-test.apk" | tee pane-test-apk.sha256
 
+      - name: Build the synthetic CL-INT-04 host-withdrawal instrumentation APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          host_dir="$GITHUB_WORKSPACE/build/cl-int-04-host-test-$GITHUB_RUN_ID"
+          tools/build_cl_int_04_host_test_apk.sh "$host_dir" | tee -a build-output.txt
+          echo "CL_INT_04_HOST_TEST_APK=$host_dir/claritylink-host-withdrawal-test.apk" >> "$GITHUB_ENV"
+          sha256sum "$host_dir/claritylink-host-withdrawal-test.apk" | tee host-withdrawal-test-apk.sha256
+
       - name: Verify the classes inside the built DEX (not the source list)
         shell: bash
         run: |
@@ -189,13 +201,25 @@ jobs:
             echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
             python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_CANDIDATE_APK" --dexdump "$dexdump" --label candidate-lab --source-commit "$src" "${lab[@]}"
             python3 -I tools/verify_apk_dex_classes.py --apk "$CL_PANE_LEASE_TEST_APK" --dexdump "$dexdump" --label pane-lease-test --source-commit "$src" "${tests[@]}"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_INT_04_HOST_TEST_APK" --dexdump "$dexdump" --label host-withdrawal-test --source-commit "$src" \
+              --require org.claritylink.renderer.Display1HostExpiryTest --require org.claritylink.renderer.ProducerDeathService \
+              --require org.claritylink.renderer.Display1HostLeaseGuard --require org.claritylink.renderer.PaneLease
             if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" "${lab[@]}"
             else
-              # Renderer A/B: the baseline is the pre-PaneLease renderer, so the lease classes must be absent
-              # while the candidate's workload helper (overlaid into the baseline) is present.
+              # Renderer A/B: the baseline TREE decides what the lease classes must look like. A baseline that
+              # predates PaneLease must not contain them; a baseline that already has them (any PR branched
+              # from a main that includes PaneLease) must, so both APKs carry the same lease code.
+              # The candidate's workload helper (overlaid into the baseline) must be present either way.
+              baseline_commit="$(sed -n 's/^baseline_commit=//p' "$(dirname "$CL_R12_BASELINE_APK")/ab-identity.txt")"
+              test -n "$baseline_commit"
+              if git cat-file -e "$baseline_commit:src/claritylink-renderer/android-api17/PaneLease.java" 2>/dev/null; then
+                lease_expectation=(--require org.claritylink.renderer.PaneLease --require org.claritylink.renderer.PaneEvent)
+              else
+                lease_expectation=(--forbid org.claritylink.renderer.PaneLease --forbid org.claritylink.renderer.PaneEvent)
+              fi
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" \
-                --forbid org.claritylink.renderer.PaneLease --forbid org.claritylink.renderer.PaneEvent \
+                "${lease_expectation[@]}" \
                 --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
             fi
           } | tee dex-verification.txt
@@ -245,6 +269,7 @@ jobs:
             apk.sha256
             apk-ab.sha256
             pane-test-apk.sha256
+            host-withdrawal-test-apk.sha256
             source-ab.sha256
             dex-verification.txt
             build/cl-r12-api17-ci/receipt/

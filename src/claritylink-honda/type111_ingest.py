@@ -18,9 +18,10 @@ Scope and limits (not evidence about a Honda or an iPhone):
     can never stand in for production evidence.
   * Control-thread API (open/setup/pump/tick/fault) is single-threaded; the only
     other thread is the receiver's dispatcher worker, inside ``pump_frame``.
-  * Lease expiry is evaluated lazily by the host and adopted here by ``tick()``
-    in THIS process. A dead producer cannot run ``tick()``: guaranteed
-    withdrawal then needs a host-owned timer (CL-INT-04, still open).
+  * Lease expiry is evaluated lazily by the in-process host and adopted here by ``tick()``.
+    A dead producer cannot run ``tick()``: guaranteed withdrawal comes from the host-owned
+    timer and death detection of CL-INT-04 (``display1_host_service`` / ``display1_host_ipc``),
+    which this pipeline can drive through the optional ``host`` argument.
   * Error handling order (every path): withdraw host content, run each independent
     cleanup step in isolation, THEN record diagnostics best-effort (``_note``). Only
     ordinary ``Exception`` is handled; ``BaseException`` (interrupts, exit) is not, and a
@@ -324,13 +325,16 @@ class Type111IngestPipeline:
                  lease_seconds: float = fsc.DEFAULT_LEASE_SECONDS,
                  frame_age_limit: float | None = None,
                  primary_display: Any = None,
-                 receiver_kwargs: dict[str, Any] | None = None) -> None:
+                 receiver_kwargs: dict[str, Any] | None = None,
+                 host: Any = None) -> None:
         kwargs = dict(receiver_kwargs or {})
         if RESERVED_RECEIVER_OPTIONS & kwargs.keys():
             raise IngestError("reserved_receiver_option")
         self.lab_mode = lab_mode
-        self.host = fsc.Display1LeaseHost(lease_seconds=lease_seconds, clock=clock,
-                                          frame_age_limit=frame_age_limit)
+        # CL-INT-04: a host in another process (RemoteDisplay1Host) may be injected; it then owns
+        # lease timing and the expiry timer, so lease_seconds/clock/frame_age_limit are unused.
+        self.host = host if host is not None else fsc.Display1LeaseHost(
+            lease_seconds=lease_seconds, clock=clock, frame_age_limit=frame_age_limit)
         self.coordinator = fsc.FailSafeCoordinator(self.host)
         self.output = LeaseGatedOutput(self.coordinator, lab_mode=lab_mode)
         self.primary_display = primary_display if primary_display is not None else NullDisplay()
@@ -422,7 +426,12 @@ class Type111IngestPipeline:
 
     # ---- liveness ----
     def heartbeat(self) -> bool:
-        alive = self.coordinator.heartbeat()
+        try:
+            alive = self.coordinator.heartbeat()
+        except Exception as exc:  # noqa: BLE001 - no host decision: end Type111 fail-closed, Type110 stays
+            self._fault(Fault.TYPE111_TRANSPORT_FAILURE, "host_ipc_error")  # withdraw before diagnostics
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return False
         if not alive:
             self.settle()
         return alive

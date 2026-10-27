@@ -127,6 +127,30 @@ if [[ -n "${CL_PANE_LEASE_TEST_APK:-}" ]]; then
   echo "CL_PANE_LEASE_INSTRUMENTATION=$pane_lease_instrumentation"
 fi
 
+host_withdrawal_instrumentation=NOT_RUN
+if [[ -n "${CL_INT_04_HOST_TEST_APK:-}" ]]; then
+  # CL-INT-04: host-owned lease expiry and producer-death withdrawal, with the producer in a separate
+  # Android process. Its own package and verdict: it never feeds, and is never inferred from, the
+  # PaneLease matrix above or the performance gates below.
+  [[ -f "$CL_INT_04_HOST_TEST_APK" ]] || { echo "Missing host-withdrawal test APK: $CL_INT_04_HOST_TEST_APK" >&2; exit 7; }
+  adbq uninstall org.claritylink.hostwithdrawal.test > "$receipt/host-withdrawal-uninstall.txt" 2>&1 || true
+  adbq install "$CL_INT_04_HOST_TEST_APK" | tee "$receipt/host-withdrawal-install.txt"
+  adbq logcat -c
+  CL_R12_ADB_TIMEOUT="${CL_R12_INSTRUMENT_TIMEOUT:-600}" adbq shell am instrument -w \
+    -e class org.claritylink.renderer.Display1HostExpiryTest \
+    org.claritylink.hostwithdrawal.test/android.test.InstrumentationTestRunner \
+    | tr -d '\r' | tee "$receipt/host-withdrawal-instrumentation.txt" || true
+  adbq logcat -d > "$receipt/host-withdrawal-logcat.txt" 2>&1 || true
+  if grep -q '^OK (7 tests)' "$receipt/host-withdrawal-instrumentation.txt"; then
+    host_withdrawal_instrumentation=PASS
+  else
+    host_withdrawal_instrumentation=FAIL
+  fi
+  echo "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION=$host_withdrawal_instrumentation"
+  # Remove the package (and its :producer process) so nothing of it runs during the A/B measurements.
+  adbq uninstall org.claritylink.hostwithdrawal.test > "$receipt/host-withdrawal-cleanup.txt" 2>&1 || true
+fi
+
 run_performance() {
   local variant="$1" apk_path="$2" mode="${3:-short}" profile="${4:-false}" started="$receipt/perf-$1-start.txt"
   local result_seen_at=-1
@@ -237,10 +261,27 @@ destroy_missing=$(find "$receipt" -maxdepth 1 -name 'perf-*-destroy-missing.txt'
   echo "CL_R12_GATE_SOAK=$soak_gate"
   echo "CL_R12_DESTROY_EVIDENCE_MISSING_COUNT=$destroy_missing"
   echo "CL_PANE_LEASE_INSTRUMENTATION=$pane_lease_instrumentation"
+  echo "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION=$host_withdrawal_instrumentation"
 } | tee "$receipt/final-status.txt"
-if [[ "$pane_lease_instrumentation" == FAIL ]]; then
-  echo 'CL_PANE_LEASE_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+# Both instrumentation suites are mandatory evidence: only an explicit PASS is accepted. NOT_RUN (APK
+# input unset) and any other value are rejected, so the runtime PASS marker is unreachable without them.
+if [[ "$pane_lease_instrumentation" != PASS ]]; then
+  if [[ "$pane_lease_instrumentation" == FAIL ]]; then
+    echo 'CL_PANE_LEASE_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+  else
+    echo "CL_PANE_LEASE_INSTRUMENTATION_NOT_PASS verdict=${pane_lease_instrumentation:-unset} (required: PASS)" \
+      | tee -a "$receipt/final-status.txt"
+  fi
   exit 13
+fi
+if [[ "$host_withdrawal_instrumentation" != PASS ]]; then
+  if [[ "$host_withdrawal_instrumentation" == FAIL ]]; then
+    echo 'CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION_FAILED' | tee -a "$receipt/final-status.txt"
+  else
+    echo "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION_NOT_PASS verdict=${host_withdrawal_instrumentation:-unset} (required: PASS)" \
+      | tee -a "$receipt/final-status.txt"
+  fi
+  exit 14
 fi
 if [[ "$candidate_gate" == FAIL || "$soak_gate" == FAIL ]]; then
   echo 'CL_R12_API17_RUNTIME_SCENARIO_PASS_BUT_PERFORMANCE_GATE_FAILED' | tee -a "$receipt/final-status.txt"

@@ -89,6 +89,51 @@ def test_pane_test_apk_inputs_are_explicit_and_request_no_permission():
     assert "must request no permissions" in script
 
 
+def test_host_withdrawal_instrumentation_is_built_run_and_reported_separately():
+    # CL-INT-04: Display1HostExpiryTest runs on the same Android 4.2.2 x86 emulator, in its own package,
+    # with its own verdict; the PaneLease and performance verdicts neither feed nor mask it.
+    assert "build_cl_int_04_host_test_apk.sh" in WORKFLOW and "CL_INT_04_HOST_TEST_APK" in WORKFLOW
+    assert "--label host-withdrawal-test" in WORKFLOW and "host-withdrawal-test-apk.sha256" in WORKFLOW
+    assert "org.claritylink.renderer.Display1HostExpiryTest" in RUNNER
+    assert "org.claritylink.hostwithdrawal.test/android.test.InstrumentationTestRunner" in RUNNER
+    assert "host_withdrawal_instrumentation=NOT_RUN" in RUNNER   # absent APK = not run, never inferred PASS
+    assert 'if [[ -n "${CL_INT_04_HOST_TEST_APK:-}" ]]' in RUNNER
+    block = RUNNER.split("host_withdrawal_instrumentation=NOT_RUN", 1)[1].split("run_performance()", 1)[0]
+    assert "OK (7 tests)" in block and "host_withdrawal_instrumentation=PASS" in block
+    assert "adbq uninstall org.claritylink.hostwithdrawal.test" in block.split("INSTRUMENTATION=", 1)[1]
+    assert "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION=" in RUNNER
+    assert RUNNER.index("exit 14") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
+    assert RUNNER.index("exit 13") < RUNNER.index("exit 14")   # the PaneLease verdict keeps its place
+    assert "tools/build_cl_int_04_host_test_apk.sh" in WORKFLOW.split("jobs:")[0]  # path-triggered
+
+
+def test_host_withdrawal_expected_test_count_matches_the_java_class():
+    source = (REPO / "android/src/test/java/org/claritylink/renderer/Display1HostExpiryTest.java").read_text()
+    assert source.count("public void test") == 7   # the runner demands exactly "OK (7 tests)"
+
+
+def test_host_withdrawal_apk_inputs_are_explicit_and_request_no_permission():
+    script = (REPO / "tools/build_cl_int_04_host_test_apk.sh").read_text()
+    manifest = (REPO / "android/cl-int-04-host-withdrawal-test/AndroidManifest.xml").read_text()
+    assert "uses-permission" not in manifest and "<activity" not in manifest
+    assert 'android:process=":producer"' in manifest and 'android:exported="false"' in manifest
+    assert "Display1HostExpiryTest.java" in script and "ProducerDeathService.java" in script
+    assert "must request no permissions" in script
+
+
+def test_renderer_ab_lease_class_expectation_follows_the_baseline_tree():
+    # A baseline from a main that already has PaneLease must REQUIRE the lease classes; only a
+    # baseline that predates them may FORBID them. A hard-coded --forbid fails every renderer PR
+    # branched from such a main, for a reason unrelated to the change under test.
+    assert "sed -n 's/^baseline_commit=//p'" in WORKFLOW and "ab-identity.txt" in WORKFLOW
+    assert 'git cat-file -e "$baseline_commit:src/claritylink-renderer/android-api17/PaneLease.java"' in WORKFLOW
+    branch = WORKFLOW.split('git cat-file -e "$baseline_commit:src/claritylink-renderer/android-api17/PaneLease.java"')[1]
+    then_part, else_part = branch.split("else", 1)
+    assert "--require org.claritylink.renderer.PaneLease" in then_part and "--forbid" not in then_part
+    assert "--forbid org.claritylink.renderer.PaneLease" in else_part.split("fi", 1)[0]
+    assert '"${lease_expectation[@]}"' in WORKFLOW
+
+
 def test_workload_mode_changes_only_the_activity_and_is_recorded():
     script = (REPO / "tools/build_cl_r12_workload_ab.sh").read_text()
     assert "ab_mode=workload" in script and "renderer_tree_sha256_both" in script
@@ -155,3 +200,131 @@ def test_fd_instrumentation_asserts_converter_thread_reuse_not_only_a_bound():
     # descriptors) reachable, which made the settled-descriptor assertion fail in run 39873809281
     assert "Thread firstConverter" not in source and "List<Thread>" not in source
     assert "converter thread must be gone after close" in source
+
+
+# --- Executable final-gate tests -------------------------------------------------------------
+# These run the runner's real acceptance tail (and, for APK input, its real instrumentation blocks)
+# under bash with controlled verdict variables. No emulator is involved; the code under test is the
+# text of tools/run_cl_r12_api17_ci.sh itself, so the tests cannot drift from it.
+PASS_MARKER = "CL_R12_API17_RUNTIME_PASS"
+TAIL_START = "destroy_missing=$(find"
+
+
+def _run_final_gate(tmp_path, *, pane="PASS", host="PASS", candidate="PASS", soak="NOT_RUN", teardown_missing=0):
+    receipt = tmp_path / "receipt"
+    receipt.mkdir(exist_ok=True)
+    for index in range(teardown_missing):
+        (receipt / f"perf-x{index}-destroy-missing.txt").write_text("missing\n")
+    script = "\n".join([
+        "set -euo pipefail",
+        f'receipt="{receipt}"',
+        f"pane_lease_instrumentation={pane}",
+        f"host_withdrawal_instrumentation={host}",
+        f"candidate_gate={candidate}",
+        f"soak_gate={soak}",
+        "baseline_gate=NOT_RUN",
+        RUNNER[RUNNER.index(TAIL_START):],
+    ])
+    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    status_file = receipt / "final-status.txt"
+    return result, status_file.read_text() if status_file.exists() else ""
+
+
+def _assert_no_runtime_pass(result, status):
+    assert result.returncode != 0
+    assert PASS_MARKER not in result.stdout + result.stderr + status
+
+
+def test_final_gate_passes_only_when_both_instrumentation_suites_pass(tmp_path):
+    result, status = _run_final_gate(tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert PASS_MARKER in status
+
+
+def test_final_gate_rejects_pane_lease_not_run(tmp_path):
+    result, status = _run_final_gate(tmp_path, pane="NOT_RUN")
+    _assert_no_runtime_pass(result, status)
+    assert result.returncode == 13
+    assert "CL_PANE_LEASE_INSTRUMENTATION_NOT_PASS" in status
+
+
+def test_final_gate_rejects_host_withdrawal_not_run(tmp_path):
+    result, status = _run_final_gate(tmp_path, host="NOT_RUN")
+    _assert_no_runtime_pass(result, status)
+    assert result.returncode == 14
+    assert "CL_INT_04_HOST_WITHDRAWAL_INSTRUMENTATION_NOT_PASS" in status
+
+
+def test_final_gate_rejects_either_instrumentation_failure(tmp_path):
+    for pane, host, code in (("FAIL", "PASS", 13), ("PASS", "FAIL", 14), ("FAIL", "FAIL", 13)):
+        result, status = _run_final_gate(tmp_path, pane=pane, host=host)
+        _assert_no_runtime_pass(result, status)
+        assert result.returncode == code, (pane, host)
+
+
+def test_final_gate_rejects_unrecognised_instrumentation_verdicts(tmp_path):
+    for pane, host in (("", "PASS"), ("PASS", ""), ("pass", "PASS"), ("PASS", "SKIPPED")):
+        result, status = _run_final_gate(tmp_path, pane=pane, host=host)
+        _assert_no_runtime_pass(result, status)
+
+
+def test_final_gate_still_rejects_performance_and_teardown_failures(tmp_path):
+    for kwargs, code in (({"candidate": "FAIL"}, 11), ({"soak": "FAIL"}, 11), ({"teardown_missing": 1}, 12)):
+        result, status = _run_final_gate(tmp_path, **kwargs)
+        _assert_no_runtime_pass(result, status)
+        assert result.returncode == code, kwargs
+
+
+def _run_instrumentation_blocks(tmp_path, env):
+    """Run the runner's real PaneLease + host-withdrawal blocks with adb stubbed out."""
+    start = RUNNER.index("pane_lease_instrumentation=NOT_RUN")
+    end = RUNNER.index("run_performance()")
+    receipt = tmp_path / "receipt"
+    receipt.mkdir(exist_ok=True)
+    script = "\n".join([
+        "set -euo pipefail",
+        f'receipt="{receipt}"',
+        'adbq() { echo "adb-stub $*" >&2; return 0; }',
+        RUNNER[start:end],
+        'echo "PANE=$pane_lease_instrumentation HOST=$host_withdrawal_instrumentation"',
+    ])
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                          env={"PATH": "/usr/bin:/bin", **env})
+
+
+def test_unset_apk_inputs_leave_both_verdicts_not_run_so_the_final_gate_cannot_pass(tmp_path):
+    result = _run_instrumentation_blocks(tmp_path, {})
+    assert result.returncode == 0, result.stderr
+    assert "PANE=NOT_RUN HOST=NOT_RUN" in result.stdout
+    gate, status = _run_final_gate(tmp_path, pane="NOT_RUN", host="NOT_RUN")
+    _assert_no_runtime_pass(gate, status)
+
+
+def test_real_instrumentation_blocks_report_pass_only_on_the_expected_ok_line(tmp_path):
+    apk = tmp_path / "present.apk"
+    apk.write_text("stub")
+    env = {"CL_PANE_LEASE_TEST_APK": str(apk), "CL_INT_04_HOST_TEST_APK": str(apk)}
+    start = RUNNER.index("pane_lease_instrumentation=NOT_RUN")
+    blocks = RUNNER[start:RUNNER.index("run_performance()")]
+    for output, expected in (("OK (7 tests)", "PANE=PASS HOST=PASS"), ("FAILURES!!!", "PANE=FAIL HOST=FAIL")):
+        receipt = tmp_path / f"receipt-{expected.split()[0]}"
+        receipt.mkdir()
+        script = "\n".join([
+            "set -euo pipefail",
+            f'receipt="{receipt}"',
+            f'adbq() {{ case "$*" in *instrument*) echo "{output}";; esac; return 0; }}',
+            blocks,
+            'echo "PANE=$pane_lease_instrumentation HOST=$host_withdrawal_instrumentation"',
+        ])
+        result = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                                env={"PATH": "/usr/bin:/bin", **env})
+        assert result.returncode == 0, result.stderr
+        assert expected in result.stdout, result.stdout
+
+
+def test_missing_apk_file_aborts_before_any_verdict(tmp_path):
+    for variable in ("CL_PANE_LEASE_TEST_APK", "CL_INT_04_HOST_TEST_APK"):
+        result = _run_instrumentation_blocks(tmp_path, {variable: str(tmp_path / "absent.apk")})
+        assert result.returncode == 7, variable
+        assert "PANE=" not in result.stdout
+        assert PASS_MARKER not in result.stdout + result.stderr
