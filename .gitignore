@@ -183,3 +183,20 @@
 *.raw
 
 /android/r7e1-display/assets/r7e1-diagnostic-frame.png
+
+# Versioned GitHub Spec Kit configuration and the shared Claude/Codex workflows.
+!/.specify/
+!/.specify/**
+!/.claude/
+!/.claude/skills/
+!/.claude/skills/speckit-*/
+!/.claude/skills/speckit-*/**
+!/.agents/
+!/.agents/skills/
+!/.agents/skills/speckit-*/
+!/.agents/skills/speckit-*/**
+!/specs/
+/specs/*
+!/specs/001-genuine-type111-display1/
+!/specs/001-genuine-type111-display1/**
+/.specify/integrations/.cache/
