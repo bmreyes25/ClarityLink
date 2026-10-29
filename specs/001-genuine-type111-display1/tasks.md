@@ -61,7 +61,7 @@ Review state: T034–T037 are implemented and covered by offline tests, but inde
 - [x] **T035 [F4,F8,F9]** Deterministic cleanup/recovery state machine (`ephemeral_harness.py`) reusing the CL-INT-04 lease, teardown and host-withdrawal code; no second lease system; missing or unreachable resources are UNKNOWN, never clean.
 - [x] **T036 [F4,F8,F9,F13]** Failure-injection tests: normal termination, process crash, lost producer, lost control connection, interrupted cleanup, host restart (epoch fence), simulated reboot, missing cleanup resource; Type110 independence through the CL-INT-04 pipeline.
 - [x] **T037 [F13]** Negative assertions: a simulated reboot cannot establish Honda cleanup, RAM-backed target storage, restoration or reboot recovery; `safeForHonda()` false.
-- [ ] **T038 [F13]** Publish through `tools/publish_checkpoint.sh` with remote SHA verification and independent review. Not done by this task; an AI review is not approval.
+- [x] **T038 [F13]** Published through `tools/publish_checkpoint.sh`; remote SHA verified and exact candidate independently reviewed read-only. PR #106 is open with CI/CodeQL checks pending; owner review and merge remain required. This AI review is not owner or safety approval.
 
 ## Gate rule
 
