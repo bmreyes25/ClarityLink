@@ -3,9 +3,11 @@
 #include "cl_type111_child.h"
 
 #include <pthread.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static int failures;
 #define CHECK(cond)                                                              \
@@ -27,6 +29,7 @@ typedef struct {
     int32_t reenter_open, reenter_close, reenter_revoke, reenter_status;
     uint32_t reenter_status_untouched;
     uint32_t double_release;
+    uint32_t block_release, in_release, go_release; /* latch: hold a release callback */
 } Auth;
 
 static ClT111RequestView make_request(uint32_t id111) {
@@ -85,6 +88,10 @@ static int32_t cb_activate(void *u, uint32_t res) {
 static int32_t cb_release(void *u, uint32_t res) {
     Auth *a = (Auth *)u;
     __atomic_add_fetch(&a->release_attempts, 1u, __ATOMIC_SEQ_CST);
+    if (__atomic_load_n(&a->block_release, __ATOMIC_SEQ_CST)) {
+        __atomic_store_n(&a->in_release, 1u, __ATOMIC_SEQ_CST);
+        while (!__atomic_load_n(&a->go_release, __ATOMIC_SEQ_CST)) sched_yield();
+    }
     if (a->live[res & 0xFFFFu] == 0u) ++a->double_release;
     /* A failed release deliberately leaves the resource live. */
     if (a->fail_release) return 0;
@@ -614,6 +621,135 @@ static void test_concurrent_open_close_then_revoke(void) {
     free(a);
 }
 
+typedef struct { ClT111Session *s; uint32_t gen; int closing; ClT111ChildRef ref; int32_t result; uint32_t done; } Failer;
+
+static void *failing_release_thread(void *p) {
+    Failer *f = (Failer *)p;
+    ClT111RequestView r = make_request(0x77u);
+    ClT111ChildRef scratch;
+    f->result = f->closing ? cl_t111_child_close(f->s, &f->ref)
+                           : cl_t111_child_open(f->s, f->gen, &r, &scratch);
+    __atomic_store_n(&f->done, 1u, __ATOMIC_SEQ_CST);
+    return NULL;
+}
+
+#define WAIT_LIMIT_NS INT64_C(5000000000) /* a missing hook fails instead of hanging */
+
+static int64_t now_ns(void) {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (int64_t)ts.tv_sec * INT64_C(1000000000) + (int64_t)ts.tv_nsec;
+}
+
+/* Spin until *flag is set; returns 0 on timeout. */
+static int wait_flag(const uint32_t *flag) {
+    int64_t deadline = now_ns() + WAIT_LIMIT_NS;
+    while (!__atomic_load_n(flag, __ATOMIC_SEQ_CST)) {
+        if (now_ns() > deadline) return 0;
+        sched_yield();
+    }
+    return 1;
+}
+
+#ifdef CL_T111_TEST_HOOKS
+/* Defined in cl_type111_child.c only when CL_T111_TEST_HOOKS is set (host test builds). */
+typedef void (*ClT111TestHookFn)(void *ctx, int point);
+void cl_t111_test_set_hook(ClT111TestHookFn fn, void *ctx);
+enum { HOOK_BEFORE_UNCERTAIN_STORE = 1, HOOK_BEFORE_REVOKE_LOAD = 2 };
+
+/* Writer = failed-release path about to state_store(RELEASE_UNCERTAIN); reader =
+ * cl_t111_session_revoke about to state_load(). Each parks once, then a third thread
+ * (the coordinator) opens `go`. Neither side waits on the other, so the two atomic
+ * accesses that follow are unordered by anything but the coordinator's fan-out. */
+typedef struct {
+    uint32_t armed;
+    uint32_t writer_arrived, reader_arrived, go;
+    uint32_t writer_timed_out, reader_timed_out;
+} Rendezvous;
+
+static void rendezvous_hook(void *ctx, int point) {
+    Rendezvous *rv = (Rendezvous *)ctx;
+    uint32_t *arrived;
+    uint32_t *timed_out;
+    if (!__atomic_load_n(&rv->armed, __ATOMIC_SEQ_CST)) return;
+    if (point == HOOK_BEFORE_UNCERTAIN_STORE) {
+        arrived = &rv->writer_arrived; timed_out = &rv->writer_timed_out;
+    } else if (point == HOOK_BEFORE_REVOKE_LOAD) {
+        arrived = &rv->reader_arrived; timed_out = &rv->reader_timed_out;
+    } else {
+        return;
+    }
+    if (__atomic_exchange_n(arrived, 1u, __ATOMIC_SEQ_CST)) return; /* one-shot per side */
+    if (!wait_flag(&rv->go)) __atomic_store_n(timed_out, 1u, __ATOMIC_SEQ_CST);
+}
+
+typedef struct { ClT111Session *s; uint32_t gen; int32_t result; } Reader;
+
+static void *revoke_reader_thread(void *p) {
+    Reader *r = (Reader *)p;
+    r->result = cl_t111_session_revoke(r->s, r->gen);
+    return NULL;
+}
+#endif
+
+/* Latch holds the failing release callback while revoke/destroy/status overlap it;
+ * then the hook rendezvous forces revoke's state_load against the uncertain store. */
+static void run_failing_release_overlap(int closing) {
+    Auth *a = new_auth(); ClT111Session s; ClT111Authority t = good(a, 0);
+    ClT111RequestView r = make_request(0x77u);
+    ClT111Status st; Failer f; pthread_t th;
+#ifdef CL_T111_TEST_HOOKS
+    Rendezvous rv; Reader rd; pthread_t reader;
+    memset(&rv, 0, sizeof(rv));
+    memset(&rd, 0, sizeof(rd));
+#endif
+    CHECK(cl_t111_session_create(&s, &t, 4u) == CL_T111_OK);
+    memset(&f, 0, sizeof(f));
+    f.s = &s; f.gen = 4u; f.closing = closing;
+    if (closing) CHECK(cl_t111_child_open(&s, 4u, &r, &f.ref) == CL_T111_OK);
+    else a->fail_activate = 1u;
+    a->fail_release = 1u;
+    a->block_release = 1u;
+    pthread_create(&th, NULL, failing_release_thread, &f);
+    CHECK(wait_flag(&a->in_release));
+    CHECK(cl_t111_session_revoke(&s, 4u) == CL_T111_REVOKE_DEFERRED);
+    CHECK(cl_t111_session_destroy(&s) == CL_T111_BUSY);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_BUSY);
+#ifdef CL_T111_TEST_HOOKS
+    rd.s = &s; rd.gen = 4u;
+    cl_t111_test_set_hook(rendezvous_hook, &rv);
+    __atomic_store_n(&rv.armed, 1u, __ATOMIC_SEQ_CST);
+    pthread_create(&reader, NULL, revoke_reader_thread, &rd);
+    CHECK(wait_flag(&rv.reader_arrived));            /* reader parked before state_load */
+    __atomic_store_n(&a->go_release, 1u, __ATOMIC_SEQ_CST);
+    CHECK(wait_flag(&rv.writer_arrived));            /* writer parked before the store */
+    __atomic_store_n(&rv.go, 1u, __ATOMIC_SEQ_CST);  /* coordinator releases both */
+    pthread_join(reader, NULL);
+    pthread_join(th, NULL);
+    cl_t111_test_set_hook(NULL, NULL);
+    CHECK(!rv.writer_timed_out && !rv.reader_timed_out);
+    CHECK(rd.result == CL_T111_REVOKE_DEFERRED || rd.result == CL_T111_RELEASE_FAILED);
+#else
+    fprintf(stderr, "FAIL overlap test requires CL_T111_TEST_HOOKS\n");
+    ++failures;
+    __atomic_store_n(&a->go_release, 1u, __ATOMIC_SEQ_CST);
+    pthread_join(th, NULL);
+#endif
+    CHECK(f.result == CL_T111_RELEASE_FAILED);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK);
+    CHECK(st.state == CL_T111_STATE_RELEASE_UNCERTAIN && st.uncertain_children == 1u);
+    CHECK(st.release_failures == 1u && st.active_children == 0u);
+    CHECK(a->release_attempts == 1u && a->releases == 0u);   /* revoke/destroy never retry */
+    CHECK(a->live[a->next_resource & 0xFFFFu] == 1u);        /* resource retained, not leaked */
+    CHECK(cl_t111_session_destroy(&s) == CL_T111_RELEASE_FAILED);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK);    /* magic retained */
+    CHECK(a->release_attempts == 1u && a->double_release == 0u);
+    free(a);
+}
+
+static void test_failed_close_overlapping_revoke_and_destroy(void) { run_failing_release_overlap(1); }
+static void test_failed_activation_rollback_overlapping_revoke_and_destroy(void) { run_failing_release_overlap(0); }
+
 int main(void) {
     test_disabled_by_default();
     test_invalid_capability_tables();
@@ -635,6 +771,8 @@ int main(void) {
     test_concurrent_open_close_then_revoke();
     test_status_snapshot_is_coherent();
     test_status_races_open_close();
+    test_failed_close_overlapping_revoke_and_destroy();
+    test_failed_activation_rollback_overlapping_revoke_and_destroy();
     if (failures != 0) {
         fprintf(stderr, "%d failure(s)\n", failures);
         return 1;

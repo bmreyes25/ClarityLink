@@ -10,6 +10,41 @@
 
 enum { CHILD_FREE = 0, CHILD_ACTIVE = 1, CHILD_UNCERTAIN = 2, CHILD_PREPARING = 3 };
 
+#ifdef CL_T111_TEST_HOOKS
+/* Host test builds only: lets a test rendezvous threads at the exact atomic access.
+ * Never defined for the production/ARMv7 object, which then contains none of this. */
+enum { CL_T111_HOOK_BEFORE_UNCERTAIN_STORE = 1, CL_T111_HOOK_BEFORE_REVOKE_LOAD = 2 };
+typedef void (*ClT111TestHookFn)(void *ctx, int point);
+static ClT111TestHookFn t111_test_hook_fn;
+static void *t111_test_hook_ctx;
+void cl_t111_test_set_hook(ClT111TestHookFn fn, void *ctx);
+void cl_t111_test_set_hook(ClT111TestHookFn fn, void *ctx) {
+    t111_test_hook_ctx = ctx;
+    __atomic_store_n(&t111_test_hook_fn, fn, __ATOMIC_SEQ_CST);
+}
+static void t111_test_hook(int point) {
+    ClT111TestHookFn fn = __atomic_load_n(&t111_test_hook_fn, __ATOMIC_SEQ_CST);
+    if (fn != NULL) {
+        fn(t111_test_hook_ctx, point);
+    }
+}
+#define CL_T111_TEST_HOOK(point) t111_test_hook(point)
+#else
+#define CL_T111_TEST_HOOK(point) ((void)0)
+#endif
+
+/* session->state is read lock-free by revoke/destroy, so every access is atomic. */
+static uint32_t state_load(const ClT111Session *s) {
+    return __atomic_load_n(&s->state, __ATOMIC_SEQ_CST);
+}
+
+static void state_store(ClT111Session *s, uint32_t value) {
+    if (value == (uint32_t)CL_T111_STATE_RELEASE_UNCERTAIN) {
+        CL_T111_TEST_HOOK(CL_T111_HOOK_BEFORE_UNCERTAIN_STORE);
+    }
+    __atomic_store_n(&s->state, value, __ATOMIC_SEQ_CST);
+}
+
 /* try-lock; seq_cst so a deferred revoke is never lost (see guard_exit). */
 static int guard_try_enter(ClT111Session *s) {
     uint32_t expected = 0u;
@@ -20,7 +55,7 @@ static int guard_try_enter(ClT111Session *s) {
 static int32_t revoke_locked(ClT111Session *s) {
     uint32_t i;
     int32_t result = CL_T111_OK;
-    __atomic_store_n(&s->state, (uint32_t)CL_T111_STATE_REVOKED, __ATOMIC_SEQ_CST);
+    state_store(s, (uint32_t)CL_T111_STATE_REVOKED);
     s->disabled_reason = CL_T111_REASON_REVOKED;
     for (i = 0; i < CL_T111_MAX_CHILDREN; ++i) {
         ClT111ChildSlot *slot = &s->children[i];
@@ -44,8 +79,7 @@ static int32_t revoke_locked(ClT111Session *s) {
         }
     }
     if (s->uncertain_children != 0u) {
-        __atomic_store_n(&s->state, (uint32_t)CL_T111_STATE_RELEASE_UNCERTAIN,
-                         __ATOMIC_SEQ_CST);
+        state_store(s, (uint32_t)CL_T111_STATE_RELEASE_UNCERTAIN);
     }
     return result;
 }
@@ -84,7 +118,7 @@ int32_t cl_t111_session_create(ClT111Session *session,
     }
     memset(session, 0, sizeof(*session));
     session->magic = CL_T111_SESSION_MAGIC;
-    session->state = CL_T111_STATE_DISABLED;
+    state_store(session, (uint32_t)CL_T111_STATE_DISABLED);
     session->next_serial = 1u;
     if (authority == NULL) {
         session->disabled_reason = CL_T111_REASON_NO_AUTHORITY;
@@ -96,7 +130,7 @@ int32_t cl_t111_session_create(ClT111Session *session,
     }
     session->authority = *authority;
     session->parent_generation = parent_generation;
-    session->state = CL_T111_STATE_ENABLED_UNVERIFIED;
+    state_store(session, (uint32_t)CL_T111_STATE_ENABLED_UNVERIFIED);
     return CL_T111_OK;
 }
 
@@ -153,7 +187,7 @@ static int32_t enter_live(ClT111Session *s, uint32_t generation) {
     if (!guard_try_enter(s)) {
         return CL_T111_BUSY;
     }
-    if (s->state == CL_T111_STATE_DISABLED) {
+    if (state_load(s) == CL_T111_STATE_DISABLED) {
         guard_exit(s);
         return CL_T111_DISABLED;
     }
@@ -161,15 +195,15 @@ static int32_t enter_live(ClT111Session *s, uint32_t generation) {
         guard_exit(s);
         return CL_T111_STALE_GENERATION;
     }
-    if (s->state == CL_T111_STATE_REVOKED) {
+    if (state_load(s) == CL_T111_STATE_REVOKED) {
         guard_exit(s);
         return CL_T111_REVOKED;
     }
-    if (s->state == CL_T111_STATE_RELEASE_UNCERTAIN) {
+    if (state_load(s) == CL_T111_STATE_RELEASE_UNCERTAIN) {
         guard_exit(s);
         return CL_T111_UNCERTAIN_RESOURCE;
     }
-    if (s->state != CL_T111_STATE_ENABLED_UNVERIFIED) {
+    if (state_load(s) != CL_T111_STATE_ENABLED_UNVERIFIED) {
         guard_exit(s);
         return CL_T111_INVALID_ARGUMENT;
     }
@@ -250,7 +284,7 @@ int32_t cl_t111_child_open(ClT111Session *session, uint32_t parent_generation,
             ++session->release_failures;
             ++session->uncertain_children;
             slot->state = CHILD_UNCERTAIN;
-            session->state = CL_T111_STATE_RELEASE_UNCERTAIN;
+            state_store(session, (uint32_t)CL_T111_STATE_RELEASE_UNCERTAIN);
             guard_exit(session);
             return CL_T111_RELEASE_FAILED;
         }
@@ -306,7 +340,7 @@ int32_t cl_t111_child_close(ClT111Session *session, const ClT111ChildRef *child)
     if (!guard_try_enter(session)) {
         return CL_T111_BUSY;
     }
-    if (session->state == CL_T111_STATE_DISABLED) {
+    if (state_load(session) == CL_T111_STATE_DISABLED) {
         guard_exit(session);
         return CL_T111_DISABLED;
     }
@@ -326,8 +360,8 @@ int32_t cl_t111_child_close(ClT111Session *session, const ClT111ChildRef *child)
         ++session->release_failures;
         ++session->uncertain_children;
         slot->state = CHILD_UNCERTAIN;
-        if (session->state == CL_T111_STATE_ENABLED_UNVERIFIED) {
-            session->state = CL_T111_STATE_RELEASE_UNCERTAIN;
+        if (state_load(session) == CL_T111_STATE_ENABLED_UNVERIFIED) {
+            state_store(session, (uint32_t)CL_T111_STATE_RELEASE_UNCERTAIN);
         }
         result = CL_T111_RELEASE_FAILED;
     } else {
@@ -344,7 +378,8 @@ int32_t cl_t111_session_revoke(ClT111Session *session, uint32_t parent_generatio
     if (!session_live(session)) {
         return CL_T111_INVALID_ARGUMENT;
     }
-    if (__atomic_load_n(&session->state, __ATOMIC_SEQ_CST) == CL_T111_STATE_DISABLED) {
+    CL_T111_TEST_HOOK(CL_T111_HOOK_BEFORE_REVOKE_LOAD);
+    if (state_load(session) == CL_T111_STATE_DISABLED) {
         return CL_T111_DISABLED;
     }
     if (parent_generation != session->parent_generation) {
@@ -421,7 +456,7 @@ int32_t cl_t111_session_status(const ClT111Session *session, ClT111Status *statu
         return CL_T111_BUSY; /* `status_out` untouched */
     }
     memset(&snapshot, 0, sizeof(snapshot));
-    snapshot.state = session->state;
+    snapshot.state = state_load(session);
     snapshot.disabled_reason = session->disabled_reason;
     snapshot.parent_generation = session->parent_generation;
     for (i = 0; i < CL_T111_MAX_CHILDREN; ++i) {
@@ -430,7 +465,7 @@ int32_t cl_t111_session_status(const ClT111Session *session, ClT111Status *statu
         }
     }
     snapshot.response_contract_available =
-        session->state == CL_T111_STATE_ENABLED_UNVERIFIED &&
+        state_load(session) == CL_T111_STATE_ENABLED_UNVERIFIED &&
         session->authority.response_contract_id != 0u &&
         session->authority.response_build != NULL;
     snapshot.opened_total = session->opened_total;
@@ -449,17 +484,24 @@ int32_t cl_t111_session_destroy(ClT111Session *session) {
     if (!session_live(session)) {
         return CL_T111_INVALID_ARGUMENT;
     }
-    if (__atomic_load_n(&session->state, __ATOMIC_SEQ_CST) !=
-        CL_T111_STATE_DISABLED) {
+    if (state_load(session) != CL_T111_STATE_DISABLED) {
+        uint32_t uncertain;
         result = cl_t111_session_revoke(session, session->parent_generation);
-        if (result == CL_T111_REVOKE_DEFERRED ||
-            __atomic_load_n(&session->busy, __ATOMIC_SEQ_CST) != 0u) {
+        if (result == CL_T111_REVOKE_DEFERRED) {
             return CL_T111_BUSY; /* storage must outlive in-flight callers */
         }
-        if (session->uncertain_children != 0u || result == CL_T111_RELEASE_FAILED) {
+        if (!guard_try_enter(session)) {
+            return CL_T111_BUSY;
+        }
+        uncertain = session->uncertain_children; /* read under the guard */
+        if (uncertain != 0u || result == CL_T111_RELEASE_FAILED) {
+            guard_exit(session);
             return CL_T111_RELEASE_FAILED; /* retain magic and all uncertain identities */
         }
+        session->magic = 0u;
+        __atomic_store_n(&session->busy, 0u, __ATOMIC_SEQ_CST);
+        return result;
     }
     session->magic = 0u;
-    return result == CL_T111_OK ? CL_T111_OK : result;
+    return result;
 }

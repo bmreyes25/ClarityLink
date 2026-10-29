@@ -26,7 +26,8 @@ def _clang():
 
 def _run_host(tmp_path, sanitizer):
     binary = tmp_path / f"t111-child-{sanitizer or 'plain'}"
-    command = [_clang(), *WARNINGS, "-O1", "-g", "-pthread", "-I", str(INCLUDE)]
+    command = [_clang(), *WARNINGS, "-O1", "-g", "-pthread",
+               "-DCL_T111_TEST_HOOKS", "-I", str(INCLUDE)]
     if sanitizer:
         command += [f"-fsanitize={sanitizer}", "-fno-omit-frame-pointer"]
     command += [str(SOURCE), str(HARNESS), "-o", str(binary)]
@@ -67,10 +68,12 @@ def test_type111_child_compiles_for_armv7(tmp_path):
         command = [str(ndk_clang)]
     else:
         command = [_clang(), "--target=armv7a-none-eabi", "-ffreestanding"]
-    command += [*WARNINGS, "-Os", "-march=armv7-a", "-mfloat-abi=softfp", "-fPIC",
+    command += [*WARNINGS, "-UCL_T111_TEST_HOOKS", "-Os", "-march=armv7-a", "-mfloat-abi=softfp", "-fPIC",
                 "-I", str(INCLUDE), "-c", str(SOURCE), "-o", str(obj)]
     subprocess.run(command, check=True, capture_output=True, text=True)
-    header = obj.read_bytes()[:20]
+    blob = obj.read_bytes()
+    assert b"t111_test" not in blob, "test hooks leaked into the production object"
+    header = blob[:20]
     assert header[:4] == b"\x7fELF" and header[4] == 1, "expected ELF32"
     assert int.from_bytes(header[18:20], "little") == 40, "expected EM_ARM"
     # No unresolved reference to Honda/CoreFoundation symbols.
