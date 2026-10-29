@@ -156,6 +156,8 @@ class PublishScopeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Synthetic Test"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
             (root / ".gitignore").write_text("ignored.md\n")
             (root / "ignored.md").write_text("tracked but ignored by policy")
             subprocess.run(["git", "-C", str(root), "add", "-f", ".gitignore", "ignored.md"], check=True)
