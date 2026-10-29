@@ -60,7 +60,7 @@ def run(root: Path, branch: str | None = None, pr: int | None = None, timeout: f
               "remote_sha": remote_sha, "upstream": upstream.stdout.strip() if upstream.returncode == 0 else None,
               "unpushed_commit_count": 0, "uncommitted_source_count": 0, "pr": None}
     if pr:
-        gh = subprocess.run(["gh", "pr", "view", str(pr), "-R", REPO, "--json", "url,headRefName,state"],
+        gh = subprocess.run(["gh", "pr", "view", str(pr), "-R", REPO, "--json", "url,headRefName,headRefOid,baseRefName,state"],
                             text=True, capture_output=True, timeout=timeout)
         if gh.returncode:
             output["result"] = "NO_REMOTE_BRANCH"
@@ -68,9 +68,10 @@ def run(root: Path, branch: str | None = None, pr: int | None = None, timeout: f
         else:
             data = json.loads(gh.stdout)
             output["pr"] = data
-            if data.get("headRefName") != branch:
+            if (data.get("headRefName") != branch or data.get("headRefOid") != remote_sha
+                    or data.get("baseRefName") != "main" or data.get("state") != "OPEN"):
                 output["result"] = "REMOTE_SHA_MISMATCH"
-                output["reason"] = "PR head does not match branch"
+                output["reason"] = "PR must be open, target main, and match the verified branch name and SHA"
     return output
 
 
