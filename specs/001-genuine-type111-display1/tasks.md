@@ -55,13 +55,13 @@
 
 Evidence label SYN only. Contract: `docs/architecture/ephemeral-harness-contract.md`. These tasks add host-model evidence and do not move any F-item toward PASSED.
 
-Review state: T034–T037 are implemented and covered by offline tests, but independent review is NOT yet recorded as passed. An earlier independent review failed on a milestone-identifier mismatch (retry labels embedded in the task ID and spec revision); the identifier is corrected to `CL-T111-EPHEMERAL-HARNESS-01`, and the corrected tree still needs a fresh independent review. Retry attempt labels are execution labels only, never the milestone identity. T034–T037 checkmarks record implementation only, not review approval or Honda compatibility.
+Review state: T034–T037 are implemented and covered by offline tests; the corrected candidate received independent read-only review and PR #106 was merged by the owner on 2026-10-29 at `2ce2c699b94f77fda867f278199c550e12acfa71`. Retry attempt labels are execution labels only, never the milestone identity. T034–T037 checkmarks record implementation of a synthetic host model only, not Honda compatibility or target recovery evidence.
 
 - [x] **T034 [F4,F8,F9,F13]** Machine-readable resource manifest (`ephemeral_harness_manifest.json`) covering files/storage classes, processes, sockets, services, mounts, Display 1 leases and cleanup obligations; every Honda-dependent property UNKNOWN; `/data/local/tmp` not established as reboot-volatile.
 - [x] **T035 [F4,F8,F9]** Deterministic cleanup/recovery state machine (`ephemeral_harness.py`) reusing the CL-INT-04 lease, teardown and host-withdrawal code; no second lease system; missing or unreachable resources are UNKNOWN, never clean.
 - [x] **T036 [F4,F8,F9,F13]** Failure-injection tests: normal termination, process crash, lost producer, lost control connection, interrupted cleanup, host restart (epoch fence), simulated reboot, missing cleanup resource; Type110 independence through the CL-INT-04 pipeline.
 - [x] **T037 [F13]** Negative assertions: a simulated reboot cannot establish Honda cleanup, RAM-backed target storage, restoration or reboot recovery; `safeForHonda()` false.
-- [x] **T038 [F13]** Published through `tools/publish_checkpoint.sh`; remote SHA verified and exact candidate independently reviewed read-only. PR #106 is open with CI/CodeQL checks pending; owner review and merge remain required. This AI review is not owner or safety approval.
+- [x] **T038 [F13]** Published through `tools/publish_checkpoint.sh`; remote SHA verified and exact candidate independently reviewed read-only. PR #106 merged by the owner at `2ce2c699b94f77fda867f278199c550e12acfa71`; required CI and CodeQL checks passed. This records publication only and does not change any Honda acceptance status or constitute safety approval.
 
 ## Gate rule
 
