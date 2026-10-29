@@ -53,7 +53,7 @@ Solid links inside the lab show synthetic components that have been exercised on
 
 See the [current evidence and status](docs/status/current.md), [open blockers](docs/status/blockers.md), and the [legacy CL-R0–CL-R8 milestone manifest](docs/status/milestones.json). Historical reports remain available under `research/` and `step-reports/`.
 
-The cross-campaign objective and gated path to any Honda integration are in the [CL-MASTER-01 program roadmap](docs/roadmap/claritylink-master-plan.md), with a [finish-line contract](docs/roadmap/finish-line-definition.md), [dependency graph](docs/roadmap/master-dependency-graph.md), and [evidence ledger](docs/status/evidence-ledger.md). Current integration readiness remains NO-GO because supported Honda receiver and Display 1 contracts are not established.
+The owner has authorized scoped **offline** research and reversible prototypes for a custom Type111 receiver integration and host-owned Display 1 rendering. This does not establish OEM authorization or supported interfaces. Current vehicle integration remains **NOT AUTHORIZED**: runtime admission, warning ownership, factory restoration, reversibility, and independent safety review remain deployment gates. See [integration readiness](docs/status/integration-readiness.md) and [vehicle testing and safety boundaries](docs/safety/vehicle-testing.md).
 
 ## Quickstart
 
@@ -88,6 +88,6 @@ It starts an owned API17 emulator and isolated ADB server, fingerprints the sour
 
 ## Safety, evidence, and license
 
-`safeForHonda()` remains unconditionally `false`; production Honda integration is disabled. No vehicle, Honda ADB, Honda APK, firmware, instrument-cluster framebuffer, or live iPhone testing is part of this lab result. Do not infer physical compatibility from emulator evidence.
+`safeForHonda()` remains unconditionally `false`. Offline research authorization does not permit installation, Honda ADB, firmware/service replacement, cluster modification, vehicle-side experiments, or connected-iPhone integration. Vehicle deployment/testing requires separate explicit owner authorization and qualified safety review. No physical compatibility or complete disconnect safety follows from emulator evidence.
 
 The repository has **no selected license**. The owner must choose one; do not assume public reuse permission. See the [license decision](docs/project/license-decision.md). Do not publish private firmware, vehicle captures, credentials, signing material, or personal information.

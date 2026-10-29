@@ -29,6 +29,8 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private HandlerThread converterThread;
     private Handler converterHandler;
+    /** True when the converter thread belongs to the View's owner and must outlive this View. */
+    private boolean sharedConverter;
     private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
     private RendererViewport rendererViewport = RendererViewport.fullCanvasTestOnly();
 
@@ -73,6 +75,24 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     public ClarityLinkContentView(Context context) {
         super(context);
         setWillNotDraw(false);
+    }
+
+    /**
+     * Lets the owner supply one long-lived converter thread so that repeated attach/revoke cycles do not
+     * create a native Looper (a pipe pair and an epoll descriptor) per View, whose descriptors API 17
+     * releases only when the quit thread's queue is finalized. The owner quits the thread when it is done;
+     * this View never does. Call on the UI thread before {@link #beginSession}.
+     */
+    public void useSharedConverter(HandlerThread shared) {
+        requireUiThread();
+        if (shared == null || !shared.isAlive()) throw new IllegalArgumentException("a running converter thread is required");
+        synchronized (stateLock) {
+            if (closed || sessionStarted || converterThread != null)
+                throw new IllegalStateException("converter must be chosen before the session starts");
+            converterThread = shared;
+            converterHandler = new Handler(shared.getLooper());
+            sharedConverter = true;
+        }
     }
 
     /** Starts a fresh frame generation. Call on the Android UI thread. */
@@ -438,7 +458,13 @@ public final class ClarityLinkContentView extends View implements HostedContentL
             clearQueuedLocked();
         }
         clearDisplayedBitmap();
-        if (converterThread != null) converterThread.quit();
+        if (converterThread == null) return;
+        if (sharedConverter) {
+            // The thread outlives this View: drop only this View's queued conversions.
+            if (converterHandler != null) converterHandler.removeCallbacksAndMessages(null);
+        } else {
+            converterThread.quit();
+        }
     }
 
     public boolean hasDisplayedFrame() {

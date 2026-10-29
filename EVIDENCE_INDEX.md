@@ -1,3 +1,5 @@
+> **Historical log.** This file accumulates dated records and is kept for provenance. For current status read [docs/status/README.md](docs/status/README.md).
+
 # R7C4 final Android integration closure — 2026-10-07
 
 - [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.

@@ -1,0 +1,632 @@
+"""Offline Type111 ingest -> decode -> lease-gated simulated Display 1 (CL-T111-INGEST-01).
+
+Wires the EXISTING ``claritylink_jmcs.Receiver`` (Type111 framing, security
+provider, AVCC handling, FFmpeg decoder, per-stream dispatcher) to the
+EXISTING CL-INT-03 ``FailSafeCoordinator`` / ``Display1LeaseHost``. No frame
+reaches the simulated host except through a lease-bound submit.
+
+  receiver (framing -> unprotect -> avcC/Annex-B -> FFmpeg PNG)
+    -> dispatcher worker -> LeaseGatedOutput.show
+    -> png_to_rgb24 -> VideoFrame -> LeaseBoundFrame
+    -> FailSafeCoordinator.submit_frame -> Display1LeaseHost -> SimulatedClusterHost
+
+Scope and limits (not evidence about a Honda or an iPhone):
+  * Input is locally generated, clear, lab-framed H.264 (SYNTHETIC_LAB_CONTENT).
+    The CURRENT_IOS_TYPE111 profile is a lab framing hypothesis, not proof of
+    the real iPhone wire format; no real iPhone-origin bytes are processed.
+  * ``lab_mode=False`` refuses to run: synthetic authentication and clear media
+    can never stand in for production evidence.
+  * Control-thread API (open/setup/pump/tick/fault) has one logical owner; concurrent public
+    callers are serialized by a reentrant control lock, so a fault/disconnect cannot interleave
+    teardown with an in-flight ``pump_frame`` or ``setup_type111``. The only other thread is the
+    receiver's dispatcher worker, inside ``pump_frame``; it never takes the control lock.
+    Lock order: control lock -> receiver locks -> output lock. The worker (``LeaseGatedOutput.show``)
+    holds only the output lock, so the receiver's teardown join cannot deadlock against it.
+    High-priority disconnect/interrupt/restart first withdraw Display 1 content WITHOUT the control
+    lock (output lock -> host only, so no new lock-order edge), then wait for the control lock and
+    run the single serialized teardown, which retries the withdrawal. A failed preemptive
+    withdrawal is recorded in ``cleanup_failures`` and never skips the serialized cleanup.
+    Limit: receiver teardown still waits for an in-flight ``pump_frame``/``accept_type111`` (a
+    blocking socket read bounded only by the peer); the host-owned timer of CL-INT-04 still
+    revokes the lease.
+  * Lease expiry is evaluated lazily by the in-process host and adopted here by ``tick()``.
+    A dead producer cannot run ``tick()``: guaranteed withdrawal comes from the host-owned
+    timer and death detection of CL-INT-04 (``display1_host_service`` / ``display1_host_ipc``),
+    which this pipeline can drive through the optional ``host`` argument.
+  * Error handling order (every path): withdraw host content, run each independent
+    cleanup step in isolation, THEN record diagnostics best-effort (``_note``). Only
+    ordinary ``Exception`` is handled; ``BaseException`` (interrupts, exit) is not, and a
+    wedged host call or a dead process needs the host-owned fail-safe (CL-INT-04).
+  * Known limits, all in the safe direction or assigned to CL-INT-04: the control-thread
+    API (settle/tick/heartbeat) is not locked against the dispatcher worker; a stale-stream
+    rejection withdraws the whole Display 1 lease; diagnostic lists are unbounded.
+  * ``safe_for_honda()`` stays False; nothing here touches a vehicle.
+"""
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass
+from pathlib import Path
+import sys
+import functools
+import threading
+from time import monotonic, perf_counter
+from typing import Any, Callable
+
+_HERE = Path(__file__).resolve().parent
+for _path in (_HERE, _HERE.parent / "claritylink-jmcs"):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
+import failsafe_coordinator as fsc  # noqa: E402
+from claritylink_jmcs.decoder import DecodedFrame  # noqa: E402
+from claritylink_jmcs.display import DisplayError, NullDisplay  # noqa: E402
+from claritylink_jmcs.frames import FrameError, Provenance, VideoFrame, png_to_rgb24  # noqa: E402
+from claritylink_jmcs.media import FramingProfile  # noqa: E402
+from claritylink_jmcs.receiver import Receiver, ReceiverError, ReceiverState  # noqa: E402
+from claritylink_jmcs.stream_dispatch import StreamIdentity  # noqa: E402
+
+Fault = fsc.Fault
+SECONDARY_STREAM = 111
+# Owned by the pipeline: letting a caller override them would defeat lab-mode gating.
+RESERVED_RECEIVER_OPTIONS = frozenset({"clear_lab", "display", "primary_display", "framing_profile"})
+_FULL_TEARDOWN = (Fault.USB_UNPLUG, Fault.CARPLAY_ENDED, Fault.RECEIVER_DEATH)
+_SNAPSHOT_FIELDS = ("sessions", "primary_listeners", "secondary_listeners", "security_contexts",
+                    "decoders", "displayed_frames", "display_uncleared")
+CONVERT_SAMPLES = 256  # bounded timing history
+
+
+class IngestError(RuntimeError):
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+# ---- fault classification ---------------------------------------------------
+# The receiver tears down the secondary stream on EVERY media-path error except a
+# stale decoder, so any error outside FRAME_ONLY_CODES ends the Type111 lease.
+# Session-staleness and identity errors are NOT frame-only: the receiver either
+# tore the stream down (identity) or the session is already gone, so the lease
+# must be withdrawn with it.
+FRAME_ONLY_CODES = frozenset({
+    "stale_secondary_decoder",      # a superseded decoder lost a race; stream is fine
+})
+DECODER_CODES = frozenset({
+    "decode_failed", "decoder_closed", "invalid_access_unit", "invalid_output_dimensions",
+    "invalid_decoded_dimensions", "secondary_decoder_restart_failed",
+})
+# Everything else (socket EOF/read failure, malformed framing/AVCC, security
+# refusal, display/lease refusal) is a Type111 transport/stream failure.
+
+
+def classify_receiver_code(code: str) -> Fault | None:
+    """Fault to raise for a receiver error code; None = reject the frame only."""
+    if code in FRAME_ONLY_CODES:
+        return None
+    if code in DECODER_CODES:
+        return Fault.DECODER_DEATH
+    return Fault.TYPE111_TRANSPORT_FAILURE
+
+
+@dataclass(frozen=True)
+class LeaseBoundFrame:
+    """What the host holds: the frame plus the lease/sequence it was submitted under."""
+
+    frame: VideoFrame
+    lease_epoch: int
+    lease_generation: int
+    sequence: int
+
+
+@dataclass(frozen=True)
+class IngestOutcome:
+    accepted: bool
+    code: str | None = None
+    fault: Fault | None = None
+    frame: LeaseBoundFrame | None = None
+
+
+@dataclass(frozen=True)
+class FaultRecord:
+    kind: Fault | None  # None: host-side revocation adopted (expiry / no progress)
+    code: str
+    report: fsc.CleanupReport
+    cleanup_ok: bool = True  # False: receiver-side cleanup left something behind (see cleanup_failures)
+
+
+def _type_name(exc: BaseException) -> str:
+    """The exception's type name; a hostile metaclass ``__name__`` cannot raise out of here."""
+    try:
+        name = type(exc).__name__
+    except Exception:  # noqa: BLE001 - must not derail fail-closed handling
+        return "unnamed_exception"
+    return str.__str__(name) if isinstance(name, str) else "unnamed_exception"  # exact str: no hostile hooks
+
+
+def _safe_code(exc: BaseException, fallback: str) -> str:
+    """``exc.code`` when it reads cleanly as a string, else ``fallback``; never raises ``Exception``."""
+    try:
+        code = exc.code  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - a hostile or absent accessor must not derail fail-closed handling
+        return fallback
+    return str.__str__(code) if isinstance(code, str) else fallback  # exact str: no hostile hooks
+
+
+def _note(owner: Any, log: list, item: Any) -> None:
+    """Best-effort diagnostic append. It runs only AFTER withdrawal and can never derail it.
+
+    A record that cannot be stored is counted in ``owner.diagnostics_dropped`` instead of
+    raising, so losing a diagnostic is visible but never a prerequisite for fail-closed.
+    """
+    try:
+        log.append(item)
+    except Exception:  # noqa: BLE001 - diagnostics must not interrupt safety handling
+        owner.diagnostics_dropped += 1
+
+
+def _cleanup_failure_code(exc: BaseException) -> str:
+    return _safe_code(exc, _type_name(exc))
+
+
+class SinkRejection(DisplayError):
+    """Rejection raised by ``LeaseGatedOutput`` after it attempted to withdraw host content.
+
+    The type alone is not proof of that: a dependency can raise it too, and a retained
+    instance can be replayed. ``LeaseGatedOutput`` therefore trusts only the instances it
+    built during the current ``show()`` call (by identity), never the class or an attribute.
+
+    ``cleanup_error`` is the exception from the withdrawal itself when that failed; the
+    original failure stays the ``__cause__`` and is never replaced by it.
+    """
+
+    def __init__(self, code: str, cleanup_error: Exception | None = None) -> None:
+        super().__init__(code)
+        self.cleanup_error = cleanup_error
+
+
+class LeaseGatedOutput:
+    """``FrameOutput`` sink: decoded PNG in, lease-bound RGB24 out. Fails closed.
+
+    Any ordinary ``Exception`` while presenting a frame withdraws project content and
+    deactivates the output before the error reaches the caller. ``BaseException`` is
+    never caught.
+    """
+
+    def __init__(self, coordinator: fsc.FailSafeCoordinator, *, lab_mode: bool) -> None:
+        self._coordinator = coordinator
+        self._lab_mode = lab_mode
+        self._lock = threading.RLock()
+        self._local = threading.local()
+        self._identity: StreamIdentity | None = None
+        self._active = False
+        self._last_timestamp = -1
+        self.accepted = 0
+        self.rejected: list[str] = []
+        self.cleanup_failures: list[str] = []  # withdrawals that themselves raised
+        self.withdrawal_pending = False  # a withdrawal failed and has not yet succeeded
+        self.diagnostics_dropped = 0  # records that could not be stored (never blocks withdrawal)
+        self.last_bound: LeaseBoundFrame | None = None
+        self.convert_seconds: deque[float] = deque(maxlen=CONVERT_SAMPLES)
+
+    def activate(self, identity: StreamIdentity) -> None:
+        with self._lock:
+            self._identity, self._active, self._last_timestamp = identity, True, -1
+
+    def deactivate(self) -> None:
+        with self._lock:
+            self._active = False
+
+    def inside_show(self) -> bool:
+        return bool(getattr(self._local, "in_show", False))
+
+    def fail_closed(self, reason: str) -> None:
+        """Stop accepting frames and hide host content now (safe direction)."""
+        with self._lock:
+            self._active = False
+            self.last_bound = None
+            self.withdrawal_pending = True  # cleared only once the host confirms the revoke
+            self._coordinator.host.revoke(reason)
+            self.withdrawal_pending = False
+
+    def _reject(self, code: str) -> SinkRejection:
+        """Withdraw first, record second; a failed withdrawal is reported, not raised."""
+        cleanup_error: Exception | None = None
+        try:
+            self.fail_closed(code)
+        except Exception as exc:  # noqa: BLE001 - the original failure must still reach the caller
+            cleanup_error = exc
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+        _note(self, self.rejected, code)
+        rejection = SinkRejection(code, cleanup_error)
+        issued = getattr(self._local, "issued", None)
+        if issued is not None:  # only inside a show(): the record lives exactly as long as that call
+            issued.append(rejection)
+        return rejection
+
+    def _failure(self, exc: Exception) -> SinkRejection:
+        fallback = f"sink_exception:{_type_name(exc)}"
+        code = _safe_code(exc, fallback) if issubclass(type(exc), FrameError) else fallback
+        return self._reject(code)
+
+    def _already_withdrawn(self, exc: Exception) -> bool:
+        """True only for a rejection built by ``_reject`` during the current ``show()`` call.
+
+        Identity only: no attribute of ``exc`` is read, so a hostile or replayed exception
+        can neither raise from here nor claim a withdrawal it did not get.
+        """
+        issued = getattr(self._local, "issued", None)
+        return issued is not None and any(exc is rejection for rejection in issued)
+
+    def show(self, frame: DecodedFrame) -> None:
+        previous = getattr(self._local, "issued", None)
+        self._local.issued = []  # fresh per call, so a nested or later call never inherits it
+        try:
+            self._present(frame)
+        except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
+            if self._already_withdrawn(exc):
+                raise
+            raise self._failure(exc) from exc
+        finally:
+            self._local.issued = previous
+
+    def _present(self, frame: DecodedFrame) -> None:
+        with self._lock:  # cheap admission checks first
+            if not self._lab_mode:
+                raise self._reject("lab_mode_required")
+            identity = self._identity
+            if not self._active or identity is None:
+                raise self._reject("output_inactive")
+            if frame.generation != identity.stream_generation:
+                raise self._reject("stale_stream_generation")
+        started = perf_counter()  # the slow conversion runs without holding the lock
+        width, height, pixels = png_to_rgb24(frame.png)
+        if (frame.width, frame.height) != (width, height):
+            raise FrameError("decoder_dimension_mismatch")
+        converted = perf_counter() - started
+        with self._lock:
+            if not self._active or self._identity is not identity:  # revoked while converting
+                raise self._reject("output_inactive")
+            try:  # withdraw under the same lock hold as the admission check above
+                self._commit(frame, identity, (width, height, pixels), converted)
+            except Exception as exc:  # noqa: BLE001 - any ordinary failure must fail closed
+                if self._already_withdrawn(exc):
+                    raise
+                raise self._failure(exc) from exc
+
+    def _commit(self, frame: DecodedFrame, identity: StreamIdentity,
+                converted_frame: tuple[int, int, bytes], converted: float) -> None:
+        """Bind and submit one converted frame. Caller holds ``self._lock``."""
+        width, height, pixels = converted_frame
+        if frame.timestamp < self._last_timestamp:
+            raise FrameError("timestamp_regression")
+        lease = self._coordinator.lease
+        if lease is None:
+            raise FrameError("lease_rejected:REJECTED_NO_LEASE")
+        video = VideoFrame(pixels, width, height, width * 3, frame.timestamp,
+                           identity.session_generation, identity.stream_type,
+                           identity.connection_id, identity.stream_generation,
+                           Provenance.SYNTHETIC_LAB_CONTENT)
+        self.convert_seconds.append(converted)
+        bound = LeaseBoundFrame(video, lease.epoch, lease.generation, self._coordinator.sequence)
+        was_inside = self.inside_show()  # restore, not clear: a nested show() must not end the outer one
+        self._local.in_show = True
+        try:
+            result = self._coordinator.submit_frame(bound)
+        finally:
+            self._local.in_show = was_inside
+        if result is not fsc.SubmitResult.ACCEPTED:
+            raise self._reject(f"lease_rejected:{result.value}")
+        self._last_timestamp = frame.timestamp
+        self.accepted += 1
+        self.last_bound = bound
+
+    def clear(self) -> None:
+        """Receiver/dispatcher cleanup: withdraw host content; idempotent."""
+        with self._lock:
+            self._active = False
+            self.last_bound = None
+            self.withdrawal_pending = True
+            self._coordinator.host.revoke("type111 output cleared")
+            self.withdrawal_pending = False
+
+
+def _serialized(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Run a public control method under the pipeline's reentrant control lock.
+
+    Never apply this to anything the dispatcher worker calls (``LeaseGatedOutput``).
+    """
+    @functools.wraps(method)
+    def wrapper(self: "Type111IngestPipeline", *args: Any, **kwargs: Any) -> Any:
+        with self._control_lock:
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
+def _withdraw_first(code: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Like ``_serialized``, but begin host withdrawal BEFORE waiting for the control lock.
+
+    The preemptive step takes only the output lock (never the control lock), failure is recorded
+    and not raised, and the serialized ``_fault`` retries the withdrawal and does the teardown.
+    """
+    def decorate(method: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(method)
+        def wrapper(self: "Type111IngestPipeline", *args: Any, **kwargs: Any) -> Any:
+            self._attempt(lambda: self.output.fail_closed(code))
+            with self._control_lock:
+                return method(self, *args, **kwargs)
+        return wrapper
+    return decorate
+
+
+class Type111IngestPipeline:
+    """Owns one Receiver, one coordinator and the bridge between their lifecycles."""
+
+    def __init__(self, *, lab_mode: bool, clock: Callable[[], float] = monotonic,
+                 lease_seconds: float = fsc.DEFAULT_LEASE_SECONDS,
+                 frame_age_limit: float | None = None,
+                 primary_display: Any = None,
+                 receiver_kwargs: dict[str, Any] | None = None,
+                 host: Any = None) -> None:
+        kwargs = dict(receiver_kwargs or {})
+        if RESERVED_RECEIVER_OPTIONS & kwargs.keys():
+            raise IngestError("reserved_receiver_option")
+        self.lab_mode = lab_mode
+        # CL-INT-04: a host in another process (RemoteDisplay1Host) may be injected; it then owns
+        # lease timing and the expiry timer, so lease_seconds/clock/frame_age_limit are unused.
+        self.host = host if host is not None else fsc.Display1LeaseHost(
+            lease_seconds=lease_seconds, clock=clock, frame_age_limit=frame_age_limit)
+        self.coordinator = fsc.FailSafeCoordinator(self.host)
+        self.output = LeaseGatedOutput(self.coordinator, lab_mode=lab_mode)
+        self.primary_display = primary_display if primary_display is not None else NullDisplay()
+        self.receiver = Receiver(clear_lab=lab_mode, display=self.output,
+                                 primary_display=self.primary_display,
+                                 framing_profile=FramingProfile.CURRENT_IOS_TYPE111, **kwargs)
+        self.generation = 0
+        self.faults: list[FaultRecord] = []
+        self.cleanup_failures: list[str] = []
+        self.diagnostics_dropped = 0  # records that could not be stored (never blocks cleanup)
+        self._cleanup_deferred = False
+        self._control_lock = threading.RLock()  # public control API only; nested calls re-enter
+
+    # ---- session lifecycle ----
+    @_serialized
+    def open_session(self) -> int:
+        if not self.lab_mode:
+            raise IngestError("lab_mode_required")
+        generation = self.receiver.start_session()
+        self.receiver.info_exchanged(generation)
+        self.generation = generation
+        self.coordinator.phone_attached()
+        self.coordinator.carplay_started()
+        return generation
+
+    @_serialized
+    def setup_primary(self, stream_connection_id: int) -> bool:
+        """Synthetic Type110 on the (separate) primary output."""
+        self.receiver.setup({"streams": [{"type": 110, "streamConnectionID": stream_connection_id}]},
+                            self.generation)
+        return self.receiver.primary is not None
+
+    @_serialized
+    def setup_type111(self, stream_connection_id: int) -> IngestOutcome:
+        self.settle()  # adopt an expiry the host already applied before judging "active"
+        if self.receiver.secondary is not None or self.coordinator.lease is not None:
+            return IngestOutcome(False, "type111_already_active")  # never disturbs the live stream
+        try:
+            return self._setup_type111(stream_connection_id)
+        except Exception as exc:  # noqa: BLE001 - a half-built stream must be withdrawn and released
+            fallback = f"setup_exception:{_type_name(exc)}"
+            return self._init_failed(_safe_code(exc, fallback) if isinstance(exc, ReceiverError) else fallback)
+
+    def _setup_type111(self, stream_connection_id: int) -> IngestOutcome:
+        self.receiver.setup({"streams": [{"type": 111, "streamConnectionID": stream_connection_id}]},
+                            self.generation)
+        if self.receiver.secondary is None:  # receiver rolled back and kept only Type110
+            return self._init_failed("type111_setup_refused")
+        identity = self.receiver.stream_identity(SECONDARY_STREAM)
+        self._cleanup_deferred = False
+        negotiated = self.coordinator.type111_negotiated(
+            {"receiver_secondary": self._close_secondary, "output": self.output.deactivate})
+        if not negotiated:  # the coordinator already ran the closers; finish and record, never raise
+            cleaned = self._finalize(None)
+            self._record_fault(None, "negotiation_refused", self.coordinator.reports[-1], cleaned)
+            return IngestOutcome(False, "negotiation_refused", None)
+        self.output.activate(identity)
+        self.host.select_page(True)
+        return IngestOutcome(True)
+
+    def _init_failed(self, code: str) -> IngestOutcome:
+        self._fault(Fault.INIT_FAILURE, code)
+        return IngestOutcome(False, code, Fault.INIT_FAILURE)
+
+    @_serialized
+    def accept_type111(self, timeout: float = 1.0) -> None:
+        self.receiver.accept_secondary(self.generation, timeout)
+
+    # ---- data path ----
+    @_serialized
+    def pump_frame(self) -> IngestOutcome:
+        """Read and present one Type111 message through the real receiver."""
+        before = self.output.accepted
+        try:
+            data = self.receiver.receive_secondary_frame(self.generation)
+        except ReceiverError as exc:
+            code = _safe_code(exc, "receiver_error_unreadable")  # unreadable code: conservative fault
+            return self._failed(code, classify_receiver_code(code))
+        except Exception as exc:  # noqa: BLE001 - an unexpected receiver failure is a death, not a frame error
+            return self._failed(f"receiver_exception:{_type_name(exc)}", Fault.RECEIVER_DEATH)
+        if self.settle():  # the lease went away while this frame was in flight
+            return IngestOutcome(False, "lease_revoked_during_frame", None)
+        if self.output.accepted > before:
+            return IngestOutcome(True, frame=self.output.last_bound)
+        if data == b"":
+            return IngestOutcome(True)  # VideoConfig message: nothing to present
+        return self._failed("frame_not_presented", Fault.TYPE111_TRANSPORT_FAILURE)
+
+    def _failed(self, code: str, kind: Fault | None) -> IngestOutcome:
+        if kind is None:
+            self.settle()  # drain any cleanup deferred while the worker was inside show()
+            return IngestOutcome(False, code, None)
+        self._fault(kind, code)
+        return IngestOutcome(False, code, kind)
+
+    # ---- liveness ----
+    @_serialized
+    def heartbeat(self) -> bool:
+        try:
+            alive = self.coordinator.heartbeat()
+        except Exception as exc:  # noqa: BLE001 - no host decision: end Type111 fail-closed, Type110 stays
+            self._fault(Fault.TYPE111_TRANSPORT_FAILURE, "host_ipc_error")  # withdraw before diagnostics
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return False
+        if not alive:
+            self.settle()
+        return alive
+
+    @_serialized
+    def tick(self) -> bool:
+        """Adopt a host-side revocation (expiry, no frame progress). True if it acted."""
+        return self.settle()
+
+    @_serialized
+    def settle(self) -> bool:
+        """Reconcile coordinator and receiver with whatever the host already revoked."""
+        lost, withdrawn = self._lease_lost()
+        if not lost:
+            if self._cleanup_deferred:
+                self._finalize(None)
+            return False
+        self.output.deactivate()
+        reason = self.host.revocations[-1] if self.host.revocations else "host revoked lease"
+        report, synced = self._guarded(reason, self.coordinator.sync)
+        self._record_fault(None, reason, report, self._finalize(None) and synced and withdrawn)
+        return True
+
+    def _lease_lost(self) -> tuple[bool, bool]:
+        """(lease lost, withdrawal ok). Reading the lease can itself apply an expiry and fail."""
+        try:
+            return self.coordinator.lease is not None and not self.host.lease_held, True
+        except Exception as exc:  # noqa: BLE001 - an unreadable host state is treated as a lost lease
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return True, self._attempt(lambda: self.output.fail_closed("host_state_unreadable"))
+
+    # ---- faults ----
+    @_withdraw_first("disconnect")
+    def disconnect(self, kind: Fault = Fault.CARPLAY_ENDED) -> fsc.CleanupReport:
+        """Normal or unexpected phone/CarPlay loss; tears the whole receiver session down."""
+        return self._fault(kind, "disconnect")
+
+    @_serialized
+    def end_type111(self) -> fsc.CleanupReport:
+        """Orderly end of only the secondary stream; CarPlay and Type110 stay up."""
+        return self._fault(Fault.TYPE111_TRANSPORT_FAILURE, "type111_ended")
+
+    @_withdraw_first("factory_interrupt")
+    def factory_interrupt(self) -> fsc.CleanupReport:
+        return self._fault(Fault.FACTORY_WARNING, "factory_interrupt")
+
+    @_serialized
+    def clear_factory_interrupt(self) -> None:
+        self.host.clear_interrupt()
+
+    @_withdraw_first("display_host_restart")
+    def display_restart(self) -> fsc.CleanupReport:
+        return self._fault(Fault.DISPLAY_HOST_RESTART, "display_host_restart")
+
+    def _fault(self, kind: Fault, code: str) -> fsc.CleanupReport:
+        """Fixed order: withdraw, coordinator cleanup, receiver cleanup, THEN diagnostics.
+
+        Each step is isolated so one failure never skips the next, and nothing that
+        formats or stores a diagnostic runs before the first withdrawal attempt.
+        """
+        withdrawn = self._attempt(lambda: self.output.fail_closed(code))  # visible content first
+        report, coordinated = self._guarded(kind.value, lambda: self.coordinator.fault(kind))
+        cleaned = self._finalize(kind)
+        self._record_fault(kind, code, report, cleaned and withdrawn and coordinated)
+        incomplete = (() if withdrawn else ("withdrawal",)) + (() if cleaned else ("receiver_cleanup",))
+        return fsc.CleanupReport(report.reason, report.ran, report.failed + incomplete) if incomplete else report
+
+    def _guarded(self, reason: str, step: Callable[[], Any]) -> tuple[fsc.CleanupReport, bool]:
+        """Run a coordinator step; on failure report it truthfully instead of raising."""
+        try:
+            before = len(self.coordinator.reports)
+            result = step()
+            if isinstance(result, fsc.CleanupReport):
+                return result, True
+            if len(self.coordinator.reports) > before:
+                return self.coordinator.reports[-1], True
+            return fsc.CleanupReport(reason, (), ()), True  # the step had nothing to do: no stale report
+        except Exception as exc:  # noqa: BLE001 - recorded; receiver cleanup must still run
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return fsc.CleanupReport(reason, (), ("coordinator",)), False
+
+    def _attempt(self, step: Callable[[], None]) -> bool:
+        """One independent cleanup step; failure is recorded (best effort), never raised."""
+        try:
+            step()
+        except Exception as exc:  # noqa: BLE001 - the remaining cleanup steps must still run
+            _note(self, self.cleanup_failures, _cleanup_failure_code(exc))
+            return False
+        return True
+
+    def _record_fault(self, kind: Fault | None, code: str, report: fsc.CleanupReport, cleanup_ok: bool) -> None:
+        try:
+            record = FaultRecord(kind, code, report, cleanup_ok)
+        except Exception:  # noqa: BLE001 - diagnostics only
+            self.diagnostics_dropped += 1
+            return
+        _note(self, self.faults, record)
+
+    def _finalize(self, kind: Fault | None) -> bool:
+        """Idempotently finish receiver cleanup the coordinator could not do inline.
+
+        Returns False (and records the cause in ``cleanup_failures``) when anything
+        project-owned is still held afterwards; it never raises.
+        """
+        self._cleanup_deferred = False
+        if kind not in _FULL_TEARDOWN:
+            return self._attempt(self._close_secondary)
+        torn_down = self._attempt(lambda: self.receiver.teardown(self.generation))
+        if not torn_down:  # independent: the secondary stream must still be released
+            self._attempt(self._close_secondary)
+        return self._attempt(self._require_session_clean) and torn_down
+
+    def _require_session_clean(self) -> None:
+        leftovers = self.session_residual()
+        if leftovers:
+            raise IngestError("session_cleanup_incomplete:" + ",".join(leftovers))
+
+    def _close_secondary(self) -> None:
+        if self.output.inside_show():  # on the dispatcher worker: cannot join itself
+            self._cleanup_deferred = True  # surfaced by residual() until settle() drains it
+            return
+        self.output.deactivate()
+        self.receiver.teardown_secondary(self.generation)
+        if (self.receiver.secondary or self.receiver.decoder or self.receiver.security
+                or self.receiver.display_uncleared
+                or SECONDARY_STREAM in self.receiver.dispatch_registry_snapshot()):
+            raise IngestError("secondary_cleanup_incomplete")
+
+    # ---- inspection ----
+    def residual(self) -> tuple[str, ...]:
+        """Everything project-owned still held for Type111 (empty when clean)."""
+        held: list[str] = [f"host:{type(item).__name__}" for item in self.host.residual_state]
+        held += [name for name, value in (("listener", self.receiver.secondary),
+                                          ("decoder", self.receiver.decoder),
+                                          ("security", self.receiver.security),
+                                          ("display_frame", self.output.last_bound),
+                                          ("display_uncleared", self.receiver.display_uncleared),
+                                          ("withdrawal_pending", self.output.withdrawal_pending),
+                                          ("cleanup_deferred", self._cleanup_deferred))
+                 if value]
+        if SECONDARY_STREAM in self.receiver.dispatch_registry_snapshot():
+            held.append("dispatcher")
+        return tuple(held)
+
+    def session_residual(self) -> tuple[str, ...]:
+        """Whole-session leftovers (both streams, authority session); empty after a full teardown."""
+        snapshot = self.receiver.snapshot()
+        held = [name for name in _SNAPSHOT_FIELDS if getattr(snapshot, name)]
+        if self.receiver.state is ReceiverState.FAILED:
+            held.append("state_failed")
+        return tuple(held)

@@ -112,7 +112,11 @@ def test_accepted_type111_geometry_is_fenced_into_live_api17_output_view():
     assert "accepted_view_and_safe_areas_applied_to_live_output" in activity
     assert "current.equals(identity)" in activity
     assert "expectedRenderer.setRendererViewport(viewport)" in activity
-    assert "public void setRendererViewport(RendererViewport viewport)" in backend
+    assert "public synchronized void setRendererViewport(RendererViewport viewport)" in backend
+    # Accepted geometry is applied to the live View in place; only a host PaneEvent revokes.
+    body = backend[backend.index("public synchronized void setRendererViewport"):]
+    body = body[:body.index("\n    }\n")]
+    assert "revokeLease()" not in body
     assert "current.setRendererViewport(viewport)" in backend
     assert "wait_for 'CL_R6_OUTPUT_GEOMETRY_APPLIED'" in runner
     assert "wait_for 'CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS'" in runner
