@@ -16,8 +16,14 @@ Scope and limits (not evidence about a Honda or an iPhone):
     the real iPhone wire format; no real iPhone-origin bytes are processed.
   * ``lab_mode=False`` refuses to run: synthetic authentication and clear media
     can never stand in for production evidence.
-  * Control-thread API (open/setup/pump/tick/fault) is single-threaded; the only
-    other thread is the receiver's dispatcher worker, inside ``pump_frame``.
+  * Control-thread API (open/setup/pump/tick/fault) has one logical owner; concurrent public
+    callers are serialized by a reentrant control lock, so a fault/disconnect cannot interleave
+    teardown with an in-flight ``pump_frame`` or ``setup_type111``. The only other thread is the
+    receiver's dispatcher worker, inside ``pump_frame``; it never takes the control lock.
+    Lock order: control lock -> receiver locks -> output lock. The worker (``LeaseGatedOutput.show``)
+    holds only the output lock, so the receiver's teardown join cannot deadlock against it.
+    Limit: a caller waits for an in-flight ``pump_frame``/``accept_type111`` (a blocking socket
+    read bounded only by the peer); the host-owned timer of CL-INT-04 still revokes the lease.
   * Lease expiry is evaluated lazily by the in-process host and adopted here by ``tick()``.
     A dead producer cannot run ``tick()``: guaranteed withdrawal comes from the host-owned
     timer and death detection of CL-INT-04 (``display1_host_service`` / ``display1_host_ipc``),
@@ -37,6 +43,7 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 import sys
+import functools
 import threading
 from time import monotonic, perf_counter
 from typing import Any, Callable
@@ -318,6 +325,18 @@ class LeaseGatedOutput:
             self.withdrawal_pending = False
 
 
+def _serialized(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Run a public control method under the pipeline's reentrant control lock.
+
+    Never apply this to anything the dispatcher worker calls (``LeaseGatedOutput``).
+    """
+    @functools.wraps(method)
+    def wrapper(self: "Type111IngestPipeline", *args: Any, **kwargs: Any) -> Any:
+        with self._control_lock:
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
 class Type111IngestPipeline:
     """Owns one Receiver, one coordinator and the bridge between their lifecycles."""
 
@@ -346,8 +365,10 @@ class Type111IngestPipeline:
         self.cleanup_failures: list[str] = []
         self.diagnostics_dropped = 0  # records that could not be stored (never blocks cleanup)
         self._cleanup_deferred = False
+        self._control_lock = threading.RLock()  # public control API only; nested calls re-enter
 
     # ---- session lifecycle ----
+    @_serialized
     def open_session(self) -> int:
         if not self.lab_mode:
             raise IngestError("lab_mode_required")
@@ -358,12 +379,14 @@ class Type111IngestPipeline:
         self.coordinator.carplay_started()
         return generation
 
+    @_serialized
     def setup_primary(self, stream_connection_id: int) -> bool:
         """Synthetic Type110 on the (separate) primary output."""
         self.receiver.setup({"streams": [{"type": 110, "streamConnectionID": stream_connection_id}]},
                             self.generation)
         return self.receiver.primary is not None
 
+    @_serialized
     def setup_type111(self, stream_connection_id: int) -> IngestOutcome:
         self.settle()  # adopt an expiry the host already applied before judging "active"
         if self.receiver.secondary is not None or self.coordinator.lease is not None:
@@ -395,10 +418,12 @@ class Type111IngestPipeline:
         self._fault(Fault.INIT_FAILURE, code)
         return IngestOutcome(False, code, Fault.INIT_FAILURE)
 
+    @_serialized
     def accept_type111(self, timeout: float = 1.0) -> None:
         self.receiver.accept_secondary(self.generation, timeout)
 
     # ---- data path ----
+    @_serialized
     def pump_frame(self) -> IngestOutcome:
         """Read and present one Type111 message through the real receiver."""
         before = self.output.accepted
@@ -425,6 +450,7 @@ class Type111IngestPipeline:
         return IngestOutcome(False, code, kind)
 
     # ---- liveness ----
+    @_serialized
     def heartbeat(self) -> bool:
         try:
             alive = self.coordinator.heartbeat()
@@ -436,10 +462,12 @@ class Type111IngestPipeline:
             self.settle()
         return alive
 
+    @_serialized
     def tick(self) -> bool:
         """Adopt a host-side revocation (expiry, no frame progress). True if it acted."""
         return self.settle()
 
+    @_serialized
     def settle(self) -> bool:
         """Reconcile coordinator and receiver with whatever the host already revoked."""
         lost, withdrawn = self._lease_lost()
@@ -462,20 +490,25 @@ class Type111IngestPipeline:
             return True, self._attempt(lambda: self.output.fail_closed("host_state_unreadable"))
 
     # ---- faults ----
+    @_serialized
     def disconnect(self, kind: Fault = Fault.CARPLAY_ENDED) -> fsc.CleanupReport:
         """Normal or unexpected phone/CarPlay loss; tears the whole receiver session down."""
         return self._fault(kind, "disconnect")
 
+    @_serialized
     def end_type111(self) -> fsc.CleanupReport:
         """Orderly end of only the secondary stream; CarPlay and Type110 stay up."""
         return self._fault(Fault.TYPE111_TRANSPORT_FAILURE, "type111_ended")
 
+    @_serialized
     def factory_interrupt(self) -> fsc.CleanupReport:
         return self._fault(Fault.FACTORY_WARNING, "factory_interrupt")
 
+    @_serialized
     def clear_factory_interrupt(self) -> None:
         self.host.clear_interrupt()
 
+    @_serialized
     def display_restart(self) -> fsc.CleanupReport:
         return self._fault(Fault.DISPLAY_HOST_RESTART, "display_host_restart")
 
