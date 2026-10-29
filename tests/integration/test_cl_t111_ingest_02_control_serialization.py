@@ -5,9 +5,12 @@ Evidence scope: SYNTHETIC offline lifecycle only (locally generated clear lab in
 `safeForHonda() == false` and VEHICLE_DEPLOYMENT_NOT_AUTHORIZED are unchanged.
 
 A barrier pauses ``pump_frame`` inside the real receiver while ``disconnect`` starts on another
-thread. Teardown must not run until the in-flight control operation returns. The only
-timed wait is the bounded negative check that disconnect has NOT finished while paused.
+thread. Host withdrawal must begin before the control-lock wait (the existing simulated
+Display 1 frame is gone while pump_frame is still paused), but receiver teardown must not run
+until the in-flight control operation returns. Timed waits are bounded: a negative probe that
+disconnect has NOT finished, and a poll for the preemptive withdrawal.
 """
+import time
 import threading
 
 import pytest
@@ -18,6 +21,16 @@ from type111_ingest import Type111IngestPipeline
 
 WAIT_SECONDS = 10.0  # upper bound so a failure can never strand a worker
 BLOCKED_PROBE_SECONDS = 0.5  # negative check: disconnect must still be waiting after this
+POLL_SECONDS = 0.01
+
+
+def wait_until(predicate, timeout=WAIT_SECONDS):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(POLL_SECONDS)
+    return predicate()
 
 
 class Race:
@@ -90,8 +103,12 @@ def test_disconnect_waits_for_in_flight_pump_frame_then_withdraws_everything(pip
         disconnect_thread.start()
 
         # Serialization: teardown cannot interleave while pump_frame is in flight.
+        # Preemptive withdrawal: the live Display 1 frame is withdrawn while pump_frame is paused.
+        assert wait_until(lambda: pipeline.host.visible_content is None), \
+            "Display 1 content was not withdrawn before the control-lock wait"
         disconnect_thread.join(BLOCKED_PROBE_SECONDS)
         assert disconnect_thread.is_alive(), "disconnect ran while pump_frame was still in flight"
+        assert pipeline.host.visible_content is None and not pipeline.host.lease_held
         assert not race.events, race.events
         assert pipeline.receiver.snapshot().sessions == 1 and pipeline.receiver.secondary is not None
         assert pipeline.receiver.primary is primary_listener  # Type110 untouched meanwhile
@@ -104,9 +121,16 @@ def test_disconnect_waits_for_in_flight_pump_frame_then_withdraws_everything(pip
         primary.close()
     assert not pump_thread.is_alive() and not disconnect_thread.is_alive()
 
-    assert race.events[0] == ("pump", "returned"), race.events  # no teardown precedes the pump's return
-    assert any(who == "disconnect" and op.startswith("teardown") for who, op in race.events), race.events
-    assert outcomes["pump"].accepted and not reports["disconnect"].failed
+    # Nothing tore down before release (asserted while paused). Afterwards the in-flight pump finds its
+    # output withdrawn and fails closed on its own thread; the disconnect teardown runs only after the
+    # pump has returned and released the control lock.
+    events = race.events
+    pump_returned = events.index(("pump", "returned"))
+    assert all(who == "pump" for who, _ in events[:pump_returned]), events
+    assert any(who == "disconnect" and op.startswith("teardown") for who, op in events), events
+    assert all(who == "disconnect" for who, _ in events[pump_returned + 1:]), events
+    assert not outcomes["pump"].accepted  # the paused frame was withdrawn, not presented
+    assert not reports["disconnect"].failed
 
     # Postconditions: Display 1 lease/content withdrawn, Type111 resources released.
     assert pipeline.host.visible_content is None and pipeline.host.residual_state == ()
@@ -122,3 +146,48 @@ def test_disconnect_waits_for_in_flight_pump_frame_then_withdraws_everything(pip
     else:  # the separately active Type110 primary stream stays independent and up
         assert snapshot.sessions == 1 and snapshot.primary_listeners == 1
         assert pipeline.receiver.primary is primary_listener
+
+
+def test_failed_preemptive_withdrawal_is_retried_in_serialized_cleanup(pipeline, monkeypatch):
+    """A raising preemptive withdrawal is recorded, then retried; receiver cleanup still runs."""
+    stream = synth.SyntheticStream(4)
+    secondary, primary = synth.start_type111(pipeline, with_primary=True)
+    secondary.sendall(stream.config_message())
+    secondary.sendall(stream.frame_message(0))
+    try:
+        assert pipeline.pump_frame().accepted and pipeline.pump_frame().accepted
+        assert pipeline.host.visible_content is not None
+        original, calls = pipeline.output.fail_closed, []
+
+        def flaky(reason):
+            calls.append(threading.current_thread().name)
+            if len(calls) == 1:  # only the preemptive attempt fails
+                raise RuntimeError("synthetic_withdrawal_failure")
+            return original(reason)
+
+        monkeypatch.setattr(pipeline.output, "fail_closed", flaky)
+        report = pipeline.disconnect(Fault.CARPLAY_ENDED)
+    finally:
+        secondary.close()
+        primary.close()
+    assert len(calls) == 2, calls  # preemptive attempt + serialized retry
+    assert "RuntimeError" in pipeline.cleanup_failures
+    assert not report.failed  # the retry succeeded, so cleanup is complete
+    assert pipeline.host.visible_content is None and pipeline.residual() == ()
+    assert pipeline.session_residual() == ()
+
+
+def test_withdrawal_failing_twice_is_reported_without_skipping_receiver_cleanup(pipeline, monkeypatch):
+    secondary, primary = synth.start_type111(pipeline, with_primary=True)
+    try:
+        def broken(reason):
+            raise RuntimeError("synthetic_withdrawal_failure")
+
+        monkeypatch.setattr(pipeline.output, "fail_closed", broken)
+        report = pipeline.disconnect(Fault.CARPLAY_ENDED)  # must not raise before cleanup
+    finally:
+        secondary.close()
+        primary.close()
+    assert "withdrawal" in report.failed
+    assert pipeline.session_residual() == ()  # receiver teardown still ran
+    assert pipeline.faults[-1].cleanup_ok is False

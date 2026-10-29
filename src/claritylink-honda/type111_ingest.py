@@ -22,8 +22,13 @@ Scope and limits (not evidence about a Honda or an iPhone):
     receiver's dispatcher worker, inside ``pump_frame``; it never takes the control lock.
     Lock order: control lock -> receiver locks -> output lock. The worker (``LeaseGatedOutput.show``)
     holds only the output lock, so the receiver's teardown join cannot deadlock against it.
-    Limit: a caller waits for an in-flight ``pump_frame``/``accept_type111`` (a blocking socket
-    read bounded only by the peer); the host-owned timer of CL-INT-04 still revokes the lease.
+    High-priority disconnect/interrupt/restart first withdraw Display 1 content WITHOUT the control
+    lock (output lock -> host only, so no new lock-order edge), then wait for the control lock and
+    run the single serialized teardown, which retries the withdrawal. A failed preemptive
+    withdrawal is recorded in ``cleanup_failures`` and never skips the serialized cleanup.
+    Limit: receiver teardown still waits for an in-flight ``pump_frame``/``accept_type111`` (a
+    blocking socket read bounded only by the peer); the host-owned timer of CL-INT-04 still
+    revokes the lease.
   * Lease expiry is evaluated lazily by the in-process host and adopted here by ``tick()``.
     A dead producer cannot run ``tick()``: guaranteed withdrawal comes from the host-owned
     timer and death detection of CL-INT-04 (``display1_host_service`` / ``display1_host_ipc``),
@@ -337,6 +342,22 @@ def _serialized(method: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
+def _withdraw_first(code: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Like ``_serialized``, but begin host withdrawal BEFORE waiting for the control lock.
+
+    The preemptive step takes only the output lock (never the control lock), failure is recorded
+    and not raised, and the serialized ``_fault`` retries the withdrawal and does the teardown.
+    """
+    def decorate(method: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(method)
+        def wrapper(self: "Type111IngestPipeline", *args: Any, **kwargs: Any) -> Any:
+            self._attempt(lambda: self.output.fail_closed(code))
+            with self._control_lock:
+                return method(self, *args, **kwargs)
+        return wrapper
+    return decorate
+
+
 class Type111IngestPipeline:
     """Owns one Receiver, one coordinator and the bridge between their lifecycles."""
 
@@ -490,7 +511,7 @@ class Type111IngestPipeline:
             return True, self._attempt(lambda: self.output.fail_closed("host_state_unreadable"))
 
     # ---- faults ----
-    @_serialized
+    @_withdraw_first("disconnect")
     def disconnect(self, kind: Fault = Fault.CARPLAY_ENDED) -> fsc.CleanupReport:
         """Normal or unexpected phone/CarPlay loss; tears the whole receiver session down."""
         return self._fault(kind, "disconnect")
@@ -500,7 +521,7 @@ class Type111IngestPipeline:
         """Orderly end of only the secondary stream; CarPlay and Type110 stay up."""
         return self._fault(Fault.TYPE111_TRANSPORT_FAILURE, "type111_ended")
 
-    @_serialized
+    @_withdraw_first("factory_interrupt")
     def factory_interrupt(self) -> fsc.CleanupReport:
         return self._fault(Fault.FACTORY_WARNING, "factory_interrupt")
 
@@ -508,7 +529,7 @@ class Type111IngestPipeline:
     def clear_factory_interrupt(self) -> None:
         self.host.clear_interrupt()
 
-    @_serialized
+    @_withdraw_first("display_host_restart")
     def display_restart(self) -> fsc.CleanupReport:
         return self._fault(Fault.DISPLAY_HOST_RESTART, "display_host_restart")
 
