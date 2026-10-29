@@ -1,0 +1,291 @@
+{
+  "schema_version": 1,
+  "task_id": "CL-T111-EPHEMERAL-HARNESS-01",
+  "spec_revision": "001-genuine-type111-display1-ephemeral-harness-v1",
+  "evidence_label": "SYN",
+  "safe_for_honda": false,
+  "deployment_status": "VEHICLE_DEPLOYMENT_NOT_AUTHORIZED",
+  "scope_statement": "Offline synthetic/model inventory only. Entries with scope SYNTHETIC_HOST_MODEL describe objects the host-side harness creates and can inspect. Entries with scope HONDA_TARGET describe target properties that no existing evidence establishes; every one is UNKNOWN.",
+  "claims": {
+    "honda_cleanup_established": false,
+    "ram_backed_target_storage_established": false,
+    "restoration_established": false,
+    "reboot_recovery_established": false,
+    "data_local_tmp_reboot_volatile_established": false
+  },
+  "storage_classes": {
+    "RAM_BACKED_VOLATILE": {
+      "meaning": "Storage whose contents are lost on reboot because it is memory-backed.",
+      "target_established": false,
+      "target_status": "UNKNOWN",
+      "model_note": "The harness models this class with a scratch directory it wipes in simulate_reboot(). That wipe is a model assumption, not an observation of any target."
+    },
+    "PERSISTENT_DATA": {
+      "meaning": "Storage that survives reboot (for example a /data partition).",
+      "target_established": false,
+      "target_status": "UNKNOWN",
+      "model_note": "The harness models this class with a scratch directory that simulate_reboot() leaves in place, so leftover files must be removed by explicit cleanup."
+    },
+    "UNKNOWN_PLATFORM": {
+      "meaning": "Storage whose reboot behavior is not established by any existing evidence.",
+      "target_established": false,
+      "target_status": "UNKNOWN",
+      "model_note": "Treated conservatively as persistent: simulate_reboot() does not wipe it, and its files remain cleanup obligations."
+    }
+  },
+  "platform_unknowns": [
+    {
+      "id": "data_local_tmp_reboot_volatility",
+      "subject": "/data/local/tmp",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "/data/local/tmp is not established as reboot-volatile. It is classed UNKNOWN_PLATFORM and, where mentioned, is persistent-until-proven-otherwise. No existing evidence shows what is mounted there or whether it survives reboot."
+    },
+    {
+      "id": "target_tmpfs_availability",
+      "subject": "any memory-backed mount on the target",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "Whether a RAM-backed mount exists, where, and with what limits is not established."
+    },
+    {
+      "id": "target_reboot_cleanup_semantics",
+      "subject": "what the target does with project-owned state across reboot",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "A simulated reboot in this harness proves nothing about it."
+    }
+  ],
+  "files": [
+    {
+      "id": "synthetic_volatile_marker",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "RAM_BACKED_VOLATILE",
+      "status": "MODELED_SYN",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "Host scratch file in the modelled volatile directory (producer pid record)."
+    },
+    {
+      "id": "synthetic_persistent_marker",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "PERSISTENT_DATA",
+      "status": "MODELED_SYN",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "Host scratch file in the modelled persistent directory (staging record)."
+    },
+    {
+      "id": "synthetic_unknown_class_marker",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "UNKNOWN_PLATFORM",
+      "status": "MODELED_SYN",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "Host scratch file in a directory whose reboot behavior the model deliberately leaves unestablished."
+    },
+    {
+      "id": "target_staging_files",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "UNKNOWN_PLATFORM",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "Whether any file would ever be placed on the target, where, and its storage class are undetermined. Nothing is staged on a target."
+    }
+  ],
+  "processes": [
+    {
+      "id": "synthetic_producer",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "evidence": [
+        "tests/integration/cl_int_04_producer.py",
+        "docs/architecture/cl-int-04-host-owned-withdrawal.md"
+      ],
+      "note": "Host-side producer connection/process; SIGKILL, exit and silence are covered by the CL-INT-04 subprocess tests."
+    },
+    {
+      "id": "synthetic_display1_host",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "evidence": [
+        "src/claritylink-honda/display1_host_service.py",
+        "src/claritylink-honda/display1_host_ipc.py"
+      ],
+      "note": "The existing CL-INT-04 host service and server, reused unchanged."
+    },
+    {
+      "id": "target_receiver_process",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "Target process model, lifetime and supervision are not established."
+    }
+  ],
+  "sockets": [
+    {
+      "id": "synthetic_host_control_socket",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "evidence": ["src/claritylink-honda/display1_host_ipc.py"],
+      "note": "Mode-0600 Unix socket in a host scratch directory; removed by Display1HostServer.stop()."
+    },
+    {
+      "id": "target_ipc_endpoints",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "No Honda IPC endpoint or transport contract is established."
+    }
+  ],
+  "services": [
+    {
+      "id": "synthetic_host_watchdog",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "evidence": ["src/claritylink-honda/display1_host_service.py"],
+      "note": "Host-owned expiry timer thread of Display1HostService."
+    },
+    {
+      "id": "target_services",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "Target service registration, restart policy and ownership are not established."
+    }
+  ],
+  "mounts": [
+    {
+      "id": "synthetic_scratch_directories",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "Three ordinary host directories; no mount is created or inspected. The 'volatile' one is a plain directory the model wipes."
+    },
+    {
+      "id": "target_mount_table",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "UNKNOWN_PLATFORM",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "Target mount points, filesystem types and options (including any tmpfs and the /data partition) are not established."
+    }
+  ],
+  "display1_leases": [
+    {
+      "id": "synthetic_display1_lease",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "evidence": [
+        "src/claritylink-honda/failsafe_coordinator.py",
+        "docs/architecture/cl-int-04-host-owned-withdrawal.md",
+        "tests/integration/test_cl_int_04_host_withdrawal.py"
+      ],
+      "note": "The one CL-INT-04 Display1LeaseHost lease/epoch/generation fence. The harness adds no second lease system."
+    },
+    {
+      "id": "target_display1_lease",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "UNKNOWN",
+      "evidence": [],
+      "note": "No Honda Display 1 ownership, lease or withdrawal contract is established; CL-INT-04 is synthetic."
+    }
+  ],
+  "cleanup_obligations": [
+    {
+      "id": "producer_connection_closed",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "enforced_by": "state_machine",
+      "evidence": ["src/claritylink-honda/display1_host_ipc.py"],
+      "note": "The harness-owned producer connection is closed."
+    },
+    {
+      "id": "display1_lease_withdrawn",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "enforced_by": "state_machine",
+      "evidence": [
+        "src/claritylink-honda/failsafe_coordinator.py",
+        "tests/integration/test_cl_int_04_host_withdrawal.py"
+      ],
+      "note": "Confirmed through the host's own status: no lease held, nothing visible, no residual, no pending withdrawal. An unreachable host is UNKNOWN, never clean."
+    },
+    {
+      "id": "volatile_marker_removed",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "RAM_BACKED_VOLATILE",
+      "status": "MODELED_SYN",
+      "enforced_by": "state_machine",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "A missing file is UNKNOWN unless the model itself wiped it in a simulated reboot."
+    },
+    {
+      "id": "persistent_marker_removed",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "PERSISTENT_DATA",
+      "status": "MODELED_SYN",
+      "enforced_by": "state_machine",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "Survives simulated reboot; must be removed explicitly. A missing file is UNKNOWN."
+    },
+    {
+      "id": "unknown_class_marker_removed",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "UNKNOWN_PLATFORM",
+      "status": "MODELED_SYN",
+      "enforced_by": "state_machine",
+      "evidence": ["src/claritylink-honda/ephemeral_harness.py"],
+      "note": "Treated as persistent. A missing file is UNKNOWN."
+    },
+    {
+      "id": "host_socket_removed",
+      "scope": "SYNTHETIC_HOST_MODEL",
+      "honda_dependent": false,
+      "storage_class": "NOT_APPLICABLE",
+      "status": "MODELED_SYN",
+      "enforced_by": "harness_close",
+      "evidence": ["src/claritylink-honda/display1_host_ipc.py"],
+      "note": "Released by EphemeralHarness.close() through Display1HostServer.stop(), which reports whether everything ended."
+    },
+    {
+      "id": "target_cleanup_and_restoration",
+      "scope": "HONDA_TARGET",
+      "honda_dependent": true,
+      "storage_class": "UNKNOWN_PLATFORM",
+      "status": "UNKNOWN",
+      "enforced_by": "none",
+      "evidence": [],
+      "note": "Target-side cleanup, restoration and reboot recovery are not established and cannot be established offline."
+    }
+  ]
+}
