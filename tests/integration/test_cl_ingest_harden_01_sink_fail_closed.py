@@ -1,0 +1,719 @@
+"""CL-INGEST-HARDEN-01 (issue #96): LeaseGatedOutput.show() must fail closed on ANY ordinary error.
+
+Offline and synthetic. A direct ``show()`` caller, with no pipeline-level exception
+handling in front of it, must find the simulated Display 1 host empty and the output
+inactive by the time an unexpected error reaches it. Nothing here is evidence about a
+Honda or a real iPhone.
+"""
+import contextlib
+import threading
+
+import pytest
+
+import t111_synth as synth
+import type111_ingest
+from claritylink_jmcs.decoder import DecodedFrame
+from claritylink_jmcs.display import DisplayError
+from claritylink_jmcs.frames import FrameError
+from claritylink_jmcs.receiver import ReceiverState
+from type111_ingest import Type111IngestPipeline
+
+start_type111 = synth.start_type111
+WAIT_SECONDS = 5.0
+
+
+@pytest.fixture(scope="module")
+def stream():
+    return synth.SyntheticStream(4)
+
+
+@pytest.fixture
+def make():
+    created = []
+
+    def factory(**kwargs):
+        receiver_kwargs = dict(synth.DIMENSIONS)
+        pipe = Type111IngestPipeline(lab_mode=True, clock=synth.Clock(), receiver_kwargs=receiver_kwargs, **kwargs)
+        created.append(pipe)
+        return pipe
+
+    yield factory
+    for pipe in created:
+        pipe.receiver.teardown(pipe.generation)
+
+
+@pytest.fixture
+def shown(make):
+    """A pipeline whose Type111 output has already presented one valid frame."""
+    pipe = make()
+    pipe.open_session()
+    assert pipe.setup_type111(12).accepted
+    generation = pipe.receiver.stream_identity(111).stream_generation
+    pipe.output.show(decoded(generation, 1, (1, 2, 3)))
+    assert pipe.host.visible_content is not None
+    return pipe, generation
+
+
+def decoded(generation, timestamp, rgb=(4, 5, 6)):
+    return DecodedFrame(synth.make_png(synth.WIDTH, synth.HEIGHT, rgb), timestamp, generation,
+                        synth.WIDTH, synth.HEIGHT)
+
+
+def raiser(message="injected", error=RuntimeError):
+    def fail(*_args, **_kwargs):
+        raise error(message)
+    return fail
+
+
+def assert_sink_closed(pipe, generation):
+    assert pipe.host.visible_content is None
+    assert pipe.output.last_bound is None
+    accepted = pipe.output.accepted
+    with pytest.raises(DisplayError, match="output_inactive"):
+        pipe.output.show(decoded(generation, 99))
+    assert pipe.output.accepted == accepted and pipe.host.visible_content is None
+
+
+# ---- injection points: each is reached with project content already on the host ----
+INJECTIONS = {
+    "conversion": lambda pipe, mp: mp.setattr(type111_ingest, "png_to_rgb24", raiser()),
+    "video_frame_construction": lambda pipe, mp: mp.setattr(type111_ingest, "VideoFrame", raiser()),
+    "frame_binding": lambda pipe, mp: mp.setattr(type111_ingest, "LeaseBoundFrame", raiser()),
+    "coordinator_submission": lambda pipe, mp: mp.setattr(pipe.coordinator, "submit_frame", raiser()),
+}
+
+
+@pytest.mark.parametrize("point", sorted(INJECTIONS))
+def test_unexpected_error_withdraws_prior_content_before_the_caller_sees_it(shown, monkeypatch, point):
+    pipe, generation = shown
+    INJECTIONS[point](pipe, monkeypatch)
+    observed = []
+    with pytest.raises(DisplayError, match="sink_exception:RuntimeError") as caught:
+        try:
+            pipe.output.show(decoded(generation, 2))
+        finally:
+            observed.append(pipe.host.visible_content)  # state at the instant control returns
+    assert observed == [None]
+    assert isinstance(caught.value.__cause__, RuntimeError) and str(caught.value.__cause__) == "injected"
+    assert caught.value.code == "sink_exception:RuntimeError"
+    assert caught.value.cleanup_error is None
+    assert pipe.output.rejected[-1] == "sink_exception:RuntimeError"
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+    assert pipe.host.residual_state == ()
+
+
+def test_failure_with_no_prior_content_still_deactivates_the_output(make, monkeypatch):
+    pipe = make()
+    pipe.open_session()
+    assert pipe.setup_type111(12).accepted
+    generation = pipe.receiver.stream_identity(111).stream_generation
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    with pytest.raises(DisplayError, match="sink_exception:RuntimeError"):
+        pipe.output.show(decoded(generation, 1))
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+
+
+def test_frame_error_codes_and_causes_are_preserved(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_frame_error("invalid_png"))
+    with pytest.raises(DisplayError) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value.code == "invalid_png"
+    assert isinstance(caught.value.__cause__, FrameError) and caught.value.__cause__.code == "invalid_png"
+    assert pipe.host.visible_content is None
+
+
+def raiser_frame_error(code):
+    def fail(*_args, **_kwargs):
+        raise FrameError(code)
+    return fail
+
+
+def test_base_exceptions_are_not_converted(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser("stop", KeyboardInterrupt))
+    with pytest.raises(KeyboardInterrupt):
+        pipe.output.show(decoded(generation, 2))
+
+
+# ---- cleanup failure is reported, never hidden, and never replaces the original error ----
+def test_revocation_failure_keeps_the_original_error_and_reports_the_cleanup_failure(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    monkeypatch.setattr(pipe.host, "revoke", raiser("host unavailable", OSError))
+    with pytest.raises(DisplayError, match="sink_exception:RuntimeError") as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert str(caught.value.__cause__) == "injected"
+    assert isinstance(caught.value.cleanup_error, OSError) and str(caught.value.cleanup_error) == "host unavailable"
+    assert pipe.output.cleanup_failures == ["OSError"]
+    assert pipe.host.visible_content is not None  # truthfully NOT withdrawn: the host refused
+    monkeypatch.undo()
+    with pytest.raises(DisplayError, match="output_inactive"):
+        pipe.output.show(decoded(generation, 3))  # the sink still refuses frames
+    pipe.output.clear()  # a retry now succeeds and withdraws
+    assert pipe.host.visible_content is None
+
+
+def test_cleanup_failure_on_an_ordinary_rejection_is_reported_too(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(pipe.host, "revoke", raiser("host unavailable", OSError))
+    with pytest.raises(DisplayError, match="stale_stream_generation") as caught:
+        pipe.output.show(decoded(generation + 1, 2))
+    assert isinstance(caught.value.cleanup_error, OSError)
+    assert pipe.output.cleanup_failures == ["OSError"]
+
+
+# ---- concurrency: deterministic hand-offs, no sleeps ----
+def test_revocation_during_in_flight_conversion_prevents_late_presentation(shown, monkeypatch):
+    pipe, generation = shown
+    real_convert = type111_ingest.png_to_rgb24
+    entered, release = threading.Event(), threading.Event()
+
+    def slow_convert(png):
+        entered.set()
+        assert release.wait(WAIT_SECONDS)
+        return real_convert(png)
+
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", slow_convert)
+    outcome = []
+
+    def worker():
+        try:
+            pipe.output.show(decoded(generation, 2, (9, 9, 9)))
+            outcome.append("presented")
+        except DisplayError as exc:
+            outcome.append(exc.code)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    assert entered.wait(WAIT_SECONDS)
+    pipe.output.fail_closed("revoked while converting")  # takes the same lock: conversion holds none
+    assert pipe.host.visible_content is None
+    release.set()
+    thread.join(WAIT_SECONDS)
+    assert not thread.is_alive()
+    assert outcome == ["output_inactive"]
+    assert pipe.host.visible_content is None and pipe.output.last_bound is None
+
+
+def test_unexpected_error_after_a_concurrent_revocation_still_reports_one_clean_state(shown, monkeypatch):
+    pipe, generation = shown
+    entered, release = threading.Event(), threading.Event()
+
+    def failing_slow_convert(_png):
+        entered.set()
+        assert release.wait(WAIT_SECONDS)
+        raise RuntimeError("injected")
+
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", failing_slow_convert)
+    outcome = []
+
+    def worker():
+        try:
+            pipe.output.show(decoded(generation, 2))
+        except DisplayError as exc:
+            outcome.append((exc.code, type(exc.__cause__).__name__))
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    assert entered.wait(WAIT_SECONDS)
+    pipe.output.clear()
+    release.set()
+    thread.join(WAIT_SECONDS)
+    assert outcome == [("sink_exception:RuntimeError", "RuntimeError")]
+    assert pipe.host.visible_content is None
+
+
+def test_repeated_cleanup_after_a_failure_is_safe_and_idempotent(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    with pytest.raises(DisplayError):
+        pipe.output.show(decoded(generation, 2))
+    monkeypatch.undo()
+    for _ in range(3):
+        pipe.output.clear()
+        pipe.output.fail_closed("again")
+        pipe.output.deactivate()
+    pipe.disconnect()
+    pipe.disconnect()
+    assert pipe.host.visible_content is None and pipe.host.residual_state == ()
+    assert pipe.session_residual() == ()
+
+
+# ---- through the real receiver / dispatcher ----
+def test_dispatcher_path_leaves_no_stale_content_after_a_sink_exception(make, stream, monkeypatch):
+    pipe = make()
+    client = start_type111(pipe)
+    client.sendall(stream.config_message() + stream.frame_message(0, timestamp=5))
+    assert pipe.pump_frame().accepted and pipe.pump_frame().accepted
+    assert pipe.host.visible_content is not None
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    client.sendall(stream.frame_message(1, timestamp=6))
+    outcome = pipe.pump_frame()
+    client.close()
+    assert not outcome.accepted and outcome.fault is not None
+    assert pipe.host.visible_content is None
+    assert pipe.output.rejected[-1] == "sink_exception:RuntimeError"
+    assert pipe.host.residual_state == ()
+
+
+# ---- Type110 stays independent of every Type111 sink failure ----
+@pytest.mark.parametrize("point", sorted(INJECTIONS))
+def test_type110_is_untouched_by_a_type111_sink_exception(make, stream, monkeypatch, point):
+    pipe = make()
+    client, primary = start_type111(pipe, with_primary=True)
+    primary.sendall(stream.primary_message(0))
+    pipe.receiver.receive_primary_frame(pipe.generation)
+    held, decoder, listener = pipe.primary_display.current, pipe.receiver.primary_decoder, pipe.receiver.primary
+    client.sendall(stream.config_message() + stream.frame_message(0, timestamp=5))
+    assert pipe.pump_frame().accepted and pipe.pump_frame().accepted
+    INJECTIONS[point](pipe, monkeypatch)
+    generation = pipe.receiver.stream_identity(111).stream_generation
+    with pytest.raises(DisplayError, match="sink_exception"):
+        pipe.output.show(decoded(generation, 9))
+    monkeypatch.undo()
+    assert pipe.host.visible_content is None
+    assert pipe.primary_display.current is held  # Type110 output was never cleared
+    assert pipe.receiver.primary is listener and pipe.receiver.primary_decoder is decoder
+    # A direct sink call withdraws Display 1 only; the receiver keeps both streams and is not FAILED.
+    assert not decoder.closed and pipe.receiver.state is ReceiverState.BOTH_ACTIVE
+    primary.sendall(stream.primary_message(1))
+    assert pipe.receiver.receive_primary_frame(pipe.generation).startswith(b"\x89PNG")
+    client.close()
+    primary.close()
+
+
+# ---- review follow-ups: atomic withdrawal, pending-withdrawal reporting, pipeline-level cleanup failure ----
+def test_second_phase_failures_withdraw_while_the_output_lock_is_held(shown, monkeypatch):
+    pipe, generation = shown
+    owned_during_revoke = []
+    real_revoke = pipe.host.revoke
+
+    def spying_revoke(reason):
+        owned_during_revoke.append(pipe.output._lock._is_owned())
+        return real_revoke(reason)
+
+    monkeypatch.setattr(pipe.host, "revoke", spying_revoke)
+    monkeypatch.setattr(pipe.coordinator, "submit_frame", raiser())
+    with pytest.raises(DisplayError, match="sink_exception"):
+        pipe.output.show(decoded(generation, 2))
+    assert owned_during_revoke == [True]  # no window for a re-activation between check and withdrawal
+
+
+@pytest.mark.parametrize("timestamp, code", [(0, "timestamp_regression")])
+def test_timestamp_regression_is_rejected_and_withdrawn(shown, timestamp, code):
+    pipe, generation = shown
+    with pytest.raises(DisplayError) as caught:
+        pipe.output.show(decoded(generation, timestamp))
+    assert caught.value.code == code and caught.value.cleanup_error is None
+    assert pipe.host.visible_content is None and pipe.output.cleanup_failures == []
+
+
+def test_missing_lease_is_rejected_and_withdrawn(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type(pipe.coordinator), "lease", property(lambda _self: None))
+    with pytest.raises(DisplayError, match="lease_rejected:REJECTED_NO_LEASE"):
+        pipe.output.show(decoded(generation, 2))
+    monkeypatch.undo()
+    assert pipe.host.visible_content is None and pipe.output.cleanup_failures == []
+
+
+def test_a_reactivated_output_does_not_accept_a_frame_converted_for_the_old_stream(shown, monkeypatch):
+    import dataclasses
+    pipe, generation = shown
+    real_convert = type111_ingest.png_to_rgb24
+    entered, release = threading.Event(), threading.Event()
+
+    def slow_convert(png):
+        entered.set()
+        assert release.wait(WAIT_SECONDS)
+        return real_convert(png)
+
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", slow_convert)
+    outcome = []
+    thread = threading.Thread(target=lambda: outcome.append(_show_code(pipe, decoded(generation, 2))))
+    thread.start()
+    assert entered.wait(WAIT_SECONDS)
+    pipe.output.fail_closed("old stream ended")
+    pipe.output.activate(dataclasses.replace(pipe.receiver.stream_identity(111)))  # a new activation
+    release.set()
+    thread.join(WAIT_SECONDS)
+    assert outcome == ["output_inactive"]
+    assert pipe.host.visible_content is None
+
+
+def _show_code(pipe, frame):
+    try:
+        pipe.output.show(frame)
+        return "presented"
+    except DisplayError as exc:
+        return exc.code
+
+
+def test_failed_withdrawal_is_visible_in_residual_until_it_succeeds(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    monkeypatch.setattr(pipe.host, "revoke", raiser("host unavailable", OSError))
+    with pytest.raises(DisplayError):
+        pipe.output.show(decoded(generation, 2))
+    assert pipe.output.withdrawal_pending and "withdrawal_pending" in pipe.residual()
+    monkeypatch.undo()
+    pipe.output.clear()
+    assert not pipe.output.withdrawal_pending and "withdrawal_pending" not in pipe.residual()
+
+
+def test_pipeline_records_a_failed_withdrawal_instead_of_losing_it(make, stream, monkeypatch):
+    pipe = make()
+    client = start_type111(pipe)
+    client.sendall(stream.config_message() + stream.frame_message(0, timestamp=5))
+    assert pipe.pump_frame().accepted and pipe.pump_frame().accepted
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    real_revoke = pipe.host.revoke
+
+    def sink_only_failure(reason):
+        if pipe.output._lock._is_owned():  # only the sink's own withdrawals hold its lock
+            raise OSError("host unavailable")
+        return real_revoke(reason)
+
+    monkeypatch.setattr(pipe.host, "revoke", sink_only_failure)
+    client.sendall(stream.frame_message(1, timestamp=6))
+    outcome = pipe.pump_frame()  # must not raise
+    client.close()
+    assert not outcome.accepted
+    assert pipe.output.cleanup_failures and pipe.cleanup_failures
+    assert pipe.faults and pipe.faults[-1].cleanup_ok is False
+    assert pipe.output.withdrawal_pending and "withdrawal_pending" in pipe.residual()
+    assert pipe.host.visible_content is None  # the coordinator's own revoke still withdrew it
+    monkeypatch.undo()
+    pipe.output.clear()  # once the sink's path works again the pending flag clears
+    assert not pipe.output.withdrawal_pending
+
+
+# ---- PR #97 review: a dependency-raised SinkRejection is NOT proof that the sink withdrew ----
+def raiser_exact(exc):
+    def fail(*_args, **_kwargs):
+        raise exc
+    return fail
+
+
+def _dependency_target(pipe, point):
+    return {
+        "conversion": (type111_ingest, "png_to_rgb24"),
+        "video_frame_construction": (type111_ingest, "VideoFrame"),
+        "frame_binding": (type111_ingest, "LeaseBoundFrame"),
+        "coordinator_submission": (pipe.coordinator, "submit_frame"),
+    }[point]
+
+
+@pytest.mark.parametrize("point", sorted(INJECTIONS))
+def test_dependency_raised_sink_rejection_still_fails_closed(shown, monkeypatch, point):
+    pipe, generation = shown
+    injected = type111_ingest.SinkRejection("dependency-raised")
+    monkeypatch.setattr(*_dependency_target(pipe, point), raiser_exact(injected))
+    observed = []
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        try:
+            pipe.output.show(decoded(generation, 2))
+        finally:
+            observed.append((pipe.host.visible_content, pipe.output.last_bound))
+    assert observed == [(None, None)]  # withdrawn before the caller regains control
+    assert caught.value is not injected and caught.value.__cause__ is injected
+    assert caught.value.code == "sink_exception:SinkRejection" and caught.value.cleanup_error is None
+    assert pipe.output.rejected[-1] == "sink_exception:SinkRejection"
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+    assert pipe.host.residual_state == ()
+    # A direct sink call withdraws Display 1 only; the receiver's own listener/dispatcher stay up.
+    residual = pipe.residual()
+    assert "display_frame" not in residual and "withdrawal_pending" not in residual
+    assert not [item for item in residual if item.startswith("host:")]
+
+
+def test_dependency_raised_sink_rejection_with_failed_revocation_is_reported(shown, monkeypatch):
+    pipe, generation = shown
+    injected = type111_ingest.SinkRejection("dependency-raised")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    monkeypatch.setattr(pipe.host, "revoke", raiser("host unavailable", OSError))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value.__cause__ is injected
+    assert isinstance(caught.value.cleanup_error, OSError)
+    assert pipe.output.cleanup_failures == ["OSError"]
+    assert pipe.output.withdrawal_pending and "withdrawal_pending" in pipe.residual()
+    assert pipe.host.visible_content is not None  # truthfully not withdrawn
+    monkeypatch.undo()
+    pipe.output.clear()
+    assert pipe.host.visible_content is None and not pipe.output.withdrawal_pending
+
+
+def test_internally_generated_rejection_is_withdrawn_once_and_keeps_its_code(shown, monkeypatch):
+    pipe, generation = shown
+    revokes = []
+    real_revoke = pipe.host.revoke
+
+    def counting_revoke(reason):
+        revokes.append(reason)
+        return real_revoke(reason)
+
+    monkeypatch.setattr(pipe.host, "revoke", counting_revoke)
+    with pytest.raises(type111_ingest.SinkRejection, match="stale_stream_generation") as caught:
+        pipe.output.show(decoded(generation + 1, 2))
+    assert caught.value.__cause__ is None and len(revokes) == 1  # no duplicate cleanup
+    assert pipe.output.rejected == ["stale_stream_generation"]
+
+
+def test_a_rejection_issued_by_another_sink_is_not_proof_of_withdrawal(shown, make, monkeypatch):
+    pipe, generation = shown
+    foreign = make().output._reject("foreign_code")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(foreign))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value is not foreign and caught.value.__cause__ is foreign
+    assert pipe.host.visible_content is None
+
+
+def test_unstamped_sink_rejection_subclass_still_fails_closed(shown, monkeypatch):
+    class NoInit(type111_ingest.SinkRejection):
+        def __init__(self):  # deliberately skips SinkRejection.__init__: no provenance attribute
+            Exception.__init__(self, "no-init")
+
+    injected = NoInit()
+    assert not hasattr(injected, "_issued_by")
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value is not injected and caught.value.__cause__ is injected
+    assert pipe.host.visible_content is None and pipe.output.last_bound is None
+
+
+def test_reactivation_after_a_dependency_raised_rejection_accepts_only_fresh_frames(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(type111_ingest.SinkRejection("x")))
+    with pytest.raises(type111_ingest.SinkRejection):
+        pipe.output.show(decoded(generation, 2))
+    monkeypatch.undo()
+    pipe.output.activate(pipe.receiver.stream_identity(111))
+    assert pipe.host.visible_content is None
+    with pytest.raises(DisplayError, match="stale_stream_generation"):
+        pipe.output.show(decoded(generation + 1, 3))
+    assert pipe.host.visible_content is None
+
+
+def test_dispatcher_survives_a_dependency_raised_sink_rejection(make, stream, monkeypatch):
+    pipe = make()
+    client = start_type111(pipe)
+    client.sendall(stream.config_message() + stream.frame_message(0, timestamp=5))
+    assert pipe.pump_frame().accepted and pipe.pump_frame().accepted
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24",
+                        raiser_exact(type111_ingest.SinkRejection("dependency-raised")))
+    client.sendall(stream.frame_message(1, timestamp=6))
+    outcome = pipe.pump_frame()  # must not raise
+    client.close()
+    assert not outcome.accepted and pipe.host.visible_content is None
+    assert pipe.host.residual_state == ()
+
+
+# ---- PR #97 second review: provenance must be operation-scoped and must never raise ----
+def retained_internal_rejection(pipe, generation):
+    """A genuine rejection issued by this sink during an earlier show() operation."""
+    with pytest.raises(type111_ingest.SinkRejection, match="stale_stream_generation") as caught:
+        pipe.output.show(decoded(generation + 1, 2))
+    return caught.value
+
+
+def fresh_session(pipe):
+    """Tear the session down and bring up a new one; returns the new stream generation."""
+    pipe.disconnect()
+    pipe.open_session()
+    assert pipe.setup_type111(13).accepted
+    return pipe.receiver.stream_identity(111).stream_generation
+
+
+def test_throwing_provenance_accessor_still_fails_closed(shown, monkeypatch):
+    class Hostile(type111_ingest.SinkRejection):
+        def __getattribute__(self, name):
+            if name == "_issued_by":
+                raise RuntimeError("stamp lookup failed")
+            return super().__getattribute__(name)
+
+    pipe, generation = shown
+    injected = Hostile("hostile")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    observed = []
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        try:
+            pipe.output.show(decoded(generation, 2))
+        finally:
+            observed.append((pipe.host.visible_content, pipe.output.last_bound))
+    assert observed == [(None, None)]
+    assert caught.value is not injected and caught.value.__cause__ is injected
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+    assert "display_frame" not in pipe.residual()
+
+
+def test_replayed_internal_rejection_across_a_new_generation_is_not_trusted(shown, monkeypatch):
+    pipe, generation = shown
+    old = retained_internal_rejection(pipe, generation)
+    fresh = fresh_session(pipe)
+    assert fresh != generation
+    pipe.output.show(decoded(fresh, 1, (7, 8, 9)))
+    assert pipe.host.visible_content is not None
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(old))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(fresh, 2))
+    assert caught.value.__cause__ is old
+    assert pipe.host.visible_content is None
+    monkeypatch.undo()
+    assert_sink_closed(pipe, fresh)
+
+
+def test_replay_of_a_rejection_from_the_same_stream_is_not_trusted(shown, monkeypatch):
+    pipe, generation = shown
+    old = retained_internal_rejection(pipe, generation)  # output now inactive
+    pipe.output.activate(pipe.receiver.stream_identity(111))
+    pipe.host.select_page(True)
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(old))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 5))
+    assert caught.value is not old and caught.value.__cause__ is old
+    assert pipe.output.rejected[-1] == "sink_exception:SinkRejection"
+
+
+def test_hostile_frame_error_code_accessor_still_fails_closed(shown, monkeypatch):
+    class HostileFrameError(FrameError):
+        @property
+        def code(self):
+            raise RuntimeError("code lookup failed")
+
+        @code.setter
+        def code(self, _value):  # FrameError.__init__ assigns it; only reads are hostile
+            pass
+
+    pipe, generation = shown
+    injected = HostileFrameError("boom")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert caught.value.__cause__ is injected
+    assert caught.value.code == "sink_exception:HostileFrameError"
+    assert pipe.host.visible_content is None
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+
+
+def test_hostile_cleanup_error_does_not_replace_the_rejection(shown, monkeypatch):
+    class HostileCleanup(OSError):
+        def __getattribute__(self, name):
+            if name == "code":
+                raise RuntimeError("code lookup failed")
+            return super().__getattribute__(name)
+
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    monkeypatch.setattr(pipe.host, "revoke", raiser_exact(HostileCleanup("host unavailable")))
+    with pytest.raises(type111_ingest.SinkRejection, match="sink_exception:RuntimeError") as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert isinstance(caught.value.cleanup_error, OSError)
+    assert pipe.output.cleanup_failures == ["HostileCleanup"]
+    assert pipe.output.withdrawal_pending and "withdrawal_pending" in pipe.residual()
+    assert pipe.host.visible_content is not None  # truthfully not withdrawn
+
+
+class _HostileMeta(type):
+    armed = False  # hostile only while a test arms it, so pytest can still report a failure
+
+    @property
+    def __name__(cls):  # noqa: A003 - reading the class name raises while armed
+        if _HostileMeta.armed:
+            raise ZeroDivisionError("name lookup failed")
+        return "HostileNameError"
+
+
+class HostileNameError(Exception, metaclass=_HostileMeta):
+    pass
+
+
+@contextlib.contextmanager
+def hostile_names():
+    _HostileMeta.armed = True
+    try:
+        yield
+    finally:
+        _HostileMeta.armed = False  # disarm before pytest formats any escaping exception
+
+
+def test_hostile_exception_type_name_still_fails_closed(shown, monkeypatch):
+    pipe, generation = shown
+    injected = HostileNameError("boom")
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser_exact(injected))
+    observed = []
+    with hostile_names(), pytest.raises(type111_ingest.SinkRejection) as caught:
+        try:
+            pipe.output.show(decoded(generation, 2))
+        finally:
+            observed.append((pipe.host.visible_content, pipe.output.last_bound))
+    assert observed == [(None, None)]
+    assert caught.value.__cause__ is injected
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+
+
+def test_hostile_cleanup_error_type_name_does_not_replace_the_rejection(shown, monkeypatch):
+    pipe, generation = shown
+    monkeypatch.setattr(type111_ingest, "png_to_rgb24", raiser())
+    monkeypatch.setattr(pipe.host, "revoke", raiser_exact(HostileNameError("host unavailable")))
+    with hostile_names(), pytest.raises(type111_ingest.SinkRejection, match="sink_exception:RuntimeError") as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert isinstance(caught.value.cleanup_error, HostileNameError)
+    assert len(pipe.output.cleanup_failures) == 1
+    assert pipe.output.withdrawal_pending and pipe.host.visible_content is not None  # truthfully not withdrawn
+
+
+def test_inside_show_flag_survives_a_nested_show(shown, monkeypatch):
+    pipe, generation = shown
+    real_submit = pipe.coordinator.submit_frame
+    seen = []
+
+    nested = []
+
+    def submit_with_nested_show(bound):
+        if not nested:
+            nested.append(True)
+            pipe.output.show(decoded(generation, 3))  # a complete inner presentation, then return
+            seen.append(pipe.output.inside_show())  # the outer call is still inside show()
+        return real_submit(bound)
+
+    monkeypatch.setattr(pipe.coordinator, "submit_frame", submit_with_nested_show)
+    pipe.output.show(decoded(generation, 2))
+    assert seen == [True] and not pipe.output.inside_show()
+
+
+def test_nested_show_does_not_lend_its_rejection_to_the_outer_operation(shown, monkeypatch):
+    pipe, generation = shown
+    inner_seen = []
+
+    def reentrant_submit(_bound):
+        try:
+            pipe.output.show(decoded(generation + 1, 3))  # inner: genuine internal rejection
+        except type111_ingest.SinkRejection as exc:
+            inner_seen.append(exc)
+            raise
+
+    monkeypatch.setattr(pipe.coordinator, "submit_frame", reentrant_submit)
+    with pytest.raises(type111_ingest.SinkRejection) as caught:
+        pipe.output.show(decoded(generation, 2))
+    assert inner_seen and caught.value is not inner_seen[0] and caught.value.__cause__ is inner_seen[0]
+    assert caught.value.code == "sink_exception:SinkRejection"
+    assert pipe.host.visible_content is None and pipe.output.last_bound is None
+    monkeypatch.undo()
+    assert_sink_closed(pipe, generation)
+
+
+def test_rejection_identity_is_not_retained_after_the_operation(shown):
+    pipe, generation = shown
+    retained_internal_rejection(pipe, generation)
+    assert not getattr(pipe.output._local, "issued", None)  # nothing outlives the operation

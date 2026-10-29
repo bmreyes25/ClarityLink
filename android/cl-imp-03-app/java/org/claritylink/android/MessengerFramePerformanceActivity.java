@@ -53,6 +53,13 @@ public final class MessengerFramePerformanceActivity extends Activity {
     };
 
     private final Handler ui = new Handler();
+    // One frame is in flight at a time, and the reply is byte-compared on the sender thread
+    // before the frame is released, so the next offer cannot overwrite bytes still being checked.
+    // Reusing the buffer removes a zeroed 1.5 MB allocation per offered frame.
+    private final byte[] syntheticFramePixels = new byte[FRAME_BYTES];
+    // The returned frame is read into one reusable buffer on the sender thread, compared, and copied into an
+    // owned DecodedFrame before the task ends; the next reply cannot be read until the frame is released.
+    private final byte[] returnedFramePixels = new byte[FRAME_BYTES];
     private HandlerThread schedulerThread;
     private HandlerThread senderThread;
     private Handler scheduler;
@@ -216,6 +223,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
     private void requestBaselineStats() {
         if (remote == null || running) return;
         producerFdBaseline = fdCount();
+        fdBaselineMap = fdMap();
+        logFdDetail("baseline");
+        logThreads("baseline");
         Runtime runtime = Runtime.getRuntime();
         producerJavaBaseline = runtime.totalMemory() - runtime.freeMemory();
         producerNativeBaseline = Debug.getNativeHeapAllocatedSize();
@@ -286,9 +296,9 @@ public final class MessengerFramePerformanceActivity extends Activity {
         final long senderStartedNs = profileStages ? System.nanoTime() : 0L;
         if (profileStages) activeProfile[0] = senderStartedNs - offerTime;
         long stageStartedNs = profileStages ? System.nanoTime() : 0L;
-        byte[] pixels = new byte[FRAME_BYTES];
+        byte[] pixels = syntheticFramePixels;
         byte marker = (byte) (currentSequence & 0xff);
-        Arrays.fill(pixels, marker);
+        SyntheticFrameFill.fill(pixels, marker);
         if (profileStages) activeProfile[1] = System.nanoTime() - stageStartedNs;
         long pts = offerTime;
         ParcelFileDescriptor descriptor = null;
@@ -473,7 +483,8 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 try {
                     MessengerFrameParcel.IoTiming returnReadTiming = profileStages
                             ? new MessengerFrameParcel.IoTiming() : null;
-                    byte[] result = MessengerFrameParcel.read(returned, byteCount, returnReadTiming);
+                    byte[] result = MessengerFrameParcel.read(returned, byteCount, returnReadTiming,
+                            returnedFramePixels);
                     if (profileStages) activeProfile[14] = returnReadTiming.readNs;
                     long compareStartedNs = profileStages ? System.nanoTime() : 0L;
                     mismatch = !Arrays.equals(expectedPixels, result);
@@ -681,7 +692,17 @@ public final class MessengerFramePerformanceActivity extends Activity {
             finish();
             return;
         }
+        // Native Looper descriptors of a helper thread that has been told to quit are released
+        // only when its MessageQueue is finalized (API 17 has no public dispose). Count what is
+        // held immediately, then force a collection and count what remains. A descriptor that
+        // survives collection is a real leak and still fails the unchanged gate.
+        logFdDiff("final_pre_settle");
+        logThreads("final_pre_settle");
+        settleResources();
         producerFdFinal = fdCount();
+        logFdDiff("final");
+        logThreads("final");
+        logFdDetail("final");
         Runtime runtime = Runtime.getRuntime();
         producerJavaFinal = runtime.totalMemory() - runtime.freeMemory();
         producerNativeFinal = Debug.getNativeHeapAllocatedSize();
@@ -797,6 +818,88 @@ public final class MessengerFramePerformanceActivity extends Activity {
         return descriptors == null ? -1 : descriptors.length;
     }
 
+    /**
+     * Diagnostic only: descriptor number to resolved target, so a count difference
+     * can be attributed to a kind of descriptor instead of guessed at. The listing's
+     * own directory handle is included, as it is in fdCount(). Nothing here changes
+     * a counted value or an acceptance threshold.
+     */
+    private static java.util.Map<String, String> fdMap() {
+        java.util.LinkedHashMap<String, String> map = new java.util.LinkedHashMap<String, String>();
+        String[] names = new File("/proc/self/fd").list();
+        if (names == null) return map;
+        Arrays.sort(names, new java.util.Comparator<String>() {
+            public int compare(String a, String b) {
+                try { return Integer.valueOf(a).compareTo(Integer.valueOf(b)); }
+                catch (NumberFormatException ignored) { return a.compareTo(b); }
+            }
+        });
+        for (String name : names) {
+            String target;
+            try { target = new File("/proc/self/fd/" + name).getCanonicalPath(); }
+            catch (IOException failure) { target = "unresolved"; }
+            int slash = target.indexOf("/fd/");
+            if (target.startsWith("/proc/") && slash >= 0) target = target.substring(slash + 4);
+            map.put(name, target.replace(' ', '_'));
+        }
+        return map;
+    }
+
+    private static String fdDetail() {
+        StringBuilder out = new StringBuilder();
+        for (java.util.Map.Entry<String, String> e : fdMap().entrySet()) {
+            if (out.length() > 0) out.append(',');
+            out.append(e.getKey()).append('=').append(e.getValue());
+        }
+        return out.length() == 0 ? "unavailable" : out.toString();
+    }
+
+    private static void logFdDetail(String phase) {
+        Log.i(TAG, "R12B_FD phase=" + phase + " count=" + fdCount() + " detail=" + fdDetail());
+    }
+
+    private static void settleResources() {
+        for (int pass = 0; pass < 3; pass++) {
+            System.gc();
+            System.runFinalization();
+            try { Thread.sleep(200L); } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private static void logThreads(String phase) {
+        StringBuilder names = new StringBuilder();
+        for (java.util.Map.Entry<Thread, StackTraceElement[]> e : Thread.getAllStackTraces().entrySet()) {
+            if (names.length() > 0) names.append(';');
+            names.append(e.getKey().getName().replace(' ', '_')).append(':').append(e.getKey().getState());
+        }
+        Log.i(TAG, "R12B_THREADS phase=" + phase + " " + names);
+    }
+
+    private java.util.Map<String, String> fdBaselineMap;
+
+    /** Compact attribution of what differs from the baseline snapshot. */
+    private void logFdDiff(String phase) {
+        java.util.Map<String, String> now = fdMap();
+        java.util.Map<String, String> base = fdBaselineMap;
+        StringBuilder added = new StringBuilder(), removed = new StringBuilder(), changed = new StringBuilder();
+        if (base != null) {
+            for (java.util.Map.Entry<String, String> e : now.entrySet()) {
+                String before = base.get(e.getKey());
+                if (before == null) added.append(e.getKey()).append('=').append(e.getValue()).append(';');
+                else if (!before.equals(e.getValue()))
+                    changed.append(e.getKey()).append(':').append(before).append("->").append(e.getValue()).append(';');
+            }
+            for (java.util.Map.Entry<String, String> e : base.entrySet())
+                if (!now.containsKey(e.getKey())) removed.append(e.getKey()).append('=').append(e.getValue()).append(';');
+        }
+        Log.i(TAG, "R12B_FD_DIFF phase=" + phase + " base=" + (base == null ? -1 : base.size()) +
+                " now=" + now.size() + " added=[" + added + "] removed=[" + removed +
+                "] changed=[" + changed + "]");
+    }
+
     private static void close(ParcelFileDescriptor descriptor) {
         if (descriptor != null) try { descriptor.close(); } catch (IOException ignored) { }
     }
@@ -814,6 +917,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
         if (bound) { unbindService(connection); bound = false; }
         if (schedulerThread != null) schedulerThread.quit();
         if (senderThread != null) senderThread.quit();
+        logFdDiff("destroy");
         Log.i(TAG, "R12B_DESTROY mode=" + mode + " source_fd_after_destroy=" + fdCount() +
                 " source_memoryfiles_created=" + MessengerFrameParcel.memoryFilesCreated() +
                 " source_memoryfiles_closed=" + MessengerFrameParcel.memoryFilesClosed() +
@@ -821,5 +925,16 @@ public final class MessengerFramePerformanceActivity extends Activity {
                 " in_flight=" + inFlight + " pending_response_pfd=" +
                 (pendingResponseDescriptor != null));
         super.onDestroy();
+        // The helper threads were told to quit above; measure again after they have had time
+        // to exit so teardown is judged on the settled state, not the instant of the request.
+        final Handler later = new Handler(android.os.Looper.getMainLooper());
+        later.postDelayed(new Runnable() {
+            public void run() {
+                logFdDiff("post_destroy_3s");
+                settleResources();
+                logFdDiff("post_destroy_settled");
+                logThreads("post_destroy_settled");
+            }
+        }, 3000L);
     }
 }

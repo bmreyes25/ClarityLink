@@ -1,0 +1,13 @@
+# Code owners. Only accounts that can actually review belong here: the repository has a single
+# maintainer today. Required code-owner review is deliberately NOT enabled: with one maintainer who
+# also authors most pull requests it would block every merge. Revisit when a second reviewer exists.
+*                              @bmreyes25
+/AGENTS.md                     @bmreyes25
+/.github/                      @bmreyes25
+/tools/publish_checkpoint.py   @bmreyes25
+/tools/check_public_safety.py  @bmreyes25
+/CLAUDE.md                     @bmreyes25
+/docs/security/                @bmreyes25
+/docs/status/                  @bmreyes25
+/src/claritylink-honda/        @bmreyes25
+/src/claritylink-jmcs/         @bmreyes25

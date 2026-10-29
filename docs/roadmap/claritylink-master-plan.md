@@ -1,6 +1,8 @@
 # CL-MASTER-01 — end-to-end Type111 Honda integration program
 
-**Owner objective:** determine whether genuine, simultaneous Apple CarPlay can remain normal on the 2018 Honda Clarity factory center display while a genuine Type111 navigation stream appears in the cluster Navigation area, without compromising factory instruments, warnings, Navigation ownership, or restoration.
+> **PRIMARY GOAL: iPhone-origin Type111 secondary CarPlay video on factory Display 1, simultaneous with normal Type110 on Display 0.** Canonical statement and traceability matrix: [primary goal](../project/primary-goal.md). It takes precedence over any ambiguous wording below.
+
+**Owner objective:** determine whether genuine, simultaneous Apple CarPlay can remain normal on the 2018 Honda Clarity factory center display while genuine iPhone-provided secondary CarPlay video, carried on Type111, appears in the cluster Navigation area, without compromising factory instruments, warnings, Navigation ownership, or restoration.
 
 **Project status:** the objective is not yet established as feasible. The lab result is not a Honda integration. The master plan is a sequence of evidence gates, not vehicle authorization. `safeForHonda() == false`.
 
