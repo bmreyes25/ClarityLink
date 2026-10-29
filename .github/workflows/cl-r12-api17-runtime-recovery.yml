@@ -135,10 +135,15 @@ jobs:
             base="$(git merge-base HEAD origin/main)"
             if [ "$base" = "$(git rev-parse HEAD)" ]; then base="$(git rev-parse HEAD^)"; fi
             changed="$(git diff --name-only "$base"...HEAD)"
-            if grep -Eq '(^|/)MessengerFramePerformanceActivity\.java$' <<<"$changed" \
-                && ! grep -Eq '(^|/)MessengerFrameParcel\.java$' <<<"$changed"; then
+            has_activity=false
+            has_renderer=false
+            grep -Eq '(^|/)MessengerFramePerformanceActivity\.java$' <<<"$changed" && has_activity=true || true
+            grep -Eq '^src/claritylink-renderer/android-api17/' <<<"$changed" && has_renderer=true || true
+            other_build_inputs="$(grep -E '^(android/|tools/|src/|tests/fixtures/cl-imp-08/)' <<<"$changed" \
+              | grep -Ev '^(src/claritylink-renderer/android-api17/|android/cl-imp-03-app/java/org/claritylink/android/MessengerFrame(PerformanceActivity|Parcel)\.java$)' || true)"
+            if [ "$has_activity" = true ] && [ "$has_renderer" = false ]; then
               mode=workload
-            elif grep -Eq '^src/claritylink-renderer/android-api17/' <<<"$changed"; then
+            elif [ "$has_renderer" = true ] && [ "$has_activity" = false ] && [ -z "$other_build_inputs" ]; then
               mode=renderer
             else
               mode=smoke
