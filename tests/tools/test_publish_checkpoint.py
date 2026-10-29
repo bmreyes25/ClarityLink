@@ -138,12 +138,32 @@ class PublishScopeTests(unittest.TestCase):
             (root / "build.apk").write_bytes(b"synthetic")
             (root / "evidence").mkdir()
             (root / "evidence" / "note.md").write_text("restricted evidence")
+            (root / "research" / "vehicle").mkdir(parents=True)
+            (root / "research" / "vehicle" / "note.md").write_text("restricted vehicle research")
+            (root / "research" / "honda").mkdir(parents=True)
+            (root / "research" / "honda" / "note.md").write_text("restricted Honda research")
             with self.assertRaises(publisher.Failure):
                 publisher.safe_scope(root, ["sub"])
             with self.assertRaises(publisher.Failure):
                 publisher.safe_scope(root, ["build.apk"])
             with self.assertRaises(publisher.UnsafeContent):
                 publisher.safe_scope(root, ["evidence/note.md"])
+            for value in ("research/vehicle/note.md", "research/honda/note.md"):
+                with self.assertRaises(publisher.UnsafeContent):
+                    publisher.safe_scope(root, [value])
+
+    def test_tracked_file_ignored_by_rule_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Synthetic Test"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            (root / ".gitignore").write_text("ignored.md\n")
+            (root / "ignored.md").write_text("tracked but ignored by policy")
+            subprocess.run(["git", "-C", str(root), "add", "-f", ".gitignore", "ignored.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            with self.assertRaises(publisher.UnsafeContent):
+                publisher.safe_scope(root, ["ignored.md"])
 
     def test_explicit_text_file_accepted(self):
         with tempfile.TemporaryDirectory() as d:
@@ -252,6 +272,20 @@ class VerifyResultTests(unittest.TestCase):
         self.upstream_output = ""
         with patch.object(verifier, "git", side_effect=self.git_result):
             self.assertEqual(verifier.run(self.root)["result"], "NO_REMOTE_BRANCH")
+
+    def test_pr_must_be_open_on_main_and_match_remote_sha(self):
+        payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7", "headRefName": "feature/synthetic",
+                   "headRefOid": "abc123", "baseRefName": "main", "state": "OPEN"}
+        for mutation in ({}, {"headRefOid": "def456"}, {"baseRefName": "release"}, {"state": "CLOSED"}):
+            data = {**payload, **mutation}
+            result = subprocess.CompletedProcess([], 0, __import__("json").dumps(data), "")
+            with patch.object(verifier, "git", side_effect=self.git_result), \
+                 patch.object(verifier.subprocess, "run", return_value=result):
+                actual = verifier.run(self.root, pr=7)
+            if data == payload:
+                self.assertEqual(actual["result"], "REMOTE_VERIFIED")
+            else:
+                self.assertEqual(actual["result"], "REMOTE_SHA_MISMATCH")
 
     def test_unpushed_commit_is_detected_even_with_stale_tracking_metadata(self):
         self.remote_out = "def456\trefs/heads/feature/synthetic\n"
