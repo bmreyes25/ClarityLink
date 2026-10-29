@@ -51,6 +51,18 @@
 - [ ] **T032 [F13]** For a verified public-safe development unit, use the repository publication tooling and verify remote SHA, PR checks and review status; never publish private evidence or merge safety-sensitive changes automatically.
 - [ ] **T033 [F1-F13]** When the canonical finish-line or primary-goal documents change, update this traceability map in the same reviewed change; never infer F-item completion from synthetic evidence.
 
+## Phase 5 — Bounded offline ephemeral cleanup/recovery harness (CL-T111-EPHEMERAL-HARNESS-01)
+
+Evidence label SYN only. Contract: `docs/architecture/ephemeral-harness-contract.md`. These tasks add host-model evidence and do not move any F-item toward PASSED.
+
+Review state: T034–T037 are implemented and covered by offline tests, but independent review is NOT yet recorded as passed. An earlier independent review failed on a milestone-identifier mismatch (retry labels embedded in the task ID and spec revision); the identifier is corrected to `CL-T111-EPHEMERAL-HARNESS-01`, and the corrected tree still needs a fresh independent review. Retry attempt labels are execution labels only, never the milestone identity. T034–T037 checkmarks record implementation only, not review approval or Honda compatibility.
+
+- [x] **T034 [F4,F8,F9,F13]** Machine-readable resource manifest (`ephemeral_harness_manifest.json`) covering files/storage classes, processes, sockets, services, mounts, Display 1 leases and cleanup obligations; every Honda-dependent property UNKNOWN; `/data/local/tmp` not established as reboot-volatile.
+- [x] **T035 [F4,F8,F9]** Deterministic cleanup/recovery state machine (`ephemeral_harness.py`) reusing the CL-INT-04 lease, teardown and host-withdrawal code; no second lease system; missing or unreachable resources are UNKNOWN, never clean.
+- [x] **T036 [F4,F8,F9,F13]** Failure-injection tests: normal termination, process crash, lost producer, lost control connection, interrupted cleanup, host restart (epoch fence), simulated reboot, missing cleanup resource; Type110 independence through the CL-INT-04 pipeline.
+- [x] **T037 [F13]** Negative assertions: a simulated reboot cannot establish Honda cleanup, RAM-backed target storage, restoration or reboot recovery; `safeForHonda()` false.
+- [ ] **T038 [F13]** Publish through `tools/publish_checkpoint.sh` with remote SHA verification and independent review. Not done by this task; an AI review is not approval.
+
 ## Gate rule
 
 T021–T030 are records of missing evidence or authorization, not permission to perform the activity. No task permits vehicle access, Honda ADB, a connected iPhone, authentication bypass, secret extraction, warning suppression or a change to `safeForHonda()`. Any newly discovered interface remains UNK until its evidence is reviewed and the plan is revised.
