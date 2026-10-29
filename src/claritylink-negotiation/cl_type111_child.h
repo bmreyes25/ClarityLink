@@ -52,17 +52,19 @@ typedef enum {
     CL_T111_BUSY = 9,
     CL_T111_EXHAUSTED = 10,
     CL_T111_AUTHORITY_FAILED = 11, /* acquire/activate failed; rolled back */
-    CL_T111_RELEASE_FAILED = 12,   /* slot freed, authority release failed */
+    CL_T111_RELEASE_FAILED = 12,   /* release outcome is uncertain and retained */
     CL_T111_UNKNOWN_CHILD = 13,
     CL_T111_ALREADY_CLOSED = 14,
     CL_T111_RESPONSE_UNAVAILABLE = 15,
-    CL_T111_REVOKE_DEFERRED = 16
+    CL_T111_REVOKE_DEFERRED = 16,
+    CL_T111_UNCERTAIN_RESOURCE = 17
 } ClT111Result;
 
 typedef enum {
     CL_T111_STATE_DISABLED = 0,
     CL_T111_STATE_ENABLED_UNVERIFIED = 1,
-    CL_T111_STATE_REVOKED = 2
+    CL_T111_STATE_REVOKED = 2,
+    CL_T111_STATE_RELEASE_UNCERTAIN = 3
 } ClT111SessionState;
 
 typedef enum {
@@ -73,14 +75,17 @@ typedef enum {
 } ClT111DisabledReason;
 
 /*
- * Authority-supplied capabilities. Every callback is synchronous,
- * non-throwing, and failure-atomic (a failing acquire/activate leaves no
- * newly held resource). `userdata` is authority-owned and must never be a
- * Honda session or CoreFoundation pointer. The table is copied by value, but
- * `userdata` and the callbacks must remain valid for the whole life of the
- * session (until destroy completes). Callbacks are serialized within one
- * session, yet distinct sessions may invoke them concurrently, so an
- * authority shared across sessions must be thread-safe.
+ * Authority-supplied capabilities. Every callback is synchronous and
+ * non-throwing. A failing acquire/activate must leave no newly held resource.
+ * A failed release has an UNKNOWN outcome and may have partially completed:
+ * the module retains the resource as UNCERTAIN and never retries it. There is
+ * currently no callback that can reconcile an uncertain release, so storage
+ * cannot be destroyed while one remains. `userdata` is authority-owned and
+ * must never be a Honda session or CoreFoundation pointer. The table is
+ * copied by value, but `userdata` and the callbacks must remain valid for the
+ * whole life of the session (until destroy completes). Callbacks are
+ * serialized within one session, yet distinct sessions may invoke them
+ * concurrently, so an authority shared across sessions must be thread-safe.
  *
  * Response contract: either both response_contract_id and response_build are
  * zero/NULL (response unavailable) or both are set. `response_build` fills an
@@ -140,6 +145,7 @@ typedef struct {
     uint32_t disabled_reason;
     uint32_t parent_generation;
     uint32_t active_children;
+    uint32_t uncertain_children;
     uint32_t response_contract_available;
     uint32_t opened_total;
     uint32_t closed_total;
@@ -166,6 +172,7 @@ typedef struct {
     uint32_t opened_total;
     uint32_t closed_total;
     uint32_t release_failures;
+    uint32_t uncertain_children;
     uint32_t busy;
     uint32_t revoke_pending;
     ClT111Authority authority;
@@ -228,7 +235,9 @@ int32_t cl_t111_session_status(const ClT111Session *session, ClT111Status *statu
  * Revokes (if needed) then invalidates the storage's magic. The module cannot
  * free caller-owned memory or stop new entrants, so the caller must stop and
  * join all concurrent API calls on `session` before invalidating or reusing
- * its storage. Returns CL_T111_BUSY if a call is still in flight.
+ * its storage. Returns CL_T111_BUSY if a call is still in flight, or
+ * CL_T111_RELEASE_FAILED without invalidating storage while any release
+ * outcome remains uncertain. No automatic retry or resolution is provided.
  */
 int32_t cl_t111_session_destroy(ClT111Session *session);
 

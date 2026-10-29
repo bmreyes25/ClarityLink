@@ -17,7 +17,7 @@ static int failures;
     } while (0)
 
 typedef struct {
-    uint32_t acquires, activates, releases, builds;
+    uint32_t acquires, activates, release_attempts, releases, builds;
     uint32_t fail_acquire, zero_resource, fail_activate, fail_release, fail_build;
     uint32_t build_mode; /* 1 partial-write-then-fail, 2 oversize len, 3 zero len, 4 big ok */
     uint32_t next_resource;
@@ -84,10 +84,13 @@ static int32_t cb_activate(void *u, uint32_t res) {
 
 static int32_t cb_release(void *u, uint32_t res) {
     Auth *a = (Auth *)u;
-    __atomic_add_fetch(&a->releases, 1u, __ATOMIC_SEQ_CST);
+    __atomic_add_fetch(&a->release_attempts, 1u, __ATOMIC_SEQ_CST);
     if (a->live[res & 0xFFFFu] == 0u) ++a->double_release;
+    /* A failed release deliberately leaves the resource live. */
+    if (a->fail_release) return 0;
     a->live[res & 0xFFFFu] = 0u;
-    return a->fail_release ? 0 : CL_T111_CB_OK;
+    __atomic_add_fetch(&a->releases, 1u, __ATOMIC_SEQ_CST);
+    return CL_T111_CB_OK;
 }
 
 static int32_t cb_build(void *u, uint32_t res, void *out, size_t cap, size_t *len) {
@@ -264,11 +267,11 @@ static void test_authority_failures_roll_back(void) {
     CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK && st.active_children == 0u);
     a->fail_activate = 0u;
     CHECK(cl_t111_child_open(&s, 3u, &r, &ref) == CL_T111_OK);   /* recoverable */
-    a->fail_release = 1u;
-    CHECK(cl_t111_child_close(&s, &ref) == CL_T111_RELEASE_FAILED);
+    CHECK(cl_t111_child_close(&s, &ref) == CL_T111_OK);
     CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK);
-    CHECK(st.active_children == 0u && st.release_failures == 1u);
-    (void)cl_t111_session_destroy(&s);
+    CHECK(st.active_children == 0u && st.release_failures == 0u);
+    CHECK(a->live[a->next_resource & 0xFFFFu] == 0u);
+    CHECK(cl_t111_session_destroy(&s) == CL_T111_OK);
     free(a);
 }
 
@@ -327,7 +330,7 @@ static void test_generation_and_revoke(void) {
     free(a);
 }
 
-static void test_revoke_release_failure_still_frees_all(void) {
+static void test_revoke_release_failure_retains_uncertain_resources(void) {
     Auth *a = new_auth(); ClT111Session s; ClT111Authority t = good(a, 0);
     ClT111ChildRef r1, r2;
     ClT111RequestView r = make_request(1u);
@@ -338,10 +341,61 @@ static void test_revoke_release_failure_still_frees_all(void) {
     CHECK(cl_t111_child_open(&s, 2u, &r, &r2) == CL_T111_OK);
     a->fail_release = 1u;
     CHECK(cl_t111_session_revoke(&s, 2u) == CL_T111_RELEASE_FAILED);
-    CHECK(a->releases == 2u);                                  /* kept going after first failure */
+    CHECK(a->release_attempts == 2u && a->releases == 0u);
+    CHECK(a->live[1u] == 1u && a->live[2u] == 1u);
     CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK);
-    CHECK(st.release_failures == 2u && st.active_children == 0u);
-    (void)cl_t111_session_destroy(&s);
+    CHECK(st.state == CL_T111_STATE_RELEASE_UNCERTAIN && st.active_children == 0u);
+    CHECK(st.release_failures == 2u && st.uncertain_children == 2u);
+    CHECK(s.children[0].resource == 1u && s.children[1].resource == 2u);
+    CHECK(cl_t111_session_revoke(&s, 2u) == CL_T111_RELEASE_FAILED);
+    CHECK(cl_t111_session_destroy(&s) == CL_T111_RELEASE_FAILED);
+    CHECK(a->release_attempts == 2u); /* no blind retry */
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK); /* destroy did not invalidate */
+    CHECK(st.uncertain_children == 2u);
+    /* Harness teardown frees only its own test storage; the API did not claim cleanup. */
+    free(a);
+}
+
+static void test_child_close_failure_retains_resource_and_blocks_destroy(void) {
+    Auth *a = new_auth(); ClT111Session s; ClT111Authority t = good(a, 0);
+    ClT111ChildRef ref, next; ClT111RequestView r = make_request(1u);
+    ClT111Status st;
+    CHECK(cl_t111_session_create(&s, &t, 7u) == CL_T111_OK);
+    CHECK(cl_t111_child_open(&s, 7u, &r, &ref) == CL_T111_OK);
+    a->fail_release = 1u;
+    CHECK(cl_t111_child_close(&s, &ref) == CL_T111_RELEASE_FAILED);
+    CHECK(a->live[1u] == 1u && a->release_attempts == 1u && a->releases == 0u);
+    CHECK(cl_t111_child_close(&s, &ref) == CL_T111_UNCERTAIN_RESOURCE);
+    CHECK(a->release_attempts == 1u); /* close never retries an uncertain release */
+    CHECK(cl_t111_child_open(&s, 7u, &r, &next) == CL_T111_UNCERTAIN_RESOURCE);
+    CHECK(a->acquires == 1u);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK);
+    CHECK(st.state == CL_T111_STATE_RELEASE_UNCERTAIN && st.active_children == 0u);
+    CHECK(st.uncertain_children == 1u && st.release_failures == 1u);
+    CHECK(s.children[ref.slot].resource == 1u);
+    CHECK(cl_t111_session_destroy(&s) == CL_T111_RELEASE_FAILED);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK); /* unresolved storage remains valid */
+    CHECK(st.uncertain_children == 1u && a->release_attempts == 1u);
+    free(a);
+}
+
+static void test_activation_rollback_release_failure_is_retained(void) {
+    Auth *a = new_auth(); ClT111Session s; ClT111Authority t = good(a, 0);
+    ClT111RequestView r = make_request(3u); ClT111ChildRef ref; ClT111Status st;
+    CHECK(cl_t111_session_create(&s, &t, 8u) == CL_T111_OK);
+    a->fail_activate = 1u;
+    a->fail_release = 1u;
+    CHECK(cl_t111_child_open(&s, 8u, &r, &ref) == CL_T111_RELEASE_FAILED);
+    CHECK(ref.serial == 0u);
+    CHECK(a->live[1u] == 1u && a->release_attempts == 1u && a->releases == 0u);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK);
+    CHECK(st.state == CL_T111_STATE_RELEASE_UNCERTAIN && st.active_children == 0u);
+    CHECK(st.uncertain_children == 1u && st.release_failures == 1u);
+    CHECK(s.children[0].resource == 1u);
+    CHECK(cl_t111_child_open(&s, 8u, &r, &ref) == CL_T111_UNCERTAIN_RESOURCE);
+    CHECK(a->acquires == 1u && a->release_attempts == 1u);
+    CHECK(cl_t111_session_destroy(&s) == CL_T111_RELEASE_FAILED);
+    CHECK(cl_t111_session_status(&s, &st) == CL_T111_OK && st.uncertain_children == 1u);
     free(a);
 }
 
@@ -569,7 +623,9 @@ int main(void) {
     test_authority_failures_roll_back();
     test_exhaustion_and_slot_reuse();
     test_generation_and_revoke();
-    test_revoke_release_failure_still_frees_all();
+    test_revoke_release_failure_retains_uncertain_resources();
+    test_child_close_failure_retains_resource_and_blocks_destroy();
+    test_activation_rollback_release_failure_is_retained();
     test_response_unavailable_without_contract();
     test_response_with_contract();
     test_response_build_is_transactional();

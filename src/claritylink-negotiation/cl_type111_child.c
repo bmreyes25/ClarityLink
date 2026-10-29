@@ -8,7 +8,7 @@
 #define CL_T111_STREAM_TYPE UINT32_C(111)
 #define CL_T111_STREAM_TYPE_110 UINT32_C(110)
 
-enum { CHILD_FREE = 0, CHILD_ACTIVE = 1 };
+enum { CHILD_FREE = 0, CHILD_ACTIVE = 1, CHILD_UNCERTAIN = 2, CHILD_PREPARING = 3 };
 
 /* try-lock; seq_cst so a deferred revoke is never lost (see guard_exit). */
 static int guard_try_enter(ClT111Session *s) {
@@ -25,16 +25,27 @@ static int32_t revoke_locked(ClT111Session *s) {
     for (i = 0; i < CL_T111_MAX_CHILDREN; ++i) {
         ClT111ChildSlot *slot = &s->children[i];
         uint32_t resource;
+        if (slot->state == CHILD_UNCERTAIN) {
+            result = CL_T111_RELEASE_FAILED;
+            continue; /* outcome unknown; never retry without an authority query */
+        }
         if (slot->state != CHILD_ACTIVE) {
             continue;
         }
         resource = slot->resource;
-        memset(slot, 0, sizeof(*slot)); /* slot is free before the callback */
-        ++s->closed_total;
         if (s->authority.release(s->authority.userdata, resource) != CL_T111_CB_OK) {
             ++s->release_failures;
+            ++s->uncertain_children;
+            slot->state = CHILD_UNCERTAIN;
             result = CL_T111_RELEASE_FAILED;
+        } else {
+            memset(slot, 0, sizeof(*slot));
+            ++s->closed_total;
         }
+    }
+    if (s->uncertain_children != 0u) {
+        __atomic_store_n(&s->state, (uint32_t)CL_T111_STATE_RELEASE_UNCERTAIN,
+                         __ATOMIC_SEQ_CST);
     }
     return result;
 }
@@ -154,6 +165,14 @@ static int32_t enter_live(ClT111Session *s, uint32_t generation) {
         guard_exit(s);
         return CL_T111_REVOKED;
     }
+    if (s->state == CL_T111_STATE_RELEASE_UNCERTAIN) {
+        guard_exit(s);
+        return CL_T111_UNCERTAIN_RESOURCE;
+    }
+    if (s->state != CL_T111_STATE_ENABLED_UNVERIFIED) {
+        guard_exit(s);
+        return CL_T111_INVALID_ARGUMENT;
+    }
     return CL_T111_OK;
 }
 
@@ -217,16 +236,28 @@ int32_t cl_t111_child_open(ClT111Session *session, uint32_t parent_generation,
         guard_exit(session); /* failure-atomic contract: nothing to undo */
         return CL_T111_AUTHORITY_FAILED;
     }
+    /* Keep the newly acquired authority resource represented before activate.
+     * A failed rollback release must not lose its only tracking record. */
+    slot = &session->children[slot_index];
+    slot->state = CHILD_PREPARING;
+    slot->id_low = id_low;
+    slot->id_high = id_high;
+    slot->resource = resource;
     if (session->authority.activate(session->authority.userdata, resource) !=
         CL_T111_CB_OK) {
         if (session->authority.release(session->authority.userdata, resource) !=
             CL_T111_CB_OK) {
             ++session->release_failures;
+            ++session->uncertain_children;
+            slot->state = CHILD_UNCERTAIN;
+            session->state = CL_T111_STATE_RELEASE_UNCERTAIN;
+            guard_exit(session);
+            return CL_T111_RELEASE_FAILED;
         }
+        memset(slot, 0, sizeof(*slot));
         guard_exit(session);
         return CL_T111_AUTHORITY_FAILED;
     }
-    slot = &session->children[slot_index];
     slot->state = CHILD_ACTIVE;
     slot->serial = session->next_serial++;
     slot->id_low = id_low;
@@ -248,6 +279,9 @@ static int32_t slot_for(ClT111Session *s, const ClT111ChildRef *child,
         return CL_T111_UNKNOWN_CHILD;
     }
     slot = &s->children[child->slot];
+    if (slot->state == CHILD_UNCERTAIN) {
+        return CL_T111_UNCERTAIN_RESOURCE;
+    }
     if (slot->state != CHILD_ACTIVE) {
         return child->serial < s->next_serial ? CL_T111_ALREADY_CLOSED
                                               : CL_T111_UNKNOWN_CHILD;
@@ -287,13 +321,19 @@ int32_t cl_t111_child_close(ClT111Session *session, const ClT111ChildRef *child)
         return result;
     }
     resource = slot->resource;
-    memset(slot, 0, sizeof(*slot));
-    ++session->closed_total;
-    result = CL_T111_OK;
     if (session->authority.release(session->authority.userdata, resource) !=
         CL_T111_CB_OK) {
         ++session->release_failures;
+        ++session->uncertain_children;
+        slot->state = CHILD_UNCERTAIN;
+        if (session->state == CL_T111_STATE_ENABLED_UNVERIFIED) {
+            session->state = CL_T111_STATE_RELEASE_UNCERTAIN;
+        }
         result = CL_T111_RELEASE_FAILED;
+    } else {
+        memset(slot, 0, sizeof(*slot));
+        ++session->closed_total;
+        result = CL_T111_OK;
     }
     guard_exit(session);
     return result;
@@ -396,6 +436,7 @@ int32_t cl_t111_session_status(const ClT111Session *session, ClT111Status *statu
     snapshot.opened_total = session->opened_total;
     snapshot.closed_total = session->closed_total;
     snapshot.release_failures = session->release_failures;
+    snapshot.uncertain_children = session->uncertain_children;
     snapshot.integration_verified = 0u;
     snapshot.safe_for_honda = 0u;
     guard_exit(guarded); /* may run a deferred revoke; snapshot is already copied */
@@ -408,14 +449,17 @@ int32_t cl_t111_session_destroy(ClT111Session *session) {
     if (!session_live(session)) {
         return CL_T111_INVALID_ARGUMENT;
     }
-    if (__atomic_load_n(&session->state, __ATOMIC_SEQ_CST) ==
-        CL_T111_STATE_ENABLED_UNVERIFIED) {
+    if (__atomic_load_n(&session->state, __ATOMIC_SEQ_CST) !=
+        CL_T111_STATE_DISABLED) {
         result = cl_t111_session_revoke(session, session->parent_generation);
         if (result == CL_T111_REVOKE_DEFERRED ||
             __atomic_load_n(&session->busy, __ATOMIC_SEQ_CST) != 0u) {
             return CL_T111_BUSY; /* storage must outlive in-flight callers */
         }
+        if (session->uncertain_children != 0u || result == CL_T111_RELEASE_FAILED) {
+            return CL_T111_RELEASE_FAILED; /* retain magic and all uncertain identities */
+        }
     }
     session->magic = 0u;
-    return result;
+    return result == CL_T111_OK ? CL_T111_OK : result;
 }
