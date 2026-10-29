@@ -123,6 +123,27 @@ jobs:
           cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
           sha256sum "$archive" "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
 
+      - name: Select API 17 A/B comparison mode
+        id: ab-mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            mode='${{ inputs.ab_mode }}'
+          else
+            git fetch --no-tags origin main
+            base="$(git merge-base HEAD origin/main)"
+            if [ "$base" = "$(git rev-parse HEAD)" ]; then base="$(git rev-parse HEAD^)"; fi
+            changed="$(git diff --name-only "$base"...HEAD)"
+            if grep -Eq '(^|/)(MessengerFramePerformanceActivity|MessengerFrameParcel)\.java$' <<<"$changed"; then
+              mode=workload
+            else
+              mode=renderer
+            fi
+          fi
+          case "$mode" in renderer|workload) ;; *) echo "Invalid A/B mode: $mode" >&2; exit 2 ;; esac
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
       - name: Build source-identified renderer A/B APKs
         shell: bash
         run: |
@@ -137,7 +158,7 @@ jobs:
           if [ "$baseline_ref" = "$(git rev-parse HEAD)" ]; then baseline_ref="$(git rev-parse HEAD^)"; fi
           ab_dir="$GITHUB_WORKSPACE/build/cl-r12-ab-$GITHUB_RUN_ID"
           if [ -n "${{ github.event.inputs.baseline_ref }}" ]; then baseline_ref="${{ github.event.inputs.baseline_ref }}"; fi
-          if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
+          if [ "${{ steps.ab-mode.outputs.mode }}" = "workload" ]; then
             tools/build_cl_r12_workload_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
           else
             tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
@@ -204,7 +225,7 @@ jobs:
             python3 -I tools/verify_apk_dex_classes.py --apk "$CL_INT_04_HOST_TEST_APK" --dexdump "$dexdump" --label host-withdrawal-test --source-commit "$src" \
               --require org.claritylink.renderer.Display1HostExpiryTest --require org.claritylink.renderer.ProducerDeathService \
               --require org.claritylink.renderer.Display1HostLeaseGuard --require org.claritylink.renderer.PaneLease
-            if [ "${{ github.event.inputs.ab_mode }}" = "workload" ]; then
+            if [ "${{ steps.ab-mode.outputs.mode }}" = "workload" ]; then
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" "${lab[@]}"
             else
               # Renderer A/B: the baseline TREE decides what the lease classes must look like. A baseline that
