@@ -2,6 +2,7 @@
 """Read-only, bounded startup context for local ClarityLink work."""
 import json
 import subprocess
+import sys
 
 def git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True, timeout=1)
@@ -14,6 +15,13 @@ try:
     origin = git("remote", "get-url", "origin").stdout.strip()
     upstream = git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
     status = git("status", "--short").stdout.strip()
+    preflight = subprocess.run([sys.executable, f"{root}/tools/task_worktree_guard.py",
+                                "preflight", "--repo", root, "--json"],
+                               capture_output=True, text=True, timeout=2)
+    try:
+        task_state = json.loads(preflight.stdout)
+    except Exception:
+        task_state = {"result": "PREFLIGHT_UNAVAILABLE"}
     canonical = {
         "https://github.com/bmreyes25/ClarityLink.git",
         "git@github.com:bmreyes25/ClarityLink.git",
@@ -47,6 +55,11 @@ try:
              f"branch ownership: {ownership}"]
     if status:
         lines.append("Worktree has local changes; inventory before editing or publishing.")
+    lines.append(f"task preflight: {task_state.get('result', 'UNAVAILABLE')}")
+    if task_state.get("result") == "READY":
+        lines.append("Before editing, begin a task with an exact scope using tools/task_worktree_guard.py.")
+    elif task_state.get("status"):
+        lines.append("Dirty paths classified by task preflight: " + json.dumps(task_state["status"]))
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "SessionStart",
         "additionalContext": "\n".join(lines),
