@@ -2,6 +2,12 @@
 
 **Decision:** `OFFLINE_PREPARATION_REVIEWED`; `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED`; `safeForHonda() == false`.
 
+## Campaign implementation update — offline gates remain closed
+
+The campaign-specific fixed capture profile is implemented in `tools/honda-readonly-preflight/campaign_runner.py`. It pins an ordered human-attested phase plan, fixed argv operations, time/output bounds, expected results, private artifact destinations, and the exact source-lock digest. The legacy collector live CLI refuses execution to prevent bypassing the campaign approval gate. The dry run is local-only; no ADB/device discovery or vehicle operation has been performed for this update. The base sequence covers baseline, target identity, stock CarPlay, Navigation selected/deselected/reselected, ordinary disconnect, and restoration. HondaHack is excluded.
+
+Private approval and review JSON are hash-bound human attestations, not cryptographic verification of reviewer identity or qualifications. Offline synthetic tests can establish software behavior only. They do not satisfy the required qualified vehicle-safety review. The current repository policy also prohibits Honda/vehicle operations, and the separate exact owner approval has not been given. Status: `FIELD_READY_AWAITING_REVIEW_OR_AUTHORIZATION`; do not connect to the vehicle or run ADB.
+
 This report prepares a bounded diagnostic proposal. It records no Honda/ADB/vehicle/iPhone operation, issues no live command, and does not authorize the parked session. The existing policy requires exact owner approval and qualified independent safety review for Level C activity. The current integration-readiness record also says Honda ADB observation is not authorized. Neither AI review in this preparation is qualified vehicle-safety approval.
 
 ## Evidence reconciliation
@@ -32,7 +38,7 @@ The requested September 29 bundle was present only in the private host capture d
 | Q9. Recovery | Ordinary disconnect/shutdown has prior normal behavior evidence; no native-corruption recovery is established. | Before any session, record the normal factory shutdown route and baseline. Post-test check only ordinary stock behavior. This is not rollback proof for corrupted native code. |
 | Q10. Active instrumentation need | Existing logs and display diagnostics are the least intrusive first step. | Defer instrumentation until passive results are reviewed. No helper, ptrace, Frida, Xposed hook change, receiver patch, listener, or target-side code is included. |
 
-## Proposed parked observation checklist — not yet authorized
+## Previously proposed parked observation checklist — superseded by the pinned campaign profile below
 
 Each live action below is Level C under the repository policy and must wait for both (1) qualified independent safety review of this exact procedure and (2) a separate explicit owner approval. Keep `safeForHonda() == false` and `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED` throughout preparation.
 
@@ -42,7 +48,7 @@ Each live action below is Level C under the repository policy and must wait for 
 - No Honda ADB is performed in this preparation. If later approved, use only the already-authorized, explicitly named ADB serial with `-s <exact-serial>`; do not use `--serial auto`, enumerate devices, scan a network, enable a new ADB transport, or retry through another endpoint.
 - Use the existing `tools/honda-readonly-preflight/collector.py` fixed-operation interface and legacy `adb shell` service. Do not use `exec-out`. The planned fixed operations are `id`, `ps`, `getprop` for only `ro.build.version.release`, `ro.build.version.sdk`, `ro.product.device`, `ro.product.board`, `ro.hardware`, `ro.secure`, and `ro.debuggable`; process identity reads of `/proc/<pid>/stat`, `cmdline`, and `status`; `dumpsys display`, `dumpsys SurfaceFlinger`, `dumpsys window`; and bounded `logcat -d -t 500`. Existing limits are 5 seconds/64 KiB for `id` and each property read; 20 seconds/32 MiB for `ps`; 10 seconds/4 MiB for process identity reads; 15 seconds/4 MiB for each display diagnostic; and 15 seconds/4 MiB for logcat. Target paths and arguments must be passed as direct argument arrays from the existing allowlist; no shell program construction or interpolation. The endpoint stays private and is not written to the public plan.
 - Output must go to a new host-only directory outside the repository, mode `0700`; files and manifest mode `0600`; source/operation manifest and SHA-256 inventory retained privately. New captures summarize bounded logcat in memory and persist only allowlisted event categories/counts/timestamps, result status, and digest; neither raw log lines nor stderr are stored. Do not copy endpoints, identifiers, photos, or derived private evidence into Git.
-- The existing collector's broad 40E three-phase profile is not the proposed capture: do not repeat its CPU, network, thread, or full platform inventory. A campaign-specific, human-marked display-phase controller now defines the Navigation transition order and an optional separately gated HondaHack sequence. It is not wired to a live collection profile and must not be used for field work.
+- The existing collector's broad 40E three-phase profile is not the proposed capture: do not repeat its CPU, network, thread, or full platform inventory. The pinned campaign profile in the implementation update above replaces this earlier checklist; HondaHack remains a separately reviewed and authorized activity, excluded from the profile.
 
 ### Ordered phases
 
@@ -59,7 +65,7 @@ Each live action below is Level C under the repository policy and must wait for 
 | 8 — normal disconnect | Disconnect CarPlay through the ordinary phone/user flow. | Reconfirm process identity/restart status and bounded display/window/layer/log snapshot. | No new network scan or repeated baseline inventory. |
 | 9 — restoration | Verify phone disconnected, stock center display, cluster, Navigation, and audio normal; end the authorized ADB session. | Host-only completion record and hashes. No target changes are expected. | If restoration is unclear, stop and ask the owner; no additional device command. |
 
-The new controller cannot yet run these human-marked phases as a single immutable capture: it has no campaign-specific fixed operation profile, immutable per-phase manifest, or source-hash pin. Those pieces and their exact offline dry-run review are required before a field-ready harness or execution-authorization request can be claimed. Therefore this document requests commissioning an independent review, not a command to execute the session.
+The earlier statement here that the controller lacked a campaign profile and source pin is superseded by the implementation update above. The exact profile still requires qualified independent safety review before any execution authorization can be requested.
 
 ## Failure card — mandatory owner decision
 
@@ -99,8 +105,8 @@ The existing collector already provides direct argv execution, fixed operation/p
 
 This preparation adds two offline analysis details: exact `jmcs` FD-inode to socket-endpoint joins, and a bounded log marker summary which returns event categories/counts/timestamp bounds without returning source log lines. New captures discard log text in memory before writing any artifact; stderr is represented by size/hash metadata only. It does not capture, decrypt, or expose plist values, credentials, or media. New synthetic tests cover exact inode ownership, collection-time log filtering, Type111 status wording, and input caps.
 
-The five private Type111 reference notes and private deep-diagnostics blueprint were reviewed from the owner-only research tree. Their detailed contents remain there; this public report carries forward only the already-published conclusions and no private binary values or captured evidence. Independent AI reviewers found no basis for live execution, confirmed that the current SuperSU route must stay excluded, and identified the missing field-ready capture profile and qualified safety review; the human phase controller added afterward remains offline-only. Their reviews are not qualified vehicle-safety approval. No raw or derived Honda capture is included in this report or the source changes.
+The five private Type111 reference notes and private deep-diagnostics blueprint were reviewed from the owner-only research tree. Their detailed contents remain there; this public report carries forward only the already-published conclusions and no private binary values or captured evidence. Independent AI code reviewers identified and rechecked the source/approval, capture-permission, identity-continuity, and recovery hardening. Their code reviews are not qualified vehicle-safety approval. The runner also records that the shared host ADB server may remain running after its client exits; the campaign does not stop a shared host service. No raw or derived Honda capture is included in this report or the source changes.
 
-## Owner authorization request
+## Prior owner authorization request (superseded)
 
-Please decide whether to commission a **qualified independent vehicle-safety review** of this exact checklist and the incomplete human-marked capture profile. Do not authorize live execution yet: the current repository gate prohibits Honda ADB, the capture profile is not field-ready, there is no safe privileged path, and qualified review is outstanding. If those prerequisites are later closed, I will present the final, hash-pinned procedure and ask for a separate explicit owner authorization covering the exact phases (with HondaHack as a separate optional authorization). Until then, no Honda, ADB, iPhone, root, or instrumentation operation is authorized.
+The previous request concerned commissioning the review before the profile was pinned. The remaining blocker is a qualified independent safety review of the exact pinned profile and sources. After that review, a separate exact owner yes/no authorization must cover the base phases; HondaHack remains excluded. Do not perform Honda, ADB, iPhone, root, or instrumentation operations under the current repository policy.

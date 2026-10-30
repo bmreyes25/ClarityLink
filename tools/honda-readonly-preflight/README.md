@@ -1,4 +1,4 @@
-# Honda read-only runtime preflight collector
+# Honda read-only runtime preflight and fixed campaign runner
 
 This is a host-side Python collector for Step 40E. It stores target command output on the Mac under `~/CLARITY_RUNTIME_<timestamp>/`, with mode-restricted files, a per-command manifest, and SHA-256 records. Raw output can include sensitive platform, socket, log, and display details: never copy the capture tree into Git.
 
@@ -25,20 +25,19 @@ Never add or run: `adb root`; `su`; `setprop`; `sysctl -w`; `mount`/remount; `st
 
 ## Use
 
-First inspect every command without ADB contact:
+The campaign-specific controller is the only live entry point that enforces the pinned operation profile, private review/authorization records, phase attestations, and exact serial. Its offline plan is:
 
 ```sh
-python3 tools/honda-readonly-preflight/collector.py --serial auto --dry-run
+python3 tools/honda-readonly-preflight/campaign_runner.py dry-run
 ```
 
-**Live use is currently unauthorized by repository policy.** The command below documents the existing exact-serial interface only; it is not permission to run it. Honda ADB requires qualified independent safety review and separate explicit owner authorization. This campaign has neither, so run only the offline dry-run and synthetic tests. The collector requires an exact serial for any future live use and rejects `--serial auto` before ADB initialization; it does not enumerate devices.
+The dry-run verifies the canonical profile and source lock, and prints all ordered phases, fixed argv, expected output, bounds, failure behavior, and private artifact destinations. It does not locate ADB, enumerate devices, create files, or contact a vehicle. `campaign_profile.sha256` pins the exact profile, which itself binds the source-hash lock.
 
-```sh
-python3 tools/honda-readonly-preflight/collector.py --serial EXACT_PREAUTHORIZED_SERIAL --phase all \
-  --vehicle-parked-confirmed --iphone-disconnected-confirmed
-```
+`campaign_runner.py run` requires a mode-0600 private approval record outside the repository. That record must bind the exact source hashes, profile hash, phases, serial, and a hash-pinned qualified safety review artifact. These records are human attestations; the tool does not verify a person's identity or credentials. ADB use remains prohibited by the repository campaign policy until the required qualified review and separate exact owner approval exist. Do not prepare or use an approval record in their absence. HondaHack remains excluded.
 
-The existing broad profile captures baseline, connected, and post-disconnect states and is not the proposed campaign capture profile. The new human phase controller is not wired to a fixed campaign-specific operation manifest and does not enforce authorization. Neither it nor the broad profile is field-ready for this campaign. Do not use either for live collection unless the repository gate, qualified review, and separate owner approval are satisfied.
+The runner terminates its ADB client on interruption and does not issue target-side cleanup. The shared host ADB server may remain running; stopping it could disrupt other host sessions and is outside this campaign's scope. Final restoration attests that no campaign command remains active, not that the shared host server has stopped.
+
+The legacy broad `collector.py` profile is offline-analysis infrastructure only; its live CLI now refuses execution so it cannot bypass the campaign gate. Use `campaign_runner.py recover <private-capture-directory>` only for offline integrity review of an interrupted host capture. Recovery never resumes collection or contacts a vehicle.
 
 Single-operation flags are not supported. `--phase baseline` captures only the baseline. `--phase connected` collects baseline plus connected state. `--phase post-disconnect` collects all three sequential phases.
 
