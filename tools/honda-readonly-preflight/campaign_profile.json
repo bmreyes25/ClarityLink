@@ -1,5 +1,17 @@
 {
-  "approval_semantics": "owner and qualified reviewer records are hash-bound human attestations; this tool does not verify identity or credentials",
+  "approval_semantics": "owner and independent technical reviewer records are hash-bound human attestations; this tool does not verify identity, independence, or competence",
+  "authorization_category": "C-P",
+  "campaign_bounds": {
+    "max_command_timeout_seconds_sum": 2425,
+    "max_output_bytes_sum": 158400512,
+    "max_single_command_output_bytes": 4194304,
+    "max_single_command_timeout_seconds": 20,
+    "no_collection_during_operator_transition_waits": true,
+    "owner_guided_ui_transitions_only": [
+      "normal CarPlay connect/disconnect",
+      "factory Navigation select/deselect/reselect"
+    ]
+  },
   "campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
   "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
   "optional_phase": {
@@ -1458,6 +1470,11 @@
       "title": "Final restoration"
     }
   ],
+  "policy_documents_sha256": {
+    "AGENTS.md": "2147eb8cecc66f168cba2ffbe815a2bb7c46b38f8b1ea89ecdd2238df8cdb607",
+    "docs/safety/vehicle-testing.md": "58094202b30cae5f8a15e8212554885e7a09ac4d7e37202e060742e16e0e9dd6",
+    "docs/security/vehicle-safety-gates.md": "16f7f18831c057807666739ac4e69c7ab24cdcc059afb15f531cf704e26479d1"
+  },
   "privacy": {
     "directory_mode": "0700",
     "file_mode": "0600",
@@ -1481,7 +1498,7 @@
     "can"
   ],
   "schema_version": 1,
-  "source_lock_sha256": "cd7ccdf86b3b9fce535747ea435c980c8d20e3d2b284617b9a4da11291abf238",
+  "source_lock_sha256": "faa816eac395322705db80fe411dbc52371ad1309662462a5680d7123d4607ca",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",

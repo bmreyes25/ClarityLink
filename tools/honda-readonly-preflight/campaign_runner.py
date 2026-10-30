@@ -2,7 +2,7 @@
 
 `dry-run` is purely local: it does not locate ADB, inspect connected devices, or
 create capture files. Live execution requires a private approval attestation
-which binds a qualified-review artifact, exact profile/source hashes, phases,
+which binds an independent-technical-review artifact, exact profile/source hashes, phases,
 and the exact pre-approved ADB serial. This module does not itself grant that
 approval.
 """
@@ -30,6 +30,8 @@ HERE = Path(__file__).resolve().parent
 PROFILE_FILE = HERE / "campaign_profile.json"
 PROFILE_HASH_FILE = HERE / "campaign_profile.sha256"
 SOURCE_LOCK_FILE = HERE / "campaign_source_hashes.json"
+POLICY_FILES = (REPO_ROOT / "AGENTS.md", REPO_ROOT / "docs/safety/vehicle-testing.md",
+                REPO_ROOT / "docs/security/vehicle-safety-gates.md")
 MAX_COMMAND_TIMEOUT = 20
 MAX_COMMAND_OUTPUT = 4 * 1024 * 1024
 PROCESS_PID_PLACEHOLDER = "<JMCS_PID>"
@@ -140,7 +142,22 @@ def profile_payload() -> dict[str, object]:
         "privacy": {"raw_output_root": "outside-git-worktree", "directory_mode": "0700",
                     "file_mode": "0600", "logcat": "bounded in-memory summary; no source lines or stderr persisted"},
         "source_lock_sha256": hashlib.sha256(SOURCE_LOCK_FILE.read_bytes()).hexdigest(),
-        "approval_semantics": "owner and qualified reviewer records are hash-bound human attestations; this tool does not verify identity or credentials",
+        "policy_documents_sha256": {
+            path.relative_to(REPO_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in POLICY_FILES
+        },
+        "authorization_category": "C-P",
+        "campaign_bounds": {
+            "max_command_timeout_seconds_sum": sum(op[2] for phase in phases() for op in phase.operations),
+            "max_output_bytes_sum": sum(op[3] for phase in phases() for op in phase.operations),
+            "max_single_command_timeout_seconds": MAX_COMMAND_TIMEOUT,
+            "max_single_command_output_bytes": MAX_COMMAND_OUTPUT,
+            "owner_guided_ui_transitions_only": [
+                "normal CarPlay connect/disconnect", "factory Navigation select/deselect/reselect"
+            ],
+            "no_collection_during_operator_transition_waits": True,
+        },
+        "approval_semantics": "owner and independent technical reviewer records are hash-bound human attestations; this tool does not verify identity, independence, or competence",
         "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
         "prohibitions": ["auto_serial", "adb_devices", "network_scan", "su", "adb_root",
                          "setting_changes", "install", "write", "signal", "ptrace",
@@ -295,23 +312,39 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("approved source hashes do not match the verified campaign sources")
     if approval.get("phase_ids") != [phase.key for phase in phases()]:
         raise SafetyStop("approved phase scope does not exactly match the fixed campaign")
+    if approval.get("policy_effective") is not True:
+        raise SafetyStop("C-P policy adoption is not attested")
+    if not isinstance(approval.get("policy_effective_commit_sha"), str) or not re.fullmatch(
+            r"[0-9a-f]{40}", approval["policy_effective_commit_sha"]):
+        raise SafetyStop("effective C-P policy commit is not recorded")
+    if approval.get("owner_confirmed_park") is not True or approval.get("owner_confirmed_parking_brake") is not True:
+        raise SafetyStop("owner has not attested stationary Park and parking brake conditions")
     if approval.get("hondahack_authorized") is not False:
         raise SafetyStop("HondaHack is excluded from this campaign and requires separate approval")
-    reviewer = approval.get("qualified_safety_review")
-    if not isinstance(reviewer, dict) or reviewer.get("review_type") != "qualified_vehicle_safety":
-        raise SafetyStop("qualified independent vehicle-safety review is not recorded")
-    if not isinstance(reviewer.get("reviewer_qualification"), str) or not reviewer["reviewer_qualification"].strip():
-        raise SafetyStop("qualified reviewer credentials are not recorded")
+    reviewer = approval.get("independent_technical_review")
+    if not isinstance(reviewer, dict) or reviewer.get("review_type") != "independent_technical":
+        raise SafetyStop("C-P independent technical review is not recorded")
+    if not isinstance(reviewer.get("reviewer_competence"), str) or not reviewer["reviewer_competence"].strip():
+        raise SafetyStop("reviewer competence for Android/ADB and vehicle diagnostics is not recorded")
+    if reviewer.get("reviewer_independence_attested") is not True:
+        raise SafetyStop("reviewer independence is not attested")
     if not isinstance(reviewer.get("reviewer_identity"), str) or not reviewer["reviewer_identity"].strip():
-        raise SafetyStop("qualified reviewer identity is not recorded")
+        raise SafetyStop("independent technical reviewer identity is not recorded")
+    approved_power_state = approval.get("approved_vehicle_power_state")
+    if not isinstance(approved_power_state, str) or not approved_power_state.strip():
+        raise SafetyStop("review-approved vehicle electrical power state is not recorded")
+    if reviewer.get("reviewed_vehicle_power_state") != approved_power_state:
+        raise SafetyStop("technical review does not bind the exact vehicle electrical power state")
+    if approval.get("owner_confirmed_vehicle_power_state") != approved_power_state:
+        raise SafetyStop("owner has not confirmed the reviewer-approved vehicle power state")
     if reviewer.get("review_decision") != "APPROVED":
-        raise SafetyStop("qualified reviewer has not approved this exact procedure")
+        raise SafetyStop("independent technical reviewer has not approved this exact C-P procedure")
     if reviewer.get("reviewed_profile_sha256") != profile_hash:
-        raise SafetyStop("qualified review does not bind the pinned profile hash")
+        raise SafetyStop("technical review does not bind the pinned profile hash")
     if reviewer.get("reviewed_source_hashes") != source_hashes_verified:
-        raise SafetyStop("qualified review does not bind the verified source hashes")
+        raise SafetyStop("technical review does not bind the verified source hashes")
     if reviewer.get("reviewed_phase_ids") != [phase.key for phase in phases()]:
-        raise SafetyStop("qualified review does not bind the exact phase list")
+        raise SafetyStop("technical review does not bind the exact phase list")
     if not isinstance(reviewer.get("artifact_path"), str):
         raise SafetyStop("exact procedure review artifact is not recorded")
     review_path = _path_outside_repo(Path(reviewer["artifact_path"]), "safety review artifact")
@@ -634,17 +667,25 @@ def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, objec
             "owner_authorization": "NO",
             "owner_authorized_utc": "",
             "profile_sha256": profile,
+            "policy_effective": False,
+            "policy_effective_commit_sha": "",
+            "owner_confirmed_park": False,
+            "owner_confirmed_parking_brake": False,
+            "owner_confirmed_vehicle_power_state": "",
             "source_hashes": sources,
             "phase_ids": [phase.key for phase in phases()],
             "adb_serial": "<filled only after separate explicit owner approval>",
+            "approved_vehicle_power_state": "",
             "hondahack_authorized": False,
-            "qualified_safety_review": {"review_type": "not_obtained",
+            "independent_technical_review": {"review_type": "not_obtained",
                                          "reviewer_identity": "",
-                                         "reviewer_qualification": "",
+                                         "reviewer_competence": "",
+                                         "reviewer_independence_attested": False,
                                          "review_decision": "NOT_APPROVED",
                                          "reviewed_profile_sha256": "",
                                          "reviewed_source_hashes": {},
                                          "reviewed_phase_ids": [],
+                                         "reviewed_vehicle_power_state": "",
                                          "artifact_path": "",
                                          "artifact_sha256": ""}}
 

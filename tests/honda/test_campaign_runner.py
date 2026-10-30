@@ -174,17 +174,23 @@ def test_profile_tampering_is_rejected(tmp_path, monkeypatch):
 
 
 def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
-    review_path = tmp_path / "qualified-review.pdf"
+    review_path = tmp_path / "independent-technical-review.pdf"
     review_path.write_bytes(b"synthetic review fixture bound only to offline tests")
     review_path.chmod(0o600)
     profile_hash = campaign.verify_pinned_profile()
     sources = campaign.source_hashes()
     row = campaign._approval_template(profile_hash, sources)
     row.update({"owner_authorization": "YES", "owner_authorized_utc": "2026-10-30T12:00:00Z",
-                "adb_serial": "SYNTHETIC-EXACT-SERIAL"})
-    row["qualified_safety_review"] = {
-        "review_type": "qualified_vehicle_safety", "reviewer_identity": "synthetic-reviewer",
-        "reviewer_qualification": "synthetic test fixture; not a real qualification",
+                "adb_serial": "SYNTHETIC-EXACT-SERIAL", "policy_effective": True,
+                "policy_effective_commit_sha": "a" * 40,
+                "owner_confirmed_park": True, "owner_confirmed_parking_brake": True,
+                "approved_vehicle_power_state": "synthetic fixture state",
+                "owner_confirmed_vehicle_power_state": "synthetic fixture state"})
+    row["independent_technical_review"] = {
+        "review_type": "independent_technical", "reviewer_identity": "synthetic-reviewer",
+        "reviewer_competence": "synthetic Android/ADB and vehicle diagnostics fixture; not verified",
+        "reviewer_independence_attested": True,
+        "reviewed_vehicle_power_state": "synthetic fixture state",
         "review_decision": "APPROVED", "reviewed_profile_sha256": profile_hash,
         "reviewed_source_hashes": sources,
         "reviewed_phase_ids": [phase.key for phase in campaign.phases()],
@@ -207,6 +213,28 @@ def test_approval_requires_exact_owner_review_profile_sources_phases_and_serial(
     approval_path.write_text(json.dumps(record))
     approval_path.chmod(0o600)
     with pytest.raises(collector.SafetyStop, match="exact pre-approved"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_approval_requires_effective_policy_attestation(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    record["policy_effective"] = False
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="policy adoption"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_technical_review_must_bind_exact_vehicle_power_state(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    record["independent_technical_review"]["reviewed_vehicle_power_state"] = "different"
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="power state"):
         campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                    source_hashes_verified=sources)
 
