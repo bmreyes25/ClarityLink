@@ -114,6 +114,14 @@ def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
     combined = (stderr + b"\n" + stdout).decode("utf-8", "replace")
     if exit_code != 0:
         raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
+    # Transport diagnostics belong to the host adb client's stderr stream. Do
+    # not scan target stdout, where dumpsys/logcat may legitimately contain
+    # similar words, and do not accept partial target output after disconnect.
+    stderr_text = stderr.decode("utf-8", "replace").lower()
+    if any(marker in stderr_text for marker in (
+            "error: closed", "device offline", "device unauthorized", "unauthorized",
+            "no devices/emulators found", "device not found", "failed to read from device")):
+        raise SafetyStop(f"legacy ADB transport failure during required operation: {operation}")
     if operation in {"read", "property", "id", "ps"} and re.search(
             r"(?im)^\s*(?:/system/bin/)?(?:sh|mksh):.*(?:not found|permission denied|can't execute)", combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")

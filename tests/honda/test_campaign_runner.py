@@ -90,6 +90,16 @@ def test_legacy_shell_does_not_misclassify_diagnostic_content_as_shell_failure()
         collector.validate_legacy_shell_output("logcat", (), 0, b"", b"warning")
 
 
+@pytest.mark.parametrize("operation,args,stdout,stderr", [
+    ("property", ("ro.secure",), b"1\n", b"error: device offline\n"),
+    ("read", ("/proc/version",), b"Linux version 3.1.10+\n", b"error: closed\n"),
+    ("logcat", (), b"I/ActivityManager( 123): completed\n", b"error: device offline\n"),
+])
+def test_transport_error_on_adb_stderr_fails_even_with_partial_stdout(operation, args, stdout, stderr):
+    with pytest.raises(collector.SafetyStop, match="transport failure"):
+        collector.validate_legacy_shell_output(operation, args, 0, stdout, stderr)
+
+
 def test_api17_ps_state_column_is_parsed_without_widening_identity():
     text = "USER PID PPID VSIZE RSS WCHAN PC NAME\nroot 42 1 100 80 ffffffff 0 S /system/bin/jmcs\n"
     assert collector.parse_ps_jmcs(text) == (42,)
