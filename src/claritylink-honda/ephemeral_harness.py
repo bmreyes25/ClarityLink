@@ -395,12 +395,15 @@ class EphemeralHarness:
 
     def _await_timer_withdrawal(self) -> None:
         """Wait, producer socket still open, for the host timer to drop the lease (bounded)."""
-        assert self.control is not None
+        assert self._boot is not None
         deadline = time.monotonic() + self.cleanup_bound
         while time.monotonic() < deadline:
-            if not self.control.status()["lease_held"]:
+            # Read only the timer-owned counter here. Calling control.status() can ask the
+            # model host to expire lazily and would make this test pass without the watchdog.
+            if self._boot.service.watchdog_enforcements > 0:
                 return
             time.sleep(POLL_SECONDS)
+        raise HarnessStateError("host timer did not enforce producer expiry within the cleanup bound")
 
     def _lose_control_connection(self) -> None:
         assert self.control is not None
