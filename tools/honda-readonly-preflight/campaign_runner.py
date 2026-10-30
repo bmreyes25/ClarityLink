@@ -495,12 +495,21 @@ def _read_owner_input(prompt: str, *, deadline_monotonic: float | None = None) -
     return answer.rstrip("\r\n")
 
 
-def _stop_on_signal(signum: int, _frame: object) -> None:
-    try:
-        name = signal.Signals(signum).name
-    except ValueError:
-        name = str(signum)
-    raise SafetyStop(f"received {name}; stop and preserve the incomplete campaign")
+def _make_stop_signal_handler() -> Callable[[int, object], None]:
+    stopping = False
+
+    def handle(signum: int, _frame: object) -> None:
+        nonlocal stopping
+        if stopping:
+            return
+        stopping = True
+        try:
+            name = signal.Signals(signum).name
+        except ValueError:
+            name = str(signum)
+        raise SafetyStop(f"received {name}; stop and preserve the incomplete campaign")
+
+    return handle
 
 
 def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_hash: str,
@@ -992,6 +1001,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     previous_umask: int | None = None
     previous_handlers: dict[int, object] = {}
+    stop_signal_handler = _make_stop_signal_handler()
     try:
         if args.command == "dry-run":
             return _print_dry_run()
@@ -1007,7 +1017,7 @@ def main(argv: list[str] | None = None) -> int:
                                              source_hashes_verified=verified_sources)
         verify_effective_policy(approval["policy_effective_commit_sha"], approval["reviewed_commit_sha"])
         for signum in (signal.SIGTERM, signal.SIGHUP):
-            previous_handlers[signum] = signal.signal(signum, _stop_on_signal)
+            previous_handlers[signum] = signal.signal(signum, stop_signal_handler)
         output_root = _path_outside_repo(args.output_root, "private capture root")
         if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
             raise SafetyStop("private capture root must be a real directory")

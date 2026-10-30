@@ -155,8 +155,11 @@ def test_owner_prompt_rejects_noninteractive_input(monkeypatch):
 
 
 def test_termination_signal_uses_campaign_stop_path():
+    handler = campaign._make_stop_signal_handler()
     with pytest.raises(collector.SafetyStop, match="SIGTERM"):
-        campaign._stop_on_signal(campaign.signal.SIGTERM, None)
+        handler(campaign.signal.SIGTERM, None)
+    # Repeated termination signals during failure-card finalization are ignored.
+    assert handler(campaign.signal.SIGHUP, None) is None
 
 
 def test_profile_manifest_is_exact_and_all_operations_use_fixed_legacy_shell():
@@ -720,6 +723,23 @@ def _campaign(tmp_path: Path, **kwargs):
     runner = campaign.Campaign(fake, output, "a" * 64, {"source.py": "b" * 64}, "SYNTHETIC",
                                input_fn=lambda _: "YES", output_fn=lambda _: None)
     return runner, fake, output
+
+
+def test_phase1_keeps_shell_identity_check_in_live_campaign_gate(tmp_path):
+    output = tmp_path / "private-capture"
+    output.mkdir(mode=0o700)
+    class BadShellIdentityCapture(FakeCapture):
+        def store_required(self, phase, category, name, operation, *args, **kwargs):
+            self.calls.append(("required", phase, operation, args))
+            if operation == "id":
+                return 0, b"uid=1000(system) gid=1000(system)\n"
+            return 0, b"0\n"
+    fake = BadShellIdentityCapture(output)
+    runner = campaign.Campaign(fake, output, "a" * 64, {"source.py": "b" * 64}, "SYNTHETIC",
+                               input_fn=lambda _: "YES", output_fn=lambda _: None)
+    assert runner.run() is False
+    assert not [call for call in fake.calls if call[0] == "collect"]
+    assert json.loads((output / "failure_card.json").read_text())["phase"] == "phase1_identity"
 
 
 def test_controller_orders_phases_and_writes_complete_hash_verified_manifest(tmp_path):

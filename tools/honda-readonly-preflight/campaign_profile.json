@@ -1556,7 +1556,7 @@
   "policy_documents_sha256": {
     "AGENTS.md": "1004cab81b9ee4e487017f885cc90df8097472d81f2786f05b5ac709f5638256",
     "docs/safety/vehicle-testing.md": "54a4d26e3823f455a09d6dafba0137d8f3a77010edce3fa86619c6d19814ed93",
-    "docs/security/single-owner-cp-review-policy.md": "fd7067f3f6f60ae7b9e47ceb7ad63bf053cbb6966e4ad0ead083cc7ecc113a5e",
+    "docs/security/single-owner-cp-review-policy.md": "5c2ce1d3f5140a7fad22dfa789d9641503e546d4a6aadec027c34cb7fe20c36a",
     "docs/security/vehicle-safety-gates.md": "c83dfb3eb2fa5b2c1d31067652bf40aa8356143abcc23255e35c2f0ed4bbe696"
   },
   "privacy": {
@@ -1596,7 +1596,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "975a5304da387f6d5af756c2233fd561e09976777bc590537326d224097d301e",
+  "source_lock_sha256": "3f9704f15d3e022bcdd1f2d3c16e7dd1b03dfb50037eb7aa4fba0e6dc79feb0f",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",
