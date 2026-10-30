@@ -1312,7 +1312,8 @@
         "identity/",
         "display/",
         "logs/",
-        "owner_observation.json"
+        "owner_observation_pre_capture.json",
+        "owner_observation_post_capture.json"
       ],
       "attestations": [
         "Vehicle remains stationary in Park",
@@ -1549,7 +1550,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "6a0d4e3c1cf014b626d101641f34438aa164662962cd7cf9768718cb09d1d3a9",
+  "source_lock_sha256": "129b20b2a7ce062c0d2017e86ae3ec5311ba4194f61dfe5b983d5da7bb66c92e",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",

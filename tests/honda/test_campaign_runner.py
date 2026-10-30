@@ -630,8 +630,13 @@ def test_final_restoration_is_attested_after_last_observation(tmp_path):
     fake.collect_campaign_observation = collect
     runner.input = lambda prompt: events.append(f"prompt:{'Final restoration' if prompt.startswith('Final restoration') else 'other'}") or "YES"
     assert runner.run() is True
-    assert events.index("collect:final_restoration") < max(
-        index for index, event in enumerate(events) if event == "prompt:Final restoration")
+    collect_index = events.index("collect:final_restoration")
+    prompt_indexes = [index for index, event in enumerate(events)
+                      if event == "prompt:Final restoration"]
+    assert len(prompt_indexes) == 2 * len(campaign._phase_attestations(campaign.phases()[-1]))
+    assert prompt_indexes[0] < collect_index < prompt_indexes[-1]
+    assert runner.owner_observations["final_restoration_pre_capture"]["affirmed"] is True
+    assert runner.owner_observations["final_restoration"]["affirmed"] is True
 
 
 @pytest.mark.parametrize(("fail_phase", "restart_phase"), [

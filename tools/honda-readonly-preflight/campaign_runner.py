@@ -161,7 +161,8 @@ def phases() -> tuple[Phase, ...]:
               ("iPhone is disconnected normally", "Stock display and audio remain normal")),
         Phase("final_restoration", "Final restoration", "Confirm stock center display, cluster, Navigation and audio are normal; no campaign command remains active. The host ADB server may remain running.",
               "Owner confirms no campaign command/client remains active; a shared host ADB server may remain. jmcs remains the same process instance.", observation,
-              ("identity/", "display/", "logs/", "owner_observation.json"),
+              ("identity/", "display/", "logs/", "owner_observation_pre_capture.json",
+               "owner_observation_post_capture.json"),
               ("Center display is normal", "Instrument cluster is normal", "Factory Navigation is normal",
                "Audio is normal", "No campaign command/client remains active; a shared host ADB server may remain")),
     )
@@ -717,8 +718,9 @@ class Campaign:
                  "updated_utc": datetime.now(timezone.utc).isoformat()}
         _atomic_json(self.state_path, state)
 
-    def _write_owner_observation(self, phase: Phase, observation: dict[str, object]) -> None:
-        path = self.output / phase.key / "owner_observation.json"
+    def _write_owner_observation(self, phase: Phase, observation: dict[str, object],
+                                 filename: str = "owner_observation.json") -> None:
+        path = self.output / phase.key / filename
         _atomic_json(path, observation)
         relative = path.relative_to(self.output).as_posix()
         row = {"path": relative, "size": path.stat().st_size,
@@ -727,7 +729,10 @@ class Campaign:
         self.capture.files = [item for item in self.capture.files if item.get("path") != relative]
         self.capture.files.append(row)
 
-    def _attest(self, phase: Phase, *, after_capture: bool = False) -> None:
+    def _attest(self, phase: Phase, *, after_capture: bool = False,
+                observation_key: str | None = None,
+                filename: str = "owner_observation.json") -> None:
+        observation_key = observation_key or phase.key
         if not after_capture:
             self.current_phase = phase.key
             self.phase_order.append(phase.key)
@@ -739,17 +744,18 @@ class Campaign:
                                 "Type YES only if true; otherwise type NO: ").strip().upper()
             answers[check] = answer == "YES"
             if answer != "YES":
-                self.owner_observations[phase.key] = {
+                self.owner_observations[observation_key] = {
                     "affirmed": False, "attestations": answers,
                     "observed_utc": datetime.now(timezone.utc).isoformat(),
                     "result": "aborted_owner_did_not_confirm"}
-                self._write_owner_observation(phase, self.owner_observations[phase.key])
+                self._write_owner_observation(phase, self.owner_observations[observation_key], filename)
                 raise SafetyStop("owner did not affirm every required physical-state check")
-        self.owner_observations[phase.key] = {"affirmed": True, "attestations": answers,
-                                              "observed_utc": datetime.now(timezone.utc).isoformat()}
-        self.capture.phase_times.setdefault(phase.key, {})["owner_attested_utc"] = \
-            self.owner_observations[phase.key]["observed_utc"]
-        self._write_owner_observation(phase, self.owner_observations[phase.key])
+        self.owner_observations[observation_key] = {"affirmed": True, "attestations": answers,
+                                                    "observed_utc": datetime.now(timezone.utc).isoformat()}
+        time_key = "owner_attested_after_capture_utc" if after_capture else "owner_attested_before_capture_utc"
+        self.capture.phase_times.setdefault(phase.key, {})[time_key] = \
+            self.owner_observations[observation_key]["observed_utc"]
+        self._write_owner_observation(phase, self.owner_observations[observation_key], filename)
         self._checkpoint("phase_attested")
 
     def run(self) -> bool:
@@ -775,10 +781,8 @@ class Campaign:
                     manifest_reader.begin_phase(phase)
                 is_final_restoration = phase.key == "final_restoration"
                 if is_final_restoration:
-                    self.current_phase = phase.key
-                    self.phase_order.append(phase.key)
-                    self.capture.phase_times.setdefault(phase.key, {})["started_utc"] = datetime.now(timezone.utc).isoformat()
-                    self._checkpoint("phase_started")
+                    self._attest(phase, observation_key="final_restoration_pre_capture",
+                                 filename="owner_observation_pre_capture.json")
                 else:
                     self._attest(phase)
                 if phase.key == "phase1_identity":
@@ -803,7 +807,8 @@ class Campaign:
                 if manifest_reader:
                     manifest_reader.assert_phase_complete()
                 if is_final_restoration:
-                    self._attest(phase, after_capture=True)
+                    self._attest(phase, after_capture=True, observation_key="final_restoration",
+                                 filename="owner_observation_post_capture.json")
                 self.completed.append(phase.key)
                 self.capture.phase_times[phase.key]["finished_utc"] = datetime.now(timezone.utc).isoformat()
                 self._checkpoint("phase_complete")
@@ -816,7 +821,10 @@ class Campaign:
                       "source_hashes": self.source_hashes,
                       "expected_phases": [phase.key for phase in phase_rows],
                       "completed_phases": self.completed,
-                      "owner_restoration_attestations": self.owner_observations.get("final_restoration", {}),
+                      "owner_restoration_attestations": {
+                          "before_final_observation": self.owner_observations.get("final_restoration_pre_capture", {}),
+                          "after_final_observation": self.owner_observations.get("final_restoration", {}),
+                      },
                       "capture_hashes_verified": True,
                       "created_utc": datetime.now(timezone.utc).isoformat()}
             report_path = self.output / "completeness_report.json"
