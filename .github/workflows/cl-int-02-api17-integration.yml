@@ -17,6 +17,11 @@ on:
       - 'tools/run_cl_r12_api17_ci.sh'
       - 'tools/run_cl_int_02_api17_ci.sh'
       - 'tools/check_cl_r12_perf_gate.py'
+      - 'tools/build_cl_r12_renderer_ab.sh'
+      - 'tools/build_cl_honda_111_pane_test_apk.sh'
+      - 'tools/build_cl_int_04_host_test_apk.sh'
+      - 'android/cl-honda-111-pane-test/**'
+      - 'android/cl-int-04-host-withdrawal-test/**'
       - 'tests/display/test_cl_int_02_performance_contract.py'
 
 permissions:
@@ -30,29 +35,30 @@ jobs:
   combined-api17-runtime:
     name: Combined Android 4.2.2 API 17 x86 integration
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       ANDROID_HOME: ${{ github.workspace }}/.ci-android-sdk
       ANDROID_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
       CL_FACTORY_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
       CL_IMP_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
       CL_FACTORY_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r13-factory-03-int02-${{ github.run_id }}
-      CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-r12-candidate-${{ github.run_id }}
+      CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-int-02-candidate-${{ github.run_id }}
+      CL_R12_AB_REPEATS: '3'
       CL_R12_RECEIPT_DIR: ${{ github.workspace }}/build/cl-int-02-api17-receipt/r12
     steps:
       - name: Check out exact source and base history
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Install fixed Java toolchain
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # setup-java v4
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # setup-java v6.1.0
         with:
           distribution: temurin
           java-version: '17.0.12+7'
 
       - name: Install Android SDK command line tools
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           packages: platform-tools
 
@@ -81,37 +87,64 @@ jobs:
           fi
           test -f "$ANDROID_HOME/platforms/android-17/android.jar"
 
-      - name: Build structured navigation and performance baseline/candidate APKs
+      - name: Build structured navigation, renderer A/B pair, and instrumentation APKs
         shell: bash
         run: |
           set -euo pipefail
           java_home="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
-          export JAVA_HOME
+          export JAVA_HOME="$java_home"
           mkdir -p build
           tools/build_cl_factory_03_api17_apk.sh
-          source_file='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
-          baseline_ref="$(git merge-base HEAD origin/main)"
-          test -n "$baseline_ref"
-          cp "$source_file" "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java"
-          restore_source() { cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java" "$source_file"; }
-          trap restore_source EXIT
-          git show "$baseline_ref:$source_file" > "$source_file"
-          baseline_dir="$GITHUB_WORKSPACE/build/cl-r12-baseline-$GITHUB_RUN_ID"
-          CL_IMP_03_BUILD_DIR="$baseline_dir" tools/build_cl_imp_03_apks.sh | tee baseline-build.txt
-          cp "$baseline_dir/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-int-02-baseline.apk"
-          cp "$RUNNER_TEMP/MessengerFramePerformanceActivity.candidate.java" "$source_file"
-          candidate_dir="$GITHUB_WORKSPACE/build/cl-r12-candidate-$GITHUB_RUN_ID"
-          CL_IMP_03_BUILD_DIR="$candidate_dir" CL_IMP_03_KEYSTORE="$baseline_dir/cl-imp-03-debug.keystore" \
-            tools/build_cl_imp_03_apks.sh | tee candidate-build.txt
-          trap - EXIT
-          cp "$candidate_dir/claritylink-display-lab.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk"
-          cmp -s "$RUNNER_TEMP/cl-int-02-baseline.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk" && {
-            echo 'Baseline and candidate APKs are byte-identical.' >&2; exit 9;
-          }
-          echo "CL_R12_BASELINE_APK=$RUNNER_TEMP/cl-int-02-baseline.apk" >> "$GITHUB_ENV"
-          echo "CL_R12_CANDIDATE_APK=$RUNNER_TEMP/cl-int-02-candidate.apk" >> "$GITHUB_ENV"
-          sha256sum "$RUNNER_TEMP/cl-int-02-baseline.apk" "$RUNNER_TEMP/cl-int-02-candidate.apk" | tee apk-fingerprints.txt
+          git fetch --no-tags origin main
+          # Fixed pre-optimization mainline reference from immediately before PR #116.
+          # Its failing result is an informational control; every candidate repetition and soak must pass.
+          baseline_ref='7181be10945061006b92505afa1582af86b116fa'
+          git cat-file -e "$baseline_ref^{commit}"
+          git merge-base --is-ancestor "$baseline_ref" HEAD
+          ab_dir="$GITHUB_WORKSPACE/build/cl-int-02-ab-$GITHUB_RUN_ID"
+          tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          {
+            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+            echo "tested_merge_commit=$(git rev-parse HEAD)"
+            cat "$ab_dir/ab-identity.txt"
+          } | tee source-ab.sha256
+          echo "CL_R12_BASELINE_APK=$ab_dir/baseline.apk" >> "$GITHUB_ENV"
+          echo "CL_R12_CANDIDATE_APK=$ab_dir/candidate.apk" >> "$GITHUB_ENV"
+          mkdir -p "$CL_IMP_03_BUILD_DIR"
+          cp "$ab_dir/candidate.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
+          sha256sum "$ab_dir/baseline.apk" "$ab_dir/candidate.apk" | tee apk-fingerprints.txt
+          pane_dir="$GITHUB_WORKSPACE/build/cl-pane-test-$GITHUB_RUN_ID"
+          tools/build_cl_honda_111_pane_test_apk.sh "$pane_dir" | tee -a build-output.txt
+          echo "CL_PANE_LEASE_TEST_APK=$pane_dir/claritylink-pane-lease-test.apk" >> "$GITHUB_ENV"
+          host_dir="$GITHUB_WORKSPACE/build/cl-int-04-host-test-$GITHUB_RUN_ID"
+          tools/build_cl_int_04_host_test_apk.sh "$host_dir" | tee -a build-output.txt
+          echo "CL_INT_04_HOST_TEST_APK=$host_dir/claritylink-host-withdrawal-test.apk" >> "$GITHUB_ENV"
+
+      - name: Verify the classes inside the built DEX (not the source list)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dexdump="$ANDROID_HOME/build-tools/35.0.0/dexdump"
+          test -x "$dexdump"
+          src="$(git rev-parse HEAD)"
+          lab=(--require org.claritylink.renderer.PaneEvent --require org.claritylink.renderer.PaneLease
+               --require org.claritylink.renderer.Display1OutputBackend --require org.claritylink.renderer.ClarityLinkContentView
+               --require org.claritylink.renderer.DecodedFrame
+               --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
+               --require org.claritylink.android.MessengerFrameParcel
+               --require-method org.claritylink.android.SyntheticFrameFill#fill
+               --require-method org.claritylink.android.MessengerFrameParcel#read
+               --require-method org.claritylink.renderer.ClarityLinkContentView#useSharedConverter)
+          {
+            echo "tested_merge_commit=$src"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_CANDIDATE_APK" --dexdump "$dexdump" --label candidate-lab --source-commit "$src" "${lab[@]}"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_PANE_LEASE_TEST_APK" --dexdump "$dexdump" --label pane-lease-test --source-commit "$src" \
+              --require org.claritylink.renderer.Display1PaneLeaseLifecycleTest --require org.claritylink.renderer.PaneLeaseFdLifecycleTest \
+              --require org.claritylink.android.SyntheticFrameFillTest
+            python3 -I tools/verify_apk_dex_classes.py --apk "$CL_INT_04_HOST_TEST_APK" --dexdump "$dexdump" --label host-withdrawal-test --source-commit "$src" \
+              --require org.claritylink.renderer.Display1HostExpiryTest --require org.claritylink.renderer.ProducerDeathService
+          } | tee dex-verification.txt
 
       - name: Enable KVM
         run: |
@@ -125,7 +158,8 @@ jobs:
           test -r /dev/kvm && test -w /dev/kvm
 
       - name: Run both synthetic applications on one API 17 emulator
-        uses: reactivecircus/android-emulator-runner@324029e2f414c084d8b15ba075288885e74aef9c # v2.34.0
+        id: runtime
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
         with:
           api-level: 17
           system-image-api-level: 17
@@ -142,9 +176,11 @@ jobs:
           script: tools/run_cl_int_02_api17_ci.sh
 
       - name: Verify active Type110 continuity across Type111 view restarts
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p build/cl-int-02-api17-receipt
           legacy_sdk="$RUNNER_TEMP/cl-int-02-legacy-sdk"
           mkdir -p "$legacy_sdk/.emulator-intel" "$RUNNER_TEMP/cl-int-02-bin"
           cp -a "$ANDROID_HOME/emulator" "$legacy_sdk/.emulator-intel/emulator"
@@ -180,25 +216,37 @@ jobs:
             build/cl-int-02-api17-receipt/type110-continuity.txt
           echo "CL_INT_02_TYPE110_CONTINUITY_PASS runner_exit=${runner_status:-0} full_legacy_suite_pass=$([[ ${runner_status:-0} -eq 0 ]] && echo true || echo false)"
 
-      - name: Enforce baseline, candidate, and soak performance gates
+      - name: Enforce candidate and soak performance gates
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/check_cl_r12_perf_gate.py build/cl-int-02-api17-receipt/r12/perf-baseline-logcat.txt
-          python3 tools/check_cl_r12_perf_gate.py build/cl-int-02-api17-receipt/r12/perf-optimized-logcat.txt
-          python3 tools/check_cl_r12_perf_gate.py build/cl-int-02-api17-receipt/r12/perf-optimized-soak-logcat.txt
+          receipt=build/cl-int-02-api17-receipt/r12
+          # The baseline arm is the control for the renderer A/B and is reported, not required.
+          for ((i = 1; i <= CL_R12_AB_REPEATS; i++)); do
+            suffix=""; (( i > 1 )) && suffix="-r$i"
+            python3 tools/check_cl_r12_perf_gate.py "$receipt/perf-baseline$suffix-logcat.txt" \
+              || echo "CL_INT_02_BASELINE_CONTROL_GATE_RUN_$i=FAIL (informational)"
+          done
+          for ((i = 1; i <= CL_R12_AB_REPEATS; i++)); do
+            suffix=""; (( i > 1 )) && suffix="-r$i"
+            python3 tools/check_cl_r12_perf_gate.py "$receipt/perf-optimized$suffix-logcat.txt"
+          done
+          python3 tools/check_cl_r12_perf_gate.py "$receipt/perf-optimized-soak-logcat.txt"
           grep -q 'CL_INT_02_API17_FUNCTIONAL_PASS' build/cl-int-02-api17-receipt/final-status.txt
+          grep -Fq 'CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS' build/cl-int-02-api17-receipt/type110-continuity.txt
           echo 'CL_INT_02_API17_ACCEPTANCE_PASS' >> build/cl-int-02-api17-receipt/final-status.txt
 
       - name: Upload bounded API 17 integration receipt
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cl-int-02-api17-${{ github.run_id }}
           path: |
             sdk-package-query.txt
-            baseline-build.txt
-            candidate-build.txt
+            build-output.txt
+            source-ab.sha256
+            dex-verification.txt
             apk-fingerprints.txt
             build/cl-int-02-api17-receipt/
           if-no-files-found: ignore

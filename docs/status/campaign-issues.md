@@ -11,6 +11,6 @@ Canonical GitHub issues for all ten planned campaigns. Each issue contains its p
 | CL-REC-01 | [#59](https://github.com/bmreyes25/ClarityLink/issues/59) | Separately authorized Type111 bench | BLOCKED pending separate scope/approval |
 | CL-IF-01 | [#60](https://github.com/bmreyes25/ClarityLink/issues/60) | Honda receiver and display contract gate | BLOCKED / critical path |
 | CL-OBS-01 | [#61](https://github.com/bmreyes25/ClarityLink/issues/61) | Gated read-only observations | BLOCKED / not authorized |
-| CL-INT-01 | [#62](https://github.com/bmreyes25/ClarityLink/issues/62) | Final integration implementation | BLOCKED on contract and safety gates |
+| CL-INT-01 | [#62](https://github.com/bmreyes25/ClarityLink/issues/62) | Final integration umbrella; CL-INT-04 autonomous withdrawal is the next offline/API17 stage | Offline CL-INT-04 next; Honda integration remains blocked on contracts and safety gates |
 | CL-VT-01 | [#63](https://github.com/bmreyes25/ClarityLink/issues/63) | Future vehicle acceptance | NOT AUTHORIZED |
 | CL-REL-01 | [#64](https://github.com/bmreyes25/ClarityLink/issues/64) | Alternative-architecture decision | NOT STARTED; conditional |

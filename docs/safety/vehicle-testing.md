@@ -1,6 +1,38 @@
 # Vehicle testing and safety boundaries
 
-ClarityLink is an offline-first research project. Vehicle work must have a separate, explicit scope and review; this guide does not authorize a test or provide instructions to bypass a safety mechanism.
+ClarityLink is an offline-first research project. The owner authorizes the offline activities below, including carefully scoped modification prototypes where technically needed for simultaneous secondary Type111 navigation. That authorization is not permission to install, connect to, or test on a Honda. `safeForHonda()` remains `false`.
+
+## Activity levels
+
+- **A — permitted offline:** factory APK/native-binary research; decompiled-code analysis; receiver architecture research; offline adapter and reversible modification prototypes; synthetic receiver/cluster simulation; Android API17 emulator tests; disconnect/recovery regression tests; and bench-only experiments on separately approved equipment.
+- **B — offline prototype plus technical design review:** runtime hooks into factory receiver components; integrator delegate changes; display ownership/rendering changes; inter-process video delivery; in-memory receiver extensions; binary modification proposals; and custom receiver lifecycle handling. Apply safety and security review before any vehicle consideration.
+- **C — separate explicit owner authorization and qualified safety review required:** Honda installation; live Honda ADB; factory software replacement; persistent head-unit changes; instrument-cluster modifications; vehicle-side display experiments; connected-iPhone integration; or any operation that could affect factory display behavior.
+- **D — prohibited:** CAN/control-message experiments; suppressing/intercepting safety warnings; braking, steering, airbag, or safety-critical ECU changes; unreviewed cluster firmware flashing; unrecoverable writes; authentication-secret extraction/disclosure; testing while driving; automatic deployment; or bypassing review/safety gates.
+
+Levels A/B do not grant Level C/D permission. Missing OEM authorization remains missing; private technical reachability is not OEM endorsement.
+
+## Disconnect invariant and acceptance criteria
+
+Required design target: `CARPLAY_DISCONNECTED => FACTORY_BEHAVIOR_ONLY`. It has not been demonstrated as a whole. Define and measure acceptance against a captured synthetic baseline and run each applicable disconnect/failure case through repeated cycles. After disconnect, verify:
+
+1. No secondary navigation content or stale decoded frames remain.
+2. No project-owned display views remain attached.
+3. No audio routing, session, or ownership state remains attributable to ClarityLink.
+4. Factory Navigation returns to its baseline behavior without ClarityLink interference.
+5. Cluster controls remain responsive and unblocked.
+6. Factory warning displays retain priority and are never suppressed or intercepted.
+7. No ClarityLink UI or persistent display state remains.
+8. Factory receiver behavior remains at baseline after disconnect.
+9. With no iPhone connected, boot and normal factory operation do not depend on ClarityLink.
+10. During connected operation, Display 0, audio, calls, Siri, and primary CarPlay functions remain at baseline; Display 1 carries navigation only in the appropriate factory Navigation context, subject to warning priority.
+
+Exercise USB disconnection, unexpected iPhone disconnect, Type111 stream termination, CarPlay authentication failure, receiver-process crash, decoder crash, display-host restart, startup without an iPhone, normal power cycle, repeated connect/disconnect cycles, and incomplete initialization. Each case must reach the ten postconditions above within a declared cleanup bound, with zero residual project-owned frames/views/sessions and a recorded before/after baseline comparison. Missing or unobservable evidence is a failure or unresolved result, not a pass.
+
+These checks require explicit observable signals, bounded cleanup times, zero residual project-owned frames/views/sessions, and baseline comparison. A clean disconnect case is not proof for untested failures or target behavior. Existing `tests/integration/test_synthetic_type111_replay.py` checks a synthetic Type111 teardown, mock renderer release, and Type110/audio preservation; it does not establish the full disconnect invariant or Honda behavior. Add offline regression coverage only where the existing simulation can represent a condition without inventing Honda behavior.
+
+## Reversibility contract
+
+Before any vehicle deployment proposal, identify exact original firmware/component versions and SHA-256 fingerprints; produce complete verified backups; demonstrate restoration using a recovery mechanism independent of the modified component; define containment, compatibility, abort conditions, and post-restore verification; and test rollback on non-vehicle equipment. A backup alone is not recoverability. Require independent safety review before vehicle deployment. If a path modifies safety-critical cluster firmware without a verified independent recovery mechanism, it is blocked for vehicle deployment.
 
 ## Evidence and authorization gate
 
@@ -17,6 +49,7 @@ ClarityLink is an offline-first research project. Vehicle work must have a separ
 - No startup persistence unless a separate milestone reviews and authorizes it.
 - Preserve the factory Type110 path and center display; a project-owned secondary path must fail closed and clean up only its own resources.
 - Any modifying work needs an exact rollback plan and an independent restoration check. A modeled rollback is not vehicle restoration evidence.
+- No vehicle installation or experiment is authorized by this document; Level C requires its own explicit approval and review.
 
 ## Private evidence
 

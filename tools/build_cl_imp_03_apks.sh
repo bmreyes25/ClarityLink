@@ -47,6 +47,7 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/src/main/java/org/claritylink/android/Api17SurfaceH264Decoder.java" \
   "$repo/android/src/main/java/org/claritylink/android/Api17BufferH264Decoder.java" \
   "$repo/android/src/main/java/org/claritylink/android/Yuv420FrameAdapter.java" \
+  "$repo/android/src/main/java/org/claritylink/android/SyntheticFrameFill.java" \
   "$repo/android/src/main/java/org/claritylink/android/HostedContentLifecycle.java" \
   "$repo/android/src/main/java/org/claritylink/android/ProcessLifecycleAdapter.java" \
   "$repo/android/src/main/java/org/claritylink/android/HondaStyleHostModel.java" \
@@ -81,6 +82,8 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/src/claritylink-renderer/android-api17/DiagnosticFrameSource.java" \
   "$repo/src/claritylink-renderer/android-api17/ClarityLinkContentView.java" \
   "$repo/src/claritylink-renderer/android-api17/RendererViewport.java" \
+  "$repo/src/claritylink-renderer/android-api17/PaneEvent.java" \
+  "$repo/src/claritylink-renderer/android-api17/PaneLease.java" \
   "$repo/src/claritylink-renderer/android-api17/FrameBackpressureGate.java" \
   "$repo/src/claritylink-renderer/android-api17/SimulatedExternalDisplayCompositor.java" \
   "$repo/src/claritylink-renderer/android-api17/Display1OutputBackend.java" \

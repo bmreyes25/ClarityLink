@@ -2,7 +2,6 @@ package org.claritylink.renderer;
 
 import java.nio.ByteBuffer;
 import android.graphics.Rect;
-import java.nio.ByteOrder;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -10,6 +9,7 @@ import java.io.OutputStream;
 public final class DecodedFrame {
     /** Bounds each owned CPU frame to 4 MiB, including row padding. */
     public static final int MAX_RGBA_BYTES = 4 * 1024 * 1024;
+    private static final int WRITE_CHUNK_BYTES = 8192;
     public final int width;
     public final int height;
     public final int rowStride;
@@ -19,7 +19,8 @@ public final class DecodedFrame {
     public final int cropTop;
     public final int cropRight;
     public final int cropBottom;
-    private final ByteBuffer rgba;
+    /** Owned tightly-bounded snapshot; never exposed, so the frame stays immutable. */
+    private final byte[] pixels;
 
     public DecodedFrame(int width, int height, int rowStride, long presentationTimeNs,
             int rotationDegrees, int cropLeft, int cropTop, int cropRight, int cropBottom,
@@ -54,22 +55,21 @@ public final class DecodedFrame {
         this.cropBottom = cropBottom;
         ByteBuffer source = rgba.slice();
         source.limit((int) frameBytes);
-        ByteBuffer owned = ByteBuffer.allocate((int) frameBytes).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer owned = ByteBuffer.allocate((int) frameBytes);
         owned.put(source);
-        owned.flip();
-        this.rgba = owned.asReadOnlyBuffer();
+        // The backing array of the private heap copy: no further copy, and it is never exposed.
+        this.pixels = owned.array();
     }
 
     public int byteSize() { return rowStride * height; }
 
-    /** Streams the owned RGBA snapshot without allocating a second frame-sized array. */
+    /** Streams the owned RGBA snapshot in bounded chunks without exposing its backing array. */
     public void writeRgbaTo(OutputStream output) throws IOException {
         if (output == null) throw new IllegalArgumentException("output required");
-        ByteBuffer source = rgba.duplicate();
-        byte[] chunk = new byte[8192];
-        while (source.hasRemaining()) {
-            int count = Math.min(source.remaining(), chunk.length);
-            source.get(chunk, 0, count);
+        byte[] chunk = new byte[WRITE_CHUNK_BYTES];
+        for (int offset = 0; offset < pixels.length; offset += WRITE_CHUNK_BYTES) {
+            int count = Math.min(WRITE_CHUNK_BYTES, pixels.length - offset);
+            System.arraycopy(pixels, offset, chunk, 0, count);
             output.write(chunk, 0, count);
         }
     }
@@ -78,17 +78,28 @@ public final class DecodedFrame {
 
     int[] toArgbPixels() {
         int[] out = new int[width * height];
-        ByteBuffer in = rgba.duplicate();
+        toArgbPixels(out);
+        return out;
+    }
+
+    /**
+     * Converts into a caller-owned array of at least width*height ints so a converter thread can reuse
+     * one array across frames. Indexing the owned byte[] directly avoids four ByteBuffer.get() calls per
+     * pixel. Entries past width*height are left untouched and row padding is skipped.
+     */
+    void toArgbPixels(int[] out) {
+        if (out == null || out.length < width * height)
+            throw new IllegalArgumentException("pixel buffer too small");
+        final byte[] in = pixels;
+        int target = 0;
         for (int y = 0; y < height; y++) {
-            in.position(y * rowStride);
-            for (int x = 0; x < width; x++) {
-                int red = in.get() & 255;
-                int green = in.get() & 255;
-                int blue = in.get() & 255;
-                int alpha = in.get() & 255;
-                out[y * width + x] = (alpha << 24) | (red << 16) | (green << 8) | blue;
+            int source = y * rowStride;
+            final int rowEnd = source + width * 4;
+            while (source < rowEnd) {
+                out[target++] = ((in[source + 3] & 255) << 24) | ((in[source] & 255) << 16)
+                        | ((in[source + 1] & 255) << 8) | (in[source + 2] & 255);
+                source += 4;
             }
         }
-        return out;
     }
 }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -13,6 +14,7 @@ REPO = "bmreyes25/ClarityLink"
 REMOTE = "https://github.com/bmreyes25/ClarityLink.git"
 FORBIDDEN_SUFFIXES = {".apk", ".dex", ".odex", ".so", ".img", ".bin", ".tar", ".gz", ".zip", ".pcap", ".pcapng", ".dump", ".raw", ".keystore", ".jks", ".p12", ".pem", ".key", ".mp4", ".mov"}
 RESTRICTED_PATH_PARTS = {"captures", "private-captures", "acquisition", "extracted", "decompiled", "decompiled-clean", "deodexed", "firmware", "vendor-dumps", "raw-evidence", "evidence"}
+RESTRICTED_PATH_ROOTS = {("research", "vehicle"), ("research", "honda"), ("research", "private")}
 SHARED_STATUS_PATHS = {"NEXT_ACTION.md", "docs/status/current.md", "docs/status/milestones.json", "docs/status/blockers.md", "docs/status/capabilities.md"}
 SECRET_PATTERNS = [re.compile(x, re.I) for x in (
     r"gh[pousr]_[A-Za-z0-9_]{20,}", r"github_pat_[A-Za-z0-9_]{20,}",
@@ -35,6 +37,15 @@ class PushRejected(Failure):
 
 class AuthenticationFailure(Failure):
     pass
+
+
+def restricted_path(path: str | Path) -> bool:
+    parts = tuple(part.lower() for part in Path(path).parts)
+    return any(part in RESTRICTED_PATH_PARTS for part in parts) or any(
+        parts[index:index + len(root)] == root
+        for root in RESTRICTED_PATH_ROOTS
+        for index in range(len(parts) - len(root) + 1)
+    )
 
 
 def git(root: Path, *args: str, check: bool = True, timeout: int = 30) -> str:
@@ -60,9 +71,9 @@ def safe_scope(root: Path, files: list[str]) -> list[str]:
             raise Failure(f"scoped file does not exist: {value}")
         if full.exists() and full.is_dir():
             raise Failure(f"directories are not accepted; enumerate files explicitly: {value}")
-        if full.suffix.lower() in FORBIDDEN_SUFFIXES or any(part.lower() in RESTRICTED_PATH_PARTS for part in path.parts):
+        if full.suffix.lower() in FORBIDDEN_SUFFIXES or restricted_path(path):
             raise UnsafeContent(f"blocked artifact or restricted path: {value}")
-        ignored = subprocess.run(["git", "-C", str(root), "check-ignore", "-q", "--", value]).returncode == 0
+        ignored = subprocess.run(["git", "-C", str(root), "check-ignore", "--no-index", "-q", "--", value]).returncode == 0
         if ignored:
             raise UnsafeContent(f"scoped file is ignored by Git: {value}")
         normalized.append(path.as_posix())
@@ -79,7 +90,7 @@ def scan_staged(root: Path) -> None:
     for name in names:
         if Path(name).suffix.lower() in FORBIDDEN_SUFFIXES:
             raise UnsafeContent(f"blocked binary or sensitive artifact: {name}")
-        if any(part.lower() in RESTRICTED_PATH_PARTS for part in Path(name).parts):
+        if restricted_path(name):
             raise UnsafeContent(f"restricted path blocked: {name}")
         if name in deleted:
             continue
@@ -149,6 +160,43 @@ def reject_staged_outside_scope(root: Path, scope: list[str]) -> None:
         raise Failure("unrelated files were already staged; preserve them and publish only after resolving the index: " + ", ".join(outside))
 
 
+def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, label: str) -> dict:
+    """Read back a just-pushed PR head, tolerating brief GitHub API propagation delay."""
+    attempts = 5
+    last_error = ""
+    for attempt in range(attempts):
+        try:
+            result = subprocess.run(command, text=True, capture_output=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            last_error = "GitHub CLI read timed out after 10 seconds"
+        else:
+            if result.returncode:
+                last_error = (result.stderr or result.stdout).strip()
+            else:
+                import json
+                try:
+                    data = json.loads(result.stdout)
+                except (TypeError, ValueError) as exc:
+                    last_error = f"GitHub CLI returned invalid JSON: {exc}"
+                else:
+                    if not isinstance(data, dict):
+                        last_error = "GitHub CLI returned a non-object PR response"
+                    elif data.get("headRefName") != branch:
+                        raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
+                    elif data.get("baseRefName") != "main" or data.get("state") != "OPEN":
+                        raise Failure(f"{label}: pull request must be open and target main")
+                    elif not isinstance(data.get("url"), str) or not re.fullmatch(
+                            r"https://github\.com/bmreyes25/ClarityLink/pull/[1-9][0-9]*", data["url"]):
+                        last_error = "GitHub CLI returned a missing or invalid canonical PR URL"
+                    elif data.get("headRefOid") == local_sha:
+                        return data
+                    else:
+                        last_error = f"GitHub reports head {data.get('headRefOid')!r}; expected {local_sha}"
+        if attempt + 1 < attempts:
+            time.sleep(attempt + 1)
+    raise Failure(f"{label}: PR head did not match published checkpoint after {attempts} reads: {last_error}")
+
+
 def publish(args: argparse.Namespace) -> dict:
     root = Path(git(args.repo, "rev-parse", "--show-toplevel")).resolve()
     if git(root, "remote", "get-url", "origin") not in (REMOTE, "git@github.com:bmreyes25/ClarityLink.git", "ssh://git@github.com/bmreyes25/ClarityLink.git"):
@@ -177,7 +225,10 @@ def publish(args: argparse.Namespace) -> dict:
     scan_staged(root)
     git(root, "diff", "--cached", "--check")
     if args.verify_command:
-        p = subprocess.run(args.verify_command, cwd=root, shell=True, text=True)
+        command = shlex.split(args.verify_command)
+        if not command:
+            raise Failure("--verify-command must contain an executable and arguments")
+        p = subprocess.run(command, cwd=root, text=True)
         if p.returncode and args.verification == "VERIFIED":
             raise Failure(f"verification command failed with exit {p.returncode}")
         if p.returncode:
@@ -218,13 +269,10 @@ def publish(args: argparse.Namespace) -> dict:
                 pr_number = rows[0]["number"]
                 pr_url = rows[0]["url"]
     if pr_number:
-        info = subprocess.run(["gh", "pr", "view", str(pr_number), "-R", REPO, "--json", "headRefName,url"], text=True, capture_output=True)
-        if info.returncode:
-            raise Failure(f"could not verify existing PR #{pr_number}: {info.stderr.strip()}")
-        import json
-        data = json.loads(info.stdout)
-        if data.get("headRefName") != branch:
-            raise Failure("existing PR head does not match this feature branch")
+        data = verify_pr_checkpoint(
+            ["gh", "pr", "view", str(pr_number), "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
+            branch, local_sha, label=f"existing PR #{pr_number}",
+        )
         pr_url = data["url"]
     elif args.verification == "VERIFIED":
         p = subprocess.run(["gh", "pr", "create", "-R", REPO, "--base", "main", "--head", branch,
@@ -234,13 +282,10 @@ def publish(args: argparse.Namespace) -> dict:
             raise Failure(f"push verified, but PR creation failed: {p.stderr.strip()}")
         pr_url = p.stdout.strip().splitlines()[-1]
     if pr_url:
-        check = subprocess.run(["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,url"], text=True, capture_output=True)
-        if check.returncode:
-            raise Failure(f"branch push verified, but PR reference check failed: {check.stderr.strip()}")
-        import json
-        pr_data = json.loads(check.stdout)
-        if pr_data.get("headRefName") != branch:
-            raise Failure("PR does not reference the published feature branch")
+        pr_data = verify_pr_checkpoint(
+            ["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
+            branch, local_sha, label="published PR",
+        )
         pr_url = pr_data["url"]
     result = subprocess.run([sys.executable, str(root / "tools/verify_remote_publication.py"), "--repo", str(root), "--branch", branch], text=True, capture_output=True)
     if result.returncode:
@@ -260,7 +305,7 @@ def main() -> int:
     p.add_argument("--file", action="append", default=[], help="explicit file path; repeat per file")
     p.add_argument("--message", required=True)
     p.add_argument("--verification", choices=("VERIFIED", "WIP_UNVERIFIED"), required=True)
-    p.add_argument("--verify-command", help="shell command to run before a VERIFIED commit")
+    p.add_argument("--verify-command", help="executable and arguments (parsed without a shell) to run before a VERIFIED commit")
     p.add_argument("--wip-notes", help="required WIP record of incomplete work and known failures")
     p.add_argument("--pr", type=int, help="existing PR to reuse")
     p.add_argument("--public-safe-reviewed", action="store_true", required=True,

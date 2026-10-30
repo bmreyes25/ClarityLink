@@ -5,6 +5,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 factory_receipt="${CL_INT_02_FACTORY_RECEIPT_DIR:-$repo/build/cl-int-02-api17-receipt/factory}"
 r12_receipt="${CL_R12_RECEIPT_DIR:-$repo/build/cl-int-02-api17-receipt/r12}"
 candidate_build="${CL_IMP_03_BUILD_DIR:?CL_IMP_03_BUILD_DIR must name the candidate APK build}"
+mkdir -p "$repo/build/cl-int-02-api17-receipt"
 
 test -n "${CL_R12_BASELINE_APK:-}" || { echo 'CL_R12_BASELINE_APK is required for the A/B acceptance run.' >&2; exit 2; }
 test -n "${CL_R12_CANDIDATE_APK:-}" || { echo 'CL_R12_CANDIDATE_APK is required for the A/B acceptance run.' >&2; exit 2; }
@@ -28,9 +29,10 @@ for variant in baseline optimized optimized-profile-control optimized-profile; d
   test -f "$r12_receipt/perf-$variant-logcat.txt"
   grep -Fq "R12B_RESULT mode=short" "$r12_receipt/perf-$variant-logcat.txt"
 done
-if [[ -f "$r12_receipt/perf-optimized-soak-logcat.txt" ]]; then
-  grep -Fq 'R12B_RESULT mode=soak' "$r12_receipt/perf-optimized-soak-logcat.txt"
-fi
+# The r12 runner reaches this point only when the candidate and soak gates passed, so the soak
+# receipt is mandatory here rather than optional.
+test -f "$r12_receipt/perf-optimized-soak-logcat.txt"
+grep -Fq 'R12B_RESULT mode=soak' "$r12_receipt/perf-optimized-soak-logcat.txt"
 
 adb="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}/platform-tools/adb"
 serial="${ANDROID_SERIAL:?ANDROID_SERIAL must identify the isolated API17 emulator}"
