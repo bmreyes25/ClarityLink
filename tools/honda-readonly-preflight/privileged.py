@@ -19,6 +19,7 @@ class PrivilegedOperation(StrEnum):
     IDENTITY = "identity"
     PS = "ps"
     PROCESS_READ = "process_read"
+    PROCESS_EXE_LINK = "process_exe_link"
     THREAD_LIST = "thread_list"
     THREAD_READ = "thread_read"
     FD_LIST = "fd_list"
@@ -57,6 +58,12 @@ def _positive_decimal(value: Any, label: str) -> int:
     return value
 
 
+def _nonnegative_decimal(value: Any, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 2_147_483_647:
+        raise SafetyStop(f"{label} must be a nonnegative 32-bit decimal integer")
+    return value
+
+
 class PrivilegedRead:
     """A privileged reader with an enumerated API and no arbitrary-command path."""
 
@@ -79,6 +86,9 @@ class PrivilegedRead:
             if leaf not in PROCESS_LEAVES:
                 raise SafetyStop("process read leaf is not allowlisted")
             remote = f"cat /proc/{pid}/{leaf}"
+        elif operation is PrivilegedOperation.PROCESS_EXE_LINK:
+            pid = _positive_decimal(pid, "PID")
+            remote = f"ls -l /proc/{pid}/exe"
         elif operation is PrivilegedOperation.THREAD_LIST:
             pid = _positive_decimal(pid, "PID")
             remote = f"ls /proc/{pid}/task"
@@ -93,7 +103,7 @@ class PrivilegedRead:
             remote = f"ls -l /proc/{pid}/fd"
         elif operation is PrivilegedOperation.FD_LINK:
             pid = _positive_decimal(pid, "PID")
-            fd = _positive_decimal(fd, "FD")
+            fd = _nonnegative_decimal(fd, "FD")
             remote = f"ls -l /proc/{pid}/fd/{fd}"
         elif operation is PrivilegedOperation.NETWORK_READ:
             if table not in NETWORK_PATHS:
@@ -141,11 +151,22 @@ class PrivilegedRead:
                 operation = (PrivilegedOperation.THREAD_LIST if match.group(2) == "task"
                              else PrivilegedOperation.FD_LIST)
             elif operation == "readlink" and len(args) == 1:
-                match = re.fullmatch(r"/proc/([0-9]+)/fd/([0-9]+)", args[0])
-                if not match:
+                fd_match = re.fullmatch(r"/proc/([0-9]+)/fd/([0-9]+)", args[0])
+                exe_match = re.fullmatch(r"/proc/([0-9]+)/exe", args[0])
+                if fd_match:
+                    kwargs.update(pid=int(fd_match.group(1)), fd=int(fd_match.group(2)))
+                    operation = PrivilegedOperation.FD_LINK
+                elif exe_match:
+                    kwargs["pid"] = int(exe_match.group(1))
+                    operation = PrivilegedOperation.PROCESS_EXE_LINK
+                else:
                     raise SafetyStop("privileged symlink listing is not allowlisted")
-                kwargs.update(pid=int(match.group(1)), fd=int(match.group(2)))
-                operation = PrivilegedOperation.FD_LINK
+            elif operation == "readlink" and len(args) == 2 and args[1] == "exe":
+                match = re.fullmatch(r"/proc/([0-9]+)", args[0])
+                if not match:
+                    raise SafetyStop("privileged executable link is not allowlisted")
+                kwargs["pid"] = int(match.group(1))
+                operation = PrivilegedOperation.PROCESS_EXE_LINK
             else:
                 raise SafetyStop("privileged operation is not allowlisted")
         if args:

@@ -1,0 +1,25 @@
+{
+  "evidence_source": "research/runtime/jmcs-dependency-graph.md",
+  "evidence_class": "saved ELF static DT_NEEDED inventory; not runtime-load proof",
+  "jmcs_needed": [
+    "libexpat.so",
+    "libbinder.so",
+    "libstagefright.so",
+    "libstagefright_foundation.so",
+    "libmedia.so",
+    "liblog.so",
+    "libutils.so",
+    "libmedia_native.so",
+    "libcarplay_proxy.so",
+    "libgui.so",
+    "libc.so",
+    "libstdc++.so",
+    "libm.so",
+    "libudev.so",
+    "libmdnssd.so",
+    "libcrypto.so",
+    "libnetutils.so",
+    "libOpenSLES.so",
+    "libdl.so"
+  ]
+}

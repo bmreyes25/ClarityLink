@@ -6,6 +6,10 @@
 **Vehicle deployment decision:** `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED` / NO-GO; `safeForHonda()` remains `false`.
 **`safeForHonda()`:** `false`
 
+## C-P passive diagnostics update — 2026-10-30
+
+Merged PR [#118](https://github.com/bmreyes25/ClarityLink/pull/118) adds a fixed eight-phase passive diagnostic profile eligible for its independent technical-review path. This is a narrow category, not standing vehicle authorization. The owner reports that a human review was approved, but no verifiable private artifact path or completed artifact has been supplied; the merged PR contains owner comments, not an independent review. Separate exact owner authorization is also pending. The C-P run therefore remains **NOT AUTHORIZED**. This task does not run ADB or alter the C-P profile, source pins, or command manifest.
+
 ## Current state
 
 - CL-INT-03 / PR [#92](https://github.com/bmreyes25/ClarityLink/pull/92) is merged at `e1abe7bac50f89421525d7f9da6346f683d0a616`. It adds a synthetic host-owned Display 1 lease/fail-safe model, including lease expiry and producer-stand-in death coverage. This is offline model evidence only; it does not establish Honda behavior, real-iPhone Type111 reception, or the complete disconnect invariant.
@@ -16,7 +20,7 @@
 - CL-R13-A remains in open PR [#53](https://github.com/bmreyes25/ClarityLink/pull/53). Its Offline CI and CodeQL checks pass; no approval is recorded.
 - Other open PRs at discovery: [#19](https://github.com/bmreyes25/ClarityLink/pull/19) and [#7](https://github.com/bmreyes25/ClarityLink/pull/7). The repository had no issues at discovery; CL-MASTER-01 adds campaign issues separately.
 - Receiver Type111 session/SETUP ownership and a supported Display 1 frame-admission contract are not established in reviewed evidence. Their historical gates remain vehicle-deployment blockers but no longer prohibit offline custom integration research. See [revised integration readiness](integration-readiness.md).
-- No Honda ADB, vehicle connection, live iPhone session, firmware modification, or vehicle test is authorized by this master plan.
+- This master plan does not authorize Honda ADB, vehicle connection, live iPhone session, firmware modification, or vehicle testing. The only adopted narrow exception is the PR #118 C-P profile after its exact independent review and separate per-run owner authorization pass; neither is verified here.
 - Private archive backup and recovery are not verified by this campaign. Raw/proprietary evidence remains outside Git.
 
 See [CL-MASTER-01](../roadmap/claritylink-master-plan.md), [readiness](integration-readiness.md), [evidence ledger](evidence-ledger.md), [campaign gates](../roadmap/milestone-acceptance-gates.md), and [blockers](blockers.md).
