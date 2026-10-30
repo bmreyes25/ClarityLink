@@ -11,9 +11,13 @@ import re
 import zlib
 from typing import Any
 
-from parsers import (Mapping, aligned_candidate, decode_signal_mask,
-                     mapping_gaps, parse_maps, parse_proc_net, parse_proc_net_unix, parse_smaps,
-                     parse_status, parse_task_listing, runtime_address, thumb_bl_range)
+from collector import parse_ls_symlink_target
+from parsers import (MAX_DIAGNOSTIC_LOG_BYTES, Mapping, aligned_candidate, decode_signal_mask,
+                     correlate_process_socket_endpoints, mapping_gaps, parse_maps,
+                     parse_proc_net, parse_proc_net_unix, parse_smaps,
+                     parse_status, parse_task_listing, runtime_address,
+                     summarize_diagnostic_logs, thumb_bl_range,
+                     validate_diagnostic_log_summary)
 
 STATIC_INFO = 0x28A158
 STATIC_SETUP = 0x28AF72
@@ -30,6 +34,14 @@ def _artifact(root: Path, phase: str, category: str, name: str) -> bytes | None:
         return path.read_bytes()
     except OSError:
         return None
+
+
+def _bounded_read(path: Path, limit: int) -> bytes:
+    with path.open("rb") as stream:
+        raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError("artifact exceeds analysis size limit")
+    return raw
 
 
 def _text(value: bytes | None) -> str:
@@ -181,9 +193,11 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
     fd_listing_raw = _artifact(root, phase, "process", "fd_links")
     fd_listing_status = _observation_status(fd_listing_raw)
     for path in sorted((root / phase / "process").glob("fd_*_target.raw")):
-        target = path.read_text(errors="replace").strip()
-        match = re.fullmatch(r"socket:\[([0-9]+)\]", target)
         fd = path.name.removeprefix("fd_").removesuffix("_target.raw")
+        if not fd.isdecimal():
+            continue
+        target = parse_ls_symlink_target(path.read_bytes())
+        match = re.fullmatch(r"socket:\[([0-9]+)\]", target)
         fd_targets[fd] = {"class": "socket" if match else target.split(":", 1)[0],
                           "socket_inode": int(match.group(1)) if match else None}
     tcp_inodes = {int(sock["inode"]) for values in network.values() for sock in values}
@@ -195,6 +209,29 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
     except ValueError:
         unix_sockets = []
     unix_inodes = {int(sock["inode"]) for sock in unix_sockets}
+    owned_socket_endpoints = correlate_process_socket_endpoints(fd_targets, network, unix_sockets)
+    log_path = root / phase / "logs" / "logcat_tail.raw"
+    safe_log_summary_path = root / phase / "logs" / "log_event_summary.raw"
+    try:
+        if safe_log_summary_path.exists():
+            try:
+                parsed_summary = json.loads(_bounded_read(safe_log_summary_path, 64 * 1024).decode("utf-8"))
+                log_event_summary = validate_diagnostic_log_summary(parsed_summary)
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                log_event_summary = {"status": "invalid_summary", "event_counts": {},
+                                     "type111_status": "LOG_SUMMARY_INVALID"}
+        elif log_path.exists():
+            try:
+                log_event_summary = summarize_diagnostic_logs(
+                    _bounded_read(log_path, MAX_DIAGNOSTIC_LOG_BYTES))
+            except ValueError:
+                log_event_summary = {"status": "over_limit", "event_counts": {},
+                                     "type111_status": "LOGS_OVER_LIMIT"}
+        else:
+            log_event_summary = summarize_diagnostic_logs(None)
+    except OSError:
+        log_event_summary = {"status": "unavailable", "event_counts": {},
+                             "type111_status": "LOGS_UNAVAILABLE"}
     config_bytes = _artifact(root, phase, "platform", "proc_config.gz")
     config_summary = {}
     if config_bytes:
@@ -338,9 +375,11 @@ def analyze_phase(root: Path, phase: str, mmap_min_addr: int = 0) -> dict[str, A
         "cpu_topology_cache_reads": cpu_values,
         "fd_targets": fd_targets,
         "fd_listing_status": fd_listing_status,
+        "process_owned_socket_endpoints": owned_socket_endpoints,
         "network_fd_inodes_with_tcp_udp_table_match": sorted(fd_socket_inodes & tcp_inodes),
         "network_fd_inodes_with_unix_table_match": sorted(fd_socket_inodes & unix_inodes),
         "network_socket_entry_count": len(proc_net_sockets),
+        "log_event_summary": log_event_summary,
         "mmap_min_addr": mmap_min_addr,
         "disclaimer": "Unmapped VA is only a snapshot candidate; no allocation or safety is implied.",
     }

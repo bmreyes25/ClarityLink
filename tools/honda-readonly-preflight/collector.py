@@ -26,7 +26,9 @@ import time
 from enum import StrEnum
 from typing import Any
 
-from parsers import parse_proc_stat_start_time, parse_status, parse_task_listing
+from parsers import (MAX_DIAGNOSTIC_LOG_BYTES, count_diagnostic_log_lines,
+                     summarize_diagnostic_logs,
+                     parse_proc_stat_start_time, parse_status, parse_task_listing)
 
 
 COMMAND_TIMEOUT = 20
@@ -393,13 +395,44 @@ class Capture:
     def store(self, phase: str, category: str, name: str, operation: str,
               *args: str, timeout: int = COMMAND_TIMEOUT,
               max_bytes: int = MAX_COMMAND_OUTPUT, pid: int | None = None) -> tuple[int, bytes]:
+        if operation == "logcat":
+            raise SafetyStop("raw logcat persistence is disabled; use store_log_summary")
         code, out, err = self.reader.run(operation, *args, timeout=timeout, max_bytes=max_bytes)
         self.record_result(phase, category, name, operation, args, code, out, err, pid=pid)
         return code, out
 
+    def store_log_summary(self, phase: str) -> None:
+        """Summarize bounded logcat in memory; never persist source lines or stderr."""
+        code, raw, err = self.reader.run("logcat", timeout=15,
+                                        max_bytes=MAX_DIAGNOSTIC_LOG_BYTES)
+        command_record = self.reader.records[-1]
+        command_record["stdout_bytes"] = len(raw)
+        command_record["stdout_sha256"] = hashlib.sha256(raw).hexdigest()
+        command_record["stderr_bytes"] = len(err)
+        command_record["stderr_sha256"] = hashlib.sha256(err).hexdigest()
+        try:
+            summary = summarize_diagnostic_logs(raw)
+        except ValueError:
+            line_count = count_diagnostic_log_lines(raw)
+            summary = {"status": "analysis_limit", "input_bytes": len(raw),
+                       "input_sha256": hashlib.sha256(raw).hexdigest(),
+                       "input_line_count": line_count, "event_counts": {},
+                       "type111_status": "LOGS_INCOMPLETE"}
+        if command_record.get("result") != CommandResult.SUCCESS.value:
+            summary["source_command_result"] = command_record.get("result")
+            summary["type111_status"] = (
+                "TYPE111_MENTIONED_IN_INCOMPLETE_LOGS"
+                if summary.get("type111_status") == "TYPE111_MENTIONED_IN_AVAILABLE_LOGS"
+                else "LOGS_INCOMPLETE")
+        encoded = (json.dumps(summary, sort_keys=True) + "\n").encode("utf-8")
+        self.record_result(phase, "logs", "log_event_summary", "logcat_summary", (),
+                           code, encoded, b"")
+
     def record_result(self, phase: str, category: str, name: str, operation: str,
                       args: Any, code: int, out: bytes, err: bytes,
                       *, pid: int | None = None) -> None:
+        if operation == "logcat":
+            raise SafetyStop("raw logcat persistence is disabled; use store_log_summary")
         relative = Path(phase) / category / f"{name}.raw"
         target = self.output / relative
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -445,7 +478,7 @@ class Capture:
         for service in SAFE_DUMPSYS:
             self.store(phase, "display", f"dumpsys_{service.replace('/', '_')}", "dumpsys", service,
                        timeout=15, max_bytes=4 * 1024 * 1024)
-        self.store(phase, "logs", "logcat_tail", "logcat", timeout=15, max_bytes=4 * 1024 * 1024)
+        self.store_log_summary(phase)
 
     def verify_target_identity(self) -> dict[str, str]:
         sources = (
@@ -496,8 +529,31 @@ class Capture:
         for service in SAFE_DUMPSYS:
             self.store("connected", "display", f"dumpsys_{service.replace('/', '_')}",
                        "dumpsys", service, timeout=15, max_bytes=4 * 1024 * 1024)
-        self.store("connected", "logs", "logcat_tail", "logcat", timeout=15,
-                   max_bytes=4 * 1024 * 1024)
+        self.store_log_summary("connected")
+
+    def collect_campaign_observation(self, phase: str,
+                                    expected_identity: ProcessIdentity | None = None) -> ProcessIdentity:
+        """Capture only identity, display diagnostics, and safe log summaries for a human-marked phase."""
+        self.phase_times[phase] = {"started_utc": datetime.now(timezone.utc).isoformat()}
+        identity = discover_process(self.reader, capture=self, phase=phase, label="initial")
+        if expected_identity is not None and (
+                identity.pid, identity.start_time_ticks, identity.executable) != (
+                expected_identity.pid, expected_identity.start_time_ticks, expected_identity.executable):
+            raise SafetyStop("jmcs process identity changed between campaign observations")
+        self.phase_identities[phase] = identity
+        if phase == "baseline":
+            self.store(phase, "platform", "effective_shell_identity", "id", timeout=5,
+                       max_bytes=64 * 1024)
+            for prop in ("ro.secure", "ro.debuggable"):
+                self.store(phase, "properties", prop.replace(".", "_"), "property", prop,
+                           timeout=5, max_bytes=64 * 1024)
+        for service in SAFE_DUMPSYS:
+            self.store(phase, "display", f"dumpsys_{service.replace('/', '_')}",
+                       "dumpsys", service, timeout=15, max_bytes=4 * 1024 * 1024,
+                       pid=identity.pid)
+        self.store_log_summary(phase)
+        self.phase_times[phase]["finished_utc"] = datetime.now(timezone.utc).isoformat()
+        return identity
 
     def _capture_thread_snapshot(self, phase: str, identity: ProcessIdentity, index: int) -> None:
         pid = identity.pid
@@ -642,7 +698,7 @@ def dry_run(reader: FixedAdb) -> None:
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", default="auto",
-                        help="explicit existing ADB serial or auto (requires exactly one authorized device)")
+                        help="explicit existing ADB serial; auto is dry-run only")
     parser.add_argument("--phase", choices=("all", "baseline", "connected", "post-disconnect"), default="all",
                         help="all phases; baseline only; baseline+connected; or all through post-disconnect")
     parser.add_argument("--output-root", type=Path, default=Path.home())
@@ -662,6 +718,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if not args.serial:
         print("refusing: live collection requires explicit --serial", file=sys.stderr)
+        return 2
+    if args.serial == "auto":
+        print("refusing: live collection requires the exact pre-authorized --serial; device enumeration is disabled",
+              file=sys.stderr)
         return 2
     if not args.vehicle_parked_confirmed or not args.iphone_disconnected_confirmed:
         print("refusing: confirm --vehicle-parked-confirmed and --iphone-disconnected-confirmed", file=sys.stderr)

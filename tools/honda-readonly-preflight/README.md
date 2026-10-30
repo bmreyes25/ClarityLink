@@ -13,7 +13,7 @@ The collector exposes only fixed operations:
 - symlink target inspection via fixed `ls -l` on validated process exe/cwd/root and numeric FD paths (the collector does not assume a standalone `readlink` applet exists);
 - `getprop` for an enumerated build/device property set;
 - read-only `dumpsys display`, `SurfaceFlinger`, and `window`;
-- bounded `logcat -d -t 500` (no buffer clear).
+- bounded `logcat -d -t 500` (no buffer clear); new captures summarize event markers in memory and persist only counts, timestamp bounds, result status, and a SHA-256 digest. Source log lines and stderr are not written to capture files.
 
 The collector rejects all other operations and paths. There is no arbitrary shell string, upload, install, write, signal, service restart, `adb root`, ptrace, `/proc/PID/mem`, or custom-code execution path. Every command has a timeout and output ceiling. Results distinguish success, unavailable command, permission denial, transport failure, process identity change, timeout, output limit, and other command failure. A missing optional utility does not stop collection. Failed reads are saved with exit status and stderr so permission denials remain visible.
 
@@ -31,20 +31,20 @@ First inspect every command without ADB contact:
 python3 tools/honda-readonly-preflight/collector.py --serial auto --dry-run
 ```
 
-After confirming the vehicle is parked, initial iPhone state is disconnected, and the existing ADB link is ready without escalation:
+**Live use is currently unauthorized by repository policy.** The command below documents the existing exact-serial interface only; it is not permission to run it. Honda ADB requires qualified independent safety review and separate explicit owner authorization. This campaign has neither, so run only the offline dry-run and synthetic tests. The collector requires an exact serial for any future live use and rejects `--serial auto` before ADB initialization; it does not enumerate devices.
 
 ```sh
-python3 tools/honda-readonly-preflight/collector.py --serial auto --phase all \
+python3 tools/honda-readonly-preflight/collector.py --serial EXACT_PREAUTHORIZED_SERIAL --phase all \
   --vehicle-parked-confirmed --iphone-disconnected-confirmed
 ```
 
-`--serial auto` is only accepted for live collection if `adb devices -l` shows exactly one already-authorized device. If zero or more than one is listed, collection stops. Dry-run does not issue that host query. The tool captures baseline, pauses for normal stock CarPlay connect, captures connected state, asks whether ordinary stock Apple Maps is open for an optional lightweight snapshot, pauses for normal disconnect, and captures post-disconnect state. It does not control the car or phone. Stop immediately if either becomes unstable or any behavior differs from this documented read-only allowlist.
+The existing broad profile captures baseline, connected, and post-disconnect states and is not the proposed campaign capture profile. The new human phase controller is not wired to a fixed campaign-specific operation manifest and does not enforce authorization. Neither it nor the broad profile is field-ready for this campaign. Do not use either for live collection unless the repository gate, qualified review, and separate owner approval are satisfied.
 
 Single-operation flags are not supported. `--phase baseline` captures only the baseline. `--phase connected` collects baseline plus connected state. `--phase post-disconnect` collects all three sequential phases.
 
 ## Offline analysis
 
-`parsers.py` contains pure parsers for maps, smaps, status signal masks, task listings, ARM Linux network tables, mapping gaps, and exact load-bias arithmetic. `analyze.py` compares the saved phases and writes `analysis.json` inside the external capture directory. Synthetic tests do not contact ADB or represent live Honda data. Review and sanitize any derived prose before committing; the redactor is defense in depth, not a guarantee.
+`parsers.py` contains pure parsers for maps, smaps, status signal masks, task listings, ARM Linux network tables, mapping gaps, exact load-bias arithmetic, FD-inode endpoint joins, and privacy-preserving log event summaries. `analyze.py` compares the saved phases and writes `analysis.json` inside the external capture directory. Synthetic tests do not contact ADB or represent live Honda data. Review and sanitize any derived prose before committing; the redactor is defense in depth, not a guarantee.
 
 Analyze a finalized capture locally with:
 

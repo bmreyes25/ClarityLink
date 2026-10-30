@@ -4,6 +4,8 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 ## Current / latest milestones
 
+- [CL-HONDA-RUNTIME-EVIDENCE-20261030 — offline campaign preparation](44a-honda-runtime-diagnostic-campaign-preparation.md) — existing evidence reconciled; endpoint joins and privacy-preserving log summaries prepared; Honda session remains unauthorized; the human phase controller exists, but a fixed campaign capture profile, qualified safety review, and separate owner approval are still outstanding.
+
 - [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.
 
 - [43T1-R7C2 — Android API17 runtime integration closure](43t1-r7c2-android-runtime-integration-closure.md) — actual API17 Dalvik x86 JNI/Surface/Presentation and selected Java adapter execution; 100 receiver cycles with zero native resource counters; R7C remains partial and R7D gate closed.
@@ -78,6 +80,7 @@ This index preserves the engineering chronology and negative results. For curren
 - [Step 43T1-R1 — offline runtime feasibility/restoration review](43t1-r1-runtime-feasibility-review.md)
 - [Step 43T1-R0 — post-D4 offline readiness review](43t1-r0-post-d4-readiness-review.md)
 - [Step 43T0-D4 — live read-only Honda network observation](43t0d4-netcfg-live-network-delta.md)
+- [CL-HONDA-RUNTIME-EVIDENCE-20261030 — offline campaign preparation](44a-honda-runtime-diagnostic-campaign-preparation.md)
 - [Step 43T1-PREP2 — offline runtime integration readiness](43t1-prep2-offline-runtime-integration-readiness.md)
 - [Step 43T0-D3 — offline IPv4 observer repair and ECC review](43t0d3-ipv4-observer-ecc-review.md)
 - [Step 43T0-D2 — zero-argument ifconfig stops read-only baseline](43t0d2-zero-argument-ifconfig-stop.md)
