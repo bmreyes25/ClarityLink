@@ -121,6 +121,12 @@ class Display1HostService:
             if len(self.error_types) < WATCHDOG_ERROR_LOG_LIMIT:
                 self.error_types.append(type(exc).__name__)
 
+    @property
+    def watchdog_enforcements(self) -> int:
+        """Read timer progress without asking the host to expire lazily."""
+        with self._state_lock:
+            return self._enforcements
+
     def _next_wait(self) -> float:
         try:
             deadline = self.host.next_deadline()
