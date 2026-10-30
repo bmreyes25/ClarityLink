@@ -113,6 +113,33 @@ class PublishScopeTests(unittest.TestCase):
                 publisher.publish(args)
             preflight.assert_called_once_with(root.resolve(), "feature/synthetic")
 
+    def test_pr_checkpoint_retries_stale_head_after_push(self):
+        import json
+        expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
+                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        stale = {**expected, "headRefOid": "previous-sha"}
+        responses = [
+            subprocess.CompletedProcess([], 0, json.dumps(stale), ""),
+            subprocess.CompletedProcess([], 0, json.dumps(expected), ""),
+        ]
+        with patch.object(publisher.subprocess, "run", side_effect=responses), \
+             patch.object(publisher.time, "sleep") as sleep:
+            actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+        self.assertEqual(actual, expected)
+        sleep.assert_called_once_with(1)
+
+    def test_pr_checkpoint_stops_after_bounded_stale_head_reads(self):
+        import json
+        stale = {"headRefName": "feature/synthetic", "headRefOid": "previous-sha",
+                 "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        response = subprocess.CompletedProcess([], 0, json.dumps(stale), "")
+        with patch.object(publisher.subprocess, "run", return_value=response) as run, \
+             patch.object(publisher.time, "sleep") as sleep:
+            with self.assertRaisesRegex(publisher.Failure, "after 5 reads"):
+                publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+        self.assertEqual(run.call_count, 5)
+        self.assertEqual(sleep.call_count, 4)
+
     def test_empty_scope_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(publisher.Failure):
