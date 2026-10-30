@@ -25,7 +25,7 @@ A 400×240 capture contains 96,000 pixels, one quarter of an 800×480 frame’s 
 - Compare performance only with equivalent resolution, format, offered cadence, timing boundaries, queue depth, and failure handling.
 - Track capture, copies, allocation, decoder, conversion, Binder/FD lifetime, UI invalidation, and stale-frame behavior as separate stages.
 - Treat the factory host View path as a research precedent, not an adapter contract.
-- Retain the Honda integration NO-GO until an OEM-supported frame-admission interface and lifecycle/safety contract are established.
+- Retain the NO-GO for vehicle deployment until an OEM-supported frame-admission interface and lifecycle/safety contract are established. This deployment gate does not prohibit reviewed offline integration prototypes under the current safety policy, and such prototypes do not establish vehicle acceptance.
 
 ## Evidence and limits
 
