@@ -35,7 +35,10 @@ def test_dry_run_is_complete_and_never_contacts_adb(monkeypatch):
     assert sum(len(phase["commands"]) for phase in report["phases"]) == 135
     for phase in report["phases"]:
         assert "Vehicle remains stationary in Park" in phase["attestations"]
-        assert "Vehicle remains stationary in Park" in phase["post_capture_attestations"]
+        if phase["id"] == "phase0_baseline":
+            assert phase["post_capture_attestations"] == []
+        else:
+            assert "Vehicle remains stationary in Park" in phase["post_capture_attestations"]
         assert "READY indicator remains absent" in phase["attestations"]
         assert "No unexpected warning or abnormal cluster behavior is present" in phase["attestations"]
         assert "Center display and instrument cluster remain visibly normal" in phase["attestations"]

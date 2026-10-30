@@ -49,12 +49,7 @@
       "id": "phase0_baseline",
       "operations": [],
       "owner_action": "Outdoors, confirm Park/stationary, parking brake, ON mode with brake pedal not pressed and READY absent; confirm normal stock display, cluster, navigation and audio; phone disconnected; no unexpected warning.",
-      "post_capture_attestations": [
-        "Vehicle remains stationary in Park",
-        "READY indicator remains absent",
-        "No unexpected warning or abnormal cluster behavior is present",
-        "Center display and instrument cluster remain visibly normal"
-      ],
+      "post_capture_attestations": [],
       "title": "Factory baseline"
     },
     {
@@ -1600,7 +1595,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "2be41367704d3343089f5127050b4099b3092bf5e69602dc974291966724faeb",
+  "source_lock_sha256": "5d7cfca97a1c87cb9e2e28a0598c861802ce322b57b1350ea86056868cc74c74",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",

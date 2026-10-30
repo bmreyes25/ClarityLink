@@ -202,6 +202,8 @@ def _phase_attestations(phase: Phase) -> tuple[str, ...]:
 
 
 def _post_capture_attestations(phase: Phase) -> tuple[str, ...]:
+    if not phase.operations:
+        return ()
     checks = ("Vehicle remains stationary in Park", "READY indicator remains absent",
               "No unexpected warning or abnormal cluster behavior is present",
               "Center display and instrument cluster remain visibly normal")
