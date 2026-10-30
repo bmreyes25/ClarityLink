@@ -1956,6 +1956,16 @@ $owner_logs"
   printf '%s\n' "$logs" | grep -F 'IPC_REMOTE_FRAME ' | grep -F 'accepted=true' >/dev/null || {
     echo 'No decoded frame crossed the receiver Binder/PFD boundary.' >&2; exit 9;
   }
+  if [ "$multiple_view_replacements" -eq 1 ]; then
+    # The focused continuity mode has already verified Type110 frame progress, all three Type111
+    # replacements, cleanup, stale-generation rejection, and transport receipts. Its remaining
+    # screenshot/padded-crop verifier is a separate macOS-only check, not part of this runtime gate.
+    adb_local -s "$serial" shell am force-stop "$package"
+    adb_local -s "$serial" uninstall "$package" >/dev/null
+    adb_local -s "$serial" shell 'settings put global overlay_display_devices ""'
+    echo "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_CLEANUP_PASS session_id=$session_id package_uninstalled=true overlays_cleared=true"
+    exit 0
+  fi
   for proof_name in type111-blue-frame-1.png type111-blue-frame-4.png type111-green-frame-1.png type111-green-frame-3.png type111-padded-crop-frame.png type111-independent-producer-frame.png type111-restarted-producer-frame.png; do
     proof_path="$campaign_evidence/api17-$proof_name-$adb_port.png"
     proof_tmp="$proof_path.tmp"

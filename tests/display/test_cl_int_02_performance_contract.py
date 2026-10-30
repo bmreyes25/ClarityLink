@@ -129,6 +129,31 @@ def test_workflow_keeps_the_offered_workload_and_runs_full_scenario():
         assert forbidden not in WORKFLOW
 
 
+def test_type110_continuity_requires_runner_success_and_clean_teardown():
+    step = WORKFLOW[WORKFLOW.index("Verify active Type110 continuity across Type111 view restarts"):]
+    step = step[:step.index("      - name:", 1)]
+    assert "tools/run_cl_imp_03_emulator.sh --cl-r4b-multiple-view-replacements" in step
+    assert "|| runner_status" not in step
+    assert "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_API17_PASS" in step
+    assert "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_CLEANUP_PASS" in step
+    assert "runner_exit=0" in step
+
+
+def test_focused_type110_runner_exits_only_after_runtime_checks_and_cleanup():
+    gate_start = TYPE110_RUNNER.rindex('if [ "$multiple_view_replacements" -eq 1 ]; then')
+    focused = TYPE110_RUNNER[gate_start:]
+    focused = focused[:focused.index("  fi") + len("  fi")]
+    assert TYPE110_RUNNER.index("IPC_REMOTE_FRAME ") < gate_start
+    assert "adb_local -s \"$serial\" shell am force-stop \"$package\"" in focused
+    assert "adb_local -s \"$serial\" uninstall \"$package\"" in focused
+    assert "overlay_display_devices" in focused
+    assert "CL_R4B_MULTIPLE_VIEW_REPLACEMENTS_CLEANUP_PASS" in focused
+    assert "exit 0" in focused
+
+
+TYPE110_RUNNER = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+
+
 def test_workflow_provides_the_mandatory_instrumentation_inputs_and_exact_source_identity():
     assert "tools/build_cl_honda_111_pane_test_apk.sh" in WORKFLOW
     assert "CL_PANE_LEASE_TEST_APK=" in WORKFLOW
@@ -256,7 +281,17 @@ public class Rect {
 """
 
 
-@pytest.mark.skipif(shutil.which("javac") is None or shutil.which("java") is None, reason="JDK not available")
+def java_runtime_available():
+    if shutil.which("javac") is None or shutil.which("java") is None:
+        return False
+    try:
+        subprocess.run(["java", "-version"], check=True, capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return True
+
+
+@pytest.mark.skipif(not java_runtime_available(), reason="Java runtime not available")
 def test_decoded_frame_conversion_is_pixel_exact_and_safe_to_reuse(tmp_path):
     sources = tmp_path / "src"
     (sources / "android/graphics").mkdir(parents=True)
