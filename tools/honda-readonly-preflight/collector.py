@@ -114,15 +114,21 @@ def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
     combined = (stderr + b"\n" + stdout).decode("utf-8", "replace")
     if exit_code != 0:
         raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
-    if re.search(r"(?im)^\s*(?:/system/bin/)?(?:sh|mksh):.*(?:not found|permission denied|can't execute)", combined):
+    if operation in {"read", "property", "id", "ps"} and re.search(
+            r"(?im)^\s*(?:/system/bin/)?(?:sh|mksh):.*(?:not found|permission denied|can't execute)", combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
-    if re.search(r"(?i)(?:permission denied|operation not permitted|no such file or directory)", combined):
+    if operation in {"read", "property", "id", "ps"} and re.search(
+            r"(?im)^\s*(?:[^\r\n]*:\s*)?(?:permission denied|operation not permitted|no such file or directory)\s*$",
+            combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
-    if re.search(r"(?im)^\s*(?:can't find service|error:|usage:\s|permission denied|no such file or directory)\b", combined):
+    if operation == "dumpsys" and re.search(
+            r"(?im)^\s*(?:can't find service|error:|usage:\s|unknown service)\b", combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
     if operation == "dumpsys":
         if not stdout.strip() or re.search(r"(?im)^\s*(?:unknown|can't find|service .* not found)\b", combined):
             raise SafetyStop(f"dumpsys did not return a usable {args[0]} snapshot")
+    if operation == "logcat" and stderr.strip() and not stdout.strip():
+        raise SafetyStop("legacy ADB logcat wrote stderr; result is ambiguous")
     if operation == "logcat" and stdout.strip():
         # Support Android's brief and tag-priority layouts. Empty output is
         # valid; nonempty usage/error text is not evidence.

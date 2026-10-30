@@ -18,9 +18,11 @@ import json
 import os
 from pathlib import Path
 import re
+import select
 import secrets
 import subprocess
 import sys
+import time
 from typing import Callable
 
 from collector import (Capture, FixedAdb, ProcessIdentity, SafetyStop,
@@ -39,6 +41,8 @@ POLICY_FILES = (REPO_ROOT / "AGENTS.md", REPO_ROOT / "docs/safety/vehicle-testin
                 REPO_ROOT / "docs/security/single-owner-cp-review-policy.md")
 MAX_COMMAND_TIMEOUT = 20
 MAX_COMMAND_OUTPUT = 4 * 1024 * 1024
+MAX_SESSION_DURATION_SECONDS = 60 * 60
+MAX_OWNER_PROMPT_IDLE_SECONDS = 5 * 60
 PROCESS_PID_PLACEHOLDER = "<JMCS_PID>"
 IDENTITY_PROPERTIES = ("ro.build.version.release", "ro.build.version.sdk",
                        "ro.product.device", "ro.product.board", "ro.hardware")
@@ -71,6 +75,7 @@ class ManifestEnforcedReader:
         self.serial = reader.serial
         self.expected: tuple[tuple[str, tuple[str, ...], int, int], ...] = ()
         self.index = 0
+        self.deadline_monotonic: float | None = None
 
     @property
     def records(self):
@@ -88,6 +93,9 @@ class ManifestEnforcedReader:
 
     def run(self, operation: str, *args: str, timeout: int = 20,
             max_bytes: int = 32 * 1024 * 1024):
+        if (self.deadline_monotonic is not None
+                and time.monotonic() + timeout > self.deadline_monotonic):
+            raise SafetyStop("maximum campaign duration reached; no next ADB command started")
         if self.index >= len(self.expected):
             raise SafetyStop("campaign attempted a command beyond the pinned phase manifest")
         expected_op, expected_args, expected_timeout, expected_bytes = self.expected[self.index]
@@ -159,12 +167,11 @@ def phases() -> tuple[Phase, ...]:
               "Phone is disconnected; stock display and audio remain normal.", observation,
               ("identity/", "display/", "logs/"),
               ("iPhone is disconnected normally", "Stock display and audio remain normal")),
-        Phase("final_restoration", "Final restoration", "Confirm stock center display, cluster, Navigation and audio are normal; no campaign command remains active. The host ADB server may remain running.",
-              "Owner confirms no campaign command/client remains active; a shared host ADB server may remain. jmcs remains the same process instance.", observation,
-              ("identity/", "display/", "logs/", "owner_observation_pre_capture.json",
-               "owner_observation_post_capture.json"),
+        Phase("final_restoration", "Final restoration", "Confirm stock center display, cluster, Navigation and audio are normal before and after the final observation.",
+              "Visible factory restoration is owner-attested both before and after the final observation. Each ADB command has returned before owner input; the shared host ADB server may remain.", observation,
+              ("identity/", "display/", "logs/", "owner_observation.json"),
               ("Center display is normal", "Instrument cluster is normal", "Factory Navigation is normal",
-               "Audio is normal", "No campaign command/client remains active; a shared host ADB server may remain")),
+               "Audio is normal")),
     )
 
 
@@ -191,6 +198,15 @@ def _phase_attestations(phase: Phase) -> tuple[str, ...]:
                   "Center display and instrument cluster remain visibly normal")
     initial = ("Parking brake is set", "Brake pedal is not pressed") if phase.key == "phase0_baseline" else ()
     return tuple(dict.fromkeys((*invariants, *initial, *phase.attestations)))
+
+
+def _post_capture_attestations(phase: Phase) -> tuple[str, ...]:
+    checks = ("Vehicle remains stationary in Park", "READY indicator remains absent",
+              "No unexpected warning or abnormal cluster behavior is present",
+              "Center display and instrument cluster remain visibly normal")
+    if phase.key == "final_restoration":
+        checks += ("Factory Navigation is normal", "Audio is normal")
+    return checks
 
 
 def profile_payload() -> dict[str, object]:
@@ -221,6 +237,8 @@ def profile_payload() -> dict[str, object]:
             "max_output_bytes_sum": sum(op[3] for phase in phases() for op in phase.operations),
             "max_single_command_timeout_seconds": MAX_COMMAND_TIMEOUT,
             "max_single_command_output_bytes": MAX_COMMAND_OUTPUT,
+            "max_total_session_duration_seconds": MAX_SESSION_DURATION_SECONDS,
+            "max_owner_prompt_idle_seconds": MAX_OWNER_PROMPT_IDLE_SECONDS,
             "owner_guided_ui_transitions_only": [
                 "normal CarPlay connect/disconnect", "factory Navigation select/deselect/reselect"
             ],
@@ -363,14 +381,16 @@ def _path_outside_repo(path: Path, description: str) -> Path:
     raise SafetyStop(f"{description} must remain outside the Git worktree")
 
 
-def verify_effective_policy(policy_commit_sha: str,
+def verify_effective_policy(policy_commit_sha: str, reviewed_commit_sha: str | None = None,
                             *, run: Callable[..., object] = subprocess.run) -> None:
     """Require the exact adopted policy on a fresh, clean protected-main checkout.
 
     This uses fixed local git operations only. Fetch failure or stale/divergent
     checkout fails closed before an ADB client or capture directory is created.
     """
-    if not re.fullmatch(r"[0-9a-f]{40}", policy_commit_sha):
+    if (not re.fullmatch(r"[0-9a-f]{40}", policy_commit_sha)
+            or not isinstance(reviewed_commit_sha, str)
+            or not re.fullmatch(r"[0-9a-f]{40}", reviewed_commit_sha)):
         raise SafetyStop("effective policy commit is malformed")
     commands = (
         (["git", "fetch", "--quiet", "origin", "main"], "unable to refresh origin/main"),
@@ -396,6 +416,8 @@ def verify_effective_policy(policy_commit_sha: str,
         raise SafetyStop("live C-P requires a clean checkout on main")
     if not re.fullmatch(r"[0-9a-f]{40}", head) or head != remote_main:
         raise SafetyStop("local HEAD must exactly match freshly fetched origin/main")
+    if reviewed_commit_sha != head:
+        raise SafetyStop("AI reviews must bind the exact current origin/main commit")
 
 
 def _review_report(path_value: object, expected_sha: object, agent: str, *,
@@ -449,6 +471,23 @@ def _review_report(path_value: object, expected_sha: object, agent: str, *,
     return report
 
 
+def _read_owner_input(prompt: str, *, deadline_monotonic: float | None = None) -> str:
+    """Read only from a live terminal and stop when an owner prompt idles out."""
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise SafetyStop("owner authorization requires a direct interactive terminal")
+    print(prompt, end="", flush=True)
+    prompt_timeout = float(MAX_OWNER_PROMPT_IDLE_SECONDS)
+    if deadline_monotonic is not None:
+        prompt_timeout = min(prompt_timeout, max(0.0, deadline_monotonic - time.monotonic()))
+    ready, _, _ = select.select([sys.stdin], [], [], prompt_timeout)
+    if not ready:
+        raise SafetyStop("owner response timeout; campaign stopped")
+    answer = sys.stdin.readline()
+    if answer == "":
+        raise SafetyStop("owner input closed; campaign stopped")
+    return answer.rstrip("\r\n")
+
+
 def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_hash: str,
                            source_hashes_verified: dict[str, str], capture_id: str,
                            capture_path: Path, *,
@@ -462,7 +501,7 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     ADB setup; only the resulting private capture records that one-run decision.
     """
     if input_fn is None:
-        input_fn = input
+        input_fn = _read_owner_input
     nonce = nonce_fn(6)
     if not re.fullmatch(r"[0-9a-f]{12}", nonce):
         raise SafetyStop("one-run authorization challenge generator failed")
@@ -537,15 +576,11 @@ def validate_approval(path: Path, *, profile_hash: str,
     reviewed_commit = approval.get("reviewed_commit_sha")
     if not isinstance(reviewed_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", reviewed_commit):
         raise SafetyStop("exact multi-agent reviewed commit is not recorded")
-    if approval.get("owner_confirmed_park") is not True or approval.get("owner_confirmed_parking_brake") is not True:
-        raise SafetyStop("owner has not attested stationary Park and parking brake conditions")
     if approval.get("hondahack_authorized") is not False:
         raise SafetyStop("HondaHack is excluded from this campaign and requires separate approval")
     approved_power_state = approval.get("approved_vehicle_power_state")
     if approved_power_state != APPROVED_POWER_STATE:
         raise SafetyStop("C-P owner-assumed-risk category requires the pinned ON/non-READY power state")
-    if approval.get("owner_confirmed_vehicle_power_state") != approved_power_state:
-        raise SafetyStop("owner has not confirmed the reviewer-approved vehicle power state")
     if approval.get("review_disclaimer_acknowledged") is not True:
         raise SafetyStop("owner must acknowledge AI review is not independent human safety certification")
     reviews = approval.get("multi_agent_reviews")
@@ -678,13 +713,15 @@ class Campaign:
                  source_hashes_verified: dict[str, str], serial: str,
                  input_fn: Callable[[str], str] = input,
                  output_fn: Callable[[str], None] = print,
-                 run_authorization: dict[str, object] | None = None):
+                 run_authorization: dict[str, object] | None = None,
+                 session_deadline_monotonic: float | None = None):
         self.capture = capture
         self.output = output
         self.profile_hash = profile_hash
         self.source_hashes = source_hashes_verified
         self.serial = serial
         self.run_authorization = run_authorization
+        self.session_deadline_monotonic = session_deadline_monotonic
         self.input = input_fn
         self.output_fn = output_fn
         self.phase_order: list[str] = []
@@ -729,33 +766,38 @@ class Campaign:
         self.capture.files = [item for item in self.capture.files if item.get("path") != relative]
         self.capture.files.append(row)
 
-    def _attest(self, phase: Phase, *, after_capture: bool = False,
-                observation_key: str | None = None,
-                filename: str = "owner_observation.json") -> None:
-        observation_key = observation_key or phase.key
+    def _attest(self, phase: Phase, *, after_capture: bool = False) -> None:
         if not after_capture:
             self.current_phase = phase.key
             self.phase_order.append(phase.key)
             self.capture.phase_times.setdefault(phase.key, {})["started_utc"] = datetime.now(timezone.utc).isoformat()
             self._checkpoint("phase_started")
         answers: dict[str, bool] = {}
-        for check in _phase_attestations(phase):
-            answer = self.input(f"{phase.title}\n{phase.owner_action}\nCheck: {check}\n"
-                                "Type YES only if true; otherwise type NO: ").strip().upper()
+        if (self.session_deadline_monotonic is not None
+                and time.monotonic() >= self.session_deadline_monotonic):
+            raise SafetyStop("maximum campaign duration reached; owner phase check stopped")
+        checks = _post_capture_attestations(phase) if after_capture else _phase_attestations(phase)
+        for check in checks:
+            prompt = (f"{phase.title}\n{phase.owner_action}\nCheck: {check}\n"
+                      "Type YES only if true; otherwise type NO: ")
+            if self.input is _read_owner_input:
+                answer = self.input(prompt, deadline_monotonic=self.session_deadline_monotonic).strip().upper()
+            else:
+                answer = self.input(prompt).strip().upper()
             answers[check] = answer == "YES"
+            observation = {"affirmed": answer == "YES", "attestations": dict(answers),
+                           "observed_utc": datetime.now(timezone.utc).isoformat()}
+            bucket = self.owner_observations.setdefault(phase.key, {})
+            capture_key = "after_capture" if after_capture else "before_capture"
+            bucket[capture_key] = observation
             if answer != "YES":
-                self.owner_observations[observation_key] = {
-                    "affirmed": False, "attestations": answers,
-                    "observed_utc": datetime.now(timezone.utc).isoformat(),
-                    "result": "aborted_owner_did_not_confirm"}
-                self._write_owner_observation(phase, self.owner_observations[observation_key], filename)
+                observation["result"] = "aborted_owner_did_not_confirm"
+                self._write_owner_observation(phase, bucket)
+                self._checkpoint("owner_attestation_declined")
                 raise SafetyStop("owner did not affirm every required physical-state check")
-        self.owner_observations[observation_key] = {"affirmed": True, "attestations": answers,
-                                                    "observed_utc": datetime.now(timezone.utc).isoformat()}
         time_key = "owner_attested_after_capture_utc" if after_capture else "owner_attested_before_capture_utc"
-        self.capture.phase_times.setdefault(phase.key, {})[time_key] = \
-            self.owner_observations[observation_key]["observed_utc"]
-        self._write_owner_observation(phase, self.owner_observations[observation_key], filename)
+        self.capture.phase_times.setdefault(phase.key, {})[time_key] = observation["observed_utc"]
+        self._write_owner_observation(phase, self.owner_observations[phase.key])
         self._checkpoint("phase_attested")
 
     def run(self) -> bool:
@@ -765,8 +807,9 @@ class Campaign:
         # execution path for the live controller.
         manifest_reader = None
         if isinstance(self.capture.reader, FixedAdb):
-            self.capture.reader = ManifestEnforcedReader(self.capture.reader)
-            manifest_reader = self.capture.reader
+            manifest_reader = ManifestEnforcedReader(self.capture.reader)
+            manifest_reader.deadline_monotonic = self.session_deadline_monotonic
+            self.capture.reader = manifest_reader
         try:
             if manifest_reader:
                 manifest_reader.begin_phase(phase_rows[0])
@@ -779,12 +822,7 @@ class Campaign:
             for phase in phase_rows[1:]:
                 if manifest_reader:
                     manifest_reader.begin_phase(phase)
-                is_final_restoration = phase.key == "final_restoration"
-                if is_final_restoration:
-                    self._attest(phase, observation_key="final_restoration_pre_capture",
-                                 filename="owner_observation_pre_capture.json")
-                else:
-                    self._attest(phase)
+                self._attest(phase)
                 if phase.key == "phase1_identity":
                     target = self.capture.verify_target_identity(phase.key)
                     self.capture.target_identity = target
@@ -806,9 +844,7 @@ class Campaign:
                 self.capture.assert_same_instance(self.expected_identity, phase=phase.key)
                 if manifest_reader:
                     manifest_reader.assert_phase_complete()
-                if is_final_restoration:
-                    self._attest(phase, after_capture=True, observation_key="final_restoration",
-                                 filename="owner_observation_post_capture.json")
+                self._attest(phase, after_capture=True)
                 self.completed.append(phase.key)
                 self.capture.phase_times[phase.key]["finished_utc"] = datetime.now(timezone.utc).isoformat()
                 self._checkpoint("phase_complete")
@@ -822,9 +858,10 @@ class Campaign:
                       "expected_phases": [phase.key for phase in phase_rows],
                       "completed_phases": self.completed,
                       "owner_restoration_attestations": {
-                          "before_final_observation": self.owner_observations.get("final_restoration_pre_capture", {}),
-                          "after_final_observation": self.owner_observations.get("final_restoration", {}),
+                          "before_final_observation": self.owner_observations.get("final_restoration", {}).get("before_capture", {}),
+                          "after_final_observation": self.owner_observations.get("final_restoration", {}).get("after_capture", {}),
                       },
+                      "host_adb_client_state": "campaign adb client calls returned before final owner prompt; shared host adb server state unknown",
                       "capture_hashes_verified": True,
                       "created_utc": datetime.now(timezone.utc).isoformat()}
             report_path = self.output / "completeness_report.json"
@@ -910,9 +947,6 @@ def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, objec
             "command_manifest_sha256": command_manifest_sha256(),
             "policy_effective": False,
             "policy_effective_commit_sha": "",
-            "owner_confirmed_park": False,
-            "owner_confirmed_parking_brake": False,
-            "owner_confirmed_vehicle_power_state": "",
             "source_hashes": sources,
             "phase_ids": [phase.key for phase in phases()],
             "adb_serial": "<filled only after separate explicit owner approval>",
@@ -951,7 +985,7 @@ def main(argv: list[str] | None = None) -> int:
         verified_sources = source_hashes()
         serial, approval = validate_approval(args.approval_file, profile_hash=profile_hash,
                                              source_hashes_verified=verified_sources)
-        verify_effective_policy(approval["policy_effective_commit_sha"])
+        verify_effective_policy(approval["policy_effective_commit_sha"], approval["reviewed_commit_sha"])
         output_root = _path_outside_repo(args.output_root, "private capture root")
         if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
             raise SafetyStop("private capture root must be a real directory")
@@ -962,9 +996,10 @@ def main(argv: list[str] | None = None) -> int:
         output = output_root / capture_id
         if output.exists() or output.is_symlink():
             raise SafetyStop("private capture destination already exists")
+        deadline = time.monotonic() + MAX_SESSION_DURATION_SECONDS
         run_authorization = authorize_owner_one_run(
             approval, serial, profile_hash, verified_sources, capture_id, output,
-            input_fn=input, output_fn=print)
+            input_fn=_read_owner_input, output_fn=print)
         output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if output_root.stat().st_mode & 0o777 != 0o700:
             raise SafetyStop("existing private capture root must already have mode 0700")
@@ -979,8 +1014,9 @@ def main(argv: list[str] | None = None) -> int:
         reader = FixedAdb(serial, resolve_auto=False)
         capture = Capture(reader, output)
         return 0 if Campaign(capture, output, profile_hash, verified_sources, serial,
-                             run_authorization=run_authorization).run() else 1
-    except (OSError, ValueError, SafetyStop) as exc:
+                             input_fn=_read_owner_input, run_authorization=run_authorization,
+                             session_deadline_monotonic=deadline).run() else 1
+    except (OSError, ValueError, SafetyStop, KeyboardInterrupt, EOFError) as exc:
         print(f"refusing/stopped: {exc}", file=sys.stderr)
         return 2
 

@@ -79,6 +79,17 @@ def test_legacy_shell_accepts_empty_logcat_and_valid_log_line():
                                            b"I/ActivityManager( 123): started\r\n", b"")
 
 
+def test_legacy_shell_does_not_misclassify_diagnostic_content_as_shell_failure():
+    collector.validate_legacy_shell_output("dumpsys", ("activity",), 0,
+                                           b"Recent log: permission denied by package policy\n", b"")
+    collector.validate_legacy_shell_output("logcat", (), 0,
+                                           b"W/ActivityManager( 123): permission denied\n", b"")
+    collector.validate_legacy_shell_output("logcat", (), 0,
+                                           b"I/ActivityManager( 123): completed\n", b"private stderr detail")
+    with pytest.raises(collector.SafetyStop, match="stderr"):
+        collector.validate_legacy_shell_output("logcat", (), 0, b"", b"warning")
+
+
 def test_api17_ps_state_column_is_parsed_without_widening_identity():
     text = "USER PID PPID VSIZE RSS WCHAN PC NAME\nroot 42 1 100 80 ffffffff 0 S /system/bin/jmcs\n"
     assert collector.parse_ps_jmcs(text) == (42,)
@@ -100,6 +111,32 @@ def test_manifest_reader_rejects_extra_and_mismatched_commands():
     reader.assert_phase_complete()
     with pytest.raises(collector.SafetyStop, match="beyond the pinned"):
         reader.run("read", "/proc/version", timeout=5, max_bytes=1024)
+
+
+def test_manifest_reader_checks_total_session_deadline_before_operation(monkeypatch):
+    class Reader:
+        serial = "SYNTHETIC"
+        records = []
+        def run(self, *args, **kwargs):
+            pytest.fail("expired campaign deadline must stop before the ADB call")
+    phase = campaign.Phase("synthetic", "synthetic", "", "",
+                           (("read", ("/proc/version",), 5, 1024),), (), ())
+    reader = campaign.ManifestEnforcedReader(Reader())
+    reader.begin_phase(phase)
+    reader.deadline_monotonic = 10
+    monkeypatch.setattr(campaign.time, "monotonic", lambda: 10)
+    with pytest.raises(collector.SafetyStop, match="maximum campaign duration"):
+        reader.run("read", "/proc/version", timeout=5, max_bytes=1024)
+
+
+def test_owner_prompt_rejects_noninteractive_input(monkeypatch):
+    class NotTerminal:
+        def isatty(self):
+            return False
+    monkeypatch.setattr(campaign.sys, "stdin", NotTerminal())
+    monkeypatch.setattr(campaign.sys, "stdout", NotTerminal())
+    with pytest.raises(collector.SafetyStop, match="direct interactive terminal"):
+        campaign._read_owner_input("authorization")
 
 
 def test_profile_manifest_is_exact_and_all_operations_use_fixed_legacy_shell():
@@ -220,6 +257,59 @@ def test_real_identity_phase_trace_matches_fixed_profile(tmp_path):
     assert campaign.source_hashes() == json.loads(campaign.SOURCE_LOCK_FILE.read_text())
 
 
+def test_complete_campaign_consumes_all_135_manifest_entries_through_gate(tmp_path):
+    class SyntheticFixedAdb(collector.FixedAdb):
+        def __init__(self):
+            self.serial = "SYNTHETIC"
+            self.records = []
+        def run(self, operation, *args, timeout=collector.COMMAND_TIMEOUT,
+                max_bytes=collector.MAX_COMMAND_OUTPUT):
+            self.records.append({"operation": operation, "arguments": list(args),
+                                 "timeout_seconds": timeout, "max_output_bytes": max_bytes,
+                                 "result": collector.CommandResult.SUCCESS.value})
+            target = {"ro.build.version.release": collector.EXPECTED_ANDROID_RELEASE,
+                      "ro.build.version.sdk": collector.EXPECTED_ANDROID_SDK,
+                      "ro.product.device": collector.EXPECTED_PRODUCT_DEVICE,
+                      "ro.product.board": collector.EXPECTED_PRODUCT_BOARD,
+                      "ro.hardware": collector.EXPECTED_HARDWARE,
+                      "ro.secure": "1", "ro.debuggable": "0"}
+            if operation == "property":
+                output = target[args[0]].encode()
+            elif operation == "id":
+                output = b"uid=2000(shell) gid=2000(shell) groups=1003,1004"
+            elif operation == "ps":
+                output = b"USER PID PPID VSIZE RSS WCHAN PC NAME\nroot 42 1 100 80 ffffffff 0 S /system/bin/jmcs\n"
+            elif args == ("/proc/version",):
+                output = b"Linux version 3.1.10+ synthetic"
+            elif args == ("/proc/42/stat",):
+                output = b"42 (jmcs) " + b" ".join([b"S"] * 19 + [b"100"])
+            elif args == ("/proc/42/status",):
+                output = b"Name:\tjmcs\nPid:\t42\nPPid:\t1\nUid:\t0 0 0 0\nGid:\t0 0 0 0\n"
+            elif args == ("/proc/42/cmdline",):
+                output = b"/system/bin/jmcs\0--service\0"
+            elif operation == "dumpsys":
+                output = b"SYNTHETIC DISPLAY STATE\n"
+            elif operation == "logcat":
+                output = b""
+            else:
+                pytest.fail(f"unexpected synthetic command: {operation} {args}")
+            return 0, output, b""
+
+    output = tmp_path / "full-manifest-capture"
+    output.mkdir(mode=0o700)
+    capture = collector.Capture(SyntheticFixedAdb(), output)
+    runner = campaign.Campaign(capture, output, "a" * 64, {"source": "b" * 64},
+                               "SYNTHETIC", input_fn=lambda _: "YES", output_fn=lambda _: None)
+    assert runner.run() is True
+    assert len(capture.reader.records) == sum(len(phase.operations) for phase in campaign.phases()) == 135
+    assert capture.reader.index == len(capture.reader.expected)
+    report = json.loads((output / "completeness_report.json").read_text())
+    assert report["capture_hashes_verified"] is True
+    assert all(runner.owner_observations[phase.key]["before_capture"]["affirmed"]
+               and runner.owner_observations[phase.key]["after_capture"]["affirmed"]
+               for phase in campaign.phases()[1:])
+
+
 def test_profile_tampering_is_rejected(tmp_path, monkeypatch):
     changed = tmp_path / "campaign_profile.json"
     changed.write_bytes(campaign.PROFILE_FILE.read_bytes() + b" ")
@@ -237,9 +327,7 @@ def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
                 "adb_serial": "SYNTHETIC-EXACT-SERIAL", "policy_effective": True,
                 "policy_effective_commit_sha": "a" * 40, "reviewed_commit_sha": reviewed_commit,
                 "owner_risk_acceptance": True,
-                "owner_confirmed_park": True, "owner_confirmed_parking_brake": True,
                 "approved_vehicle_power_state": campaign.APPROVED_POWER_STATE,
-                "owner_confirmed_vehicle_power_state": campaign.APPROVED_POWER_STATE,
                 "review_disclaimer_acknowledged": True})
     reviews = {}
     for agent in campaign.REQUIRED_REVIEW_AGENTS:
@@ -443,7 +531,7 @@ def test_effective_policy_gate_requires_fresh_clean_main_and_adopted_policy():
         calls.append(argv)
         return next(responses)
 
-    campaign.verify_effective_policy("b" * 40, run=fake_run)
+    campaign.verify_effective_policy("b" * 40, "a" * 40, run=fake_run)
     assert calls[0] == ["git", "fetch", "--quiet", "origin", "main"]
     assert calls[-1] == ["git", "merge-base", "--is-ancestor", "b" * 40, "origin/main"]
 
@@ -460,7 +548,15 @@ def test_effective_policy_gate_rejects_wrong_checkout_state(branch, dirty, head,
         return SimpleNamespace(returncode=0, stdout=next(outputs))
 
     with pytest.raises(collector.SafetyStop, match=message):
-        campaign.verify_effective_policy("b" * 40, run=fake_run)
+        campaign.verify_effective_policy("b" * 40, "a" * 40, run=fake_run)
+
+
+def test_effective_policy_gate_rejects_review_of_different_commit():
+    outputs = iter(["", "main", "", "a" * 40, "a" * 40, ""])
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(returncode=0, stdout=next(outputs))
+    with pytest.raises(collector.SafetyStop, match="exact current origin/main commit"):
+        campaign.verify_effective_policy("b" * 40, "c" * 40, run=fake_run)
 
 
 def test_effective_policy_gate_rejects_unadopted_policy_commit():
@@ -471,7 +567,7 @@ def test_effective_policy_gate_rejects_unadopted_policy_commit():
         return SimpleNamespace(returncode=next(return_codes), stdout=next(outputs))
 
     with pytest.raises(collector.SafetyStop, match="not adopted on origin/main"):
-        campaign.verify_effective_policy("b" * 40, run=fake_run)
+        campaign.verify_effective_policy("b" * 40, "a" * 40, run=fake_run)
 
 
 def test_live_runner_stops_at_policy_gate_before_adb_or_capture(tmp_path, monkeypatch):
@@ -633,10 +729,16 @@ def test_final_restoration_is_attested_after_last_observation(tmp_path):
     collect_index = events.index("collect:final_restoration")
     prompt_indexes = [index for index, event in enumerate(events)
                       if event == "prompt:Final restoration"]
-    assert len(prompt_indexes) == 2 * len(campaign._phase_attestations(campaign.phases()[-1]))
+    assert len(prompt_indexes) == (len(campaign._phase_attestations(campaign.phases()[-1]))
+                                   + len(campaign._post_capture_attestations(campaign.phases()[-1])))
     assert prompt_indexes[0] < collect_index < prompt_indexes[-1]
-    assert runner.owner_observations["final_restoration_pre_capture"]["affirmed"] is True
-    assert runner.owner_observations["final_restoration"]["affirmed"] is True
+    assert runner.owner_observations["final_restoration"]["before_capture"]["affirmed"] is True
+    assert runner.owner_observations["final_restoration"]["after_capture"]["affirmed"] is True
+    assert "shared host adb server state unknown" in json.loads((_ / "completeness_report.json").read_text())["host_adb_client_state"]
+    for phase in campaign.phases()[1:]:
+        observation = runner.owner_observations[phase.key]
+        assert observation["before_capture"]["affirmed"] is True
+        assert observation["after_capture"]["affirmed"] is True
 
 
 @pytest.mark.parametrize(("fail_phase", "restart_phase"), [

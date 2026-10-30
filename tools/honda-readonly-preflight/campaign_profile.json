@@ -5,8 +5,10 @@
   "campaign_bounds": {
     "max_command_timeout_seconds_sum": 2425,
     "max_output_bytes_sum": 158400512,
+    "max_owner_prompt_idle_seconds": 300,
     "max_single_command_output_bytes": 4194304,
     "max_single_command_timeout_seconds": 20,
+    "max_total_session_duration_seconds": 3600,
     "no_collection_during_operator_transition_waits": true,
     "owner_guided_ui_transitions_only": [
       "normal CarPlay connect/disconnect",
@@ -1312,8 +1314,7 @@
         "identity/",
         "display/",
         "logs/",
-        "owner_observation_pre_capture.json",
-        "owner_observation_post_capture.json"
+        "owner_observation.json"
       ],
       "attestations": [
         "Vehicle remains stationary in Park",
@@ -1323,10 +1324,9 @@
         "Center display is normal",
         "Instrument cluster is normal",
         "Factory Navigation is normal",
-        "Audio is normal",
-        "No campaign command/client remains active; a shared host ADB server may remain"
+        "Audio is normal"
       ],
-      "expected_state": "Owner confirms no campaign command/client remains active; a shared host ADB server may remain. jmcs remains the same process instance.",
+      "expected_state": "Visible factory restoration is owner-attested both before and after the final observation. Each ADB command has returned before owner input; the shared host ADB server may remain.",
       "id": "final_restoration",
       "operations": [
         {
@@ -1504,14 +1504,14 @@
           "timeout_seconds": 20
         }
       ],
-      "owner_action": "Confirm stock center display, cluster, Navigation and audio are normal; no campaign command remains active. The host ADB server may remain running.",
+      "owner_action": "Confirm stock center display, cluster, Navigation and audio are normal before and after the final observation.",
       "title": "Final restoration"
     }
   ],
   "policy_documents_sha256": {
     "AGENTS.md": "1004cab81b9ee4e487017f885cc90df8097472d81f2786f05b5ac709f5638256",
-    "docs/safety/vehicle-testing.md": "04ffdde19adfe1f134911b43187513065c70b33cbda49b2b5625c000447c84bf",
-    "docs/security/single-owner-cp-review-policy.md": "db41db851c54bbec74e7434f9189eddeda50850d54cb6bbcc956c00ae85e509f",
+    "docs/safety/vehicle-testing.md": "54a4d26e3823f455a09d6dafba0137d8f3a77010edce3fa86619c6d19814ed93",
+    "docs/security/single-owner-cp-review-policy.md": "5949ebfe47e3be76ea965b100a6eada66a9fa64ade58971103ac0018792a714b",
     "docs/security/vehicle-safety-gates.md": "c83dfb3eb2fa5b2c1d31067652bf40aa8356143abcc23255e35c2f0ed4bbe696"
   },
   "privacy": {
@@ -1550,7 +1550,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "129b20b2a7ce062c0d2017e86ae3ec5311ba4194f61dfe5b983d5da7bb66c92e",
+  "source_lock_sha256": "7c4603905a8e3a589c55fb9a2206d121e2b5f4b518323661b37d7deea8b3d044",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",
