@@ -29,11 +29,11 @@
 | 3 — REA / xcertplay references | Pin tools/source, describe Codex/JADX/JDK/Ghidra setup, protocol paths, security and GPL-3.0 boundaries. | **In progress in PR #53:** no duplicate research campaign; close that existing work and review. See [reference status](../research/cl-master-01-reference-status.md). |
 | 4 — HondaHack reconstruction | CL-HH-06, offline and sanitized architecture map. | **Not started.** Requires lawful offline source/artifact and private/public boundary. No vehicle or installed-package changes. |
 | 5 — Factory Android architecture | CL-SYS-01, bounded ownership, process/Binder/native/display and risk maps from authorized preserved artifacts. | **Not started.** Static analysis only until separately scoped authorization. |
-| 6 — Restore API17 lab | CL-R12-F original scenario, timing, controlled A/B, ten reconnects and remaining failure matrix. | **Partial, PR #52:** runtime smoke reported; Offline CI failed and full criteria remain incomplete. See [runtime plan](../development/api17-runtime-recovery.md). |
+| 6 — Restore API17 lab | CL-R12-F original scenario, timing, controlled A/B, ten reconnects and remaining failure matrix. | **Partial, PR #52 merged:** exact-head API17 runtime, Offline CI, and CodeQL passed; the controlled performance comparison missed its declared gates and full reliability criteria remain incomplete. See [runtime plan](../development/api17-runtime-recovery.md). |
 | 7 — Authenticated bench Type111 | CL-REC-01, independent legitimate receiver and a separately authorized live-iPhone session. | **Blocked pending separate scope and approval.** It does not prove Honda compatibility. |
 | 8 — Establish Honda contracts | CL-IF-01 receiver session/SETUP and cluster admission/geometry/warnings/restore. | **Blocked / critical path.** Any unsupported or ambiguous boundary means NO-GO. |
 | 9 — Gated read-only observations | CL-OBS-01 only for a precise unresolved question that private offline artifacts cannot answer. | **Blocked / not authorized.** Exact allowlist, independent review, and separate owner approval required. |
-| 10 — Integration implementation | CL-INT-01 narrow adapters at documented ownership boundaries; offline end-to-end tests first. | **Blocked until both contracts, lab gates, authorization, and safety review pass.** No speculative firmware, Xposed, or private Binder replay. |
+| 10 — Integration implementation | CL-INT-01 final integration remains gated; CL-INT-04 is the next offline/API17 withdrawal milestone under issue #62. | **Offline CL-INT-04 may proceed under merged CL-POLICY-02. Honda/vehicle integration remains blocked** until contracts, lab gates, separate authorization, and safety review pass. No speculative firmware, Xposed, or private Binder replay. |
 | 11 — Vehicle acceptance | CL-VT-01 future conditional acceptance against F1–F13. | **Not authorized.** Requires reversible procedure, exact approval, independent safety review, and parked-only stop criteria. |
 | 12 — Alternative architecture | CL-REL-01 if a required stock interface is unsupported or target acceptance is NO-GO. | **Conditional.** Explain tradeoffs; do not call a separate receiver/external display the original finish line. |
 | 13 — GitHub documentation system | Keep public-safe source of truth, issue links, reports, status, provenance and reproducibility. | **This PR supplies the initial structure.** Update status only with evidence; do not rewrite historical decisions/approvals. |
@@ -52,7 +52,7 @@
 - GitHub had open PRs #53, #52, #19 and #7, and no issues at discovery. PR #53 checks passed with no approval; PR #52 had an Offline CI failure while its API17 smoke and CodeQL checks passed. Other PRs were left untouched.
 - `main` has an active ruleset named **Protection is key**: deletion and non-fast-forward updates are blocked, and `offline-tests` plus `CodeQL` are required. The configured approving-review count is zero; this does not waive the project rule against self-merging safety-sensitive work or the independent review required by campaign workflow.
 
-The [CL-R4/R7 API17 lab](../status/current.md) demonstrates the synthetic pipeline only. The bounded Honda static record identifies a main Type110 path and no supported Type111 delegation or arbitrary-frame Display 1 contract in the reviewed paths. The separate PlayPort observation is a saved third-party lab result, not Honda proof. The CL-R12-F public PR is partial and has a failing Offline CI check; CL-R13-A is open with passing checks but no approval recorded. No independent review is claimed for this master plan until exact-range reviewers complete.
+The [CL-R4/R7 API17 lab](../status/current.md) demonstrates the synthetic pipeline only. The bounded Honda static record identifies a main Type110 path and no supported Type111 delegation or arbitrary-frame Display 1 contract in the reviewed paths. The separate PlayPort observation is a saved third-party lab result, not Honda proof. PR #92's host-owned lease/fail-safe, PR #94's Type111 ingest, and PR #97's ingest hardening are merged synthetic/offline work; none establishes Honda behavior or iPhone-origin video in ClarityLink. CL-R12-F remains partial after PR #52 merged: its performance comparison missed declared gates. CL-R13-A / PR #53 remains open with passing checks and no approval recorded.
 
 Critical blockers:
 
@@ -62,9 +62,17 @@ Critical blockers:
 4. Independent review and separate owner authorization for any bench-iPhone or vehicle activity.
 5. Verified encrypted private evidence backup/recovery; this document makes no such claim.
 
-## First execution campaign
+## Next authorized offline milestone
 
-Finish the existing **CL-R13-A issue #55 / PR #53** review/publication as a bounded reference-library campaign, correcting any source-version or license findings without duplicating completed research. Then advance the highest independent technical blocker: complete **CL-R12-F issue #58** acceptance on its own branch/PR and reconcile the CL-R11-A/R12-B/C/D/E reports in the ledger. Do not begin a Honda observation or final integration from this roadmap alone.
+**CL-INT-04 — autonomous host-owned Display 1 withdrawal**, tracked under existing issue [#62](https://github.com/bmreyes25/ClarityLink/issues/62). This follows merged policy PR #91 and reuses merged fail-safe, Type111 ingest, and error-handling infrastructure from PRs #92, #94, and #97. Implement and verify:
+
+1. Host-owned timer/lease expiry and Display 1 withdrawal without producer `tick()`.
+2. Producer-process death handling and stale-generation fencing.
+3. Type110 independence during Display 1 withdrawal and restart.
+4. Safe host restart and teardown with accurate cleanup-failure reporting.
+5. Actual Android API 17 emulator runtime verification of expiry, process death, restart, teardown, and recovery.
+
+Keep this stage offline, synthetic, and fail-closed. Do not use Honda/ADB, a vehicle, firmware, or a connected iPhone. Keep `safeForHonda() == false`; do not claim Honda compatibility, OEM authorization, iPhone-origin Type111 handling, or physical Display 1 output. CL-INT-04 is a withdrawal prerequisite, not completion of the primary goal.
 
 ## Public-safe campaign report standard
 

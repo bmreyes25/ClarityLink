@@ -4,7 +4,7 @@
 
 This is the canonical, owner-stated objective (clarified 2026-10-23). It takes precedence over any ambiguous architecture description, lab name or synthetic demonstration in this repository. If another document reads as if the goal were a custom navigation interface, this document wins.
 
-`safeForHonda()` remains `false`. `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED`. The `AGENTS.md` safety boundaries apply regardless of any pending policy change. Offline research and prototypes follow the owner's proposed policy in PR [#91](https://github.com/bmreyes25/ClarityLink/pull/91); nothing here authorizes installation, Honda ADB, firmware writes or any vehicle test, and nothing is newly authorized until that policy is merged. PR statuses in this document (#91 and #92 unmerged) are as of 2026-10-23.
+`safeForHonda()` remains `false`. `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED`. CL-POLICY-02 / PR [#91](https://github.com/bmreyes25/ClarityLink/pull/91) merged in `origin/main` at `1cc3e63541074f9c2324c91aeb4cff854ba7acde`; its authorization applies to offline research and prototypes under `docs/safety/vehicle-testing.md` only. The policy allows no vehicle work; nothing here authorizes installation, Honda ADB, firmware writes, vehicle testing, or connected-iPhone work. PRs [#92](https://github.com/bmreyes25/ClarityLink/pull/92), [#94](https://github.com/bmreyes25/ClarityLink/pull/94), and [#97](https://github.com/bmreyes25/ClarityLink/pull/97) are merged and provide synthetic lifecycle/ingestion and fail-closed error-handling evidence only. Current vehicle status remains `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED`.
 
 ## Required architecture
 
@@ -66,13 +66,13 @@ Every stage below is **UNVERIFIED end to end**. No stage has been shown on a Hon
 | 9 | Factory page ownership and warning priority respected | MODEL | N/A | N/A | MISSING | UNVERIFIED |
 | 10 | Disconnect ends the secondary stream and restores factory-only | MODEL | N/A | UNVERIFIED | MISSING | UNVERIFIED |
 
-Basis for the cells (all audit findings, 2026-10-23, `origin/main` at `51fa9b1` plus PR [#92](https://github.com/bmreyes25/ClarityLink/pull/92)):
+Basis for the cells (audit findings plus merged synthetic work through `origin/main` at `1cc3e63541074f9c2324c91aeb4cff854ba7acde`; see the evidence-class limits below):
 
 - **`OBSERVED-3P`** is the sanitized 43P PlayPort session (`research/lab/current-ios-type111-observation.md`, `research/lab/captures/43p/`): a real iPhone and a third-party receiver (identity details omitted), Type111 SETUP, VideoConfig and sustained frames on both streams. Transport protection is inferred from the third-party parser's active branch; no unprotect result was retained. It is event summaries only (no raw bytes, no media), the iPhone model/iOS build were not retained, and it is not Honda evidence. For stage 8 it shows only that Type111 video was delivered while Type110 stayed active; Type110 audio and independent teardown were not tested.
 - **`PARTIAL` protocol handling** is the host-lab receiver (`src/claritylink-jmcs/claritylink_jmcs/`: `media.py` framing, `decoder.py` avcC/Annex-B and ffmpeg decode, `receiver.py` SETUP and `receive_secondary_frame`, `security.py` ChaCha parameters). Its fixtures are hand-built or locally generated; it has never processed iPhone-origin bytes (so stage 6 is `PARTIAL`: the receive path exists, no real bytes have gone through it), and the key is injected by the caller.
 - **`MISSING` Honda receiver** means no supported Type111 SETUP fields, security context, data-port ownership or teardown contract is established for the Honda receiver (see `docs/status/integration-readiness.md`, `research/carplay/type111-unknown-register.md`).
 - **Stage 8:** Type110 continuity is `LAB`-proven for the synthetic lifecycle only; independence under a real iPhone stream on a Honda is unverified.
-- **Stages 9–10** rest on synthetic models: `SimulatedClusterHost`, API17 pane leases, and the lease-fence fail-safe in unmerged PR #92 (synthetic; it does not prove Honda behavior).
+- **Stages 9–10** rest on synthetic models: `SimulatedClusterHost`, API17 pane leases, and the merged lease-fence/fail-safe work from PR #92 (synthetic; it does not prove Honda behavior).
 
 ## What is real Type111 pipeline and what is not
 
@@ -83,7 +83,8 @@ Basis for the cells (all audit findings, 2026-10-23, `origin/main` at `51fa9b1` 
 | **Authentication / security entry** | `mfi_oracle.py`, `authentication.py`, `auth.py`, `auth_providers/*`, `honda_substrate.py` | Synthetic, replay, or fail-closed stubs. No real phone authentication; Honda factory authentication absent (`EVIDENCE_REQUIRED`). Bench bridge code for user-owned hardware (`tools/r6h_livi_receiver.py`) has no recorded real run. |
 | **Content-agnostic frame plumbing** | `FrameGate`, `PerStreamFrameDispatcher`, `ClarityLinkRenderer`, API17 `Display1OutputBackend`/`PaneLease`/`FrameDispatchGate`, `SimulatedClusterHost`, decoders `Api17*H264Decoder` | Do not inspect content; renderer accepts decoded RGBA frames only. Bound to simulated hosts; `honda_output.py` always fails closed because no Honda frame-admission contract is known. |
 | **Synthetic lifecycle models** | `synthetic_type111_replay`, `legacy_dual_screen_twin`, `carplay-session-model/*`, interposer/negotiation models, `Type111ControlPlane`/`Type111ProducerService` (Android lab IPC) | Model only. Names containing "Type111" in the Android lab do **not** speak the CarPlay control protocol. |
-| **Fail-safe** | Lease fence and coordinator, PR #92 (unmerged) | Synthetic lifecycle only. Content-agnostic by design: it takes opaque content and has no protocol knowledge. |
+| **Fail-safe** | Lease fence and coordinator, merged PR #92 | Synthetic lifecycle only. Content-agnostic by design: it takes opaque content and has no protocol knowledge. |
+| **Type111 ingest** | Offline ingest pipeline, merged PR #94; fail-closed error-handling hardening, merged PR #97 | Offline/synthetic only; no iPhone-origin frames or Honda integration established. |
 
 ### Navigation-UI drift (separate lab track — "NAV-LAB")
 
@@ -93,15 +94,15 @@ Not on the Type111 video path, and **not progress toward the primary goal**: `cl
 - Its docstrings are historical and honest ("NOT a decoded Type111 video frame") and are left unmodified so this change stays documentation-only; this document is the authority on how to read them. A later source change may add a one-line "NAV-LAB, not Type111 video" banner to each.
 - Keep the useful generic safety ideas it contributed (generation fencing, warning withdrawal, restore) only through the content-agnostic components above.
 
-## Interfaces still required (receiver → decoder → display adapter → fail-safe)
+## Interfaces still required for API17 and target integration
 
-None of these exists today:
+Merged PRs #92 and #97 connect the host-lab Type111 receiver to the synthetic lease-gated fail-safe. That offline Python path is not an Android/MediaCodec integration or a Honda-supported path. The following production/API17 or OEM boundaries remain incomplete:
 
 1. **Authenticated session and stream ownership** — a real security-context provider that derives the Type111 protection key from a legitimately authenticated session (today the key is injected, the authority synthetic or absent).
 2. **Receiver → decoder bridge** — Type111 socket → framing → unprotect → avcC → Android MediaCodec decoders. The Python parser is host-only; the Android/native side has only synthetic lab framing.
-3. **Frame type unification** — three unrelated `DecodedFrame` types (jmcs PNG, renderer RGBA, Java RGBA with stride/crop); `receive_secondary_frame` returns PNG bytes, which the renderer cannot take.
-4. **Display adapter onto the fence** — something that calls the lease fence's `submit(lease, sequence, content)` from the renderer path, with a timestamp-to-sequence mapping, a heartbeat/timer driver, and a revoke path that clears the pane (PR #92's fence drives the simulated host, and `PaneLease.revoke()` is package-private).
-5. **Fault mapping** — receiver errors, decoder death and socket loss to the coordinator's fault kinds, and the closers (listener, decoder, security teardown) wired into `type111_negotiated(closers)`.
+3. **API17 frame type and decoder integration** — the host-lab path has an immutable RGB24 `VideoFrame`; the Android MediaCodec/output path still has separate frame representations and no Type111 receiver-to-decoder integration.
+4. **API17 display adapter and autonomous withdrawal** — the Python `LeaseGatedOutput` submits lease-bound frames to the simulated host. The API17 renderer is not connected to the Type111 receiver/fence, and it still needs host-owned expiry/withdrawal without producer `tick()` (CL-INT-04).
+5. **API17 fault mapping and resource ownership** — Python host-lab fault mapping and cleanup exist; Android receiver/decoder process faults, listeners, security teardown, and display-host cleanup are not wired into a production API17 integration.
 6. **Host-side fence** on the actual display host, evaluated on every composition and from a timer (today Python, lazy, branch-only).
 7. **Honda contracts** — receiver admission/ownership/revocation, and a display frame-admission/geometry/page/warning/restore contract. Both `MISSING`; not to be invented.
 
@@ -118,14 +119,15 @@ None of these exists today:
 | CL-HH-02 / CL-DISP-02 (#87) | no | no | no | no | static Honda display ownership only |
 | CL-FACTORY-01/02, PR #77 (NAV-LAB) | navigation-state lifecycle only | **no** | **no** | no | no |
 | CL-OBS-02 / CL-OFFLINE-GATE-01 (#89, #90) | no | no | no | planning of read-only evidence only | no |
-| CL-INT-03 fail-safe (#92) | yes | no | no | no | no |
+| CL-INT-03 fail-safe (#92, merged) | yes | no | no | no | no |
+| CL-T111-INGEST-01 / fail-closed ingest (#97, merged) | yes | synthetic/prior-art fixtures | no | no | no |
 
 ## Next engineering milestone
 
-**CL-T111-INGEST-01 (offline).** Join the existing host-lab Type111 receiver to the fail-safe through content-agnostic interfaces: unify the decoded-frame type (items 3–4 above); drive the fence from accepted frames with a timer-based heartbeat; map receiver, decoder and socket faults to coordinator faults and wire real closers (item 5). Drive it with locally generated clear H.264 in the Type111 framing already implemented, labeled synthetic. It validates **Synthetic lifecycle** and **Type111 protocol handling (spec/prior-art)** only. It does not validate iPhone-origin video, Honda receiver integration or Physical Display 1 output, and must not be reported as doing so.
+**CL-INT-04 — autonomous host-owned Display 1 withdrawal (offline/API17).** Reuse the merged fail-safe, Type111 ingest, and error-handling infrastructure from PRs #92, #94, and #97. Implement and verify host-owned timer/lease expiry that withdraws Display 1 without producer `tick()`, producer-process death handling, stale-generation fencing, Type110 independence, safe host restart and teardown, and accurate cleanup-failure reporting. Require actual Android API 17 emulator runtime verification of the withdrawal and recovery paths. Keep all inputs synthetic and the implementation fail-closed. This validates **Synthetic lifecycle** only; it does not validate iPhone-origin video, Honda receiver integration, or physical Display 1 output. No Honda, ADB, vehicle, or connected-iPhone operation is in scope; `safeForHonda()` remains `false`.
 
 It is paired with an **owner-gated** item that is the true critical path and cannot be done offline: obtaining sanitized byte-level Type111 fixtures from a real iPhone through an authorized bench receiver (CL-REC-01), then replaying them through the same code. That requires separate explicit owner authorization and a legitimately authenticated session; no live iPhone use, authentication bypass or secret extraction is authorized here. It involves no Honda connection, and the public repository would receive only sanitized fixtures after a separate public-safety review.
 
 ## Follow-up for pinned governance files
 
-`AGENTS.md`, `README.md` and `docs/README.md` are digest-pinned in repository health scope and are being edited by PR #91, so this change leaves them untouched to avoid silent governance edits and merge conflicts. After #91 merges, add a pointer to this document at the top of `AGENTS.md` and in the README's first paragraph (and refresh the scope digests in that same change), using the PRIMARY GOAL sentence above. README line 5 currently describes the project as rendering "navigation video"; it should say "secondary CarPlay video".
+`AGENTS.md`, `README.md` and `docs/README.md` are digest-pinned in repository health scope. PR #91 refreshed the changed pinned hashes in its policy scope. Preserve those hashes in future edits and use the PRIMARY GOAL sentence above when updating governance pointers. README wording now describes offline Type111 research and keeps vehicle deployment separately unauthorized.
