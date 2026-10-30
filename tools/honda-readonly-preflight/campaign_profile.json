@@ -1,0 +1,1511 @@
+{
+  "approval_semantics": "owner and independent technical reviewer records are hash-bound human attestations; this tool does not verify identity, independence, or competence",
+  "authorization_category": "C-P",
+  "campaign_bounds": {
+    "max_command_timeout_seconds_sum": 2425,
+    "max_output_bytes_sum": 158400512,
+    "max_single_command_output_bytes": 4194304,
+    "max_single_command_timeout_seconds": 20,
+    "no_collection_during_operator_transition_waits": true,
+    "owner_guided_ui_transitions_only": [
+      "normal CarPlay connect/disconnect",
+      "factory Navigation select/deselect/reselect"
+    ]
+  },
+  "campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
+  "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
+  "optional_phase": {
+    "id": "hondahack",
+    "included": false,
+    "requires_separate_review_and_owner_approval": true
+  },
+  "phases": [
+    {
+      "artifacts": [
+        "owner_observation.json"
+      ],
+      "attestations": [
+        "Vehicle stationary and in Park",
+        "Center screen is operating normally",
+        "Instrument cluster is operating normally",
+        "No unexpected warning is present",
+        "Factory Navigation is operating normally",
+        "Audio is operating normally",
+        "iPhone is disconnected",
+        "No ClarityLink modification is running"
+      ],
+      "expected_state": "All stated baseline conditions are normal.",
+      "id": "phase0_baseline",
+      "operations": [],
+      "owner_action": "Confirm Park/stationary, normal stock display, cluster, navigation and audio; phone disconnected; no unexpected warning.",
+      "title": "Factory baseline"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "platform/",
+        "properties/",
+        "display/",
+        "logs/"
+      ],
+      "attestations": [
+        "Existing exact ADB transport is already authorized"
+      ],
+      "expected_state": "Honda Android/API, board/hardware, shell identity, selected debug properties and one stable jmcs identity match the approved target.",
+      "id": "phase1_identity",
+      "operations": [
+        {
+          "arguments": [
+            "/proc/version"
+          ],
+          "expected_output": "exit 0 and expected 3.1.10+ kernel-family marker",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.build.version.release"
+          ],
+          "expected_output": "exact expected target identity value: 4.2.2",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.build.version.sdk"
+          ],
+          "expected_output": "exact expected target identity value: 17",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.product.device"
+          ],
+          "expected_output": "exact expected target identity value: vcm30t30a",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.product.board"
+          ],
+          "expected_output": "exact expected target identity value: Andromeda",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.hardware"
+          ],
+          "expected_output": "exact expected target identity value: vcm30t30",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and uid=2000(shell)",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "id",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.secure"
+          ],
+          "expected_output": "exact expected prior value: 1",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "ro.debuggable"
+          ],
+          "expected_output": "exact expected prior value: 0",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "property",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Proceed only after baseline is recorded; use the existing approved ADB transport.",
+      "title": "Target identity"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "display/",
+        "logs/"
+      ],
+      "attestations": [
+        "Factory CarPlay is visible on the center display",
+        "Center display and audio remain normal"
+      ],
+      "expected_state": "Center display and audio remain normal; jmcs identity is unchanged.",
+      "id": "phase3_connected",
+      "operations": [
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Connect iPhone normally and wait for factory Type110 CarPlay; do not launch ClarityLink.",
+      "title": "Stock CarPlay connected"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "display/",
+        "logs/"
+      ],
+      "attestations": [
+        "Factory Navigation is selected",
+        "No abnormal center display, cluster, audio, or warning behavior"
+      ],
+      "expected_state": "Navigation is selected and stock behavior remains normal.",
+      "id": "phase4_navigation_selected",
+      "operations": [
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Select factory Navigation using ordinary controls.",
+      "title": "Factory Navigation selected"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "display/",
+        "logs/"
+      ],
+      "attestations": [
+        "Factory Navigation has been deselected",
+        "No unexpected factory page or warning behavior"
+      ],
+      "expected_state": "Page withdrawal/ownership is observed; no warning or abnormal behavior occurs.",
+      "id": "phase4_navigation_deselected",
+      "operations": [
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Leave Navigation using ordinary factory controls.",
+      "title": "Factory Navigation deselected"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "display/",
+        "logs/"
+      ],
+      "attestations": [
+        "Factory Navigation returned normally"
+      ],
+      "expected_state": "Factory Navigation returns normally; jmcs identity is unchanged.",
+      "id": "phase4_navigation_reselected",
+      "operations": [
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Reselect Navigation using ordinary factory controls.",
+      "title": "Factory Navigation reselected"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "display/",
+        "logs/"
+      ],
+      "attestations": [
+        "iPhone is disconnected normally",
+        "Stock display and audio remain normal"
+      ],
+      "expected_state": "Phone is disconnected; stock display and audio remain normal.",
+      "id": "phase6_disconnect",
+      "operations": [
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Disconnect CarPlay through the ordinary phone/user flow.",
+      "title": "Normal CarPlay disconnect"
+    },
+    {
+      "artifacts": [
+        "identity/",
+        "display/",
+        "logs/",
+        "owner_observation.json"
+      ],
+      "attestations": [
+        "Center display is normal",
+        "Instrument cluster is normal",
+        "Factory Navigation is normal",
+        "Audio is normal",
+        "No campaign command/client remains active; a shared host ADB server may remain"
+      ],
+      "expected_state": "Owner confirms no campaign command/client remains active; a shared host ADB server may remain. jmcs remains the same process instance.",
+      "id": "final_restoration",
+      "operations": [
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "display"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "SurfaceFlinger"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [
+            "window"
+          ],
+          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "dumpsys",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 4194304,
+          "operation": "logcat",
+          "timeout_seconds": 15
+        },
+        {
+          "arguments": [],
+          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/stat"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/status"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 262144,
+          "operation": "read",
+          "timeout_seconds": 20
+        },
+        {
+          "arguments": [
+            "/proc/<JMCS_PID>/cmdline"
+          ],
+          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "failure_policy": "stop_campaign",
+          "max_output_bytes": 65536,
+          "operation": "read",
+          "timeout_seconds": 20
+        }
+      ],
+      "owner_action": "Confirm stock center display, cluster, Navigation and audio are normal; no campaign command remains active. The host ADB server may remain running.",
+      "title": "Final restoration"
+    }
+  ],
+  "policy_documents_sha256": {
+    "AGENTS.md": "2147eb8cecc66f168cba2ffbe815a2bb7c46b38f8b1ea89ecdd2238df8cdb607",
+    "docs/safety/vehicle-testing.md": "58094202b30cae5f8a15e8212554885e7a09ac4d7e37202e060742e16e0e9dd6",
+    "docs/security/vehicle-safety-gates.md": "16f7f18831c057807666739ac4e69c7ab24cdcc059afb15f531cf704e26479d1"
+  },
+  "privacy": {
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "logcat": "bounded in-memory summary; no source lines or stderr persisted",
+    "raw_output_root": "outside-git-worktree"
+  },
+  "prohibitions": [
+    "auto_serial",
+    "adb_devices",
+    "network_scan",
+    "su",
+    "adb_root",
+    "setting_changes",
+    "install",
+    "write",
+    "signal",
+    "ptrace",
+    "proc_pid_mem",
+    "injection",
+    "receiver_patch",
+    "can"
+  ],
+  "schema_version": 1,
+  "source_lock_sha256": "faa816eac395322705db80fe411dbc52371ad1309662462a5680d7123d4607ca",
+  "target": {
+    "android_release": "4.2.2",
+    "android_sdk": "17",
+    "hardware": "vcm30t30",
+    "platform_family": "Tegra (historical evidence; exact properties checked above)",
+    "product_board": "Andromeda",
+    "product_device": "vcm30t30a"
+  },
+  "transport": "existing legacy adb shell; exact serial only; no device enumeration"
+}

@@ -9,7 +9,7 @@ These rules apply to every Codex campaign in this repository.
 - Do not claim PASS without the required runtime evidence. Do not weaken mandatory tests or replace runtime proof with simulation or static validation.
 - Commit every completed, verified development unit before ending the task. Use a descriptive message; do not create empty commits or mix unrelated changes. A missing reviewer does not prevent a verified local commit. If a genuine blocker prevents verification, preserve the work and report the blocker; use a clearly marked local WIP checkpoint only when safe, without claiming it passed.
 - Stop only for a specific external blocker that prevents authorized progress; state the blocker and evidence while continuing independent work.
-- Retain all project safety restrictions: offline research/prototypes may follow the authorization levels in `docs/safety/vehicle-testing.md`, but no Honda or live-iPhone operation is authorized here and `safeForHonda() == false`.
+- Retain all project safety restrictions: offline research/prototypes may follow `docs/safety/vehicle-testing.md`. C-P passive Honda diagnostics are not authorized until the policy is effective and its exact independent technical review and per-run owner approval pass. No other Honda/live-iPhone operation is authorized by default; `safeForHonda() == false`.
 
 ## Campaign start and closeout
 
@@ -28,7 +28,7 @@ These rules apply to every Codex campaign in this repository.
 
 - Treat ignored status as a Git exclusion only; it is not evidence of backup, encryption, or safe deletion.
 - Keep raw or derived vehicle data, private Honda evidence, credentials, signing material, and local research outside public Git. Never publish private Honda evidence.
-- Do not perform Honda or vehicle operations. `safeForHonda()` must remain `false`.
+- Do not perform Honda or vehicle operations except a future C-P run after every gate in `docs/safety/vehicle-testing.md` is effective and satisfied. This task itself performs no vehicle operations. `safeForHonda()` must remain `false`.
 - Review ignore rules whenever source or tests are added. Broad ignore patterns must have explicit, narrow exceptions for intended public source; verify with `git check-ignore -v` and `git ls-files` that important source is not hidden.
 - If private test code or evidence is needed, keep it in an explicitly private location and document its runner/dependency boundary without copying private evidence into public source.
 
@@ -58,13 +58,13 @@ These rules apply to every Codex campaign in this repository.
 ## Non-negotiable safety boundaries
 
 - `safeForHonda()` must remain false.
-- Do not perform automatic vehicle access, Honda ADB operations, authentication bypasses, firmware modifications, private display-control operations, or CAN transmission.
+- Do not perform automatic vehicle access, Honda ADB operations outside the narrow C-P process, authentication bypasses, firmware modifications, private display-control operations, or CAN transmission. C-P does not authorize automation beyond the reviewed fixed profile and interactive owner-guided transitions.
 - Do not use destructive Git commands or reset/overwrite existing worktrees.
 
 ## ClarityLink development authorization
 
 - Offline factory APK/native-binary research, decompiled-code analysis, adapter prototypes, reversible modification prototypes, synthetic receiver/cluster simulation, API17 emulator work, disconnect/recovery regression tests, and separately approved bench-only experiments are permitted within repository public/private-data rules.
 - Runtime hooks, factory delegate changes, display ownership/rendering changes, inter-process video delivery, in-memory extensions, binary modification proposals, and custom receiver lifecycle work require technical design and safety/security review before any vehicle use. They may be researched and prototyped offline.
-- Installation, Honda ADB, firmware/service replacement, persistent head-unit changes, cluster modifications, vehicle-side display experiments, connected-iPhone integration, and any operation that may affect factory display behavior require separate explicit owner authorization and qualified safety review. This authorization is not present by default.
+- Installation outside C-P, firmware/service replacement, persistent head-unit changes, cluster modifications, vehicle-side display experiments, connected-iPhone integration outside the exact reviewed C-P sequence, and any operation that may affect factory display behavior require separate explicit owner authorization and qualified vehicle-safety review. This authorization is not present by default. C-P is limited to the exact hash-pinned PR #118 profile and command manifest: read-only host diagnostics around only its owner-guided CarPlay and factory Navigation transitions. It requires an effective policy, independent technical review of Android/ADB and vehicle diagnostic impact, exact target identity, stationary Park, parking brake, owner presence, an exact reviewer-approved PHEV electrical power state, unprivileged commands, pinned aggregate time/output limits, private host-only evidence, normal factory behavior, and immediate stop on unexpected behavior. It does not authorize retries, scope changes, debug-setting changes, escalation, installation, process attachment/modification, firmware/CAN/display changes, warning interference, or driving tests. See `docs/safety/vehicle-testing.md` for the full boundary.
 - CAN/control-message experiments, warning suppression/interception, safety-critical ECU changes, unreviewed cluster firmware flashing, unrecoverable writes, authentication-secret extraction/disclosure, testing while driving, automatic deployment, and bypassing review/safety gates are prohibited.
 - Required design invariant: `CARPLAY_DISCONNECTED => FACTORY_BEHAVIOR_ONLY`. It is a target requiring evidence, not a demonstrated property. Do not set `safeForHonda()` true or represent offline permission as vehicle permission.

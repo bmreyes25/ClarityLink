@@ -3,10 +3,63 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 
 SUCCESS_MESSAGE = "==============================================\nCAPTURE COMPLETE — YOU CAN TURN THE CAR OFF NOW\n=============================================="
 ABORT_MESSAGE = "==============================================\nCAPTURE STOPPED — YOU CAN TURN THE CAR OFF NOW\n=============================================="
+
+
+@dataclass(frozen=True)
+class ObservationPhase:
+    key: str
+    action: str
+    expected: str
+    prompt: str
+
+
+DIAGNOSTIC_PHASES = (
+    ObservationPhase("baseline", "Confirm the stationary stock baseline.",
+                     "Normal cluster, center display, and audio; phone disconnected.",
+                     "PHASE 0 — Park and confirm normal stock behavior. Do not begin if abnormal."),
+    ObservationPhase("connected", "Connect the iPhone through the normal USB flow.",
+                     "Stock CarPlay appears normally; no ClarityLink or Type111 action.",
+                     "PHASE 1 — Connect normally and wait for stock CarPlay."),
+    ObservationPhase("navigation_selected", "Select factory Navigation with ordinary controls.",
+                     "Navigation page is selected and stable.",
+                     "PHASE 2 — Select factory Navigation and observe the cluster."),
+    ObservationPhase("navigation_deselected", "Deselect factory Navigation with ordinary controls.",
+                     "The factory page changes and prior Navigation content withdraws.",
+                     "PHASE 3 — Leave Navigation using ordinary factory controls."),
+    ObservationPhase("navigation_reselected", "Reselect factory Navigation with ordinary controls.",
+                     "Factory Navigation returns normally.",
+                     "PHASE 4 — Reselect Navigation and observe restoration."),
+    ObservationPhase("post_disconnect", "Disconnect through the normal phone/user flow.",
+                     "CarPlay ends normally and stock display/audio behavior remains normal.",
+                     "PHASE 5 — Disconnect normally; do not stop or kill processes."),
+    ObservationPhase("restoration", "Verify the phone is disconnected and stock functions are normal.",
+                     "Cluster, center display, Navigation, and audio match the baseline.",
+                     "PHASE 6 — Verify restoration before closing the approved ADB session."),
+)
+
+
+HONDAHACK_PHASES = (
+    ObservationPhase("hondahack_casting_disabled", "Use the existing ordinary Stop Casting control if needed.",
+                     "HondaHack casting is disabled; factory display is normal.",
+                     "OPTIONAL HH-1 — Confirm existing casting is off using its ordinary UI."),
+    ObservationPhase("hondahack_casting_enabled", "Use the existing ordinary Start Casting control.",
+                     "Existing casting appears normally; no hooks or modules are changed.",
+                     "OPTIONAL HH-2 — Start existing casting using its ordinary UI."),
+    ObservationPhase("hondahack_navigation_deselected", "Deselect Navigation with ordinary factory controls.",
+                     "Record HondaHack visibility after page withdrawal.",
+                     "OPTIONAL HH-3 — Deselect Navigation and observe the cluster."),
+    ObservationPhase("hondahack_navigation_reselected", "Reselect Navigation with ordinary factory controls.",
+                     "Record HondaHack visibility after Navigation returns.",
+                     "OPTIONAL HH-4 — Reselect Navigation and observe the cluster."),
+    ObservationPhase("hondahack_casting_stopped", "Use the existing ordinary Stop Casting control.",
+                     "Casting stops and factory display is restored.",
+                     "OPTIONAL HH-5 — Stop Casting through its ordinary UI and observe restoration."),
+)
 
 
 class SessionStopped(RuntimeError):
@@ -42,6 +95,54 @@ def run_three_phase_session(*, verify_preflight: Callable[[], None],
         output_fn(ABORT_MESSAGE)
         output_fn(f"Capture stopped safely: {type(exc).__name__}.")
         return False
+    output_fn(SUCCESS_MESSAGE)
+    return True
+
+
+def run_diagnostic_campaign(*, verify_preflight: Callable[[], None],
+                            collect_phase: Callable[[str], None],
+                            finalize: Callable[[bool, str | None], None],
+                            include_hondahack: bool = False,
+                            hondahack_separately_authorized: bool = False,
+                            input_fn: Callable[[str], str] = input,
+                            output_fn: Callable[[str], None] = print) -> bool:
+    """Run fixed human-marked observations; any failure stops without retry or phase continuation."""
+    if include_hondahack and not hondahack_separately_authorized:
+        output_fn("HondaHack observations require their own separate approval; no phase started.")
+        return False
+    phases = list(DIAGNOSTIC_PHASES)
+    if include_hondahack:
+        phases[5:5] = HONDAHACK_PHASES
+    completed: list[str] = []
+    current = phases[0]
+    output_fn("Controller outline only: this function does not authorize live phases or enforce an approval gate.")
+    try:
+        for index, current in enumerate(phases):
+            input_fn(f"{current.prompt}\nExpected: {current.expected}\nPress Enter only when ready.")
+            if index == 0:
+                verify_preflight()
+            collect_phase(current.key)
+            completed.append(current.key)
+        finalize(True, None)
+    except (Exception, KeyboardInterrupt, EOFError) as exc:
+        failure = f"{current.key}:{type(exc).__name__}"
+        try:
+            finalize(False, failure)
+        except Exception:
+            output_fn("Host finalization also failed; preserve all files already written and stop.")
+        output_fn("OWNER DECISION REQUIRED — NO RETRY OR NEXT PHASE WAS STARTED.")
+        output_fn(f"Phase: {current.key}")
+        output_fn(f"Action attempted: {current.action}")
+        output_fn(f"Expected result: {current.expected}")
+        output_fn(f"Actual result: stopped ({type(exc).__name__}); details retained in the private manifest when available.")
+        output_fn("Risk to stock behavior: assess the cluster, center display, navigation, and audio before any decision.")
+        output_fn(f"Evidence preserved: completed phases {completed}; current phase is marked incomplete.")
+        output_fn("Possible next actions: stop and close the session, or request a new review for a specific independent phase.")
+        output_fn("Recommended safest action: stop the session and preserve current factory behavior.")
+        output_fn("Owner decision required: whether to stop or which separately reviewed phase to consider.")
+        output_fn(ABORT_MESSAGE)
+        return False
+    output_fn("PARKED_DIAGNOSTIC_SESSION_COMPLETE — verify restoration before ending the session.")
     output_fn(SUCCESS_MESSAGE)
     return True
 

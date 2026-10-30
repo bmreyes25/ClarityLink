@@ -11,9 +11,12 @@ sys.path.insert(0, str(TOOLS))
 
 import bundle_inventory
 import collector
+import analyze
 import privileged
 import privileged_session
 import session
+from parsers import (correlate_process_socket_endpoints, summarize_diagnostic_logs,
+                     validate_diagnostic_log_summary)
 
 
 def _adb(monkeypatch):
@@ -118,6 +121,177 @@ def test_artifact_inventory_is_exhaustive_sanitized_and_hash_checked(tmp_path):
     assert all(row["hash_match"] for row in result["rows"])
 
 
+def test_socket_endpoint_correlation_requires_process_fd_inode_match():
+    owned = {"12": {"class": "socket", "socket_inode": 777}}
+    tables = {"tcp6": [{"protocol": "tcp", "local_hex": "", "local_port": 7000,
+                        "remote_hex": "", "remote_port": 0, "state": "0A", "inode": 777}],
+              "tcp4": [{"protocol": "tcp", "local_hex": "", "local_port": 9000,
+                        "remote_hex": "", "remote_port": 0, "state": "0A", "inode": 888}]}
+    matches = correlate_process_socket_endpoints(owned, tables, ())
+    assert len(matches) == 1
+    assert matches[0]["fd"] == 12
+    assert matches[0]["socket_inode"] == 777
+    assert matches[0]["ownership_evidence"] == "jmcs_fd_symlink_inode_match"
+    assert matches[0]["endpoint"]["table"] == "tcp6"
+    assert matches[0]["endpoint"]["local_port"] == 7000
+    assert correlate_process_socket_endpoints({}, tables, ()) == ()
+
+
+def test_log_summary_discards_source_lines_and_does_not_overclaim_type111():
+    raw = (b"10-30 12:34:56.123 I Receiver: AirPlayCopyServerInfo session connected\n"
+           b"10-30 12:34:57.123 I Receiver: SETUP accepted PRIVATE_SENTINEL\n"
+           b"10-30 12:34:58.123 I Receiver: <plist>private payload</plist>\n")
+    summary = summarize_diagnostic_logs(raw)
+    encoded = json.dumps(summary)
+    assert summary["type111_status"] == "TYPE111_NOT_OBSERVED_IN_AVAILABLE_LOGS"
+    assert summary["event_counts"]["info_boundary"] == 1
+    assert summary["event_counts"]["setup_boundary"] == 1
+    assert summary["event_counts"]["receiver_session"] == 1
+    assert summary["input_line_count"] == 3
+    assert "password" not in encoded
+    assert "private payload" not in encoded
+    assert "AirPlayCopyServerInfo" not in encoded
+    assert "protocol negotiation" in summary["interpretation_limit"]
+
+
+def test_log_summary_marks_type111_mention_without_claiming_request():
+    summary = summarize_diagnostic_logs(b"I Receiver: diagnostic mentions Type111\n")
+    assert summary["type111_status"] == "TYPE111_MENTIONED_IN_AVAILABLE_LOGS"
+    assert "negotiation" in summary["interpretation_limit"]
+
+
+def test_capture_analysis_embeds_only_redacted_log_summary(tmp_path):
+    (tmp_path / "manifest.json").write_text(json.dumps({"process_identities": {}}))
+    logs = tmp_path / "baseline" / "logs"
+    logs.mkdir(parents=True)
+    (logs / "logcat_tail.raw").write_bytes(
+        b"10-30 12:34:57.123 I Receiver: SETUP accepted SENSITIVE_SENTINEL\n")
+    process = tmp_path / "baseline" / "process"
+    process.mkdir()
+    (process / "fd_links.raw").write_text("lr-x------ 1 root root 64 Oct 30 12:00 12\n")
+    (process / "fd_12_target.raw").write_bytes(
+        b"lrwx------ 1 root root 64 Oct 30 12:00 /proc/42/fd/12 -> socket:[777]\n")
+    network = tmp_path / "baseline" / "network"
+    network.mkdir()
+    (network / "tcp6.raw").write_text(
+        "  sl  local_address                         remote_address                        st tx_queue:rx_queue tr:tm->when retrnsmt uid timeout inode\n"
+        "   0: 00000000000000000000000000000000:1B58 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 1000 0 777 1 0000000000000000 100 0 0 10 0\n")
+    result = analyze.analyze_phase(tmp_path, "baseline")
+    output = json.dumps(result)
+    assert result["log_event_summary"]["type111_status"] == "TYPE111_NOT_OBSERVED_IN_AVAILABLE_LOGS"
+    assert len(result["process_owned_socket_endpoints"]) == 1
+    assert result["process_owned_socket_endpoints"][0]["fd"] == 12
+    assert result["process_owned_socket_endpoints"][0]["endpoint"]["table"] == "tcp6"
+    assert result["process_owned_socket_endpoints"][0]["endpoint"]["local_port"] == 7000
+    assert "do-not-export" not in output
+    assert "SETUP accepted" not in output
+
+
+def test_capture_analysis_rejects_oversized_log_before_reading_contents(tmp_path):
+    (tmp_path / "manifest.json").write_text(json.dumps({"process_identities": {}}))
+    logs = tmp_path / "baseline" / "logs"
+    logs.mkdir(parents=True)
+    (logs / "logcat_tail.raw").write_bytes(b"x" * (4 * 1024 * 1024 + 1))
+    result = analyze.analyze_phase(tmp_path, "baseline")
+    assert result["log_event_summary"]["status"] == "over_limit"
+    assert result["log_event_summary"]["type111_status"] == "LOGS_OVER_LIMIT"
+
+
+def test_capture_filters_log_lines_before_persisting_artifacts(tmp_path):
+    secret_log = b"I Receiver: SETUP accepted NEVER_PERSIST_SENTINEL\n"
+    secret_stderr = b"sensitive error detail\n"
+
+    class FakeReader:
+        serial = "SYNTHETIC"
+
+        def __init__(self):
+            self.records = []
+
+        def run(self, operation, **kwargs):
+            assert operation == "logcat"
+            self.records.append({"operation": operation, "result": "success"})
+            return 0, secret_log, secret_stderr
+
+    reader = FakeReader()
+    capture = collector.Capture(reader, tmp_path / "private-capture")
+    capture.store_log_summary("baseline")
+    persisted = b"".join(path.read_bytes() for path in (tmp_path / "private-capture").rglob("*.*")
+                         if path.is_file())
+    summary_path = tmp_path / "private-capture" / "baseline" / "logs" / "log_event_summary.raw"
+    summary = json.loads(summary_path.read_text())
+    assert summary["event_counts"]["setup_boundary"] == 1
+    assert b"NEVER_PERSIST_SENTINEL" not in persisted
+    assert b"sensitive error detail" not in persisted
+    assert not list((tmp_path / "private-capture").rglob("*.stderr.raw"))
+    assert summary_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_generic_capture_store_rejects_raw_logcat_before_command_execution(tmp_path):
+    class FakeReader:
+        serial = "SYNTHETIC"
+        records = []
+
+        def run(self, *args, **kwargs):
+            raise AssertionError("raw logcat must be blocked before execution")
+
+    capture = collector.Capture(FakeReader(), tmp_path / "capture")
+    with pytest.raises(collector.SafetyStop, match="raw logcat persistence is disabled"):
+        capture.store("baseline", "logs", "raw", "logcat")
+
+
+def test_live_collector_rejects_auto_serial_before_adb_initialization(monkeypatch, capsys):
+    def unexpected_adb(*args, **kwargs):
+        raise AssertionError("live auto selection must not enumerate ADB devices")
+
+    monkeypatch.setattr(collector, "FixedAdb", unexpected_adb)
+    result = collector.main(["--serial", "auto", "--vehicle-parked-confirmed",
+                             "--iphone-disconnected-confirmed"])
+    assert result == 2
+    assert "exact pre-authorized --serial" in capsys.readouterr().err
+
+
+def test_analyzer_allowlists_fields_from_persisted_log_summary(tmp_path):
+    (tmp_path / "manifest.json").write_text(json.dumps({"process_identities": {}}))
+    logs = tmp_path / "baseline" / "logs"
+    logs.mkdir(parents=True)
+    (logs / "log_event_summary.raw").write_text(json.dumps({
+        "status": "available",
+        "event_counts": {"setup_boundary": 1, "private_secret": 1},
+        "event_timestamp_first_seen_last_seen": {},
+        "type111_status": "TYPE111_NOT_OBSERVED_IN_AVAILABLE_LOGS",
+        "unrecognized_payload": "never-propagate-this",
+    }))
+    result = analyze.analyze_phase(tmp_path, "baseline")
+    encoded = json.dumps(result)
+    assert result["log_event_summary"]["event_counts"] == {"setup_boundary": 1}
+    assert "never-propagate-this" not in encoded
+    assert "private_secret" not in encoded
+
+
+@pytest.mark.parametrize("mutation", ["contradictory_type111", "too_many_lines"])
+def test_log_summary_validator_rejects_inconsistent_evidence(mutation):
+    summary = {
+        "status": "available",
+        "event_counts": {},
+        "event_timestamp_first_seen_last_seen": {},
+        "type111_status": "TYPE111_NOT_OBSERVED_IN_AVAILABLE_LOGS",
+        "input_line_count": 2,
+    }
+    if mutation == "contradictory_type111":
+        summary["event_counts"] = {"type111_mention": 1}
+    else:
+        summary["input_line_count"] = 5001
+    with pytest.raises(ValueError):
+        validate_diagnostic_log_summary(summary)
+
+
+@pytest.mark.parametrize("raw", [b"x" * (4 * 1024 * 1024 + 1), b"x\n" * 5001,
+                                  b"x\r" * 5001])
+def test_log_summary_rejects_over_limit_input(raw):
+    with pytest.raises(ValueError, match="limit"):
+        summarize_diagnostic_logs(raw)
+
+
 def test_session_success_prints_exact_completion_message_and_finalizes():
     calls, output, prompts = [], [], []
     def input_fn(prompt):
@@ -174,3 +348,55 @@ def test_hash_finalization_failure_emits_abort_and_attempts_final_manifest():
     assert result is False
     assert calls == [True, False]
     assert output[-2] == session.ABORT_MESSAGE
+
+
+def test_campaign_controller_runs_fixed_phases_and_keeps_hondahack_separate():
+    calls, output = [], []
+    result = session.run_diagnostic_campaign(
+        verify_preflight=lambda: calls.append("preflight"),
+        collect_phase=lambda phase: calls.append(phase),
+        finalize=lambda success, failure: calls.append(("finalize", success, failure)),
+        input_fn=lambda prompt: "",
+        output_fn=output.append,
+    )
+    assert result is True
+    assert calls == ["preflight", "baseline", "connected", "navigation_selected",
+                     "navigation_deselected", "navigation_reselected", "post_disconnect",
+                     "restoration", ("finalize", True, None)]
+    assert "HondaHack" not in " ".join(output)
+
+
+def test_campaign_controller_stops_on_failure_without_starting_next_phase():
+    calls, output = [], []
+    def collect(phase):
+        calls.append(phase)
+        if phase == "navigation_selected":
+            raise collector.SafetyStop("unexpected page transition")
+    result = session.run_diagnostic_campaign(
+        verify_preflight=lambda: calls.append("preflight"),
+        collect_phase=collect,
+        finalize=lambda success, failure: calls.append(("finalize", success, failure)),
+        input_fn=lambda prompt: "",
+        output_fn=output.append,
+    )
+    assert result is False
+    assert calls == ["preflight", "baseline", "connected", "navigation_selected",
+                     ("finalize", False, "navigation_selected:SafetyStop")]
+    assert any("OWNER DECISION REQUIRED" in line for line in output)
+    assert output[-1] == session.ABORT_MESSAGE
+
+
+def test_campaign_controller_requires_separate_hondahack_gate():
+    calls, output = [], []
+    result = session.run_diagnostic_campaign(
+        verify_preflight=lambda: calls.append("preflight"),
+        collect_phase=lambda phase: calls.append(phase),
+        finalize=lambda success, failure: calls.append(("finalize", success, failure)),
+        include_hondahack=True,
+        hondahack_separately_authorized=False,
+        input_fn=lambda prompt: "",
+        output_fn=output.append,
+    )
+    assert result is False
+    assert calls == []
+    assert "separate approval" in output[0]

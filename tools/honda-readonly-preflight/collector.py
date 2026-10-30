@@ -26,7 +26,9 @@ import time
 from enum import StrEnum
 from typing import Any
 
-from parsers import parse_proc_stat_start_time, parse_status, parse_task_listing
+from parsers import (MAX_DIAGNOSTIC_LOG_BYTES, count_diagnostic_log_lines,
+                     summarize_diagnostic_logs,
+                     parse_proc_stat_start_time, parse_status, parse_task_listing)
 
 
 COMMAND_TIMEOUT = 20
@@ -208,6 +210,18 @@ class FixedAdb:
         # Use the legacy `shell` service, which was verified on the API-17 target.
         return (self.adb, "-s", self.serial, "shell", *remote)
 
+    @staticmethod
+    def plan_without_adb_lookup(serial: str, operation: str,
+                                args: tuple[str, ...]) -> tuple[str, ...]:
+        """Build an auditable command plan without locating or invoking ADB."""
+        if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", serial):
+            raise ValueError("invalid ADB serial syntax")
+        planner = object.__new__(FixedAdb)
+        planner.adb = "adb"
+        planner.serial = serial
+        # This method only constructs argv. It cannot query devices or spawn a process.
+        return planner.plan(operation, args)
+
     def run(self, operation: str, *args: str, timeout: int = COMMAND_TIMEOUT,
             max_bytes: int = MAX_COMMAND_OUTPUT) -> tuple[int, bytes, bytes]:
         command = self.plan(operation, tuple(args))
@@ -225,6 +239,7 @@ class FixedAdb:
             "timeout_seconds": timeout, "max_output_bytes": max_bytes,
         }
         timed_out = truncated = False
+        proc: subprocess.Popen[bytes] | None = None
         try:
             proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert proc.stdout is not None and proc.stderr is not None
@@ -273,6 +288,14 @@ class FixedAdb:
                 err += b"\ncollector: combined output limit reached; process stopped\n"
                 code = 125
             record["truncated"] = truncated
+        except KeyboardInterrupt:
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+            raise
         except OSError as exc:
             out, err, code = b"", str(exc).encode(), 127
             record["host_execution_error"] = True
@@ -331,7 +354,7 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
     for op, arg, max_bytes in (("read", f"/proc/{pid}/stat", 64 * 1024),
                                ("read", f"/proc/{pid}/status", 256 * 1024),
                                ("read", f"/proc/{pid}/cmdline", 64 * 1024)):
-        code, out, err = reader.run(op, arg, max_bytes=max_bytes)
+        code, out, err = reader.run(op, arg, timeout=COMMAND_TIMEOUT, max_bytes=max_bytes)
         raw_results.append((op, arg, code, out, err))
     stat_raw, status_raw, cmd_raw = (item[3] for item in raw_results)
     if capture:
@@ -365,7 +388,7 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
 
 def discover_process(reader: FixedAdb, *, capture: "Capture | None" = None,
                      phase: str = "baseline", label: str = "discover") -> ProcessIdentity:
-    code, ps_raw, ps_err = reader.run("ps", max_bytes=2 * 1024 * 1024)
+    code, ps_raw, ps_err = reader.run("ps", timeout=COMMAND_TIMEOUT, max_bytes=2 * 1024 * 1024)
     if capture:
         capture.record_result(phase, "identity", f"{label}_ps", "ps", (), code, ps_raw, ps_err)
     if code != 0:
@@ -393,13 +416,56 @@ class Capture:
     def store(self, phase: str, category: str, name: str, operation: str,
               *args: str, timeout: int = COMMAND_TIMEOUT,
               max_bytes: int = MAX_COMMAND_OUTPUT, pid: int | None = None) -> tuple[int, bytes]:
+        if operation == "logcat":
+            raise SafetyStop("raw logcat persistence is disabled; use store_log_summary")
         code, out, err = self.reader.run(operation, *args, timeout=timeout, max_bytes=max_bytes)
         self.record_result(phase, category, name, operation, args, code, out, err, pid=pid)
         return code, out
 
+    def store_required(self, phase: str, category: str, name: str, operation: str,
+                       *args: str, timeout: int = COMMAND_TIMEOUT,
+                       max_bytes: int = MAX_COMMAND_OUTPUT,
+                       pid: int | None = None) -> tuple[int, bytes]:
+        code, output = self.store(phase, category, name, operation, *args,
+                                  timeout=timeout, max_bytes=max_bytes, pid=pid)
+        if code != 0:
+            raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
+        return code, output
+
+    def store_log_summary(self, phase: str) -> None:
+        """Summarize bounded logcat in memory; never persist source lines or stderr."""
+        code, raw, err = self.reader.run("logcat", timeout=15,
+                                        max_bytes=MAX_DIAGNOSTIC_LOG_BYTES)
+        command_record = self.reader.records[-1]
+        command_record["stdout_bytes"] = len(raw)
+        command_record["stdout_sha256"] = hashlib.sha256(raw).hexdigest()
+        command_record["stderr_bytes"] = len(err)
+        command_record["stderr_sha256"] = hashlib.sha256(err).hexdigest()
+        try:
+            summary = summarize_diagnostic_logs(raw)
+        except ValueError:
+            line_count = count_diagnostic_log_lines(raw)
+            summary = {"status": "analysis_limit", "input_bytes": len(raw),
+                       "input_sha256": hashlib.sha256(raw).hexdigest(),
+                       "input_line_count": line_count, "event_counts": {},
+                       "type111_status": "LOGS_INCOMPLETE"}
+        if command_record.get("result") != CommandResult.SUCCESS.value:
+            summary["source_command_result"] = command_record.get("result")
+            summary["type111_status"] = (
+                "TYPE111_MENTIONED_IN_INCOMPLETE_LOGS"
+                if summary.get("type111_status") == "TYPE111_MENTIONED_IN_AVAILABLE_LOGS"
+                else "LOGS_INCOMPLETE")
+        encoded = (json.dumps(summary, sort_keys=True) + "\n").encode("utf-8")
+        self.record_result(phase, "logs", "log_event_summary", "logcat_summary", (),
+                           code, encoded, b"")
+        if code != 0:
+            raise SafetyStop("bounded logcat operation failed")
+
     def record_result(self, phase: str, category: str, name: str, operation: str,
                       args: Any, code: int, out: bytes, err: bytes,
                       *, pid: int | None = None) -> None:
+        if operation == "logcat":
+            raise SafetyStop("raw logcat persistence is disabled; use store_log_summary")
         relative = Path(phase) / category / f"{name}.raw"
         target = self.output / relative
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -420,8 +486,8 @@ class Capture:
                            "operation": operation,
                            "arguments": [args] if isinstance(args, str) else list(args)})
 
-    def assert_same_instance(self, expected: ProcessIdentity) -> None:
-        current = discover_process(self.reader, capture=self, phase="identity-check",
+    def assert_same_instance(self, expected: ProcessIdentity, phase: str = "identity-check") -> None:
+        current = discover_process(self.reader, capture=self, phase=phase,
                                    label=f"check_{expected.pid}_{datetime.now().strftime('%H%M%S%f')}")
         if current != expected:
             raise SafetyStop(f"jmcs instance changed during critical snapshot: {expected} -> {current}")
@@ -445,9 +511,9 @@ class Capture:
         for service in SAFE_DUMPSYS:
             self.store(phase, "display", f"dumpsys_{service.replace('/', '_')}", "dumpsys", service,
                        timeout=15, max_bytes=4 * 1024 * 1024)
-        self.store(phase, "logs", "logcat_tail", "logcat", timeout=15, max_bytes=4 * 1024 * 1024)
+        self.store_log_summary(phase)
 
-    def verify_target_identity(self) -> dict[str, str]:
+    def verify_target_identity(self, phase: str = "preflight") -> dict[str, str]:
         sources = (
             ("kernel_version", "read", "/proc/version", "3.1.10+"),
             ("android_release", "property", "ro.build.version.release", EXPECTED_ANDROID_RELEASE),
@@ -458,8 +524,8 @@ class Capture:
         )
         values: dict[str, str] = {}
         for name, operation, argument, expected in sources:
-            code, raw = (self.store("preflight", "identity", name, operation, argument,
-                                    timeout=5, max_bytes=64 * 1024))
+            code, raw = self.store_required(phase, "identity", name, operation, argument,
+                                            timeout=5, max_bytes=64 * 1024)
             value = raw.decode("utf-8", "replace").strip()
             values[name] = value
             if code != 0:
@@ -496,8 +562,35 @@ class Capture:
         for service in SAFE_DUMPSYS:
             self.store("connected", "display", f"dumpsys_{service.replace('/', '_')}",
                        "dumpsys", service, timeout=15, max_bytes=4 * 1024 * 1024)
-        self.store("connected", "logs", "logcat_tail", "logcat", timeout=15,
-                   max_bytes=4 * 1024 * 1024)
+        self.store_log_summary("connected")
+
+    def collect_campaign_observation(self, phase: str,
+                                    expected_identity: ProcessIdentity | None = None) -> ProcessIdentity:
+        """Capture only identity, display diagnostics, and safe log summaries for a human-marked phase."""
+        self.phase_times.setdefault(phase, {})["capture_started_utc"] = datetime.now(timezone.utc).isoformat()
+        identity = discover_process(self.reader, capture=self, phase=phase, label="initial")
+        if expected_identity is not None and identity != expected_identity:
+            raise SafetyStop("jmcs process identity changed between campaign observations")
+        self.phase_identities[phase] = identity
+        if phase == "baseline":
+            shell_code, shell_raw = self.store_required(phase, "platform", "effective_shell_identity",
+                                                        "id", timeout=5, max_bytes=64 * 1024)
+            if not re.search(rb"(?:^|\s)uid=2000\(shell\)(?:\s|$)", shell_raw):
+                raise SafetyStop("ordinary ADB shell identity did not match UID 2000")
+            for prop in ("ro.secure", "ro.debuggable"):
+                _, property_raw = self.store_required(
+                    phase, "properties", prop.replace(".", "_"), "property", prop,
+                    timeout=5, max_bytes=64 * 1024)
+                expected = b"1" if prop == "ro.secure" else b"0"
+                if property_raw.strip() != expected:
+                    raise SafetyStop(f"selected debug property did not match prior target value: {prop}")
+        for service in SAFE_DUMPSYS:
+            self.store_required(phase, "display", f"dumpsys_{service.replace('/', '_')}",
+                                "dumpsys", service, timeout=15,
+                                max_bytes=4 * 1024 * 1024, pid=identity.pid)
+        self.store_log_summary(phase)
+        self.phase_times[phase]["finished_utc"] = datetime.now(timezone.utc).isoformat()
+        return identity
 
     def _capture_thread_snapshot(self, phase: str, identity: ProcessIdentity, index: int) -> None:
         pid = identity.pid
@@ -581,6 +674,8 @@ class Capture:
             "process_identities": {name: asdict(identity) for name, identity in self.phase_identities.items()},
             "target_identity": getattr(self, "target_identity", None),
             "privileged_mode": bool(getattr(self, "privileged_mode", False)),
+            "campaign": getattr(self, "campaign_metadata", None),
+            "failure_card": getattr(self, "failure_card", None),
             "artifacts": self.files,
             "commands": self.reader.records,
             "stop_result": self.stop_result,
@@ -642,7 +737,7 @@ def dry_run(reader: FixedAdb) -> None:
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", default="auto",
-                        help="explicit existing ADB serial or auto (requires exactly one authorized device)")
+                        help="explicit existing ADB serial; auto is dry-run only")
     parser.add_argument("--phase", choices=("all", "baseline", "connected", "post-disconnect"), default="all",
                         help="all phases; baseline only; baseline+connected; or all through post-disconnect")
     parser.add_argument("--output-root", type=Path, default=Path.home())
@@ -663,6 +758,13 @@ def main(argv: list[str] | None = None) -> int:
     if not args.serial:
         print("refusing: live collection requires explicit --serial", file=sys.stderr)
         return 2
+    if args.serial == "auto":
+        print("refusing: live collection requires the exact pre-authorized --serial; device enumeration is disabled",
+              file=sys.stderr)
+        return 2
+    print("refusing: legacy collector live execution is disabled; use the pinned campaign runner after its separate review and authorization gates",
+          file=sys.stderr)
+    return 2
     if not args.vehicle_parked_confirmed or not args.iphone_disconnected_confirmed:
         print("refusing: confirm --vehicle-parked-confirmed and --iphone-disconnected-confirmed", file=sys.stderr)
         return 2
