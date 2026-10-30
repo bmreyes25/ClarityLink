@@ -30,17 +30,20 @@ def synthetic_jmcs(*, second_cave=False, short_cave=False, cave_overlaps_text=Fa
     struct.pack_into("<HHI", raw, 16, 3, 40, 1)  # ET_DYN, EM_ARM, EV_CURRENT
     # The first executable PT_LOAD maps the callsites and, normally, the cave.
     phoff = 52
-    phnum = 2 if split_executable_segment else 1
+    phnum = 3 if split_executable_segment else 2
     struct.pack_into("<I", raw, 28, phoff)
     struct.pack_into("<I", raw, 36, 0x05000000)  # ARM EABI5
     struct.pack_into("<HHHHHH", raw, 40, 52, 32, phnum, 40, 3, 2)
     first_filesz = CAVE_OFFSET if split_executable_segment else 0x1300
-    struct.pack_into("<IIIIIIII", raw, phoff, 1, 0, TEXT_VA - TEXT_OFFSET,
-                     TEXT_VA - TEXT_OFFSET, first_filesz, first_filesz, 5, 1)
-    raw[phoff + 32:TEXT_OFFSET] = b"\x99" * (TEXT_OFFSET - (phoff + 32))
+    segment_base = TEXT_VA - TEXT_OFFSET
+    struct.pack_into("<IIIIIIII", raw, phoff, 6, phoff, segment_base + phoff,
+                     segment_base + phoff, phnum * 32, phnum * 32, 4, 4)
+    struct.pack_into("<IIIIIIII", raw, phoff + 32, 1, 0, segment_base,
+                     segment_base, first_filesz, first_filesz, 5, 1)
+    raw[phoff + phnum * 32:TEXT_OFFSET] = b"\x99" * (TEXT_OFFSET - (phoff + phnum * 32))
     if split_executable_segment:
         far_va = 0x128B000
-        struct.pack_into("<IIIIIIII", raw, phoff + 32, 1, CAVE_OFFSET, far_va,
+        struct.pack_into("<IIIIIIII", raw, phoff + 64, 1, CAVE_OFFSET, far_va,
                          far_va, 0x200, 0x200, 5, 1)
 
     raw[TEXT_OFFSET:TEXT_OFFSET + 0x1000] = b"\xcc" * 0x1000
@@ -62,8 +65,8 @@ def synthetic_jmcs(*, second_cave=False, short_cave=False, cave_overlaps_text=Fa
         raw[CAVE_OFFSET + 0x200] = 0x7f
         raw[CAVE_OFFSET + 0x201:0x1380] = b"\0" * (0x1380 - CAVE_OFFSET - 0x201)
         first_filesz = 0x1380
-        struct.pack_into("<I", raw, phoff + 16, first_filesz)
-        struct.pack_into("<I", raw, phoff + 20, first_filesz)
+        struct.pack_into("<I", raw, phoff + 32 + 16, first_filesz)
+        struct.pack_into("<I", raw, phoff + 32 + 20, first_filesz)
 
     raw[STRING_OFFSET:STRING_OFFSET + len(STRINGS)] = STRINGS
     # Three section records: null, .text, .shstrtab.
@@ -116,6 +119,48 @@ class IsolatedCopyRewriterTests(unittest.TestCase):
                 self.assertEqual(patched[item.stub_offset:item.stub_offset + rewriter.STUB_SIZE], item.stub_bytes)
             self.assertTrue(receipt_a.pass_through_only)
             self.assertFalse(receipt_a.type111_supported)
+
+    def test_appended_pt_loads_relocate_phdr_and_keep_ro_rx_separate(self):
+        original = synthetic_jmcs(short_cave=True)
+        with self._with_fixture_identity(original):
+            plan = rewriter.build_appended_load_plan(original)
+        self.assertEqual(plan.method, "appended-PT_LOAD")
+        self.assertEqual(len(plan.expected_segments), 2)
+        ro, rx = plan.expected_segments
+        self.assertEqual(ro[4] & 2, 0)
+        self.assertEqual(rx[4] & 2, 0)
+        self.assertEqual(rx[4] & 1, 1)
+        patched = rewriter._apply_plan(original, plan)
+        rewriter._validate_patched_copy(original, patched, plan)
+        self.assertEqual(struct.unpack_from("<I", patched, 28)[0], plan.expected_phoff)
+        self.assertEqual(struct.unpack_from("<H", patched, 44)[0], plan.expected_phnum)
+        self.assertEqual(patched[:len(original)][52:52 + 64], original[52:52 + 64])
+        for item in plan.patches:
+            self.assertEqual(decode(item.site_va,
+                                    patched[item.site_offset:item.site_offset + 4]), item.stub_va)
+            self.assertEqual(rewriter.decode_thumb_b_w(
+                item.stub_va, patched[item.stub_offset:item.stub_offset + 4]), item.stock_target)
+
+    def test_appended_pt_load_method_creates_only_a_new_isolated_copy(self):
+        original = synthetic_jmcs(short_cave=True)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, output = root / "original", root / "isolated-copy"
+            source.write_bytes(original)
+            with self._with_fixture_identity(original):
+                receipt = rewriter.rewrite_isolated_copy(source, output, "appended-PT_LOAD")
+            self.assertTrue(receipt.output_sha256)
+            self.assertEqual(source.read_bytes(), original)
+            self.assertGreater(output.stat().st_size, len(original))
+            self.assertGreater(receipt.changed_byte_count, output.stat().st_size - len(original))
+
+    def test_appended_pt_load_rejects_missing_original_pt_phdr(self):
+        data = bytearray(synthetic_jmcs(short_cave=True))
+        struct.pack_into("<I", data, 52, 0)  # remove the only PT_PHDR in this fixture
+        data = bytes(data)
+        with self._with_fixture_identity(data):
+            with self.assertRaisesRegex(rewriter.RewriteError, "exactly one PT_PHDR"):
+                rewriter.build_appended_load_plan(data)
 
     def test_rejects_wrong_reference_hash_and_wrong_info_call_bytes(self):
         data = synthetic_jmcs()
