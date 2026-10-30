@@ -113,6 +113,80 @@ class PublishScopeTests(unittest.TestCase):
                 publisher.publish(args)
             preflight.assert_called_once_with(root.resolve(), "feature/synthetic")
 
+    def test_pr_checkpoint_retries_stale_head_after_push(self):
+        import json
+        expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
+                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        stale = {**expected, "headRefOid": "previous-sha"}
+        responses = [
+            subprocess.CompletedProcess([], 0, json.dumps(stale), ""),
+            subprocess.CompletedProcess([], 0, json.dumps(expected), ""),
+        ]
+        with patch.object(publisher.subprocess, "run", side_effect=responses), \
+             patch.object(publisher.time, "sleep") as sleep:
+            actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+        self.assertEqual(actual, expected)
+        sleep.assert_called_once_with(1)
+
+    def test_pr_checkpoint_stops_after_bounded_stale_head_reads(self):
+        import json
+        stale = {"headRefName": "feature/synthetic", "headRefOid": "previous-sha",
+                 "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        response = subprocess.CompletedProcess([], 0, json.dumps(stale), "")
+        with patch.object(publisher.subprocess, "run", return_value=response) as run, \
+             patch.object(publisher.time, "sleep") as sleep:
+            with self.assertRaisesRegex(publisher.Failure, "after 5 reads"):
+                publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+        self.assertEqual(run.call_count, 5)
+        self.assertEqual(sleep.call_count, 4)
+
+    def test_pr_checkpoint_retries_cli_timeout(self):
+        import json
+        expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
+                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        response = subprocess.CompletedProcess([], 0, json.dumps(expected), "")
+        timeout = subprocess.TimeoutExpired(["gh", "pr", "view", "7"], 10)
+        with patch.object(publisher.subprocess, "run", side_effect=[timeout, response]) as run, \
+             patch.object(publisher.time, "sleep") as sleep:
+            actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+        self.assertEqual(actual, expected)
+        self.assertEqual(run.call_args_list[0].kwargs["timeout"], 10)
+        sleep.assert_called_once_with(1)
+
+    def test_pr_checkpoint_retries_malformed_and_non_object_responses(self):
+        import json
+        expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
+                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        responses = [
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "[]", ""),
+            subprocess.CompletedProcess([], 0, json.dumps(expected), ""),
+        ]
+        with patch.object(publisher.subprocess, "run", side_effect=responses), \
+             patch.object(publisher.time, "sleep") as sleep:
+            actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+        self.assertEqual(actual, expected)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_pr_checkpoint_rejects_missing_or_null_url_after_bounded_reads(self):
+        import json
+        valid = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
+                 "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        malformed = [
+            {key: value for key, value in valid.items() if key != "url"},
+            {**valid, "url": None},
+            {**valid, "url": "https://example.invalid/pull/7"},
+        ]
+        for payload in malformed:
+            response = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+            with self.subTest(payload=payload), \
+                 patch.object(publisher.subprocess, "run", return_value=response) as run, \
+                 patch.object(publisher.time, "sleep") as sleep:
+                with self.assertRaisesRegex(publisher.Failure, "after 5 reads"):
+                    publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+            self.assertEqual(run.call_count, 5)
+            self.assertEqual(sleep.call_count, 4)
+
     def test_empty_scope_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(publisher.Failure):

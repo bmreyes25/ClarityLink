@@ -160,6 +160,43 @@ def reject_staged_outside_scope(root: Path, scope: list[str]) -> None:
         raise Failure("unrelated files were already staged; preserve them and publish only after resolving the index: " + ", ".join(outside))
 
 
+def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, label: str) -> dict:
+    """Read back a just-pushed PR head, tolerating brief GitHub API propagation delay."""
+    attempts = 5
+    last_error = ""
+    for attempt in range(attempts):
+        try:
+            result = subprocess.run(command, text=True, capture_output=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            last_error = "GitHub CLI read timed out after 10 seconds"
+        else:
+            if result.returncode:
+                last_error = (result.stderr or result.stdout).strip()
+            else:
+                import json
+                try:
+                    data = json.loads(result.stdout)
+                except (TypeError, ValueError) as exc:
+                    last_error = f"GitHub CLI returned invalid JSON: {exc}"
+                else:
+                    if not isinstance(data, dict):
+                        last_error = "GitHub CLI returned a non-object PR response"
+                    elif data.get("headRefName") != branch:
+                        raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
+                    elif data.get("baseRefName") != "main" or data.get("state") != "OPEN":
+                        raise Failure(f"{label}: pull request must be open and target main")
+                    elif not isinstance(data.get("url"), str) or not re.fullmatch(
+                            r"https://github\.com/bmreyes25/ClarityLink/pull/[1-9][0-9]*", data["url"]):
+                        last_error = "GitHub CLI returned a missing or invalid canonical PR URL"
+                    elif data.get("headRefOid") == local_sha:
+                        return data
+                    else:
+                        last_error = f"GitHub reports head {data.get('headRefOid')!r}; expected {local_sha}"
+        if attempt + 1 < attempts:
+            time.sleep(attempt + 1)
+    raise Failure(f"{label}: PR head did not match published checkpoint after {attempts} reads: {last_error}")
+
+
 def publish(args: argparse.Namespace) -> dict:
     root = Path(git(args.repo, "rev-parse", "--show-toplevel")).resolve()
     if git(root, "remote", "get-url", "origin") not in (REMOTE, "git@github.com:bmreyes25/ClarityLink.git", "ssh://git@github.com/bmreyes25/ClarityLink.git"):
@@ -232,15 +269,10 @@ def publish(args: argparse.Namespace) -> dict:
                 pr_number = rows[0]["number"]
                 pr_url = rows[0]["url"]
     if pr_number:
-        info = subprocess.run(["gh", "pr", "view", str(pr_number), "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"], text=True, capture_output=True)
-        if info.returncode:
-            raise Failure(f"could not verify existing PR #{pr_number}: {info.stderr.strip()}")
-        import json
-        data = json.loads(info.stdout)
-        if data.get("headRefName") != branch or data.get("headRefOid") != local_sha:
-            raise Failure("existing PR head branch or SHA does not match the published checkpoint")
-        if data.get("baseRefName") != "main" or data.get("state") != "OPEN":
-            raise Failure("existing PR must be open and target main")
+        data = verify_pr_checkpoint(
+            ["gh", "pr", "view", str(pr_number), "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
+            branch, local_sha, label=f"existing PR #{pr_number}",
+        )
         pr_url = data["url"]
     elif args.verification == "VERIFIED":
         p = subprocess.run(["gh", "pr", "create", "-R", REPO, "--base", "main", "--head", branch,
@@ -250,14 +282,10 @@ def publish(args: argparse.Namespace) -> dict:
             raise Failure(f"push verified, but PR creation failed: {p.stderr.strip()}")
         pr_url = p.stdout.strip().splitlines()[-1]
     if pr_url:
-        check = subprocess.run(["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"], text=True, capture_output=True)
-        if check.returncode:
-            raise Failure(f"branch push verified, but PR reference check failed: {check.stderr.strip()}")
-        import json
-        pr_data = json.loads(check.stdout)
-        if (pr_data.get("headRefName") != branch or pr_data.get("headRefOid") != local_sha
-                or pr_data.get("baseRefName") != "main" or pr_data.get("state") != "OPEN"):
-            raise Failure("PR state, base, branch, or SHA does not match the published checkpoint")
+        pr_data = verify_pr_checkpoint(
+            ["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
+            branch, local_sha, label="published PR",
+        )
         pr_url = pr_data["url"]
     result = subprocess.run([sys.executable, str(root / "tools/verify_remote_publication.py"), "--repo", str(root), "--branch", branch], text=True, capture_output=True)
     if result.returncode:
