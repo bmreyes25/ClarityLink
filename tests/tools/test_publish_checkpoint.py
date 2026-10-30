@@ -168,6 +168,25 @@ class PublishScopeTests(unittest.TestCase):
         self.assertEqual(actual, expected)
         self.assertEqual(sleep.call_count, 2)
 
+    def test_pr_checkpoint_rejects_missing_or_null_url_after_bounded_reads(self):
+        import json
+        valid = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
+                 "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+        malformed = [
+            {key: value for key, value in valid.items() if key != "url"},
+            {**valid, "url": None},
+            {**valid, "url": "https://example.invalid/pull/7"},
+        ]
+        for payload in malformed:
+            response = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+            with self.subTest(payload=payload), \
+                 patch.object(publisher.subprocess, "run", return_value=response) as run, \
+                 patch.object(publisher.time, "sleep") as sleep:
+                with self.assertRaisesRegex(publisher.Failure, "after 5 reads"):
+                    publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
+            self.assertEqual(run.call_count, 5)
+            self.assertEqual(sleep.call_count, 4)
+
     def test_empty_scope_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(publisher.Failure):

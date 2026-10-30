@@ -185,6 +185,9 @@ def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, lab
                         raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
                     elif data.get("baseRefName") != "main" or data.get("state") != "OPEN":
                         raise Failure(f"{label}: pull request must be open and target main")
+                    elif not isinstance(data.get("url"), str) or not re.fullmatch(
+                            r"https://github\.com/bmreyes25/ClarityLink/pull/[1-9][0-9]*", data["url"]):
+                        last_error = "GitHub CLI returned a missing or invalid canonical PR URL"
                     elif data.get("headRefOid") == local_sha:
                         return data
                     else:
