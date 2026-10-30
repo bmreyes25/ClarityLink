@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import subprocess
 import sys
 
@@ -31,6 +32,9 @@ def test_dry_run_is_complete_and_never_contacts_adb(monkeypatch):
     assert report["device_enumeration"] is False
     assert report["files_created"] is False
     assert report["phase_count"] == len(campaign.phases()) == 8
+    assert sum(len(phase["commands"]) for phase in report["phases"]) == 135
+    assert campaign.command_manifest_sha256() == campaign.BASELINE_COMMAND_MANIFEST_SHA256
+    assert report["source_hash_lock"] == json.loads(campaign.SOURCE_LOCK_FILE.read_text())
     for phase in report["phases"]:
         assert phase["failure_behavior"].startswith("stop immediately")
         assert phase["artifact_destination"].startswith("<private-capture-root>")
@@ -174,36 +178,42 @@ def test_profile_tampering_is_rejected(tmp_path, monkeypatch):
 
 
 def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
-    review_path = tmp_path / "independent-technical-review.pdf"
-    review_path.write_bytes(b"synthetic review fixture bound only to offline tests")
-    review_path.chmod(0o600)
     profile_hash = campaign.verify_pinned_profile()
     sources = campaign.source_hashes()
     row = campaign._approval_template(profile_hash, sources)
+    reviewed_commit = "b" * 40
     row.update({"owner_authorization": "YES", "owner_authorized_utc": "2026-10-30T12:00:00Z",
                 "adb_serial": "SYNTHETIC-EXACT-SERIAL", "policy_effective": True,
-                "policy_effective_commit_sha": "a" * 40,
+                "policy_effective_commit_sha": "a" * 40, "reviewed_commit_sha": reviewed_commit,
+                "owner_risk_acceptance": True,
                 "owner_confirmed_park": True, "owner_confirmed_parking_brake": True,
-                "approved_vehicle_power_state": "synthetic fixture state",
-                "owner_confirmed_vehicle_power_state": "synthetic fixture state"})
-    row["independent_technical_review"] = {
-        "review_type": "independent_technical", "reviewer_identity": "synthetic-reviewer",
-        "reviewer_competence": "synthetic Android/ADB and vehicle diagnostics fixture; not verified",
-        "reviewer_independence_attested": True,
-        "reviewed_vehicle_power_state": "synthetic fixture state",
-        "review_decision": "APPROVED", "reviewed_profile_sha256": profile_hash,
-        "reviewed_source_hashes": sources,
-        "reviewed_phase_ids": [phase.key for phase in campaign.phases()],
-        "artifact_path": str(review_path),
-        "artifact_sha256": hashlib.sha256(review_path.read_bytes()).hexdigest(),
-    }
+                "approved_vehicle_power_state": campaign.APPROVED_POWER_STATE,
+                "owner_confirmed_vehicle_power_state": campaign.APPROVED_POWER_STATE,
+                "review_disclaimer_acknowledged": True})
+    reviews = {}
+    for agent in campaign.REQUIRED_REVIEW_AGENTS:
+        review_path = tmp_path / f"{agent}-review.json"
+        report = {"agent_id": agent, "tool_version": f"synthetic-{agent}-fixture",
+                  "review_type": "ai_engineering_review_not_human_certification",
+                  "reviewed_commit_sha": reviewed_commit, "profile_sha256": profile_hash,
+                  "source_hashes": sources,
+                  "command_manifest_sha256": campaign.command_manifest_sha256(),
+                  "phase_ids": [phase.key for phase in campaign.phases()],
+                  "findings": [], "tests_executed": ["synthetic fixture only"],
+                  "unverified_assumptions": ["synthetic test data"], "proposed_changes": [],
+                  "recommendation": "GO"}
+        review_path.write_text(json.dumps(report, sort_keys=True))
+        review_path.chmod(0o600)
+        reviews[agent] = {"artifact_path": str(review_path),
+                          "artifact_sha256": hashlib.sha256(review_path.read_bytes()).hexdigest()}
+    row["multi_agent_reviews"] = reviews
     approval_path = tmp_path / "owner-approval.json"
     approval_path.write_text(json.dumps(row))
     approval_path.chmod(0o600)
     return approval_path, profile_hash, sources
 
 
-def test_approval_requires_exact_owner_review_profile_sources_phases_and_serial(tmp_path):
+def test_approval_requires_exact_owner_and_three_hash_bound_ai_reviews(tmp_path):
     approval_path, profile_hash, sources = _approval(tmp_path)
     serial, _ = campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                            source_hashes_verified=sources)
@@ -228,15 +238,125 @@ def test_approval_requires_effective_policy_attestation(tmp_path):
                                    source_hashes_verified=sources)
 
 
-def test_technical_review_must_bind_exact_vehicle_power_state(tmp_path):
+def test_owner_power_state_must_match_pinned_on_non_ready_state(tmp_path):
     approval_path, profile_hash, sources = _approval(tmp_path)
     record = json.loads(approval_path.read_text())
-    record["independent_technical_review"]["reviewed_vehicle_power_state"] = "different"
+    record["approved_vehicle_power_state"] = "READY"
     approval_path.write_text(json.dumps(record))
     approval_path.chmod(0o600)
     with pytest.raises(collector.SafetyStop, match="power state"):
         campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                    source_hashes_verified=sources)
+
+
+@pytest.mark.parametrize("mutation, message", [
+    (lambda record: record["multi_agent_reviews"].pop("ecc"), "Codex, Claude, and ECC"),
+    (lambda record: record["multi_agent_reviews"]["claude"].update(artifact_sha256="0" * 64), "hash mismatch"),
+    (lambda record: record["multi_agent_reviews"]["codex"].update(artifact_path="/does/not/exist"), "bounded regular file"),
+])
+def test_missing_or_tampered_ai_review_stops(tmp_path, mutation, message):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    mutation(record)
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match=message):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_unresolved_high_finding_and_human_certification_claim_are_rejected(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    review = Path(record["multi_agent_reviews"]["ecc"]["artifact_path"])
+    report = json.loads(review.read_text())
+    report["findings"] = [{"severity": "high", "status": "open", "finding": "synthetic unresolved finding"}]
+    review.write_text(json.dumps(report, sort_keys=True))
+    review.chmod(0o600)
+    record["multi_agent_reviews"]["ecc"]["artifact_sha256"] = hashlib.sha256(review.read_bytes()).hexdigest()
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="unresolved critical/high"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_review_record_cannot_be_mislabeled_as_human_certification(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    review = Path(record["multi_agent_reviews"]["codex"]["artifact_path"])
+    report = json.loads(review.read_text())
+    report["review_type"] = "independent_human_safety_certification"
+    review.write_text(json.dumps(report, sort_keys=True))
+    review.chmod(0o600)
+    record["multi_agent_reviews"]["codex"]["artifact_sha256"] = hashlib.sha256(review.read_bytes()).hexdigest()
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="labeled as AI engineering review"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_review_disclaimer_is_required_even_when_all_reports_are_go(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    record["review_disclaimer_acknowledged"] = False
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="not independent human safety certification"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_effective_policy_gate_requires_fresh_clean_main_and_adopted_policy():
+    responses = iter([
+        SimpleNamespace(returncode=0, stdout=""),
+        SimpleNamespace(returncode=0, stdout="main\n"),
+        SimpleNamespace(returncode=0, stdout=""),
+        SimpleNamespace(returncode=0, stdout="a" * 40),
+        SimpleNamespace(returncode=0, stdout="a" * 40),
+        SimpleNamespace(returncode=0, stdout=""),
+    ])
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return next(responses)
+
+    campaign.verify_effective_policy("b" * 40, run=fake_run)
+    assert calls[0] == ["git", "fetch", "--quiet", "origin", "main"]
+    assert calls[-1] == ["git", "merge-base", "--is-ancestor", "b" * 40, "origin/main"]
+
+
+@pytest.mark.parametrize("branch, dirty, head, remote, message", [
+    ("feature", "", "a" * 40, "a" * 40, "clean checkout on main"),
+    ("main", " M source.py", "a" * 40, "a" * 40, "clean checkout on main"),
+    ("main", "", "a" * 40, "c" * 40, "exactly match freshly fetched origin/main"),
+])
+def test_effective_policy_gate_rejects_wrong_checkout_state(branch, dirty, head, remote, message):
+    outputs = iter(["", branch, dirty, head, remote, ""])
+
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(returncode=0, stdout=next(outputs))
+
+    with pytest.raises(collector.SafetyStop, match=message):
+        campaign.verify_effective_policy("b" * 40, run=fake_run)
+
+
+def test_live_runner_stops_at_policy_gate_before_adb_or_capture(tmp_path, monkeypatch):
+    approval_path, _, _ = _approval(tmp_path)
+
+    def fail_policy(*args, **kwargs):
+        raise collector.SafetyStop("policy has not been adopted")
+
+    monkeypatch.setattr(campaign, "verify_effective_policy", fail_policy)
+    monkeypatch.setattr(collector.shutil, "which",
+                        lambda *_: pytest.fail("ADB lookup occurred before policy gate"))
+    output_root = tmp_path / "private-output"
+    result = campaign.main(["run", "--approval-file", str(approval_path),
+                            "--output-root", str(output_root)])
+    assert result == 2
+    assert not output_root.exists()
 
 
 def test_missing_approval_stops_before_adb_client_or_capture_creation(tmp_path, monkeypatch):
@@ -254,6 +374,7 @@ def test_missing_approval_stops_before_adb_client_or_capture_creation(tmp_path, 
 def test_unavailable_adb_preserves_initialized_private_recovery_checkpoint(tmp_path, monkeypatch):
     approval_path, _, _ = _approval(tmp_path)
     output_root = tmp_path / "private-output"
+    monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
     monkeypatch.setattr(collector.shutil, "which", lambda _: None)
     result = campaign.main(["run", "--approval-file", str(approval_path),
                             "--output-root", str(output_root)])

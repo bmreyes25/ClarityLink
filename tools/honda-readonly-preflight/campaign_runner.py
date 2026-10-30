@@ -2,9 +2,10 @@
 
 `dry-run` is purely local: it does not locate ADB, inspect connected devices, or
 create capture files. Live execution requires a private approval attestation
-which binds an independent-technical-review artifact, exact profile/source hashes, phases,
-and the exact pre-approved ADB serial. This module does not itself grant that
-approval.
+which binds three exact-source AI engineering reviews (not human safety
+certification), owner risk acceptance, adopted policy, profile/source hashes,
+phases and exact pre-approved ADB serial. This module does not itself grant
+that approval.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Callable
 
@@ -31,12 +33,21 @@ PROFILE_FILE = HERE / "campaign_profile.json"
 PROFILE_HASH_FILE = HERE / "campaign_profile.sha256"
 SOURCE_LOCK_FILE = HERE / "campaign_source_hashes.json"
 POLICY_FILES = (REPO_ROOT / "AGENTS.md", REPO_ROOT / "docs/safety/vehicle-testing.md",
-                REPO_ROOT / "docs/security/vehicle-safety-gates.md")
+                REPO_ROOT / "docs/security/vehicle-safety-gates.md",
+                REPO_ROOT / "docs/security/single-owner-cp-review-policy.md")
 MAX_COMMAND_TIMEOUT = 20
 MAX_COMMAND_OUTPUT = 4 * 1024 * 1024
 PROCESS_PID_PLACEHOLDER = "<JMCS_PID>"
 IDENTITY_PROPERTIES = ("ro.build.version.release", "ro.build.version.sdk",
                        "ro.product.device", "ro.product.board", "ro.hardware")
+CAMPAIGN_ID = "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION"
+AUTHORIZATION_CATEGORY = "C-P-MA-OWNER-ASSUMED-RISK"
+REQUIRED_REVIEW_AGENTS = ("codex", "claude", "ecc")
+APPROVED_POWER_STATE = "ON mode; brake pedal not pressed; READY indicator absent"
+BASELINE_COMMAND_MANIFEST_SHA256 = "d2ee4bae8f7fcdb6d4928386c8bd9112430a35dbcd27c4015f04fba5cd84fed3"
+SCOPE_EXCLUSIONS = ["root_or_su", "adb_root", "instrumentation_or_process_attachment",
+                    "HondaHack", "receiver_or_display_modification", "firmware", "CAN_or_vehicle_control",
+                    "warning_interference", "driving_test", "deployment"]
 
 
 @dataclass(frozen=True)
@@ -73,10 +84,11 @@ def phases() -> tuple[Phase, ...]:
     ) + _identity_operations() + _display_operations()
     observation = _identity_operations() + _display_operations() + _identity_operations()
     return (
-        Phase("phase0_baseline", "Factory baseline", "Confirm Park/stationary, normal stock display, cluster, navigation and audio; phone disconnected; no unexpected warning.",
+        Phase("phase0_baseline", "Factory baseline", "Outdoors, confirm Park/stationary, parking brake, ON mode with brake pedal not pressed and READY absent; confirm normal stock display, cluster, navigation and audio; phone disconnected; no unexpected warning.",
               "All stated baseline conditions are normal.", (), ("owner_observation.json",),
               ("Vehicle stationary and in Park", "Center screen is operating normally",
                "Instrument cluster is operating normally", "No unexpected warning is present",
+               "Vehicle power system is ON with READY absent; do not proceed if this changes",
                "Factory Navigation is operating normally", "Audio is operating normally",
                "iPhone is disconnected", "No ClarityLink modification is running")),
         Phase("phase1_identity", "Target identity", "Proceed only after baseline is recorded; use the existing approved ADB transport.",
@@ -130,7 +142,7 @@ def _phase_dict(phase: Phase) -> dict[str, object]:
 
 def profile_payload() -> dict[str, object]:
     return {
-        "campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
+        "campaign_id": CAMPAIGN_ID,
         "schema_version": 1,
         "transport": "existing legacy adb shell; exact serial only; no device enumeration",
         "target": {"android_release": EXPECTED_ANDROID_RELEASE,
@@ -138,6 +150,7 @@ def profile_payload() -> dict[str, object]:
                    "product_device": EXPECTED_PRODUCT_DEVICE,
                    "product_board": EXPECTED_PRODUCT_BOARD,
                    "hardware": EXPECTED_HARDWARE,
+                   "vehicle": "2018 Honda Clarity PHEV Touring (owner-identified)",
                    "platform_family": "Tegra (historical evidence; exact properties checked above)"},
         "privacy": {"raw_output_root": "outside-git-worktree", "directory_mode": "0700",
                     "file_mode": "0600", "logcat": "bounded in-memory summary; no source lines or stderr persisted"},
@@ -146,7 +159,10 @@ def profile_payload() -> dict[str, object]:
             path.relative_to(REPO_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in POLICY_FILES
         },
-        "authorization_category": "C-P",
+        "authorization_category": AUTHORIZATION_CATEGORY,
+        "review_semantics": "three hash-bound AI engineering reviews plus separate owner-assumed-risk authorization; not independent human safety certification and not a safety finding",
+        "approved_vehicle_power_state": APPROVED_POWER_STATE,
+        "scope_exclusions": SCOPE_EXCLUSIONS,
         "campaign_bounds": {
             "max_command_timeout_seconds_sum": sum(op[2] for phase in phases() for op in phase.operations),
             "max_output_bytes_sum": sum(op[3] for phase in phases() for op in phase.operations),
@@ -157,12 +173,13 @@ def profile_payload() -> dict[str, object]:
             ],
             "no_collection_during_operator_transition_waits": True,
         },
-        "approval_semantics": "owner and independent technical reviewer records are hash-bound human attestations; this tool does not verify identity, independence, or competence",
+        "approval_semantics": "owner risk acceptance is separate from three hash-bound AI review records; records do not authenticate agent identity, independence, competence, or vehicle safety",
         "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
         "prohibitions": ["auto_serial", "adb_devices", "network_scan", "su", "adb_root",
                          "setting_changes", "install", "write", "signal", "ptrace",
                          "proc_pid_mem", "injection", "receiver_patch", "can"],
         "phases": [_phase_dict(phase) for phase in phases()],
+        "command_manifest_sha256": command_manifest_sha256(),
         "optional_phase": {"id": "hondahack", "included": False,
                            "requires_separate_review_and_owner_approval": True},
     }
@@ -201,6 +218,15 @@ def expected_output(operation: str, args: tuple[str, ...]) -> str:
 
 def profile_sha256() -> str:
     return hashlib.sha256(canonical_json(profile_payload())).hexdigest()
+
+
+def command_manifest_sha256() -> str:
+    manifest = [{"id": phase.key, "operations": _phase_dict(phase)["operations"]}
+                for phase in phases()]
+    digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    if digest != BASELINE_COMMAND_MANIFEST_SHA256:
+        raise SafetyStop("fixed C-P command manifest differs from the original PR #118 scope")
+    return digest
 
 
 def verify_pinned_profile() -> str:
@@ -284,6 +310,86 @@ def _path_outside_repo(path: Path, description: str) -> Path:
     raise SafetyStop(f"{description} must remain outside the Git worktree")
 
 
+def verify_effective_policy(policy_commit_sha: str,
+                            *, run: Callable[..., object] = subprocess.run) -> None:
+    """Require the exact adopted policy on a fresh, clean protected-main checkout.
+
+    This uses fixed local git operations only. Fetch failure or stale/divergent
+    checkout fails closed before an ADB client or capture directory is created.
+    """
+    if not re.fullmatch(r"[0-9a-f]{40}", policy_commit_sha):
+        raise SafetyStop("effective policy commit is malformed")
+    commands = (
+        (["git", "fetch", "--quiet", "origin", "main"], "unable to refresh origin/main"),
+        (["git", "branch", "--show-current"], "unable to verify current branch"),
+        (["git", "status", "--porcelain", "--untracked-files=normal"], "unable to verify checkout cleanliness"),
+        (["git", "rev-parse", "HEAD"], "unable to verify current commit"),
+        (["git", "rev-parse", "origin/main"], "unable to verify refreshed origin/main"),
+        (["git", "merge-base", "--is-ancestor", policy_commit_sha, "origin/main"],
+         "policy commit is not adopted on origin/main"),
+    )
+    values: list[str] = []
+    for argv, error in commands:
+        try:
+            result = run(argv, cwd=REPO_ROOT, check=False, capture_output=True,
+                         text=True, timeout=20)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise SafetyStop(error) from exc
+        if getattr(result, "returncode", 1) != 0:
+            raise SafetyStop(error)
+        values.append(getattr(result, "stdout", "").strip())
+    branch, dirty, head, remote_main = values[1], values[2], values[3], values[4]
+    if branch != "main" or dirty:
+        raise SafetyStop("live C-P requires a clean checkout on main")
+    if not re.fullmatch(r"[0-9a-f]{40}", head) or head != remote_main:
+        raise SafetyStop("local HEAD must exactly match freshly fetched origin/main")
+
+
+def _review_report(path_value: object, expected_sha: object, agent: str, *,
+                   profile_hash: str, sources: dict[str, str], commit_sha: str) -> dict[str, object]:
+    if not isinstance(path_value, str) or not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
+        raise SafetyStop(f"{agent} review artifact path/hash is missing or invalid")
+    report_path = _path_outside_repo(Path(path_value), f"{agent} review artifact")
+    if report_path.is_symlink() or not report_path.is_file() or report_path.stat().st_size > 2 * 1024 * 1024:
+        raise SafetyStop(f"{agent} review artifact must be a bounded regular file")
+    if report_path.stat().st_mode & 0o777 != 0o600:
+        raise SafetyStop(f"{agent} review artifact must be owner-only (mode 0600)")
+    raw = report_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_sha:
+        raise SafetyStop(f"{agent} review artifact hash mismatch")
+    try:
+        report = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SafetyStop(f"{agent} review artifact must be JSON") from exc
+    if not isinstance(report, dict) or report.get("agent_id") != agent:
+        raise SafetyStop(f"{agent} review artifact identity label is invalid")
+    if report.get("review_type") != "ai_engineering_review_not_human_certification":
+        raise SafetyStop(f"{agent} report must be labeled as AI engineering review")
+    if report.get("reviewed_commit_sha") != commit_sha or report.get("profile_sha256") != profile_hash:
+        raise SafetyStop(f"{agent} review does not bind the exact commit and profile")
+    if report.get("source_hashes") != sources or report.get("command_manifest_sha256") != command_manifest_sha256():
+        raise SafetyStop(f"{agent} review does not bind the exact source and command manifest")
+    if report.get("phase_ids") != [phase.key for phase in phases()]:
+        raise SafetyStop(f"{agent} review does not bind the exact phase list")
+    if report.get("recommendation") != "GO":
+        raise SafetyStop(f"{agent} review recommendation is not GO")
+    findings = report.get("findings")
+    if not isinstance(findings, list) or any(not isinstance(item, dict) for item in findings):
+        raise SafetyStop(f"{agent} findings must be a list of structured records")
+    allowed_severities = {"critical", "high", "medium", "low", "info"}
+    if any(item.get("severity") not in allowed_severities
+           or not isinstance(item.get("status"), str)
+           or not isinstance(item.get("finding"), str) for item in findings):
+        raise SafetyStop(f"{agent} findings require severity, status and description")
+    if any(item.get("severity") in {"critical", "high"} and item.get("status") != "resolved" for item in findings):
+        raise SafetyStop(f"{agent} has unresolved critical/high findings")
+    for field in ("tool_version", "tests_executed", "unverified_assumptions", "proposed_changes"):
+        valid = isinstance(report.get(field), str) if field == "tool_version" else isinstance(report.get(field), list)
+        if not valid:
+            raise SafetyStop(f"{agent} report is missing {field}")
+    return report
+
+
 def validate_approval(path: Path, *, profile_hash: str,
                       source_hashes_verified: dict[str, str]) -> tuple[str, dict[str, object]]:
     approval_path = _path_outside_repo(path, "approval record")
@@ -298,65 +404,59 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("approval record is missing or invalid") from exc
     if not isinstance(approval, dict):
         raise SafetyStop("approval record must be a JSON object")
-    if approval.get("campaign_id") != "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION":
+    if approval.get("campaign_id") != CAMPAIGN_ID or approval.get("authorization_category") != AUTHORIZATION_CATEGORY:
         raise SafetyStop("approval record campaign does not match")
+    if approval.get("owner_identity") != "Ben Reyes" or approval.get("vehicle") != "2018 Honda Clarity PHEV Touring":
+        raise SafetyStop("owner or exact vehicle identification does not match the fixed campaign")
+    if approval.get("owner_risk_acceptance") is not True:
+        raise SafetyStop("owner risk acceptance is not recorded for this bounded passive category")
     if approval.get("owner_authorization") != "YES":
         raise SafetyStop("exact owner authorization is not recorded")
     try:
-        datetime.fromisoformat(str(approval.get("owner_authorized_utc", "")).replace("Z", "+00:00"))
+        authorized_at = datetime.fromisoformat(str(approval.get("owner_authorized_utc", "")).replace("Z", "+00:00"))
     except ValueError as exc:
         raise SafetyStop("owner authorization timestamp is missing or invalid") from exc
+    if authorized_at.tzinfo is None or authorized_at.utcoffset() != timezone.utc.utcoffset(authorized_at):
+        raise SafetyStop("owner authorization timestamp must be timezone-aware UTC")
     if approval.get("profile_sha256") != profile_hash:
         raise SafetyStop("approval profile hash does not match the pinned campaign")
     if approval.get("source_hashes") != source_hashes_verified:
         raise SafetyStop("approved source hashes do not match the verified campaign sources")
     if approval.get("phase_ids") != [phase.key for phase in phases()]:
         raise SafetyStop("approved phase scope does not exactly match the fixed campaign")
+    if approval.get("command_manifest_sha256") != command_manifest_sha256():
+        raise SafetyStop("owner approval command manifest digest does not match the fixed campaign")
+    if approval.get("scope_exclusions") != SCOPE_EXCLUSIONS:
+        raise SafetyStop("approval must preserve all higher-risk scope exclusions")
     if approval.get("policy_effective") is not True:
         raise SafetyStop("C-P policy adoption is not attested")
     if not isinstance(approval.get("policy_effective_commit_sha"), str) or not re.fullmatch(
             r"[0-9a-f]{40}", approval["policy_effective_commit_sha"]):
         raise SafetyStop("effective C-P policy commit is not recorded")
+    reviewed_commit = approval.get("reviewed_commit_sha")
+    if not isinstance(reviewed_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", reviewed_commit):
+        raise SafetyStop("exact multi-agent reviewed commit is not recorded")
     if approval.get("owner_confirmed_park") is not True or approval.get("owner_confirmed_parking_brake") is not True:
         raise SafetyStop("owner has not attested stationary Park and parking brake conditions")
     if approval.get("hondahack_authorized") is not False:
         raise SafetyStop("HondaHack is excluded from this campaign and requires separate approval")
-    reviewer = approval.get("independent_technical_review")
-    if not isinstance(reviewer, dict) or reviewer.get("review_type") != "independent_technical":
-        raise SafetyStop("C-P independent technical review is not recorded")
-    if not isinstance(reviewer.get("reviewer_competence"), str) or not reviewer["reviewer_competence"].strip():
-        raise SafetyStop("reviewer competence for Android/ADB and vehicle diagnostics is not recorded")
-    if reviewer.get("reviewer_independence_attested") is not True:
-        raise SafetyStop("reviewer independence is not attested")
-    if not isinstance(reviewer.get("reviewer_identity"), str) or not reviewer["reviewer_identity"].strip():
-        raise SafetyStop("independent technical reviewer identity is not recorded")
     approved_power_state = approval.get("approved_vehicle_power_state")
-    if not isinstance(approved_power_state, str) or not approved_power_state.strip():
-        raise SafetyStop("review-approved vehicle electrical power state is not recorded")
-    if reviewer.get("reviewed_vehicle_power_state") != approved_power_state:
-        raise SafetyStop("technical review does not bind the exact vehicle electrical power state")
+    if approved_power_state != APPROVED_POWER_STATE:
+        raise SafetyStop("C-P owner-assumed-risk category requires the pinned ON/non-READY power state")
     if approval.get("owner_confirmed_vehicle_power_state") != approved_power_state:
         raise SafetyStop("owner has not confirmed the reviewer-approved vehicle power state")
-    if reviewer.get("review_decision") != "APPROVED":
-        raise SafetyStop("independent technical reviewer has not approved this exact C-P procedure")
-    if reviewer.get("reviewed_profile_sha256") != profile_hash:
-        raise SafetyStop("technical review does not bind the pinned profile hash")
-    if reviewer.get("reviewed_source_hashes") != source_hashes_verified:
-        raise SafetyStop("technical review does not bind the verified source hashes")
-    if reviewer.get("reviewed_phase_ids") != [phase.key for phase in phases()]:
-        raise SafetyStop("technical review does not bind the exact phase list")
-    if not isinstance(reviewer.get("artifact_path"), str):
-        raise SafetyStop("exact procedure review artifact is not recorded")
-    review_path = _path_outside_repo(Path(reviewer["artifact_path"]), "safety review artifact")
-    if review_path.is_symlink() or not review_path.is_file() or review_path.stat().st_size > 8 * 1024 * 1024:
-        raise SafetyStop("safety review artifact must be a bounded regular file")
-    if review_path.stat().st_mode & 0o777 != 0o600:
-        raise SafetyStop("safety review artifact must be owner-only (mode 0600)")
-    expected_review_sha = reviewer.get("artifact_sha256")
-    if not isinstance(expected_review_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_review_sha):
-        raise SafetyStop("safety review artifact hash is invalid")
-    if hashlib.sha256(review_path.read_bytes()).hexdigest() != expected_review_sha:
-        raise SafetyStop("safety review artifact hash mismatch")
+    if approval.get("review_disclaimer_acknowledged") is not True:
+        raise SafetyStop("owner must acknowledge AI review is not independent human safety certification")
+    reviews = approval.get("multi_agent_reviews")
+    if not isinstance(reviews, dict) or set(reviews) != set(REQUIRED_REVIEW_AGENTS):
+        raise SafetyStop("exact Codex, Claude, and ECC review records are required")
+    for agent in REQUIRED_REVIEW_AGENTS:
+        row = reviews[agent]
+        if not isinstance(row, dict):
+            raise SafetyStop(f"{agent} review record is malformed")
+        _review_report(row.get("artifact_path"), row.get("artifact_sha256"), agent,
+                       profile_hash=profile_hash, sources=source_hashes_verified,
+                       commit_sha=approval["reviewed_commit_sha"])
     serial = approval.get("adb_serial")
     if not isinstance(serial, str) or serial == "auto" or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", serial):
         raise SafetyStop("approval must contain one exact pre-approved ADB serial")
@@ -663,10 +763,15 @@ class Campaign:
 
 
 def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, object]:
-    return {"campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
+    return {"campaign_id": CAMPAIGN_ID,
+            "authorization_category": AUTHORIZATION_CATEGORY,
+            "owner_identity": "Ben Reyes",
+            "owner_risk_acceptance": False,
+            "vehicle": "2018 Honda Clarity PHEV Touring",
             "owner_authorization": "NO",
             "owner_authorized_utc": "",
             "profile_sha256": profile,
+            "command_manifest_sha256": command_manifest_sha256(),
             "policy_effective": False,
             "policy_effective_commit_sha": "",
             "owner_confirmed_park": False,
@@ -675,19 +780,13 @@ def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, objec
             "source_hashes": sources,
             "phase_ids": [phase.key for phase in phases()],
             "adb_serial": "<filled only after separate explicit owner approval>",
-            "approved_vehicle_power_state": "",
+            "approved_vehicle_power_state": APPROVED_POWER_STATE,
             "hondahack_authorized": False,
-            "independent_technical_review": {"review_type": "not_obtained",
-                                         "reviewer_identity": "",
-                                         "reviewer_competence": "",
-                                         "reviewer_independence_attested": False,
-                                         "review_decision": "NOT_APPROVED",
-                                         "reviewed_profile_sha256": "",
-                                         "reviewed_source_hashes": {},
-                                         "reviewed_phase_ids": [],
-                                         "reviewed_vehicle_power_state": "",
-                                         "artifact_path": "",
-                                         "artifact_sha256": ""}}
+            "scope_exclusions": SCOPE_EXCLUSIONS,
+            "review_disclaimer_acknowledged": False,
+            "reviewed_commit_sha": "",
+            "multi_agent_reviews": {agent: {"artifact_path": "", "artifact_sha256": ""}
+                                    for agent in REQUIRED_REVIEW_AGENTS}}
 
 
 def _print_dry_run() -> int:
@@ -702,7 +801,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("dry-run", help="show pinned plan; never contacts ADB or creates files")
     recover = sub.add_parser("recover", help="offline verification of an interrupted private capture")
     recover.add_argument("capture_dir", type=Path)
-    run = sub.add_parser("run", help="live execution; requires private review and owner attestations")
+    run = sub.add_parser("run", help="live execution; requires adopted policy, private AI reviews and owner authorization")
     run.add_argument("--approval-file", required=True, type=Path)
     run.add_argument("--output-root", required=True, type=Path)
     args = parser.parse_args(argv)
@@ -714,8 +813,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         profile_hash = verify_pinned_profile()
         verified_sources = source_hashes()
-        serial, _ = validate_approval(args.approval_file, profile_hash=profile_hash,
-                                      source_hashes_verified=verified_sources)
+        serial, approval = validate_approval(args.approval_file, profile_hash=profile_hash,
+                                             source_hashes_verified=verified_sources)
+        verify_effective_policy(approval["policy_effective_commit_sha"])
         output_root = _path_outside_repo(args.output_root, "private capture root")
         if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
             raise SafetyStop("private capture root must be a real directory")
