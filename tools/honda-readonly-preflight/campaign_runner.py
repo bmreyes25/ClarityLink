@@ -337,7 +337,7 @@ def dry_run_report(serial: str = "EXACT_APPROVED_SERIAL") -> dict[str, object]:
         phase_rows.append({
             "id": phase.key, "owner_action": phase.owner_action,
             "expected_state": phase.expected_state,
-            "attestations": list(phase.attestations),
+            "attestations": list(_phase_attestations(phase)),
             "commands": list(_planned_ops(phase, "adb", serial)),
             "failure_behavior": "stop immediately; no retry or next phase; save partial evidence",
             "artifact_destination": f"<private-capture-root>/<capture-id>/{phase.key}/",
