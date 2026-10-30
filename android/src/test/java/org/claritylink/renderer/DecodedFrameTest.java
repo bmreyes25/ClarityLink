@@ -46,7 +46,7 @@ public final class DecodedFrameTest {
                 }
             });
         } catch (java.io.IOException failure) {
-            throw new AssertionError("hostile output stream write", failure);
+            throw new AssertionError("hostile output stream write: " + failure);
         }
         require(frame.toArgbPixels()[0] == 0xffff0000,
                 "mutating output stream cannot alter the immutable frame snapshot");
