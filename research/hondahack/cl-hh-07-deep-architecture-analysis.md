@@ -183,6 +183,7 @@ This report is tracked by [issue #56](https://github.com/bmreyes25/ClarityLink/i
 
 - [HondaHack Display 1 data flow](hondahack-display-path.md)
 - [HondaHack static-analysis limits](hondahack-static-analysis.md)
+- [CL-HH-07 performance architecture comparison](cl-hh-07-performance-architecture-comparison.md)
 - [Factory display host flow](../display/externaldisplay-host-flow.md)
 - [Honda frame-admission review](../../docs/research/cl-r9d-hondahack-frame-admission.md)
 - [Honda integration feasibility](../../docs/research/cl-r9-genuine-honda-feasibility.md)
