@@ -21,7 +21,7 @@ public final class DecodedFrameTest {
                 0, 0, (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255, (byte) 255, 8, 8, 8, 8
         });
         source.flip();
-        DecodedFrame frame = new DecodedFrame(2, 2, 12, 123L, 0, 0, 0, 2, 2, source);
+        final DecodedFrame frame = new DecodedFrame(2, 2, 12, 123L, 0, 0, 0, 2, 2, source);
         source.put(0, (byte) 0);
         int[] pixels = frame.toArgbPixels();
         require(pixels[0] == 0xffff0000, "frame owns a stable RGBA snapshot");
