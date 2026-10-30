@@ -200,7 +200,7 @@ def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
                   "command_manifest_sha256": campaign.command_manifest_sha256(),
                   "phase_ids": [phase.key for phase in campaign.phases()],
                   "findings": [], "tests_executed": ["synthetic fixture only"],
-                  "unverified_assumptions": ["synthetic test data"], "proposed_changes": [],
+                  "unverified_assumptions": ["synthetic test data"], "proposed_changes": ["none"],
                   "recommendation": "GO"}
         review_path.write_text(json.dumps(report, sort_keys=True))
         review_path.chmod(0o600)
@@ -297,6 +297,29 @@ def test_review_record_cannot_be_mislabeled_as_human_certification(tmp_path):
                                    source_hashes_verified=sources)
 
 
+@pytest.mark.parametrize("field, value, message", [
+    ("tool_version", "  ", "nonblank tool/model version"),
+    ("tests_executed", [], "tests_executed"),
+    ("unverified_assumptions", [""], "unverified_assumptions"),
+    ("proposed_changes", [], "proposed_changes"),
+    ("findings", [{"severity": "low", "status": "open", "finding": " "}], "description"),
+])
+def test_ai_review_requires_meaningful_report_fields(tmp_path, field, value, message):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    review = Path(record["multi_agent_reviews"]["codex"]["artifact_path"])
+    report = json.loads(review.read_text())
+    report[field] = value
+    review.write_text(json.dumps(report, sort_keys=True))
+    review.chmod(0o600)
+    record["multi_agent_reviews"]["codex"]["artifact_sha256"] = hashlib.sha256(review.read_bytes()).hexdigest()
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match=message):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
 def test_review_disclaimer_is_required_even_when_all_reports_are_go(tmp_path):
     approval_path, profile_hash, sources = _approval(tmp_path)
     record = json.loads(approval_path.read_text())
@@ -340,6 +363,17 @@ def test_effective_policy_gate_rejects_wrong_checkout_state(branch, dirty, head,
         return SimpleNamespace(returncode=0, stdout=next(outputs))
 
     with pytest.raises(collector.SafetyStop, match=message):
+        campaign.verify_effective_policy("b" * 40, run=fake_run)
+
+
+def test_effective_policy_gate_rejects_unadopted_policy_commit():
+    outputs = iter(["", "main", "", "a" * 40, "a" * 40, ""])
+    return_codes = iter([0, 0, 0, 0, 0, 1])
+
+    def fake_run(*args, **kwargs):
+        return SimpleNamespace(returncode=next(return_codes), stdout=next(outputs))
+
+    with pytest.raises(collector.SafetyStop, match="not adopted on origin/main"):
         campaign.verify_effective_policy("b" * 40, run=fake_run)
 
 

@@ -378,15 +378,19 @@ def _review_report(path_value: object, expected_sha: object, agent: str, *,
         raise SafetyStop(f"{agent} findings must be a list of structured records")
     allowed_severities = {"critical", "high", "medium", "low", "info"}
     if any(item.get("severity") not in allowed_severities
-           or not isinstance(item.get("status"), str)
-           or not isinstance(item.get("finding"), str) for item in findings):
+           or item.get("status") not in {"open", "resolved"}
+           or not isinstance(item.get("finding"), str) or not item["finding"].strip()
+           for item in findings):
         raise SafetyStop(f"{agent} findings require severity, status and description")
     if any(item.get("severity") in {"critical", "high"} and item.get("status") != "resolved" for item in findings):
         raise SafetyStop(f"{agent} has unresolved critical/high findings")
-    for field in ("tool_version", "tests_executed", "unverified_assumptions", "proposed_changes"):
-        valid = isinstance(report.get(field), str) if field == "tool_version" else isinstance(report.get(field), list)
-        if not valid:
-            raise SafetyStop(f"{agent} report is missing {field}")
+    if not isinstance(report.get("tool_version"), str) or not report["tool_version"].strip():
+        raise SafetyStop(f"{agent} review report requires a nonblank tool/model version or explicit unavailable value")
+    for field in ("tests_executed", "unverified_assumptions", "proposed_changes"):
+        values = report.get(field)
+        if (not isinstance(values, list) or not values
+                or any(not isinstance(item, str) or not item.strip() for item in values)):
+            raise SafetyStop(f"{agent} review report requires nonblank entries for {field}; state none explicitly")
     return report
 
 
