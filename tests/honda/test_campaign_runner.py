@@ -154,9 +154,15 @@ def test_owner_prompt_rejects_noninteractive_input(monkeypatch):
         campaign._read_owner_input("authorization")
 
 
+def test_termination_signal_uses_campaign_stop_path():
+    with pytest.raises(collector.SafetyStop, match="SIGTERM"):
+        campaign._stop_on_signal(campaign.signal.SIGTERM, None)
+
+
 def test_profile_manifest_is_exact_and_all_operations_use_fixed_legacy_shell():
     profile = json.loads(campaign.PROFILE_FILE.read_text())
     assert profile == campaign.profile_payload()
+    assert "window/app titles" in profile["privacy"]["dumpsys"]
     assert campaign.verify_pinned_profile() == hashlib.sha256(campaign.PROFILE_FILE.read_bytes()).hexdigest()
     operations = {"id", "property", "read", "ps", "dumpsys", "logcat"}
     for phase in campaign.phases():

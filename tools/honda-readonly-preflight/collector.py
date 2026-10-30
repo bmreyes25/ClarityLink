@@ -280,6 +280,7 @@ class FixedAdb:
         }
         timed_out = truncated = False
         proc: subprocess.Popen[bytes] | None = None
+        selector: selectors.BaseSelector | None = None
         try:
             proc = subprocess.Popen(command, stdin=subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -340,6 +341,28 @@ class FixedAdb:
         except OSError as exc:
             out, err, code = b"", str(exc).encode(), 127
             record["host_execution_error"] = True
+        finally:
+            if selector is not None:
+                try:
+                    selector.close()
+                except OSError:
+                    pass
+            if proc is not None:
+                try:
+                    if proc.poll() is None:
+                        proc.kill()
+                        try:
+                            proc.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            pass
+                except OSError:
+                    pass
+                for stream in (proc.stdout, proc.stderr):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except OSError:
+                            pass
         record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
                        "exit_code": code})
         record["result"] = classify_command_result(
@@ -619,18 +642,6 @@ class Capture:
         if expected_identity is not None and identity != expected_identity:
             raise SafetyStop("jmcs process identity changed between campaign observations")
         self.phase_identities[phase] = identity
-        if phase == "baseline":
-            shell_code, shell_raw = self.store_required(phase, "platform", "effective_shell_identity",
-                                                        "id", timeout=5, max_bytes=64 * 1024)
-            if not re.search(rb"(?:^|\s)uid=2000\(shell\)(?:\s|$)", shell_raw):
-                raise SafetyStop("ordinary ADB shell identity did not match UID 2000")
-            for prop in ("ro.secure", "ro.debuggable"):
-                _, property_raw = self.store_required(
-                    phase, "properties", prop.replace(".", "_"), "property", prop,
-                    timeout=5, max_bytes=64 * 1024)
-                expected = b"1" if prop == "ro.secure" else b"0"
-                if property_raw.strip() != expected:
-                    raise SafetyStop(f"selected debug property did not match prior target value: {prop}")
         for service in SAFE_DUMPSYS:
             self.store_required(phase, "display", f"dumpsys_{service.replace('/', '_')}",
                                 "dumpsys", service, timeout=15,

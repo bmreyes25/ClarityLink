@@ -20,6 +20,7 @@ from pathlib import Path
 import re
 import select
 import secrets
+import signal
 import subprocess
 import sys
 import time
@@ -225,7 +226,9 @@ def profile_payload() -> dict[str, object]:
                    "vehicle": "2018 Honda Clarity PHEV Touring (owner-identified)",
                    "platform_family": "Tegra (historical evidence; exact properties checked above)"},
         "privacy": {"raw_output_root": "outside-git-worktree", "directory_mode": "0700",
-                    "file_mode": "0600", "logcat": "bounded in-memory summary; no source lines or stderr persisted"},
+                    "file_mode": "0600",
+                    "dumpsys": "bounded raw output retained in private host capture; may include window/app titles and identifying metadata",
+                    "logcat": "bounded in-memory summary; source lines and stderr are never persisted"},
         "source_lock_sha256": hashlib.sha256(SOURCE_LOCK_FILE.read_bytes()).hexdigest(),
         "policy_documents_sha256": {
             path.relative_to(REPO_ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -490,6 +493,14 @@ def _read_owner_input(prompt: str, *, deadline_monotonic: float | None = None) -
     if answer == "":
         raise SafetyStop("owner input closed; campaign stopped")
     return answer.rstrip("\r\n")
+
+
+def _stop_on_signal(signum: int, _frame: object) -> None:
+    try:
+        name = signal.Signals(signum).name
+    except ValueError:
+        name = str(signum)
+    raise SafetyStop(f"received {name}; stop and preserve the incomplete campaign")
 
 
 def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_hash: str,
@@ -980,6 +991,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--output-root", required=True, type=Path)
     args = parser.parse_args(argv)
     previous_umask: int | None = None
+    previous_handlers: dict[int, object] = {}
     try:
         if args.command == "dry-run":
             return _print_dry_run()
@@ -994,6 +1006,8 @@ def main(argv: list[str] | None = None) -> int:
         serial, approval = validate_approval(args.approval_file, profile_hash=profile_hash,
                                              source_hashes_verified=verified_sources)
         verify_effective_policy(approval["policy_effective_commit_sha"], approval["reviewed_commit_sha"])
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            previous_handlers[signum] = signal.signal(signum, _stop_on_signal)
         output_root = _path_outside_repo(args.output_root, "private capture root")
         if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
             raise SafetyStop("private capture root must be a real directory")
@@ -1030,6 +1044,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if previous_umask is not None:
             os.umask(previous_umask)
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
 
 
 if __name__ == "__main__":
