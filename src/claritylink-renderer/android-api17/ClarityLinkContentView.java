@@ -34,6 +34,8 @@ public final class ClarityLinkContentView extends View implements HostedContentL
     private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
     private RendererViewport rendererViewport = RendererViewport.fullCanvasTestOnly();
 
+    /** Converter-thread only: one frame-sized ARGB array reused for every conversion; freed with the View. */
+    private int[] argbScratch;
     private FrameEnvelope pendingFrame;
     private Bitmap pendingBitmap;
     private long pendingBitmapGeneration;
@@ -200,7 +202,13 @@ public final class ClarityLinkContentView extends View implements HostedContentL
                 converted = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888);
                 if (listener != null) bitmapCreateNs = System.nanoTime() - stageStartedNs;
                 stageStartedNs = listener == null ? 0L : System.nanoTime();
-                int[] argb = frame.toArgbPixels();
+                int pixelCount = frame.width * frame.height;
+                int[] argb = argbScratch;
+                if (argb == null || argb.length < pixelCount) {
+                    argb = new int[pixelCount];
+                    argbScratch = argb;
+                }
+                frame.toArgbPixels(argb);
                 converted.setPixels(argb, 0, frame.width,
                         0, 0, frame.width, frame.height);
                 if (listener != null) pixelConvertNs = System.nanoTime() - stageStartedNs;

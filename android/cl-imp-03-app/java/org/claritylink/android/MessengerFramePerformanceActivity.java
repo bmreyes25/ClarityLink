@@ -222,6 +222,11 @@ public final class MessengerFramePerformanceActivity extends Activity {
 
     private void requestBaselineStats() {
         if (remote == null || running) return;
+        // The renderer's converter thread owns a native Looper (three descriptors on API 17, released only
+        // when its queue is finalized). It is a long-lived resource of the run, not a per-frame cost, so it
+        // is created before the baseline instead of appearing as a +3 after it. Both ends are still counted.
+        try { ensureRenderer(); }
+        catch (RuntimeException failure) { finishWithError("renderer_attach_failed"); return; }
         producerFdBaseline = fdCount();
         fdBaselineMap = fdMap();
         logFdDetail("baseline");
@@ -544,11 +549,7 @@ public final class MessengerFramePerformanceActivity extends Activity {
         }
         try {
             long attachStartedNs = profileStages ? System.nanoTime() : 0L;
-            if (renderer == null) {
-                renderer = new Display1OutputBackend(new HondaStyleSimulatorRendererHost(simulator),
-                        new Display1OutputBackend.Viewport(0, 0, 800, 480), generation);
-                renderer.attach();
-            }
+            ensureRenderer();
             if (profileStages && renderer.contentView() != null) {
                 renderer.contentView().setProfileListener(
                         new org.claritylink.renderer.ClarityLinkContentView.ProfileListener() {
@@ -592,6 +593,14 @@ public final class MessengerFramePerformanceActivity extends Activity {
         }
         releaseActiveFrame(replyGeneration, replySequence);
         if (finishPending) finishTimedRun();
+    }
+
+    private void ensureRenderer() {
+        if (renderer != null) return;
+        Display1OutputBackend created = new Display1OutputBackend(new HondaStyleSimulatorRendererHost(simulator),
+                new Display1OutputBackend.Viewport(0, 0, WIDTH, HEIGHT), generation);
+        renderer = created;
+        created.attach();
     }
 
     private void releaseActiveFrame(long frameGeneration, long frameSequence) {
