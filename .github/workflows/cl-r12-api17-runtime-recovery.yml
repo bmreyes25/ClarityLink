@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ab_mode:
-        description: 'renderer = pre-PR renderer vs this tree (same workload); workload = this tree with the baseline ref performance Activity vs this tree (same renderer)'
+        description: 'renderer = A/B renderer; workload = A/B performance Activity; pull requests outside those sources run one API17 runtime smoke'
         type: choice
         options: [renderer, workload]
         default: renderer
@@ -123,7 +123,7 @@ jobs:
           cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
           sha256sum "$archive" "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
 
-      - name: Select API 17 A/B comparison mode
+      - name: Select API 17 comparison mode
         id: ab-mode
         shell: bash
         run: |
@@ -135,45 +135,69 @@ jobs:
             base="$(git merge-base HEAD origin/main)"
             if [ "$base" = "$(git rev-parse HEAD)" ]; then base="$(git rev-parse HEAD^)"; fi
             changed="$(git diff --name-only "$base"...HEAD)"
-            if grep -Eq '(^|/)(MessengerFramePerformanceActivity|MessengerFrameParcel)\.java$' <<<"$changed"; then
+            has_activity=false
+            has_renderer=false
+            grep -Eq '(^|/)MessengerFramePerformanceActivity\.java$' <<<"$changed" && has_activity=true || true
+            grep -Eq '^src/claritylink-renderer/android-api17/' <<<"$changed" && has_renderer=true || true
+            other_build_inputs="$(grep -E '^(android/|tools/|src/|tests/fixtures/cl-imp-08/)' <<<"$changed" \
+              | grep -Ev '^(src/claritylink-renderer/android-api17/|android/cl-imp-03-app/java/org/claritylink/android/MessengerFrame(PerformanceActivity|Parcel)\.java$)' || true)"
+            if [ "$has_activity" = true ] && [ "$has_renderer" = false ]; then
               mode=workload
-            else
+            elif [ "$has_renderer" = true ] && [ "$has_activity" = false ] && [ -z "$other_build_inputs" ]; then
               mode=renderer
+            else
+              mode=smoke
             fi
           fi
-          case "$mode" in renderer|workload) ;; *) echo "Invalid A/B mode: $mode" >&2; exit 2 ;; esac
+          case "$mode" in renderer|workload|smoke) ;; *) echo "Invalid comparison mode: $mode" >&2; exit 2 ;; esac
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
-      - name: Build source-identified renderer A/B APKs
+      - name: Build the selected API 17 candidate APKs
         shell: bash
         run: |
           set -euo pipefail
           java_home="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
           echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           export JAVA_HOME="$java_home"
-          # Baseline = the last commit shared with main; candidate = the tested tree.
-          # Both run the candidate's workload activity, so only the renderer differs.
-          git fetch --no-tags origin main
-          baseline_ref="$(git merge-base HEAD origin/main)"
-          if [ "$baseline_ref" = "$(git rev-parse HEAD)" ]; then baseline_ref="$(git rev-parse HEAD^)"; fi
-          ab_dir="$GITHUB_WORKSPACE/build/cl-r12-ab-$GITHUB_RUN_ID"
-          if [ -n "${{ github.event.inputs.baseline_ref }}" ]; then baseline_ref="${{ github.event.inputs.baseline_ref }}"; fi
-          if [ "${{ steps.ab-mode.outputs.mode }}" = "workload" ]; then
-            tools/build_cl_r12_workload_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+          mode='${{ steps.ab-mode.outputs.mode }}'
+          if [ "$mode" = smoke ]; then
+            smoke_dir="$GITHUB_WORKSPACE/build/cl-r12-smoke-$GITHUB_RUN_ID"
+            CL_IMP_03_BUILD_DIR="$smoke_dir" tools/build_cl_imp_03_apks.sh | tee build-output.txt
+            candidate_apk="$smoke_dir/claritylink-display-lab.apk"
+            {
+              echo "ab_mode=smoke"
+              echo "candidate_commit=$(git rev-parse HEAD)"
+              echo 'baseline_commit=not_applicable'
+              echo "candidate_apk_sha256=$(sha256sum "$candidate_apk" | awk '{print $1}')"
+            } | tee source-ab.sha256
           else
-            tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+            git fetch --no-tags origin main
+            baseline_ref="$(git merge-base HEAD origin/main)"
+            if [ "$baseline_ref" = "$(git rev-parse HEAD)" ]; then baseline_ref="$(git rev-parse HEAD^)"; fi
+            ab_dir="$GITHUB_WORKSPACE/build/cl-r12-ab-$GITHUB_RUN_ID"
+            if [ -n "${{ github.event.inputs.baseline_ref }}" ]; then baseline_ref="${{ github.event.inputs.baseline_ref }}"; fi
+            if [ "$mode" = workload ]; then
+              tools/build_cl_r12_workload_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+            else
+              tools/build_cl_r12_renderer_ab.sh "$baseline_ref" "$ab_dir" | tee build-output.txt
+            fi
+            {
+              echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+              echo "pull_request_base=${{ github.event.pull_request.base.ref }}"
+              echo "tested_merge_commit=$(git rev-parse HEAD)"
+              cat "$ab_dir/ab-identity.txt"
+            } | tee source-ab.sha256
+            echo "CL_R12_BASELINE_APK=$ab_dir/baseline.apk" >> "$GITHUB_ENV"
+            candidate_apk="$ab_dir/candidate.apk"
           fi
-          {
-            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
-            echo "pull_request_base=${{ github.event.pull_request.base.ref }}"
-            echo "tested_merge_commit=$(git rev-parse HEAD)"
-            cat "$ab_dir/ab-identity.txt"
-          } | tee source-ab.sha256
-          echo "CL_R12_BASELINE_APK=$ab_dir/baseline.apk" >> "$GITHUB_ENV"
-          echo "CL_R12_CANDIDATE_APK=$ab_dir/candidate.apk" >> "$GITHUB_ENV"
+          echo "CL_R12_CANDIDATE_APK=$candidate_apk" >> "$GITHUB_ENV"
           mkdir -p "$CL_IMP_03_BUILD_DIR"
-          cp "$ab_dir/candidate.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
-          sha256sum "$ab_dir/baseline.apk" "$ab_dir/candidate.apk" | tee apk-ab.sha256
+          cp "$candidate_apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
+          if [ "$mode" = smoke ]; then
+            sha256sum "$candidate_apk" | tee apk-candidate.sha256
+          else
+            sha256sum "$ab_dir/baseline.apk" "$candidate_apk" | tee apk-ab.sha256
+          fi
           sha256sum build/cl-r12-api17-ci/claritylink-display-lab.apk | tee apk.sha256
 
       - name: Build the synthetic PaneLease instrumentation APK
@@ -227,7 +251,7 @@ jobs:
               --require org.claritylink.renderer.Display1HostLeaseGuard --require org.claritylink.renderer.PaneLease
             if [ "${{ steps.ab-mode.outputs.mode }}" = "workload" ]; then
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" "${lab[@]}"
-            else
+            elif [ "${{ steps.ab-mode.outputs.mode }}" = "renderer" ]; then
               # Renderer A/B: the baseline TREE decides what the lease classes must look like. A baseline that
               # predates PaneLease must not contain them; a baseline that already has them (any PR branched
               # from a main that includes PaneLease) must, so both APKs carry the same lease code.
@@ -242,6 +266,8 @@ jobs:
               python3 -I tools/verify_apk_dex_classes.py --apk "$CL_R12_BASELINE_APK" --dexdump "$dexdump" --label baseline-lab --source-commit "$src" \
                 "${lease_expectation[@]}" \
                 --require org.claritylink.android.SyntheticFrameFill --require org.claritylink.android.MessengerFramePerformanceActivity
+            else
+              echo 'baseline_dex_verification=not_applicable mode=smoke'
             fi
           } | tee dex-verification.txt
 
