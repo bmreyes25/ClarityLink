@@ -14,7 +14,7 @@
     ]
   },
   "campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
-  "command_manifest_sha256": "d2ee4bae8f7fcdb6d4928386c8bd9112430a35dbcd27c4015f04fba5cd84fed3",
+  "command_manifest_sha256": "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc43b244f2e8798bce5388",
   "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
   "optional_phase": {
     "id": "hondahack",
@@ -27,6 +27,12 @@
         "owner_observation.json"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
+        "Parking brake is set",
+        "Brake pedal is not pressed",
         "Vehicle stationary and in Park",
         "Center screen is operating normally",
         "Instrument cluster is operating normally",
@@ -52,6 +58,10 @@
         "logs/"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "Existing exact ADB transport is already authorized"
       ],
       "expected_state": "Honda Android/API, board/hardware, shell identity, selected debug properties and one stable jmcs identity match the approved target.",
@@ -61,7 +71,7 @@
           "arguments": [
             "/proc/version"
           ],
-          "expected_output": "exit 0 and expected 3.1.10+ kernel-family marker",
+          "expected_output": "expected 3.1.10+ kernel-family marker; reject recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -147,7 +157,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -157,7 +167,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -167,7 +177,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -177,7 +187,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -187,7 +197,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -197,7 +207,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -207,7 +217,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -217,7 +227,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -227,7 +237,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -237,7 +247,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -245,7 +255,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -253,7 +263,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -263,7 +273,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -273,7 +283,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -283,7 +293,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -293,7 +303,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -303,7 +313,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -313,7 +323,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -330,6 +340,10 @@
         "logs/"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "Factory CarPlay is visible on the center display",
         "Center display and audio remain normal"
       ],
@@ -338,7 +352,7 @@
       "operations": [
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -348,7 +362,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -358,7 +372,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -368,7 +382,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -378,7 +392,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -388,7 +402,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -398,7 +412,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -408,7 +422,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -418,7 +432,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -428,7 +442,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -436,7 +450,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -444,7 +458,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -454,7 +468,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -464,7 +478,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -474,7 +488,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -484,7 +498,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -494,7 +508,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -504,7 +518,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -521,6 +535,10 @@
         "logs/"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "Factory Navigation is selected",
         "No abnormal center display, cluster, audio, or warning behavior"
       ],
@@ -529,7 +547,7 @@
       "operations": [
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -539,7 +557,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -549,7 +567,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -559,7 +577,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -569,7 +587,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -579,7 +597,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -589,7 +607,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -599,7 +617,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -609,7 +627,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -619,7 +637,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -627,7 +645,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -635,7 +653,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -645,7 +663,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -655,7 +673,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -665,7 +683,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -675,7 +693,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -685,7 +703,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -695,7 +713,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -712,6 +730,10 @@
         "logs/"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "Factory Navigation has been deselected",
         "No unexpected factory page or warning behavior"
       ],
@@ -720,7 +742,7 @@
       "operations": [
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -730,7 +752,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -740,7 +762,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -750,7 +772,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -760,7 +782,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -770,7 +792,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -780,7 +802,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -790,7 +812,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -800,7 +822,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -810,7 +832,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -818,7 +840,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -826,7 +848,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -836,7 +858,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -846,7 +868,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -856,7 +878,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -866,7 +888,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -876,7 +898,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -886,7 +908,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -903,6 +925,10 @@
         "logs/"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "Factory Navigation returned normally"
       ],
       "expected_state": "Factory Navigation returns normally; jmcs identity is unchanged.",
@@ -910,7 +936,7 @@
       "operations": [
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -920,7 +946,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -930,7 +956,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -940,7 +966,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -950,7 +976,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -960,7 +986,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -970,7 +996,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -980,7 +1006,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -990,7 +1016,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1000,7 +1026,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1008,7 +1034,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -1016,7 +1042,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -1026,7 +1052,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1036,7 +1062,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1046,7 +1072,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1056,7 +1082,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1066,7 +1092,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1076,7 +1102,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1093,6 +1119,10 @@
         "logs/"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "iPhone is disconnected normally",
         "Stock display and audio remain normal"
       ],
@@ -1101,7 +1131,7 @@
       "operations": [
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -1111,7 +1141,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1121,7 +1151,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1131,7 +1161,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1141,7 +1171,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1151,7 +1181,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1161,7 +1191,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1171,7 +1201,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1181,7 +1211,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1191,7 +1221,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1199,7 +1229,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -1207,7 +1237,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -1217,7 +1247,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1227,7 +1257,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1237,7 +1267,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1247,7 +1277,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1257,7 +1287,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1267,7 +1297,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1285,6 +1315,10 @@
         "owner_observation.json"
       ],
       "attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
         "Center display is normal",
         "Instrument cluster is normal",
         "Factory Navigation is normal",
@@ -1296,7 +1330,7 @@
       "operations": [
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -1306,7 +1340,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1316,7 +1350,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1326,7 +1360,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1336,7 +1370,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1346,7 +1380,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1356,7 +1390,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1366,7 +1400,7 @@
           "arguments": [
             "display"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1376,7 +1410,7 @@
           "arguments": [
             "SurfaceFlinger"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1386,7 +1420,7 @@
           "arguments": [
             "window"
           ],
-          "expected_output": "exit 0; preserve bounded output for offline display/window/layer analysis",
+          "expected_output": "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "dumpsys",
@@ -1394,7 +1428,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0; only allowlisted event summary and digest are persisted",
+          "expected_output": "empty output or Android log-line framing; only allowlisted summary and digest are persisted",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 4194304,
           "operation": "logcat",
@@ -1402,7 +1436,7 @@
         },
         {
           "arguments": [],
-          "expected_output": "exit 0 and exactly one jmcs process identity",
+          "expected_output": "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 2097152,
           "operation": "ps",
@@ -1412,7 +1446,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1422,7 +1456,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1432,7 +1466,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1442,7 +1476,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/stat"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1452,7 +1486,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/status"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 262144,
           "operation": "read",
@@ -1462,7 +1496,7 @@
           "arguments": [
             "/proc/<JMCS_PID>/cmdline"
           ],
-          "expected_output": "exit 0; parser validates PID, UID/GID fields, cmdline and process start time",
+          "expected_output": "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors",
           "failure_policy": "stop_campaign",
           "max_output_bytes": 65536,
           "operation": "read",
@@ -1476,7 +1510,7 @@
   "policy_documents_sha256": {
     "AGENTS.md": "1004cab81b9ee4e487017f885cc90df8097472d81f2786f05b5ac709f5638256",
     "docs/safety/vehicle-testing.md": "04ffdde19adfe1f134911b43187513065c70b33cbda49b2b5625c000447c84bf",
-    "docs/security/single-owner-cp-review-policy.md": "c46b9337df120a9ec985247158a5eab0893f30b0f8ece27a6bfa0a812d0dc3d3",
+    "docs/security/single-owner-cp-review-policy.md": "db41db851c54bbec74e7434f9189eddeda50850d54cb6bbcc956c00ae85e509f",
     "docs/security/vehicle-safety-gates.md": "c83dfb3eb2fa5b2c1d31067652bf40aa8356143abcc23255e35c2f0ed4bbe696"
   },
   "privacy": {
@@ -1515,7 +1549,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "a2f828060f6136f91d353542a3584730b927b471c6307214a80af5ffb4aba250",
+  "source_lock_sha256": "2b0a10e0186dad67e23f196edab3660639da59d2d0197b88a508083dbd94e935",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",

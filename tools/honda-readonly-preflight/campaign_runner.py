@@ -18,6 +18,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 from typing import Callable
@@ -25,6 +26,7 @@ from typing import Callable
 from collector import (Capture, FixedAdb, ProcessIdentity, SafetyStop,
                        REPO_ROOT, SAFE_DUMPSYS, EXPECTED_ANDROID_RELEASE,
                        EXPECTED_ANDROID_SDK, EXPECTED_PRODUCT_DEVICE,
+                       validate_legacy_shell_output,
                        EXPECTED_PRODUCT_BOARD, EXPECTED_HARDWARE)
 
 
@@ -44,7 +46,7 @@ CAMPAIGN_ID = "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION"
 AUTHORIZATION_CATEGORY = "C-P-MA-OWNER-ASSUMED-RISK"
 REQUIRED_REVIEW_AGENTS = ("codex", "claude", "ecc")
 APPROVED_POWER_STATE = "ON mode; brake pedal not pressed; READY indicator absent"
-BASELINE_COMMAND_MANIFEST_SHA256 = "d2ee4bae8f7fcdb6d4928386c8bd9112430a35dbcd27c4015f04fba5cd84fed3"
+BASELINE_COMMAND_MANIFEST_SHA256 = "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc43b244f2e8798bce5388"
 SCOPE_EXCLUSIONS = ["root_or_su", "adb_root", "instrumentation_or_process_attachment",
                     "HondaHack", "receiver_or_display_modification", "firmware", "CAN_or_vehicle_control",
                     "warning_interference", "driving_test", "deployment"]
@@ -59,6 +61,48 @@ class Phase:
     operations: tuple[tuple[str, tuple[str, ...], int, int], ...]
     artifacts: tuple[str, ...]
     attestations: tuple[str, ...]
+
+
+class ManifestEnforcedReader:
+    """Campaign-only view that rejects any command outside the current phase."""
+
+    def __init__(self, reader: FixedAdb):
+        self._reader = reader
+        self.serial = reader.serial
+        self.expected: tuple[tuple[str, tuple[str, ...], int, int], ...] = ()
+        self.index = 0
+
+    @property
+    def records(self):
+        return self._reader.records
+
+    def begin_phase(self, phase: Phase) -> None:
+        if self.index != len(self.expected):
+            raise SafetyStop("prior campaign phase did not consume its complete command manifest")
+        self.expected = phase.operations
+        self.index = 0
+
+    def assert_phase_complete(self) -> None:
+        if self.index != len(self.expected):
+            raise SafetyStop("campaign phase ended before consuming its complete command manifest")
+
+    def run(self, operation: str, *args: str, timeout: int = 20,
+            max_bytes: int = 32 * 1024 * 1024):
+        if self.index >= len(self.expected):
+            raise SafetyStop("campaign attempted a command beyond the pinned phase manifest")
+        expected_op, expected_args, expected_timeout, expected_bytes = self.expected[self.index]
+        actual_args = tuple(args)
+        if expected_args and "<JMCS_PID>" in expected_args[0]:
+            pattern = re.escape(expected_args[0]).replace(re.escape("<JMCS_PID>"), r"[1-9][0-9]*")
+            args_match = len(actual_args) == 1 and re.fullmatch(pattern, actual_args[0]) is not None
+        else:
+            args_match = actual_args == expected_args
+        if (operation, timeout, max_bytes) != (expected_op, expected_timeout, expected_bytes) or not args_match:
+            raise SafetyStop("campaign command does not match the next pinned manifest entry")
+        self.index += 1
+        result = self._reader.run(operation, *args, timeout=timeout, max_bytes=max_bytes)
+        validate_legacy_shell_output(operation, actual_args, result[0], result[1], result[2])
+        return result
 
 
 def _identity_operations() -> tuple[tuple[str, tuple[str, ...], int, int], ...]:
@@ -129,7 +173,7 @@ def _phase_dict(phase: Phase) -> dict[str, object]:
         "title": phase.title,
         "owner_action": phase.owner_action,
         "expected_state": phase.expected_state,
-        "attestations": list(phase.attestations),
+        "attestations": list(_phase_attestations(phase)),
         "operations": [
             {"operation": op, "arguments": list(args), "timeout_seconds": timeout,
              "max_output_bytes": maximum, "expected_output": expected_output(op, args),
@@ -138,6 +182,14 @@ def _phase_dict(phase: Phase) -> dict[str, object]:
         ],
         "artifacts": list(phase.artifacts),
     }
+
+
+def _phase_attestations(phase: Phase) -> tuple[str, ...]:
+    invariants = ("Vehicle remains stationary in Park", "READY indicator remains absent",
+                  "No unexpected warning or abnormal cluster behavior is present",
+                  "Center display and instrument cluster remain visibly normal")
+    initial = ("Parking brake is set", "Brake pedal is not pressed") if phase.key == "phase0_baseline" else ()
+    return tuple(dict.fromkeys((*invariants, *initial, *phase.attestations)))
 
 
 def profile_payload() -> dict[str, object]:
@@ -204,15 +256,15 @@ def expected_output(operation: str, args: tuple[str, ...]) -> str:
                   "ro.hardware": EXPECTED_HARDWARE}
         return f"exact expected target identity value: {target.get(args[0], 'fixed property value')}"
     if operation == "ps":
-        return "exit 0 and exactly one jmcs process identity"
+        return "exactly one jmcs candidate; /proc identity must confirm root:root /system/bin/jmcs and stable start time"
     if operation == "read" and args == ("/proc/version",):
-        return "exit 0 and expected 3.1.10+ kernel-family marker"
+        return "expected 3.1.10+ kernel-family marker; reject recognized remote errors"
     if operation == "read" and "/proc/" in args[0]:
-        return "exit 0; parser validates PID, UID/GID fields, cmdline and process start time"
+        return "parser pins PID to root:root /system/bin/jmcs, validates start time, and rejects recognized remote errors"
     if operation == "dumpsys":
-        return "exit 0; preserve bounded output for offline display/window/layer analysis"
+        return "nonempty bounded snapshot without recognized remote error/usage output; target-specific response remains unverified"
     if operation == "logcat":
-        return "exit 0; only allowlisted event summary and digest are persisted"
+        return "empty output or Android log-line framing; only allowlisted summary and digest are persisted"
     return "exit 0; fixed parser validates the expected result"
 
 
@@ -354,6 +406,8 @@ def _review_report(path_value: object, expected_sha: object, agent: str, *,
         raise SafetyStop(f"{agent} review artifact must be a bounded regular file")
     if report_path.stat().st_mode & 0o777 != 0o600:
         raise SafetyStop(f"{agent} review artifact must be owner-only (mode 0600)")
+    if report_path.stat().st_uid != os.getuid():
+        raise SafetyStop(f"{agent} review artifact must be owned by the current host user")
     raw = report_path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != expected_sha:
         raise SafetyStop(f"{agent} review artifact hash mismatch")
@@ -394,6 +448,52 @@ def _review_report(path_value: object, expected_sha: object, agent: str, *,
     return report
 
 
+def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_hash: str,
+                           source_hashes_verified: dict[str, str], capture_id: str,
+                           capture_path: Path, *,
+                           input_fn: Callable[[str], str] | None = None,
+                           output_fn: Callable[[str], None] = print,
+                           nonce_fn: Callable[[int], str] = secrets.token_hex) -> dict[str, object]:
+    """Ask for fresh, exact owner authorization after all static/effective gates.
+
+    The review/risk file cannot authorize execution by itself and never stores
+    a reusable YES. Each invocation creates a fresh challenge before capture or
+    ADB setup; only the resulting private capture records that one-run decision.
+    """
+    if input_fn is None:
+        input_fn = input
+    nonce = nonce_fn(6)
+    if not re.fullmatch(r"[0-9a-f]{12}", nonce):
+        raise SafetyStop("one-run authorization challenge generator failed")
+    phrase = f"YES {nonce}"
+    output_fn("FINAL ONE-RUN AUTHORIZATION — review, do not infer any scope beyond this prompt.")
+    output_fn("Owner: Ben Reyes | Vehicle: 2018 Honda Clarity PHEV Touring")
+    output_fn(f"Exact ADB serial: {serial}")
+    output_fn(f"Profile SHA-256: {profile_hash}")
+    output_fn(f"Command manifest SHA-256: {command_manifest_sha256()}")
+    output_fn(f"Source SHA-256 map: {json.dumps(source_hashes_verified, sort_keys=True)}")
+    output_fn(f"Policy commit: {approval['policy_effective_commit_sha']}")
+    output_fn(f"Power state: {APPROVED_POWER_STATE}; outdoors, stationary in Park, parking brake set")
+    output_fn(f"Private evidence directory: {capture_path}")
+    output_fn("Scope: the fixed eight-phase passive profile only. AI reviews are not human safety certification.")
+    output_fn("No root, su, HondaHack, instrumentation, receiver/display modification, firmware, CAN, warning changes, driving, or deployment.")
+    response = input_fn(f'Type exactly "{phrase}" to authorize this one run; anything else stops: ')
+    if response != phrase:
+        raise SafetyStop("owner did not confirm the fresh one-run authorization challenge")
+    return {"owner": "Ben Reyes", "decision": "YES", "authorized_utc": datetime.now(timezone.utc).isoformat(),
+            "authorization_nonce": nonce, "single_run": True,
+            "vehicle": "2018 Honda Clarity PHEV Touring", "adb_serial": serial,
+            "capture_id": capture_id, "capture_path": str(capture_path),
+            "profile_sha256": profile_hash, "source_hashes": source_hashes_verified,
+            "command_manifest_sha256": command_manifest_sha256(),
+            "phase_ids": [phase.key for phase in phases()],
+            "policy_effective_commit_sha": approval["policy_effective_commit_sha"],
+            "authorization_category": AUTHORIZATION_CATEGORY,
+            "owner_risk_acceptance_recorded": True,
+            "vehicle_power_state": APPROVED_POWER_STATE,
+            "hondahack_authorized": False, "scope_exclusions": SCOPE_EXCLUSIONS}
+
+
 def validate_approval(path: Path, *, profile_hash: str,
                       source_hashes_verified: dict[str, str]) -> tuple[str, dict[str, object]]:
     approval_path = _path_outside_repo(path, "approval record")
@@ -402,6 +502,8 @@ def validate_approval(path: Path, *, profile_hash: str,
     mode = approval_path.stat().st_mode & 0o777
     if mode != 0o600:
         raise SafetyStop("approval record must be owner-only (mode 0600)")
+    if approval_path.stat().st_uid != os.getuid():
+        raise SafetyStop("approval record must be owned by the current host user")
     try:
         approval = json.loads(approval_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -414,14 +516,8 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("owner or exact vehicle identification does not match the fixed campaign")
     if approval.get("owner_risk_acceptance") is not True:
         raise SafetyStop("owner risk acceptance is not recorded for this bounded passive category")
-    if approval.get("owner_authorization") != "YES":
-        raise SafetyStop("exact owner authorization is not recorded")
-    try:
-        authorized_at = datetime.fromisoformat(str(approval.get("owner_authorized_utc", "")).replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise SafetyStop("owner authorization timestamp is missing or invalid") from exc
-    if authorized_at.tzinfo is None or authorized_at.utcoffset() != timezone.utc.utcoffset(authorized_at):
-        raise SafetyStop("owner authorization timestamp must be timezone-aware UTC")
+    if approval.get("owner_authorization") != "PENDING_INTERACTIVE_CONFIRMATION" or "owner_authorized_utc" in approval:
+        raise SafetyStop("stored approval cannot authorize a run; fresh one-run confirmation is required")
     if approval.get("profile_sha256") != profile_hash:
         raise SafetyStop("approval profile hash does not match the pinned campaign")
     if approval.get("source_hashes") != source_hashes_verified:
@@ -580,12 +676,14 @@ class Campaign:
     def __init__(self, capture: Capture, output: Path, profile_hash: str,
                  source_hashes_verified: dict[str, str], serial: str,
                  input_fn: Callable[[str], str] = input,
-                 output_fn: Callable[[str], None] = print):
+                 output_fn: Callable[[str], None] = print,
+                 run_authorization: dict[str, object] | None = None):
         self.capture = capture
         self.output = output
         self.profile_hash = profile_hash
         self.source_hashes = source_hashes_verified
         self.serial = serial
+        self.run_authorization = run_authorization
         self.input = input_fn
         self.output_fn = output_fn
         self.phase_order: list[str] = []
@@ -595,7 +693,8 @@ class Campaign:
         self.owner_observations: dict[str, dict[str, object]] = {}
         self.state_path = output / "campaign_state.json"
         self.capture.campaign_metadata = {"profile_sha256": profile_hash,
-                                          "source_hashes": source_hashes_verified}
+                                          "source_hashes": source_hashes_verified,
+                                          "owner_run_authorization": run_authorization}
         original_record_result = self.capture.record_result
 
         def recording_checkpoint(*args: object, **kwargs: object) -> None:
@@ -609,6 +708,7 @@ class Campaign:
         state = {"campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
                  "status": status, "profile_sha256": self.profile_hash,
                  "source_hashes": self.source_hashes, "phase_order": self.phase_order,
+                 "owner_run_authorization": self.run_authorization,
                  "completed_phases": self.completed, "current_phase": self.current_phase,
                  "phase_times": self.capture.phase_times,
                  "owner_observations": self.owner_observations,
@@ -627,13 +727,14 @@ class Campaign:
         self.capture.files = [item for item in self.capture.files if item.get("path") != relative]
         self.capture.files.append(row)
 
-    def _attest(self, phase: Phase) -> None:
-        self.current_phase = phase.key
-        self.phase_order.append(phase.key)
-        self.capture.phase_times.setdefault(phase.key, {})["started_utc"] = datetime.now(timezone.utc).isoformat()
-        self._checkpoint("phase_started")
+    def _attest(self, phase: Phase, *, after_capture: bool = False) -> None:
+        if not after_capture:
+            self.current_phase = phase.key
+            self.phase_order.append(phase.key)
+            self.capture.phase_times.setdefault(phase.key, {})["started_utc"] = datetime.now(timezone.utc).isoformat()
+            self._checkpoint("phase_started")
         answers: dict[str, bool] = {}
-        for check in phase.attestations:
+        for check in _phase_attestations(phase):
             answer = self.input(f"{phase.title}\n{phase.owner_action}\nCheck: {check}\n"
                                 "Type YES only if true; otherwise type NO: ").strip().upper()
             answers[check] = answer == "YES"
@@ -653,13 +754,33 @@ class Campaign:
 
     def run(self) -> bool:
         phase_rows = phases()
+        # Live construction is the concrete FixedAdb adapter. Test doubles and
+        # offline replay readers remain injectable without opening a second
+        # execution path for the live controller.
+        manifest_reader = None
+        if isinstance(self.capture.reader, FixedAdb):
+            self.capture.reader = ManifestEnforcedReader(self.capture.reader)
+            manifest_reader = self.capture.reader
         try:
+            if manifest_reader:
+                manifest_reader.begin_phase(phase_rows[0])
             self._attest(phase_rows[0])
+            if manifest_reader:
+                manifest_reader.assert_phase_complete()
             self.completed.append(phase_rows[0].key)
             self.capture.phase_times[phase_rows[0].key]["finished_utc"] = datetime.now(timezone.utc).isoformat()
             self._checkpoint("phase_complete")
             for phase in phase_rows[1:]:
-                self._attest(phase)
+                if manifest_reader:
+                    manifest_reader.begin_phase(phase)
+                is_final_restoration = phase.key == "final_restoration"
+                if is_final_restoration:
+                    self.current_phase = phase.key
+                    self.phase_order.append(phase.key)
+                    self.capture.phase_times.setdefault(phase.key, {})["started_utc"] = datetime.now(timezone.utc).isoformat()
+                    self._checkpoint("phase_started")
+                else:
+                    self._attest(phase)
                 if phase.key == "phase1_identity":
                     target = self.capture.verify_target_identity(phase.key)
                     self.capture.target_identity = target
@@ -679,6 +800,10 @@ class Campaign:
                     phase.key, expected_identity=self.expected_identity)
                 # Prove that the process identity remained stable after the phase snapshot.
                 self.capture.assert_same_instance(self.expected_identity, phase=phase.key)
+                if manifest_reader:
+                    manifest_reader.assert_phase_complete()
+                if is_final_restoration:
+                    self._attest(phase, after_capture=True)
                 self.completed.append(phase.key)
                 self.capture.phase_times[phase.key]["finished_utc"] = datetime.now(timezone.utc).isoformat()
                 self._checkpoint("phase_complete")
@@ -772,8 +897,7 @@ def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, objec
             "owner_identity": "Ben Reyes",
             "owner_risk_acceptance": False,
             "vehicle": "2018 Honda Clarity PHEV Touring",
-            "owner_authorization": "NO",
-            "owner_authorized_utc": "",
+            "owner_authorization": "PENDING_INTERACTIVE_CONFIRMATION",
             "profile_sha256": profile,
             "command_manifest_sha256": command_manifest_sha256(),
             "policy_effective": False,
@@ -823,21 +947,31 @@ def main(argv: list[str] | None = None) -> int:
         output_root = _path_outside_repo(args.output_root, "private capture root")
         if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
             raise SafetyStop("private capture root must be a real directory")
+        if output_root.exists() and output_root.stat().st_mode & 0o777 != 0o700:
+            raise SafetyStop("existing private capture root must already have mode 0700")
+        capture_id = ("CLARITY_RUNTIME_CAMPAIGN_" + datetime.now().strftime("%Y%m%d_%H%M%S")
+                      + "_" + secrets.token_hex(6))
+        output = output_root / capture_id
+        if output.exists() or output.is_symlink():
+            raise SafetyStop("private capture destination already exists")
+        run_authorization = authorize_owner_one_run(
+            approval, serial, profile_hash, verified_sources, capture_id, output,
+            input_fn=input, output_fn=print)
         output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if output_root.stat().st_mode & 0o777 != 0o700:
             raise SafetyStop("existing private capture root must already have mode 0700")
-        capture_id = "CLARITY_RUNTIME_CAMPAIGN_" + datetime.now().strftime("%Y%m%d_%H%M%S")
-        output = output_root / capture_id
         output.mkdir(mode=0o700)
         _atomic_json(output / "campaign_state.json", {
             "campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
             "status": "initialized_before_adb_client_creation",
             "profile_sha256": profile_hash, "source_hashes": verified_sources,
+            "owner_run_authorization": run_authorization,
             "phase_order": [], "completed_phases": [], "current_phase": None,
             "artifacts": []})
         reader = FixedAdb(serial, resolve_auto=False)
         capture = Capture(reader, output)
-        return 0 if Campaign(capture, output, profile_hash, verified_sources, serial).run() else 1
+        return 0 if Campaign(capture, output, profile_hash, verified_sources, serial,
+                             run_authorization=run_authorization).run() else 1
     except (OSError, ValueError, SafetyStop) as exc:
         print(f"refusing/stopped: {exc}", file=sys.stderr)
         return 2

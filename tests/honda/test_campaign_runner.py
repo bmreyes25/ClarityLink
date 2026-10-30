@@ -55,6 +55,46 @@ def test_legacy_collector_live_route_is_closed_before_adb(monkeypatch, capsys):
     assert "legacy collector live execution is disabled" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("operation,args,output", [
+    ("dumpsys", ("window",), b"Can't find service: window\r\n"),
+    ("dumpsys", ("display",), b"Usage: dumpsys [options]\r\n"),
+    ("logcat", (), b"logcat: invalid option -- t\r\n"),
+    ("read", ("/proc/version",), b"cat: /proc/version: Permission denied\r\n"),
+])
+def test_legacy_shell_success_with_remote_error_stops(operation, args, output):
+    with pytest.raises(collector.SafetyStop):
+        collector.validate_legacy_shell_output(operation, args, 0, output, b"")
+
+
+def test_legacy_shell_accepts_empty_logcat_and_valid_log_line():
+    collector.validate_legacy_shell_output("logcat", (), 0, b"", b"")
+    collector.validate_legacy_shell_output("logcat", (), 0,
+                                           b"I/ActivityManager( 123): started\r\n", b"")
+
+
+def test_api17_ps_state_column_is_parsed_without_widening_identity():
+    text = "USER PID PPID VSIZE RSS WCHAN PC NAME\nroot 42 1 100 80 ffffffff 0 S /system/bin/jmcs\n"
+    assert collector.parse_ps_jmcs(text) == (42,)
+
+
+def test_manifest_reader_rejects_extra_and_mismatched_commands():
+    phase = campaign.Phase("synthetic", "synthetic", "", "",
+                           (("read", ("/proc/version",), 5, 1024),), (), ())
+    class Reader:
+        serial = "SYNTHETIC"
+        records = []
+        def run(self, *args, **kwargs):
+            return 0, b"Linux", b""
+    reader = campaign.ManifestEnforcedReader(Reader())
+    reader.begin_phase(phase)
+    with pytest.raises(collector.SafetyStop, match="does not match"):
+        reader.run("read", "/proc/cmdline", timeout=5, max_bytes=1024)
+    reader.run("read", "/proc/version", timeout=5, max_bytes=1024)
+    reader.assert_phase_complete()
+    with pytest.raises(collector.SafetyStop, match="beyond the pinned"):
+        reader.run("read", "/proc/version", timeout=5, max_bytes=1024)
+
+
 def test_profile_manifest_is_exact_and_all_operations_use_fixed_legacy_shell():
     profile = json.loads(campaign.PROFILE_FILE.read_text())
     assert profile == campaign.profile_payload()
@@ -92,6 +132,8 @@ def test_real_capture_operation_trace_matches_fixed_phase_profile(tmp_path):
                 output = b"Name:\tjmcs\nPid:\t42\nPPid:\t1\nUid:\t0 0 0 0\nGid:\t0 0 0 0\n"
             elif args == ("/proc/42/cmdline",):
                 output = b"/system/bin/jmcs\0--service\0"
+            elif operation == "dumpsys":
+                output = b"DISPLAY MANAGER STATE\r\n"
             else:
                 output = b""
             return 0, output, b""
@@ -143,6 +185,8 @@ def test_real_identity_phase_trace_matches_fixed_profile(tmp_path):
                 output = b"Name:\tjmcs\nPid:\t42\nPPid:\t1\nUid:\t0 0 0 0\nGid:\t0 0 0 0\n"
             elif args == ("/proc/42/cmdline",):
                 output = b"/system/bin/jmcs\0--service\0"
+            elif operation == "dumpsys":
+                output = b"DISPLAY MANAGER STATE\r\n"
             else:
                 output = b""
             return 0, output, b""
@@ -182,7 +226,7 @@ def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
     sources = campaign.source_hashes()
     row = campaign._approval_template(profile_hash, sources)
     reviewed_commit = "b" * 40
-    row.update({"owner_authorization": "YES", "owner_authorized_utc": "2026-10-30T12:00:00Z",
+    row.update({"owner_authorization": "PENDING_INTERACTIVE_CONFIRMATION",
                 "adb_serial": "SYNTHETIC-EXACT-SERIAL", "policy_effective": True,
                 "policy_effective_commit_sha": "a" * 40, "reviewed_commit_sha": reviewed_commit,
                 "owner_risk_acceptance": True,
@@ -225,6 +269,52 @@ def test_approval_requires_exact_owner_and_three_hash_bound_ai_reviews(tmp_path)
     with pytest.raises(collector.SafetyStop, match="exact pre-approved"):
         campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                    source_hashes_verified=sources)
+
+
+def test_stored_yes_cannot_replace_fresh_interactive_one_run_authorization(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    record["owner_authorization"] = "YES"
+    record["owner_authorized_utc"] = "2026-10-30T12:00:00Z"
+    approval_path.write_text(json.dumps(record))
+    approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="stored approval cannot authorize a run"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tmp_path):
+    approval_path, _, _ = _approval(tmp_path)
+    approval = json.loads(approval_path.read_text())
+    printed = []
+    auth = campaign.authorize_owner_one_run(
+        approval, "SYNTHETIC-EXACT-SERIAL", "a" * 64, {"source.py": "b" * 64},
+        "SYNTHETIC-CAPTURE-ID", tmp_path / "private-capture" / "SYNTHETIC-CAPTURE-ID",
+        input_fn=lambda prompt: "YES abc123abc123",
+        output_fn=printed.append, nonce_fn=lambda size: "abc123abc123")
+    assert auth["single_run"] is True
+    assert auth["authorization_nonce"] == "abc123abc123"
+    assert auth["adb_serial"] == "SYNTHETIC-EXACT-SERIAL"
+    assert auth["profile_sha256"] == "a" * 64
+    assert auth["source_hashes"] == {"source.py": "b" * 64}
+    assert auth["capture_id"] == "SYNTHETIC-CAPTURE-ID"
+    assert auth["capture_path"].endswith("SYNTHETIC-CAPTURE-ID")
+    assert auth["command_manifest_sha256"] == campaign.command_manifest_sha256()
+    assert auth["decision"] == "YES"
+    assert "not human safety certification" in " ".join(printed)
+    assert str(auth["capture_path"]) in " ".join(printed)
+    assert "Source SHA-256 map" in " ".join(printed)
+
+
+def test_one_run_authorization_rejects_replay_or_wrong_challenge(tmp_path):
+    approval_path, _, _ = _approval(tmp_path)
+    approval = json.loads(approval_path.read_text())
+    with pytest.raises(collector.SafetyStop, match="fresh one-run authorization challenge"):
+        campaign.authorize_owner_one_run(
+            approval, "SYNTHETIC-EXACT-SERIAL", "a" * 64, {"source.py": "b" * 64},
+            "SYNTHETIC-CAPTURE-ID", tmp_path / "private-capture" / "SYNTHETIC-CAPTURE-ID",
+            input_fn=lambda _: "YES stale-challenge",
+            output_fn=lambda _: None, nonce_fn=lambda _: "abc123abc123")
 
 
 def test_approval_requires_effective_policy_attestation(tmp_path):
@@ -393,6 +483,19 @@ def test_live_runner_stops_at_policy_gate_before_adb_or_capture(tmp_path, monkey
     assert not output_root.exists()
 
 
+def test_live_runner_stops_when_owner_declines_fresh_run_before_adb_or_capture(tmp_path, monkeypatch):
+    approval_path, _, _ = _approval(tmp_path)
+    monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
+    monkeypatch.setattr("builtins.input", lambda _: "NO")
+    monkeypatch.setattr(collector.shutil, "which",
+                        lambda *_: pytest.fail("ADB lookup occurred before one-run authorization"))
+    output_root = tmp_path / "private-output"
+    result = campaign.main(["run", "--approval-file", str(approval_path),
+                            "--output-root", str(output_root)])
+    assert result == 2
+    assert not output_root.exists()
+
+
 def test_missing_approval_stops_before_adb_client_or_capture_creation(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("ADB client lookup occurred before approval validation")
@@ -409,6 +512,9 @@ def test_unavailable_adb_preserves_initialized_private_recovery_checkpoint(tmp_p
     approval_path, _, _ = _approval(tmp_path)
     output_root = tmp_path / "private-output"
     monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
+    monkeypatch.setattr(campaign, "authorize_owner_one_run",
+                        lambda *args, **_kwargs: {"decision": "YES", "single_run": True,
+                                                  "capture_id": args[4], "capture_path": str(args[5])})
     monkeypatch.setattr(collector.shutil, "which", lambda _: None)
     result = campaign.main(["run", "--approval-file", str(approval_path),
                             "--output-root", str(output_root)])
@@ -416,6 +522,8 @@ def test_unavailable_adb_preserves_initialized_private_recovery_checkpoint(tmp_p
     capture_dir = next(output_root.iterdir())
     state = json.loads((capture_dir / "campaign_state.json").read_text())
     assert state["status"] == "initialized_before_adb_client_creation"
+    assert state["owner_run_authorization"]["single_run"] is True
+    assert state["owner_run_authorization"]["capture_path"] == str(capture_dir)
     assert campaign.recover_interrupted_capture(capture_dir)["status"] == "INTERRUPTED_INCOMPLETE"
 
 
@@ -503,6 +611,20 @@ def test_controller_orders_phases_and_writes_complete_hash_verified_manifest(tmp
     assert report["status"] == "CAPTURE_COMPLETE_RESTORATION_ATTESTED"
     assert report["capture_hashes_verified"] is True
     assert "completeness_report.json" in campaign.verify_capture_hashes(output)
+
+
+def test_final_restoration_is_attested_after_last_observation(tmp_path):
+    runner, fake, _ = _campaign(tmp_path)
+    events = []
+    original_collect = fake.collect_campaign_observation
+    def collect(phase, expected_identity=None):
+        events.append(f"collect:{phase}")
+        return original_collect(phase, expected_identity)
+    fake.collect_campaign_observation = collect
+    runner.input = lambda prompt: events.append(f"prompt:{'Final restoration' if prompt.startswith('Final restoration') else 'other'}") or "YES"
+    assert runner.run() is True
+    assert events.index("collect:final_restoration") < max(
+        index for index, event in enumerate(events) if event == "prompt:Final restoration")
 
 
 @pytest.mark.parametrize(("fail_phase", "restart_phase"), [

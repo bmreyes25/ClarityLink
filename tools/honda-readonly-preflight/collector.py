@@ -104,6 +104,32 @@ def classify_command_result(exit_code: int, stdout: bytes, stderr: bytes,
     return CommandResult.OTHER_COMMAND_FAILURE
 
 
+def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
+                                 exit_code: int, stdout: bytes, stderr: bytes) -> None:
+    """Reject common remote failures hidden by pre-shell_v2 `adb shell`.
+
+    API-17 adb may return success even when the remote command failed. This
+    check supplements (and never replaces) operation-specific parsing.
+    """
+    combined = (stderr + b"\n" + stdout).decode("utf-8", "replace")
+    if exit_code != 0:
+        raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
+    if re.search(r"(?im)^\s*(?:/system/bin/)?(?:sh|mksh):.*(?:not found|permission denied|can't execute)", combined):
+        raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if re.search(r"(?i)(?:permission denied|operation not permitted|no such file or directory)", combined):
+        raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if re.search(r"(?im)^\s*(?:can't find service|error:|usage:\s|permission denied|no such file or directory)\b", combined):
+        raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if operation == "dumpsys":
+        if not stdout.strip() or re.search(r"(?im)^\s*(?:unknown|can't find|service .* not found)\b", combined):
+            raise SafetyStop(f"dumpsys did not return a usable {args[0]} snapshot")
+    if operation == "logcat" and stdout.strip():
+        # Support Android's brief and tag-priority layouts. Empty output is
+        # valid; nonempty usage/error text is not evidence.
+        if not re.search(rb"(?m)^\s*(?:[VDIWEF]/[^\r\n]+\(\s*\d+\):|[VDIWEF]\s+[^:\r\n]+:)", stdout):
+            raise SafetyStop("legacy ADB logcat output lacks Android log-line framing")
+
+
 def classify_stop_reason(message: str) -> CommandResult:
     if "instance changed" in message.lower() or "pid changed" in message.lower():
         return CommandResult.PROCESS_IDENTITY_CHANGE
@@ -241,7 +267,8 @@ class FixedAdb:
         timed_out = truncated = False
         proc: subprocess.Popen[bytes] | None = None
         try:
-            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert proc.stdout is not None and proc.stderr is not None
             selector = selectors.DefaultSelector()
             selector.register(proc.stdout, selectors.EVENT_READ, "stdout")
@@ -337,6 +364,10 @@ def parse_ps_jmcs(text: str) -> tuple[int, ...]:
         if pid_idx >= len(fields):
             continue
         name_fields = fields[name_idx:] if name_idx is not None and name_idx < len(fields) else fields[-1:]
+        # Some Android 4.x toolbox `ps` builds omit a STATE header while still
+        # emitting the one-letter state before NAME in each row.
+        if name_fields and re.fullmatch(r"[SDTZXIW]", name_fields[0]) and len(name_fields) > 1:
+            name_fields = name_fields[1:]
         name = " ".join(name_fields)
         if name == "jmcs" or name.endswith("/jmcs") or name.split(":")[-1] == "jmcs":
             try:
@@ -367,8 +398,8 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
     status_name = status.get("Name", "").strip()
     cmdline = _decode_cmdline(cmd_raw)
     argv0 = cmd_raw.split(b"\x00", 1)[0].decode("utf-8", "replace").strip()
-    if status_name != "jmcs" or Path(argv0.removesuffix(" (deleted)")).name != "jmcs":
-        raise SafetyStop(f"PID {pid} comm/cmdline identity is not jmcs")
+    if status_name != "jmcs" or argv0 != JMCS_STATIC_PATH:
+        raise SafetyStop(f"PID {pid} comm/cmdline identity is not the pinned /system/bin/jmcs")
     # This API-17 build does not expose /proc/PID/exe through toolbox ls.
     # Preserve that result as NOT_EXPOSED and use independent status+cmdline
     # identity fields, plus PID/start time consistency checks, for discovery.
@@ -383,6 +414,8 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
         raise SafetyStop("jmcs identity fields are incomplete") from exc
     if status_pid != pid:
         raise SafetyStop("PID changed during identity read")
+    if uid != "0" or gid != "0":
+        raise SafetyStop(f"PID {pid} identity is not the pinned root:root jmcs service")
     return ProcessIdentity(pid, start, exe, cmdline, uid, gid, ppid)
 
 
@@ -428,14 +461,14 @@ class Capture:
                        pid: int | None = None) -> tuple[int, bytes]:
         code, output = self.store(phase, category, name, operation, *args,
                                   timeout=timeout, max_bytes=max_bytes, pid=pid)
-        if code != 0:
-            raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
+        validate_legacy_shell_output(operation, tuple(args), code, output, b"")
         return code, output
 
     def store_log_summary(self, phase: str) -> None:
         """Summarize bounded logcat in memory; never persist source lines or stderr."""
         code, raw, err = self.reader.run("logcat", timeout=15,
                                         max_bytes=MAX_DIAGNOSTIC_LOG_BYTES)
+        validate_legacy_shell_output("logcat", (), code, raw, err)
         command_record = self.reader.records[-1]
         command_record["stdout_bytes"] = len(raw)
         command_record["stdout_sha256"] = hashlib.sha256(raw).hexdigest()
