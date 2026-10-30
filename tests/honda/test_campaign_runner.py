@@ -35,6 +35,7 @@ def test_dry_run_is_complete_and_never_contacts_adb(monkeypatch):
     assert sum(len(phase["commands"]) for phase in report["phases"]) == 135
     for phase in report["phases"]:
         assert "Vehicle remains stationary in Park" in phase["attestations"]
+        assert "Vehicle remains stationary in Park" in phase["post_capture_attestations"]
         assert "READY indicator remains absent" in phase["attestations"]
         assert "No unexpected warning or abnormal cluster behavior is present" in phase["attestations"]
         assert "Center display and instrument cluster remain visibly normal" in phase["attestations"]
@@ -65,6 +66,7 @@ def test_legacy_collector_live_route_is_closed_before_adb(monkeypatch, capsys):
 @pytest.mark.parametrize("operation,args,output", [
     ("dumpsys", ("window",), b"Can't find service: window\r\n"),
     ("dumpsys", ("display",), b"Usage: dumpsys [options]\r\n"),
+    ("dumpsys", ("activity",), b"Permission Denial: uid 2000 lacks permission\r\n"),
     ("logcat", (), b"logcat: invalid option -- t\r\n"),
     ("read", ("/proc/version",), b"cat: /proc/version: Permission denied\r\n"),
 ])

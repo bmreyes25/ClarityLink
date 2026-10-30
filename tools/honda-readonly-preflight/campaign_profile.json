@@ -49,6 +49,12 @@
       "id": "phase0_baseline",
       "operations": [],
       "owner_action": "Outdoors, confirm Park/stationary, parking brake, ON mode with brake pedal not pressed and READY absent; confirm normal stock display, cluster, navigation and audio; phone disconnected; no unexpected warning.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Factory baseline"
     },
     {
@@ -333,6 +339,12 @@
         }
       ],
       "owner_action": "Proceed only after baseline is recorded; use the existing approved ADB transport.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Target identity"
     },
     {
@@ -528,6 +540,12 @@
         }
       ],
       "owner_action": "Connect iPhone normally and wait for factory Type110 CarPlay; do not launch ClarityLink.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Stock CarPlay connected"
     },
     {
@@ -723,6 +741,12 @@
         }
       ],
       "owner_action": "Select factory Navigation using ordinary controls.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Factory Navigation selected"
     },
     {
@@ -918,6 +942,12 @@
         }
       ],
       "owner_action": "Leave Navigation using ordinary factory controls.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Factory Navigation deselected"
     },
     {
@@ -1112,6 +1142,12 @@
         }
       ],
       "owner_action": "Reselect Navigation using ordinary factory controls.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Factory Navigation reselected"
     },
     {
@@ -1307,6 +1343,12 @@
         }
       ],
       "owner_action": "Disconnect CarPlay through the ordinary phone/user flow.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal"
+      ],
       "title": "Normal CarPlay disconnect"
     },
     {
@@ -1505,6 +1547,14 @@
         }
       ],
       "owner_action": "Confirm stock center display, cluster, Navigation and audio are normal before and after the final observation.",
+      "post_capture_attestations": [
+        "Vehicle remains stationary in Park",
+        "READY indicator remains absent",
+        "No unexpected warning or abnormal cluster behavior is present",
+        "Center display and instrument cluster remain visibly normal",
+        "Factory Navigation is normal",
+        "Audio is normal"
+      ],
       "title": "Final restoration"
     }
   ],
@@ -1550,7 +1600,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "0602e40f52c8073e764dd56604d8685553ba196da995f77d319114c5872c0f06",
+  "source_lock_sha256": "2be41367704d3343089f5127050b4099b3092bf5e69602dc974291966724faeb",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",

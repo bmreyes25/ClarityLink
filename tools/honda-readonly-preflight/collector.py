@@ -130,7 +130,7 @@ def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
             combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
     if operation == "dumpsys" and re.search(
-            r"(?im)^\s*(?:can't find service|error:|usage:\s|unknown service)\b", combined):
+            r"(?im)^\s*(?:can't find service|error:|usage:\s|unknown service|permission denial:)", combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
     if operation == "dumpsys":
         if not stdout.strip() or re.search(r"(?im)^\s*(?:unknown|can't find|service .* not found)\b", combined):

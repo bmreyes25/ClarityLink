@@ -182,6 +182,7 @@ def _phase_dict(phase: Phase) -> dict[str, object]:
         "owner_action": phase.owner_action,
         "expected_state": phase.expected_state,
         "attestations": list(_phase_attestations(phase)),
+        "post_capture_attestations": list(_post_capture_attestations(phase)),
         "operations": [
             {"operation": op, "arguments": list(args), "timeout_seconds": timeout,
              "max_output_bytes": maximum, "expected_output": expected_output(op, args),
@@ -357,6 +358,7 @@ def dry_run_report(serial: str = "EXACT_APPROVED_SERIAL") -> dict[str, object]:
             "id": phase.key, "owner_action": phase.owner_action,
             "expected_state": phase.expected_state,
             "attestations": list(_phase_attestations(phase)),
+            "post_capture_attestations": list(_post_capture_attestations(phase)),
             "commands": list(_planned_ops(phase, "adb", serial)),
             "failure_behavior": "stop immediately; no retry or next phase; save partial evidence",
             "artifact_destination": f"<private-capture-root>/<capture-id>/{phase.key}/",
@@ -975,12 +977,16 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--approval-file", required=True, type=Path)
     run.add_argument("--output-root", required=True, type=Path)
     args = parser.parse_args(argv)
+    previous_umask: int | None = None
     try:
         if args.command == "dry-run":
             return _print_dry_run()
         if args.command == "recover":
             print(json.dumps(recover_interrupted_capture(args.capture_dir), indent=2, sort_keys=True))
             return 0
+        # Protect private evidence from the moment the first file is created;
+        # chmod after writing is too late to prevent transient exposure.
+        previous_umask = os.umask(0o077)
         profile_hash = verify_pinned_profile()
         verified_sources = source_hashes()
         serial, approval = validate_approval(args.approval_file, profile_hash=profile_hash,
@@ -1019,6 +1025,9 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, SafetyStop, KeyboardInterrupt, EOFError) as exc:
         print(f"refusing/stopped: {exc}", file=sys.stderr)
         return 2
+    finally:
+        if previous_umask is not None:
+            os.umask(previous_umask)
 
 
 if __name__ == "__main__":
