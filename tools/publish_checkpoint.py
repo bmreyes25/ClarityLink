@@ -165,19 +165,30 @@ def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, lab
     attempts = 5
     last_error = ""
     for attempt in range(attempts):
-        result = subprocess.run(command, text=True, capture_output=True)
-        if result.returncode:
-            last_error = (result.stderr or result.stdout).strip()
+        try:
+            result = subprocess.run(command, text=True, capture_output=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            last_error = "GitHub CLI read timed out after 10 seconds"
         else:
-            import json
-            data = json.loads(result.stdout)
-            if data.get("headRefName") != branch:
-                raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
-            if data.get("baseRefName") != "main" or data.get("state") != "OPEN":
-                raise Failure(f"{label}: pull request must be open and target main")
-            if data.get("headRefOid") == local_sha:
-                return data
-            last_error = f"GitHub reports head {data.get('headRefOid')!r}; expected {local_sha}"
+            if result.returncode:
+                last_error = (result.stderr or result.stdout).strip()
+            else:
+                import json
+                try:
+                    data = json.loads(result.stdout)
+                except (TypeError, ValueError) as exc:
+                    last_error = f"GitHub CLI returned invalid JSON: {exc}"
+                else:
+                    if not isinstance(data, dict):
+                        last_error = "GitHub CLI returned a non-object PR response"
+                    elif data.get("headRefName") != branch:
+                        raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
+                    elif data.get("baseRefName") != "main" or data.get("state") != "OPEN":
+                        raise Failure(f"{label}: pull request must be open and target main")
+                    elif data.get("headRefOid") == local_sha:
+                        return data
+                    else:
+                        last_error = f"GitHub reports head {data.get('headRefOid')!r}; expected {local_sha}"
         if attempt + 1 < attempts:
             time.sleep(attempt + 1)
     raise Failure(f"{label}: PR head did not match published checkpoint after {attempts} reads: {last_error}")
