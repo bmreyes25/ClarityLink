@@ -41,8 +41,6 @@ This hub points to curated current documentation. The detailed reverse-engineeri
 - [Source-pinned CarPlay AltScreen prior art](research/carplay-altscreen-prior-art.md)
 - [Honda Type111 research plan](research/honda-type111-research-plan.md)
 - [Honda integration evidence](research/honda/README.md) and [CL-R13-A reference status](research/cl-master-01-reference-status.md)
-- [CL-R13-A REA and xcertplay reference library](research/references/README.md) — local REA setup, pinned source analysis, licensing, and research boundaries.
-- [CL-R13-A integration record](research/cl-r13-a-reference-integration.md)
 - [Chronological step reports](../step-reports/README.md)
 
 ## Safety and vehicle testing
