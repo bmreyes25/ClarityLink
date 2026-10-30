@@ -27,6 +27,29 @@ public final class DecodedFrameTest {
         require(pixels[0] == 0xffff0000, "frame owns a stable RGBA snapshot");
         require(pixels[1] == 0xff00ff00, "row stride and channel order preserved");
         require(pixels[2] == 0xff0000ff && pixels[3] == 0xffffffff, "second row pixels preserved");
+        int[] reusable = new int[6];
+        java.util.Arrays.fill(reusable, 0x5a5a5a5a);
+        frame.toArgbPixels(reusable);
+        require(reusable[0] == 0xffff0000 && reusable[1] == 0xff00ff00
+                && reusable[2] == 0xff0000ff && reusable[3] == 0xffffffff,
+                "reusable output preserves pixels and skips row padding");
+        require(reusable[4] == 0x5a5a5a5a && reusable[5] == 0x5a5a5a5a,
+                "reusable output does not touch capacity beyond the frame");
+        rejects(new Runnable() { public void run() {
+            frame.toArgbPixels(new int[3]);
+        } }, "undersized reusable pixel buffer rejected");
+        try {
+            frame.writeRgbaTo(new java.io.OutputStream() {
+                public void write(int value) { }
+                public void write(byte[] bytes, int offset, int length) {
+                    if (length > 0) bytes[offset] = 0;
+                }
+            });
+        } catch (java.io.IOException failure) {
+            throw new AssertionError("hostile output stream write", failure);
+        }
+        require(frame.toArgbPixels()[0] == 0xffff0000,
+                "mutating output stream cannot alter the immutable frame snapshot");
         require(frame.byteSize() == 24, "bounded frame metadata");
 
         rejects(new Runnable() { public void run() {
