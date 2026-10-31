@@ -104,6 +104,46 @@ def classify_command_result(exit_code: int, stdout: bytes, stderr: bytes,
     return CommandResult.OTHER_COMMAND_FAILURE
 
 
+def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
+                                 exit_code: int, stdout: bytes, stderr: bytes) -> None:
+    """Reject common remote failures hidden by pre-shell_v2 `adb shell`.
+
+    API-17 adb may return success even when the remote command failed. This
+    check supplements (and never replaces) operation-specific parsing.
+    """
+    combined = (stderr + b"\n" + stdout).decode("utf-8", "replace")
+    if exit_code != 0:
+        raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
+    # Transport diagnostics belong to the host adb client's stderr stream. Do
+    # not scan target stdout, where dumpsys/logcat may legitimately contain
+    # similar words, and do not accept partial target output after disconnect.
+    stderr_text = stderr.decode("utf-8", "replace").lower()
+    if any(marker in stderr_text for marker in (
+            "error: closed", "device offline", "device unauthorized", "unauthorized",
+            "no devices/emulators found", "device not found", "failed to read from device")):
+        raise SafetyStop(f"legacy ADB transport failure during required operation: {operation}")
+    if operation in {"read", "property", "id", "ps"} and re.search(
+            r"(?im)^\s*(?:/system/bin/)?(?:sh|mksh):.*(?:not found|permission denied|can't execute)", combined):
+        raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if operation in {"read", "property", "id", "ps"} and re.search(
+            r"(?im)^\s*(?:[^\r\n]*:\s*)?(?:permission denied|operation not permitted|no such file or directory)\s*$",
+            combined):
+        raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if operation == "dumpsys" and re.search(
+            r"(?im)^\s*(?:can't find service|error:|usage:\s|unknown service|permission denial:)", combined):
+        raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if operation == "dumpsys":
+        if not stdout.strip() or re.search(r"(?im)^\s*(?:unknown|can't find|service .* not found)\b", combined):
+            raise SafetyStop(f"dumpsys did not return a usable {args[0]} snapshot")
+    if operation == "logcat" and stderr.strip() and not stdout.strip():
+        raise SafetyStop("legacy ADB logcat wrote stderr; result is ambiguous")
+    if operation == "logcat" and stdout.strip():
+        # Support Android's brief and tag-priority layouts. Empty output is
+        # valid; nonempty usage/error text is not evidence.
+        if not re.search(rb"(?m)^\s*(?:[VDIWEF]/[^\r\n]+\(\s*\d+\):|[VDIWEF]\s+[^:\r\n]+:)", stdout):
+            raise SafetyStop("legacy ADB logcat output lacks Android log-line framing")
+
+
 def classify_stop_reason(message: str) -> CommandResult:
     if "instance changed" in message.lower() or "pid changed" in message.lower():
         return CommandResult.PROCESS_IDENTITY_CHANGE
@@ -240,8 +280,10 @@ class FixedAdb:
         }
         timed_out = truncated = False
         proc: subprocess.Popen[bytes] | None = None
+        selector: selectors.BaseSelector | None = None
         try:
-            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             assert proc.stdout is not None and proc.stderr is not None
             selector = selectors.DefaultSelector()
             selector.register(proc.stdout, selectors.EVENT_READ, "stdout")
@@ -289,16 +331,52 @@ class FixedAdb:
                 code = 125
             record["truncated"] = truncated
         except KeyboardInterrupt:
-            if proc is not None and proc.poll() is None:
-                proc.kill()
-                try:
-                    proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    pass
+            record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
+                           "exit_code": None, "result": "interrupted",
+                           "interruption_type": "KeyboardInterrupt"})
+            if "chunks" in locals():
+                for stream_name in ("stdout", "stderr"):
+                    partial = bytes(chunks[stream_name])
+                    record[f"partial_{stream_name}_bytes"] = len(partial)
+                    record[f"partial_{stream_name}_sha256"] = hashlib.sha256(partial).hexdigest()
+            self.records.append(record)
             raise
         except OSError as exc:
             out, err, code = b"", str(exc).encode(), 127
             record["host_execution_error"] = True
+        except BaseException as exc:
+            record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
+                           "exit_code": None, "result": "interrupted",
+                           "interruption_type": type(exc).__name__})
+            if "chunks" in locals():
+                for stream_name in ("stdout", "stderr"):
+                    partial = bytes(chunks[stream_name])
+                    record[f"partial_{stream_name}_bytes"] = len(partial)
+                    record[f"partial_{stream_name}_sha256"] = hashlib.sha256(partial).hexdigest()
+            self.records.append(record)
+            raise
+        finally:
+            if selector is not None:
+                try:
+                    selector.close()
+                except OSError:
+                    pass
+            if proc is not None:
+                try:
+                    if proc.poll() is None:
+                        proc.kill()
+                        try:
+                            proc.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            pass
+                except OSError:
+                    pass
+                for stream in (proc.stdout, proc.stderr):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except OSError:
+                            pass
         record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
                        "exit_code": code})
         record["result"] = classify_command_result(
@@ -337,6 +415,10 @@ def parse_ps_jmcs(text: str) -> tuple[int, ...]:
         if pid_idx >= len(fields):
             continue
         name_fields = fields[name_idx:] if name_idx is not None and name_idx < len(fields) else fields[-1:]
+        # Some Android 4.x toolbox `ps` builds omit a STATE header while still
+        # emitting the one-letter state before NAME in each row.
+        if name_fields and re.fullmatch(r"[SDTZXIW]", name_fields[0]) and len(name_fields) > 1:
+            name_fields = name_fields[1:]
         name = " ".join(name_fields)
         if name == "jmcs" or name.endswith("/jmcs") or name.split(":")[-1] == "jmcs":
             try:
@@ -367,8 +449,8 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
     status_name = status.get("Name", "").strip()
     cmdline = _decode_cmdline(cmd_raw)
     argv0 = cmd_raw.split(b"\x00", 1)[0].decode("utf-8", "replace").strip()
-    if status_name != "jmcs" or Path(argv0.removesuffix(" (deleted)")).name != "jmcs":
-        raise SafetyStop(f"PID {pid} comm/cmdline identity is not jmcs")
+    if status_name != "jmcs" or argv0 != JMCS_STATIC_PATH:
+        raise SafetyStop(f"PID {pid} comm/cmdline identity is not the pinned /system/bin/jmcs")
     # This API-17 build does not expose /proc/PID/exe through toolbox ls.
     # Preserve that result as NOT_EXPOSED and use independent status+cmdline
     # identity fields, plus PID/start time consistency checks, for discovery.
@@ -383,6 +465,8 @@ def read_process_identity(reader: FixedAdb, pid: int, *, capture: "Capture | Non
         raise SafetyStop("jmcs identity fields are incomplete") from exc
     if status_pid != pid:
         raise SafetyStop("PID changed during identity read")
+    if uid != "0" or gid != "0":
+        raise SafetyStop(f"PID {pid} identity is not the pinned root:root jmcs service")
     return ProcessIdentity(pid, start, exe, cmdline, uid, gid, ppid)
 
 
@@ -428,14 +512,14 @@ class Capture:
                        pid: int | None = None) -> tuple[int, bytes]:
         code, output = self.store(phase, category, name, operation, *args,
                                   timeout=timeout, max_bytes=max_bytes, pid=pid)
-        if code != 0:
-            raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
+        validate_legacy_shell_output(operation, tuple(args), code, output, b"")
         return code, output
 
     def store_log_summary(self, phase: str) -> None:
         """Summarize bounded logcat in memory; never persist source lines or stderr."""
         code, raw, err = self.reader.run("logcat", timeout=15,
                                         max_bytes=MAX_DIAGNOSTIC_LOG_BYTES)
+        validate_legacy_shell_output("logcat", (), code, raw, err)
         command_record = self.reader.records[-1]
         command_record["stdout_bytes"] = len(raw)
         command_record["stdout_sha256"] = hashlib.sha256(raw).hexdigest()
@@ -572,18 +656,6 @@ class Capture:
         if expected_identity is not None and identity != expected_identity:
             raise SafetyStop("jmcs process identity changed between campaign observations")
         self.phase_identities[phase] = identity
-        if phase == "baseline":
-            shell_code, shell_raw = self.store_required(phase, "platform", "effective_shell_identity",
-                                                        "id", timeout=5, max_bytes=64 * 1024)
-            if not re.search(rb"(?:^|\s)uid=2000\(shell\)(?:\s|$)", shell_raw):
-                raise SafetyStop("ordinary ADB shell identity did not match UID 2000")
-            for prop in ("ro.secure", "ro.debuggable"):
-                _, property_raw = self.store_required(
-                    phase, "properties", prop.replace(".", "_"), "property", prop,
-                    timeout=5, max_bytes=64 * 1024)
-                expected = b"1" if prop == "ro.secure" else b"0"
-                if property_raw.strip() != expected:
-                    raise SafetyStop(f"selected debug property did not match prior target value: {prop}")
         for service in SAFE_DUMPSYS:
             self.store_required(phase, "display", f"dumpsys_{service.replace('/', '_')}",
                                 "dumpsys", service, timeout=15,

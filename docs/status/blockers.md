@@ -1,6 +1,6 @@
 # Active blockers — CL-MASTER-01
 
-**Updated:** 2026-10-20. Detailed evidence is in the [integration readiness](integration-readiness.md), [evidence ledger](evidence-ledger.md), and [acceptance gates](../roadmap/milestone-acceptance-gates.md).
+**Updated:** 2026-10-30. Detailed evidence is in the [integration readiness](integration-readiness.md), [evidence ledger](evidence-ledger.md), and [acceptance gates](../roadmap/milestone-acceptance-gates.md).
 
 | Blocker | State | Required resolution | Milestone |
 |---|---|---|---|
@@ -11,7 +11,8 @@
 | CL-R11-A / CL-R12-B/C/D/E report reconciliation | **NOT RECONCILED** | Locate authoritative report/version/commit and evidence class, preserve limits, and update the ledger without importing unpublished work. | CL-IF-01 / CL-R12-F |
 | Private evidence backup/recovery | **UNVERIFIED** | Verify encrypted archive backup and recovery in authorized private storage; publish only a sanitized receipt. No PASS is claimed here. | CL-MASTER-01 |
 | Independent target safety review | **NOT RECORDED** | Obtain review of exact target integration, warning behavior, stop conditions and rollback before any target-facing work. | CL-INT-01 / CL-VT-01 |
-| Separate live-iPhone / vehicle authorization | **NOT AUTHORIZED** | Offline R&D permission does not authorize a connected-iPhone test, bench session, or vehicle observation. Each needs its own exact scope, independent review, explicit owner approval, privacy plan, and stop/rollback conditions. | CL-REC-01 / CL-OBS-01 / CL-VT-01 / CL-POLICY-02 |
+| Separate live-iPhone / vehicle authorization outside fixed C-P | **NOT AUTHORIZED** | Offline R&D permission does not authorize a connected-iPhone test, bench session, or vehicle observation. Each needs its own exact scope, required qualified human review, explicit owner approval, privacy plan and stop/recovery conditions. The fixed C-P proposal is tracked separately below. | CL-REC-01 / CL-OBS-01 / CL-VT-01 / CL-POLICY-02 |
+| Fixed PR #118 C-P passive observation | **POLICY AMENDMENT PROPOSED; NOT EFFECTIVE** | `C-P-MA-OWNER-ASSUMED-RISK` would permit only the pinned eight-phase/135-command passive scope after protected-main adoption, exact Codex/Claude/ECC AI engineering reports, offline checks, and Ben Reyes's separate exact-run risk acceptance/authorization. AI reviews are not human safety certification. ON/non-READY ADB availability is unknown; failure requires stop. No passive session is currently authorized. | CL-HONDA-CP-POLICY |
 | Honda vehicle acceptance | **NOT STARTED** | Requires supported contracts, integrated lab acceptance, safety review, reversible procedure, exact authorization, and all vehicle-relevant F1–F12 evidence. F13 (public development history) is tracked separately and is not a vehicle-test prerequisite. | CL-VT-01 |
 
 CL-R4 and CL-R7 remain **API17 LAB PASS** within their recorded synthetic scope. Historical FinalizerWatchdogDaemon behavior remains **NOT REPRODUCED** and unattributed. `safeForHonda()` remains `false`.

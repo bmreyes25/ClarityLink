@@ -1,4 +1,12 @@
-# CL-MASTER-01 current status — 2026-10-26
+# CL-MASTER-01 current status — 2026-10-30
+
+## C-P single-owner policy amendment — proposed 2026-10-30
+
+Policy implementation branch was started from fetched `origin/main` at `46039d90922e7bbe60c92aaa441d0ae8360e457e`.
+
+The fixed PR #118 C-P profile is the only candidate for `C-P-MA-OWNER-ASSUMED-RISK`: exact-source Codex, Claude and ECC engineering reports plus Ben Reyes's separate risk acceptance and exact run authorization. AI review is not independent human safety certification. The amendment is **proposed on a feature branch and not effective** until protected-main adoption; no C-P run is authorized by this status. Policy adoption, three actual review artifacts and exact owner session authorization remain outstanding. The eligible electrical state is ON with READY absent; access in that state is unverified and failure means stop without escalation. Root, HondaHack, instrumentation, receiver/display changes and deployment remain separately gated. `safeForHonda()` remains `false`.
+
+This prospective amendment supersedes older blanket C-P prohibition wording only after adoption. Historical status records are preserved as evidence of their earlier policy state.
 
 **Current program:** CL-MASTER-01 end-to-end Type111 Honda integration roadmap
 **Roadmap base:** `origin/main` `df9d35bd6d32f763edf8e9857a9968ccb4e36229` (includes merged PRs #92 and #97)
