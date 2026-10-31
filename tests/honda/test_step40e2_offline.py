@@ -30,7 +30,7 @@ def test_privileged_command_plan_is_fixed_and_uses_proven_su_c_form(monkeypatch)
     command = reader.plan(privileged.PrivilegedOperation.PROCESS_READ,
                           pid=42, leaf="maps")
     assert command == ("/usr/bin/adb", "-s", "TEST-DEVICE", "shell", "/system/xbin/su", "-c",
-                       "cat /proc/42/maps")
+                       "/system/bin/cat /proc/42/maps")
     assert "cat /proc/42/maps" in reader.dry_run_command(
         privileged.PrivilegedOperation.PROCESS_READ, pid=42, leaf="maps")
 

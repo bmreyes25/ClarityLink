@@ -59,11 +59,15 @@ PHASE_OPERATIONS = (
     ("fd_link_each", ("<JMCS_PID>", "<FD_NONNEGATIVE_32BIT>"), 5, 64 * 1024),
     *(("network_read", (table,), 10, 2 * 1024 * 1024)
       for table in ("tcp", "tcp6", "udp", "udp6", "unix")),
+    ("ps", (), 10, 2 * 1024 * 1024),
     ("process_read", ("<JMCS_PID>", "stat"), 5, 64 * 1024),
     ("process_read", ("<JMCS_PID>", "status"), 5, 256 * 1024),
     ("process_read", ("<JMCS_PID>", "cmdline"), 5, 64 * 1024),
     ("process_exe_link", ("<JMCS_PID>",), 5, 64 * 1024),
+    ("identity", (), 5, 16 * 1024),
 )
+
+LIVE_CAPTURE_ENABLED = False
 
 
 def canonical_json(value: object) -> bytes:
@@ -175,7 +179,7 @@ def source_hashes() -> dict[str, str]:
         lock = json.loads(SOURCE_LOCK_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise SafetyStop("privileged source hash lock is unreadable") from exc
-    expected_names = {"privileged.py", "privileged_campaign.py", "collector.py", "parsers.py",
+    expected_names = {"analyze.py", "privileged.py", "privileged_campaign.py", "collector.py", "parsers.py",
                       "privileged_campaign_static_dependencies.json"}
     if not isinstance(lock, dict) or set(lock) != expected_names:
         raise SafetyStop("privileged source hash lock has an unexpected file set")
@@ -413,6 +417,15 @@ def run_r1_minimum_privilege_check(capture: Capture, reader: PrivilegedRead) -> 
     capture.root_identity = "uid=0 verified"
 
 
+def recheck_su_fingerprint(capture: Capture, stage_id: str) -> None:
+    """Require the reviewed ordinary-shell fingerprint immediately before su use."""
+    digest = capture.store_required(stage_id, "privilege", "su_sha256_pre_elevation", "hash-su",
+                                    timeout=5, max_bytes=16 * 1024)[1]
+    metadata = capture.store_required(stage_id, "privilege", "su_metadata_pre_elevation", "ls-su",
+                                      timeout=5, max_bytes=16 * 1024)[1]
+    validate_su_fingerprint(digest, metadata)
+
+
 def _confirm_owner(input_fn: Any, token: str, prompt: str) -> None:
     if input_fn(prompt).strip() != token:
         raise SafetyStop("owner did not confirm the exact reviewed step; stopping without retry")
@@ -462,6 +475,8 @@ def run_r3_interactive_sequence(capture: Capture, reader: PrivilegedRead,
 def execute_approved_stage(authorization: dict[str, Any], stage_id: str, output_root: Path,
                            input_fn: Any = input, output_fn: Any = print) -> Path:
     """Execute only one already reviewed/authorized stage; no enumeration or retry."""
+    if not LIVE_CAPTURE_ENABLED:
+        raise SafetyStop("live root capture is disabled pending SuperSU safety resolution")
     serial = authorization["adb_serial"]
     if serial == "auto":
         raise SafetyStop("auto serial selection is never permitted")
@@ -478,7 +493,7 @@ def execute_approved_stage(authorization: dict[str, Any], stage_id: str, output_
         raise SafetyStop("raw capture must remain outside the Git worktree")
     if not root.exists():
         root.mkdir(mode=0o700, parents=True)
-    if not root.is_dir():
+    if not root.is_dir() or root.stat().st_mode & 0o777 != 0o700:
         raise SafetyStop("private output root is not a directory")
     output = root / (
         f"CLARITY_ROOT_READ_{stage_id}_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}")
@@ -503,13 +518,16 @@ def execute_approved_stage(authorization: dict[str, Any], stage_id: str, output_
             run_r0_nonexecuting_preflight(capture)
             phase_order = ["R0_nonexecuting"]
         elif stage_id == "R1_minimum_privilege_check":
+            recheck_su_fingerprint(capture, stage_id)
             run_r1_minimum_privilege_check(capture, reader)
             phase_order = [stage_id]
         elif stage_id == "R2_targeted_metadata":
+            recheck_su_fingerprint(capture, stage_id)
             _confirm_owner(input_fn, "DISCONNECTED", "Confirm iPhone disconnected and factory display/audio/cluster normal; type DISCONNECTED: ")
             collect_bounded_phase(capture, reader, PHASE_IDS[0])
             phase_order = [PHASE_IDS[0]]
         elif stage_id == "R3_normal_carplay_correlation":
+            recheck_su_fingerprint(capture, stage_id)
             run_r3_interactive_sequence(capture, reader, input_fn, output_fn)
             phase_order = list(PHASE_IDS[1:])
         else:
@@ -741,6 +759,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     if args.authorization is None or args.stage is None:
         print("Exact private authorization record and one explicit --stage are required before target access.", file=sys.stderr)
+        return 2
+    if not LIVE_CAPTURE_ENABLED:
+        print("Live root capture is disabled: the SuperSU zero-write and integrity gate remains unresolved.", file=sys.stderr)
         return 2
     try:
         authorization = validate_authorization(args.authorization, stage_id=args.stage,

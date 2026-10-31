@@ -35,14 +35,14 @@
         "timeout_seconds_sum": 5
       },
       "R2_targeted_metadata": {
-        "command_count": 274,
-        "output_bytes_sum": 53362688,
-        "timeout_seconds_sum": 1435
+        "command_count": 276,
+        "output_bytes_sum": 55476224,
+        "timeout_seconds_sum": 1450
       },
       "R3_normal_carplay_correlation": {
-        "command_count": 822,
-        "output_bytes_sum": 160088064,
-        "timeout_seconds_sum": 4305
+        "command_count": 828,
+        "output_bytes_sum": 166428672,
+        "timeout_seconds_sum": 4350
       },
       "human_transition_waits_included": false
     },
@@ -66,7 +66,7 @@
   },
   "schema_version": 1,
   "socket_attribution": "only exact jmcs fd symlink socket:[inode] correspondence to /proc/net rows; otherwise unattributed",
-  "source_lock_sha256": "270c751ada3f626736e71c7387d0ff5b5256e648c2ac8693a77766f19d3ecb7a",
+  "source_lock_sha256": "051e1498a17289d9ba399835061e819a6662a53f5a93ba45dbeef07eac403cca",
   "stages": [
     {
       "elevated": false,
@@ -302,6 +302,13 @@
           "timeout_seconds": 10
         },
         {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 10
+        },
+        {
           "arguments": [
             "<JMCS_PID>",
             "stat"
@@ -338,6 +345,13 @@
           "failure_policy": "stop_without_retry",
           "max_output_bytes": 65536,
           "operation": "process_exe_link",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16384,
+          "operation": "identity",
           "timeout_seconds": 5
         }
       ],
@@ -487,6 +501,13 @@
           "timeout_seconds": 10
         },
         {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 10
+        },
+        {
           "arguments": [
             "<JMCS_PID>",
             "stat"
@@ -523,6 +544,13 @@
           "failure_policy": "stop_without_retry",
           "max_output_bytes": 65536,
           "operation": "process_exe_link",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16384,
+          "operation": "identity",
           "timeout_seconds": 5
         }
       ],

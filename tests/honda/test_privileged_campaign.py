@@ -20,7 +20,7 @@ def test_profile_and_source_pins_are_exact_and_live_requires_review_gate():
     digest = campaign.verify_profile()
     assert digest == campaign.PROFILE_HASH_PATH.read_text().split()[0]
     assert set(campaign.source_hashes()) == {
-        "privileged.py", "privileged_campaign.py", "collector.py", "parsers.py",
+        "analyze.py", "privileged.py", "privileged_campaign.py", "collector.py", "parsers.py",
         "privileged_campaign_static_dependencies.json",
     }
     dry_run = campaign.dry_run_report()
@@ -44,15 +44,59 @@ def test_dry_run_is_complete_bounded_and_never_initializes_adb(monkeypatch):
     assert "/proc/1234/fd/3" in joined
 
 
+def test_phase_manifest_includes_each_elevated_identity_and_process_table_check():
+    operations = [row[0] for row in campaign.PHASE_OPERATIONS]
+    assert operations.count("identity") == 2
+    assert operations.count("ps") == 2
+    assert operations[-1] == "identity"
+
+
 def test_fixed_executable_and_fd_link_commands_allow_only_numeric_paths(monkeypatch):
     monkeypatch.setattr(collector.shutil, "which", lambda _name: "/usr/bin/adb")
     adb = collector.FixedAdb("SYNTHETIC", resolve_auto=False)
     reader = privileged.PrivilegedRead(adb)
-    assert reader.plan(privileged.PrivilegedOperation.PROCESS_EXE_LINK, pid=23)[-1] == "ls -l /proc/23/exe"
-    assert reader.plan(privileged.PrivilegedOperation.FD_LINK, pid=23, fd=0)[-1] == "ls -l /proc/23/fd/0"
+    assert reader.plan(privileged.PrivilegedOperation.PROCESS_EXE_LINK, pid=23)[-1] == "/system/bin/ls -l /proc/23/exe"
+    assert reader.plan(privileged.PrivilegedOperation.FD_LINK, pid=23, fd=0)[-1] == "/system/bin/ls -l /proc/23/fd/0"
     for pid, fd in ((0, 0), (23, -1), (True, 3), (23, "3;id"), (2**31, 0)):
         with pytest.raises(collector.SafetyStop):
             reader.plan(privileged.PrivilegedOperation.FD_LINK, pid=pid, fd=fd)
+
+
+def test_reader_compatibility_paths_translate_to_fixed_absolute_su_commands(monkeypatch):
+    monkeypatch.setattr(collector.shutil, "which", lambda _name: "/usr/bin/adb")
+    adb = collector.FixedAdb("SYNTHETIC", resolve_auto=False)
+    calls = []
+
+    def record(command, operation, arguments, *, timeout, max_bytes):
+        calls.append((command, operation, arguments, timeout, max_bytes))
+        return 0, b"ok\n", b""
+
+    monkeypatch.setattr(adb, "_run_planned", record)
+    reader = privileged.PrivilegedRead(adb)
+    assert reader.run("read", "/proc/23/maps", timeout=5, max_bytes=64)[0] == 0
+    assert reader.run("list", "/proc/23/fd", timeout=5, max_bytes=64)[0] == 0
+    assert reader.run("readlink", "/proc/23/fd/4", timeout=5, max_bytes=64)[0] == 0
+    assert reader.run("readlink", "/proc/23", "exe", timeout=5, max_bytes=64)[0] == 0
+    remotes = [call[0][-1] for call in calls]
+    assert remotes == [
+        "/system/bin/cat /proc/23/maps",
+        "/system/bin/ls -l /proc/23/fd",
+        "/system/bin/ls -l /proc/23/fd/4",
+        "/system/bin/ls -l /proc/23/exe",
+    ]
+    assert all(call[1].startswith("privileged_") for call in calls)
+
+
+def test_live_root_cli_stays_disabled_before_authorization_or_adb(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(campaign, "FixedAdb", lambda *_a, **_k: pytest.fail("ADB constructed"))
+    assert campaign.main(["--stage", "R0_nonexecuting", "--authorization", str(tmp_path / "auth.json")]) == 2
+    assert "live root capture is disabled" in capsys.readouterr().err.lower()
+
+
+def test_live_root_library_entrypoint_stays_disabled_before_adb(monkeypatch, tmp_path):
+    monkeypatch.setattr(campaign, "FixedAdb", lambda *_a, **_k: pytest.fail("ADB constructed"))
+    with pytest.raises(collector.SafetyStop, match="live root capture is disabled"):
+        campaign.execute_approved_stage({"adb_serial": "SYNTHETIC"}, "R0_nonexecuting", tmp_path)
 
 
 def test_saved_elf_dependencies_are_not_misreported_as_runtime_loaded():
