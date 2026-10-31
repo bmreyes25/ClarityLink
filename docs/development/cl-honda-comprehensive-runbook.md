@@ -10,7 +10,7 @@ At every stop: preserve host evidence, assess normal factory behavior with the o
 
 ## Stage P — passive C-P
 
-**Eligibility:** The C-P policy amendment must be adopted on protected `main`; the current main checkout must pass pinned profile/source checks; Codex and Claude must supply exact-source AI engineering records; ECC is optional when unavailable and that status is recorded truthfully. Ben Reyes must sign a separate one-run authorization. This is owner-assumed risk, not human certification. HondaHack and root remain excluded.
+**Eligibility:** The C-P policy amendment must be adopted on protected `main`; the current main checkout must pass pinned profile/source checks; Codex and Claude must supply exact-source AI engineering records; ECC is optional only when unavailable; record a truthful reason and `no_completed_review_withheld: true`. The owner attests that no completed or received ECC report is withheld; any such report must be included and validated. This is an owner attestation, not an independently enforceable control: the validator cannot inspect external services or independently prove availability or truthfulness. Ben Reyes must separately confirm the fresh nonce-bound prompt for each invocation. The nonce is per invocation and does not persistently consume the approval file; after a stop or interruption, do not relaunch until the cause is resolved and Ben Reyes makes a new explicit decision. This is operator discipline, not a technical replay guard. Interruption during the final owner prompt stops before capture creation, so no capture directory or failure card is created. This is owner-assumed risk, not human certification. HondaHack and root remain excluded.
 
 **Entry point:**
 

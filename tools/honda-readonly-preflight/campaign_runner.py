@@ -269,7 +269,7 @@ def profile_payload() -> dict[str, object]:
             for path in POLICY_FILES
         },
         "authorization_category": AUTHORIZATION_CATEGORY,
-        "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional when unavailable and its status must be truthful; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
+        "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional only when unavailable with a truthful reason and owner attestation that no completed review is withheld; any completed ECC review must be provided; validator cannot independently prove availability or truthfulness; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
         "approved_vehicle_power_state": APPROVED_POWER_STATE,
         "scope_exclusions": SCOPE_EXCLUSIONS,
         "campaign_bounds": {
@@ -284,7 +284,7 @@ def profile_payload() -> dict[str, object]:
             ],
             "no_collection_during_operator_transition_waits": True,
         },
-        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status; records do not authenticate agent identity, independence, competence, or vehicle safety",
+        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation, but approval file is not persistently consumed; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
         "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
         "prohibitions": ["auto_serial", "adb_devices", "network_scan", "su", "adb_root",
                          "setting_changes", "install", "write", "signal", "ptrace",
@@ -341,7 +341,13 @@ def command_manifest_sha256() -> str:
 
 
 def verify_pinned_profile() -> str:
-    expected = PROFILE_HASH_FILE.read_text(encoding="ascii").split()[0]
+    try:
+        pin_tokens = PROFILE_HASH_FILE.read_text(encoding="ascii").split()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SafetyStop("campaign profile hash pin is missing or invalid") from exc
+    if len(pin_tokens) != 2 or pin_tokens[1] != PROFILE_FILE.name:
+        raise SafetyStop("campaign profile hash pin is missing or invalid")
+    expected = pin_tokens[0]
     profile_bytes = PROFILE_FILE.read_bytes()
     if profile_bytes != canonical_json(profile_payload()):
         raise SafetyStop("campaign profile file does not match the executable fixed profile")
@@ -587,7 +593,9 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
 
     The review/risk file cannot authorize execution by itself and never stores
     a reusable YES. Each invocation creates a fresh challenge before capture or
-    ADB setup; only the resulting private capture records that one-run decision.
+    ADB setup. This is per-invocation confirmation, not persistent consumption of
+    the approval file; operator discipline prohibits relaunch after a stop without
+    resolving the cause and obtaining a new explicit owner decision.
     """
     if input_fn is None:
         input_fn = _read_owner_input
@@ -598,15 +606,26 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     output_fn("FINAL ONE-RUN AUTHORIZATION — review, do not infer any scope beyond this prompt.")
     output_fn("Owner: Ben Reyes | Vehicle: 2018 Honda Clarity PHEV Touring")
     output_fn(f"Exact ADB serial: {serial}")
+    output_fn(f"Reviewed protected-main commit: {approval['reviewed_commit_sha']}")
     output_fn(f"Profile SHA-256: {profile_hash}")
     output_fn(f"Command manifest SHA-256: {command_manifest_sha256()}")
     output_fn(f"Source SHA-256 map: {json.dumps(source_hashes_verified, sort_keys=True)}")
     output_fn(f"Policy commit: {approval['policy_effective_commit_sha']}")
+    ecc_status = approval["ecc_review_status"]
+    if ecc_status["status"] == "UNAVAILABLE":
+        output_fn(f"ECC review status: UNAVAILABLE; reason: {ecc_status['reason']}; "
+                  f"no completed review withheld: {ecc_status['no_completed_review_withheld']}")
+        output_fn("ECC availability and the non-withholding attestation are owner-reported; "
+                  "the validator cannot independently verify them.")
+    else:
+        output_fn(f"ECC review status: REVIEW_COMPLETED; artifact SHA-256: {ecc_status['artifact_sha256']}")
     output_fn(f"Power state: {APPROVED_POWER_STATE}; outdoors, stationary in Park, parking brake set")
     output_fn(f"Private evidence directory: {capture_path}")
     output_fn("Privacy: bounded raw dumpsys stdout/stderr is retained in this private directory and may include window/app titles or identifying metadata; logcat source lines are not retained.")
     output_fn("Compatibility risk: this head unit has not demonstrated support for the fixed API17 logcat -d -t 500 form; unsupported or unexpected output stops the session without substitution.")
     output_fn("Interruption: do not retry after a stop. SIGKILL, power loss, or runtime failure may leave incomplete evidence; host cleanup cannot guarantee a remote child has stopped after ADB exits.")
+    output_fn("This nonce authorizes this invocation only. A later invocation would require a fresh challenge, but the tool does not persistently consume the private approval record; do not relaunch after a stop or interruption without resolving the cause and making a new explicit owner decision.")
+    output_fn("No capture directory or failure card is created if interrupted during this prompt because collection has not started.")
     output_fn("Scope: the fixed eight-phase passive profile only. AI reviews are not human safety certification.")
     output_fn("No root, su, HondaHack, instrumentation, receiver/display modification, firmware, CAN, warning changes, driving, or deployment.")
     response = input_fn(f'Type exactly "{phrase}" to authorize this one run; anything else stops: ')
@@ -692,9 +711,11 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("ECC status must truthfully state UNAVAILABLE or REVIEW_COMPLETED")
     if ecc_status["status"] == "UNAVAILABLE":
         reason = ecc_status.get("reason")
-        if (set(ecc_status) != {"status", "reason"} or not isinstance(reason, str)
+        if (set(ecc_status) != {"status", "reason", "no_completed_review_withheld"}
+                or ecc_status.get("no_completed_review_withheld") is not True
+                or not isinstance(reason, str)
                 or not reason.strip() or "<" in reason or ">" in reason):
-            raise SafetyStop("ECC unavailability needs a truthful, non-placeholder reason and no fabricated review")
+            raise SafetyStop("ECC unavailability needs a truthful reason and an attestation that no completed review is withheld")
     else:
         if set(ecc_status) != {"status", "artifact_path", "artifact_sha256"}:
             raise SafetyStop("completed ECC review requires its exact artifact and hash")
@@ -1140,7 +1161,8 @@ def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, objec
             "reviewed_commit_sha": "",
             "multi_agent_reviews": {agent: {"artifact_path": "", "artifact_sha256": ""}
                                     for agent in REQUIRED_REVIEW_AGENTS},
-            "ecc_review_status": {"status": "UNAVAILABLE", "reason": "<state actual availability>"}}
+            "ecc_review_status": {"status": "UNAVAILABLE", "reason": "<state actual availability>",
+                                  "no_completed_review_withheld": False}}
 
 
 def _print_dry_run() -> int:

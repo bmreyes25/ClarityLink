@@ -1,5 +1,5 @@
 {
-  "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status; records do not authenticate agent identity, independence, competence, or vehicle safety",
+  "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation, but approval file is not persistently consumed; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
   "approved_vehicle_power_state": "ON mode; brake pedal not pressed; READY indicator absent",
   "authorization_category": "C-P-MA-OWNER-ASSUMED-RISK",
   "campaign_bounds": {
@@ -1555,9 +1555,9 @@
   ],
   "policy_documents_sha256": {
     "AGENTS.md": "4bf982ab6026c15cf4c1ace29a96f158588f0f00f365a9a6e84e1df5039c4401",
-    "docs/safety/vehicle-testing.md": "f728656cc2bc6d4a2ac366a311c80d1465370781cf38decc9e67f445aae5657e",
-    "docs/security/single-owner-cp-review-policy.md": "e7e00691ceef8829e21b0c15e482e8319acb241b73cccd9e7d6c670ee90fdb63",
-    "docs/security/vehicle-safety-gates.md": "49717977c78466bf28332c36b6318c2a8013595c9d45fdef6427b04ff7cb6854"
+    "docs/safety/vehicle-testing.md": "e88231f2de9d8c76e88c3aba2c3c315bcbab53f8093985c1b057658d86ba063f",
+    "docs/security/single-owner-cp-review-policy.md": "14196b23e5d0807a8203ec762330d44d5d17503de75a722e67149976ecca9ae4",
+    "docs/security/vehicle-safety-gates.md": "5b3ecac2bfbf9516c87e2efb34da66ee2fd1e266ff6ed665a396bb8a6ee0a91d"
   },
   "privacy": {
     "directory_mode": "0700",
@@ -1582,7 +1582,7 @@
     "receiver_patch",
     "can"
   ],
-  "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional when unavailable and its status must be truthful; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
+  "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional only when unavailable with a truthful reason and owner attestation that no completed review is withheld; any completed ECC review must be provided; validator cannot independently prove availability or truthfulness; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
   "schema_version": 1,
   "scope_exclusions": [
     "root_or_su",
@@ -1596,7 +1596,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "1c1e933754f5148ffe7b85d42ee698fdd204a7cbf55db9a5971c949ae8e5cd13",
+  "source_lock_sha256": "e88f7c981f460f37cd0fe6b13b1225bde23916e52bc5ae83c217fb7de59a4e03",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",
