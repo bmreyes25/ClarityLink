@@ -2,10 +2,11 @@
 
 `dry-run` is purely local: it does not locate ADB, inspect connected devices, or
 create capture files. Live execution requires a private approval attestation
-which binds three exact-source AI engineering reviews (not human safety
-certification), owner risk acceptance, adopted policy, profile/source hashes,
-phases and exact pre-approved ADB serial. This module does not itself grant
-that approval.
+which binds required Codex and Claude exact-source AI engineering reviews,
+truthful ECC status (and a bound report if one was completed), owner risk
+acceptance, adopted policy, profile/source hashes, phases and exact
+pre-approved ADB serial. These are not human safety certifications. This
+module does not itself grant approval.
 """
 
 from __future__ import annotations
@@ -81,7 +82,8 @@ IDENTITY_PROPERTIES = ("ro.build.version.release", "ro.build.version.sdk",
                        "ro.product.device", "ro.product.board", "ro.hardware")
 CAMPAIGN_ID = "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION"
 AUTHORIZATION_CATEGORY = "C-P-MA-OWNER-ASSUMED-RISK"
-REQUIRED_REVIEW_AGENTS = ("codex", "claude", "ecc")
+REQUIRED_REVIEW_AGENTS = ("codex", "claude")
+OPTIONAL_REVIEW_AGENTS = ("ecc",)
 APPROVED_POWER_STATE = "ON mode; brake pedal not pressed; READY indicator absent"
 BASELINE_COMMAND_MANIFEST_SHA256 = "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc43b244f2e8798bce5388"
 SCOPE_EXCLUSIONS = ["root_or_su", "adb_root", "instrumentation_or_process_attachment",
@@ -267,7 +269,7 @@ def profile_payload() -> dict[str, object]:
             for path in POLICY_FILES
         },
         "authorization_category": AUTHORIZATION_CATEGORY,
-        "review_semantics": "three hash-bound AI engineering reviews plus separate owner-assumed-risk authorization; not independent human safety certification and not a safety finding",
+        "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional when unavailable and its status must be truthful; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
         "approved_vehicle_power_state": APPROVED_POWER_STATE,
         "scope_exclusions": SCOPE_EXCLUSIONS,
         "campaign_bounds": {
@@ -282,7 +284,7 @@ def profile_payload() -> dict[str, object]:
             ],
             "no_collection_during_operator_transition_waits": True,
         },
-        "approval_semantics": "owner risk acceptance is separate from three hash-bound AI review records; records do not authenticate agent identity, independence, competence, or vehicle safety",
+        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status; records do not authenticate agent identity, independence, competence, or vehicle safety",
         "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
         "prohibitions": ["auto_serial", "adb_devices", "network_scan", "su", "adb_root",
                          "setting_changes", "install", "write", "signal", "ptrace",
@@ -433,12 +435,23 @@ def _path_outside_repo(path: Path, description: str) -> Path:
     raise SafetyStop(f"{description} must remain outside the Git worktree")
 
 
+def validate_private_capture_root(path: Path) -> Path:
+    """Require an outside-worktree, non-symlink directory with private permissions."""
+    output_root = _path_outside_repo(path, "private capture root")
+    if output_root.is_symlink() or (output_root.exists() and not output_root.is_dir()):
+        raise SafetyStop("private capture root must be a real directory")
+    if output_root.exists() and output_root.stat().st_mode & 0o777 != 0o700:
+        raise SafetyStop("existing private capture root must already have mode 0700")
+    return output_root
+
+
 def verify_effective_policy(policy_commit_sha: str, reviewed_commit_sha: str | None = None,
                             *, run: Callable[..., object] = subprocess.run) -> None:
-    """Require the exact adopted policy on a fresh, clean protected-main checkout.
+    """Require the adopted policy on a fresh, clean local main checkout.
 
-    This uses fixed local git operations only. Fetch failure or stale/divergent
-    checkout fails closed before an ADB client or capture directory is created.
+    This uses a fixed Git argument vector, including a fetch of origin/main.
+    Fetch failure or a stale/divergent checkout fails closed before an ADB
+    client or capture directory is created.
     """
     if (not re.fullmatch(r"[0-9a-f]{40}", policy_commit_sha)
             or not isinstance(reviewed_commit_sha, str)
@@ -490,7 +503,12 @@ def _review_report(path_value: object, expected_sha: object, agent: str, *,
         report = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise SafetyStop(f"{agent} review artifact must be JSON") from exc
-    if not isinstance(report, dict) or report.get("agent_id") != agent:
+    expected_report_fields = {"agent_id", "tool_version", "review_type", "reviewed_commit_sha",
+                              "profile_sha256", "source_hashes", "command_manifest_sha256", "phase_ids",
+                              "findings", "tests_executed", "unverified_assumptions", "proposed_changes",
+                              "recommendation"}
+    if (not isinstance(report, dict) or set(report) != expected_report_fields
+            or report.get("agent_id") != agent):
         raise SafetyStop(f"{agent} review artifact identity label is invalid")
     if report.get("review_type") != "ai_engineering_review_not_human_certification":
         raise SafetyStop(f"{agent} report must be labeled as AI engineering review")
@@ -632,6 +650,8 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("owner risk acceptance is not recorded for this bounded passive category")
     if approval.get("owner_authorization") != "PENDING_INTERACTIVE_CONFIRMATION" or "owner_authorized_utc" in approval:
         raise SafetyStop("stored approval cannot authorize a run; fresh one-run confirmation is required")
+    if set(approval) != set(_approval_template(profile_hash, source_hashes_verified)):
+        raise SafetyStop("approval record contains unknown or missing fields")
     if approval.get("profile_sha256") != profile_hash:
         raise SafetyStop("approval profile hash does not match the pinned campaign")
     if approval.get("source_hashes") != source_hashes_verified:
@@ -659,18 +679,50 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("owner must acknowledge AI review is not independent human safety certification")
     reviews = approval.get("multi_agent_reviews")
     if not isinstance(reviews, dict) or set(reviews) != set(REQUIRED_REVIEW_AGENTS):
-        raise SafetyStop("exact Codex, Claude, and ECC review records are required")
+        raise SafetyStop("Codex and Claude review artifacts are required; optional ECC is recorded separately")
     for agent in REQUIRED_REVIEW_AGENTS:
         row = reviews[agent]
-        if not isinstance(row, dict):
+        if not isinstance(row, dict) or set(row) != {"artifact_path", "artifact_sha256"}:
             raise SafetyStop(f"{agent} review record is malformed")
         _review_report(row.get("artifact_path"), row.get("artifact_sha256"), agent,
+                       profile_hash=profile_hash, sources=source_hashes_verified,
+                       commit_sha=approval["reviewed_commit_sha"])
+    ecc_status = approval.get("ecc_review_status")
+    if not isinstance(ecc_status, dict) or ecc_status.get("status") not in {"UNAVAILABLE", "REVIEW_COMPLETED"}:
+        raise SafetyStop("ECC status must truthfully state UNAVAILABLE or REVIEW_COMPLETED")
+    if ecc_status["status"] == "UNAVAILABLE":
+        reason = ecc_status.get("reason")
+        if (set(ecc_status) != {"status", "reason"} or not isinstance(reason, str)
+                or not reason.strip() or "<" in reason or ">" in reason):
+            raise SafetyStop("ECC unavailability needs a truthful, non-placeholder reason and no fabricated review")
+    else:
+        if set(ecc_status) != {"status", "artifact_path", "artifact_sha256"}:
+            raise SafetyStop("completed ECC review requires its exact artifact and hash")
+        _review_report(ecc_status.get("artifact_path"), ecc_status.get("artifact_sha256"), "ecc",
                        profile_hash=profile_hash, sources=source_hashes_verified,
                        commit_sha=approval["reviewed_commit_sha"])
     serial = approval.get("adb_serial")
     if not isinstance(serial, str) or serial == "auto" or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", serial):
         raise SafetyStop("approval must contain one exact pre-approved ADB serial")
     return serial, approval
+
+
+def revalidate_after_owner_authorization(approval_path: Path, *, approval: dict[str, object],
+                                        serial: str, profile_hash: str,
+                                        source_hashes_verified: dict[str, str]) -> None:
+    """Recheck every mutable authorization input after the owner challenge, before ADB."""
+    current_profile_hash = verify_pinned_profile()
+    if current_profile_hash != profile_hash:
+        raise SafetyStop("campaign profile changed after owner authorization")
+    current_sources = source_hashes()
+    if current_sources != source_hashes_verified:
+        raise SafetyStop("campaign source lock changed after owner authorization")
+    current_serial, current_approval = validate_approval(
+        approval_path, profile_hash=current_profile_hash, source_hashes_verified=current_sources)
+    if current_serial != serial or current_approval != approval:
+        raise SafetyStop("approval record changed after owner authorization")
+    verify_effective_policy(current_approval["policy_effective_commit_sha"],
+                            current_approval["reviewed_commit_sha"])
 
 
 def _atomic_json(path: Path, value: object) -> None:
@@ -1087,7 +1139,8 @@ def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, objec
             "review_disclaimer_acknowledged": False,
             "reviewed_commit_sha": "",
             "multi_agent_reviews": {agent: {"artifact_path": "", "artifact_sha256": ""}
-                                    for agent in REQUIRED_REVIEW_AGENTS}}
+                                    for agent in REQUIRED_REVIEW_AGENTS},
+            "ecc_review_status": {"status": "UNAVAILABLE", "reason": "<state actual availability>"}}
 
 
 def _print_dry_run() -> int:
@@ -1125,11 +1178,7 @@ def main(argv: list[str] | None = None) -> int:
         verify_effective_policy(approval["policy_effective_commit_sha"], approval["reviewed_commit_sha"])
         for signum in (signal.SIGTERM, signal.SIGHUP):
             previous_handlers[signum] = signal.signal(signum, stop_signal_handler)
-        output_root = _path_outside_repo(args.output_root, "private capture root")
-        if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
-            raise SafetyStop("private capture root must be a real directory")
-        if output_root.exists() and output_root.stat().st_mode & 0o777 != 0o700:
-            raise SafetyStop("existing private capture root must already have mode 0700")
+        output_root = validate_private_capture_root(args.output_root)
         capture_id = ("CLARITY_RUNTIME_CAMPAIGN_" + datetime.now().strftime("%Y%m%d_%H%M%S")
                       + "_" + secrets.token_hex(6))
         output = output_root / capture_id
@@ -1139,6 +1188,10 @@ def main(argv: list[str] | None = None) -> int:
         run_authorization = authorize_owner_one_run(
             approval, serial, profile_hash, verified_sources, capture_id, output,
             input_fn=_read_owner_input, output_fn=print)
+        revalidate_after_owner_authorization(
+            args.approval_file, approval=approval, serial=serial, profile_hash=profile_hash,
+            source_hashes_verified=verified_sources)
+        output_root = validate_private_capture_root(args.output_root)
         output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if output_root.stat().st_mode & 0o777 != 0o700:
             raise SafetyStop("existing private capture root must already have mode 0700")
