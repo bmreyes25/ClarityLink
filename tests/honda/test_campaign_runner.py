@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import subprocess
@@ -407,6 +408,14 @@ def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
     return approval_path, profile_hash, sources
 
 
+def _consume_approval_for_test(approval, profile_hash, tmp_path, monkeypatch):
+    ledger = tmp_path / "private-state" / "consumed-approvals"
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR", ledger)
+    return campaign.consume_authorization(
+        approval["authorization_id"], reviewed_commit_sha=approval["reviewed_commit_sha"],
+        profile_hash=profile_hash)
+
+
 def test_approval_requires_exact_owner_and_codex_claude_reviews_ecc_optional(tmp_path):
     approval_path, profile_hash, sources = _approval(tmp_path)
     serial, _ = campaign.validate_approval(approval_path, profile_hash=profile_hash,
@@ -447,7 +456,8 @@ def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tm
         approval, "SYNTHETIC-EXACT-SERIAL", "a" * 64, {"source.py": "b" * 64},
         "SYNTHETIC-CAPTURE-ID", tmp_path / "private-capture" / "SYNTHETIC-CAPTURE-ID",
         input_fn=lambda prompt: "YES abc123abc123",
-        output_fn=printed.append, nonce_fn=lambda size: "abc123abc123")
+        output_fn=printed.append, nonce_fn=lambda size: "abc123abc123",
+        consume_authorization_fn=lambda: tmp_path / "consumed.json")
     assert auth["single_run"] is True
     assert auth["authorization_nonce"] == "abc123abc123"
     assert auth["adb_serial"] == "SYNTHETIC-EXACT-SERIAL"
@@ -470,10 +480,12 @@ def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tm
     assert "no completed review withheld: True" in printed_text
     assert "validator cannot independently verify" in printed_text
     assert "consumes this approval ID in an owner-only host ledger" in printed_text
-    assert "This exact approval cannot be reused" in printed_text
-    assert "ledger cannot be written" in printed_text
+    assert "After a durable marker, this approval cannot be reused" in printed_text
+    assert "If ledger persistence fails" in printed_text
+    assert "validator cannot enforce a new record when no marker exists" in printed_text
     assert "Reviewed protected-main commit: " + approval["reviewed_commit_sha"] in printed_text
-    assert "interrupting before exact YES leaves this approval ID unused" in printed_text
+    assert "A non-YES response or prompt timeout leaves this approval ID unused" in printed_text
+    assert "SIGINT, SIGTERM and SIGHUP are held only while this bounded prompt resolves" in printed_text
 
 
 def test_one_run_authorization_rejects_wrong_fresh_challenge(tmp_path):
@@ -484,7 +496,8 @@ def test_one_run_authorization_rejects_wrong_fresh_challenge(tmp_path):
             approval, "SYNTHETIC-EXACT-SERIAL", "a" * 64, {"source.py": "b" * 64},
             "SYNTHETIC-CAPTURE-ID", tmp_path / "private-capture" / "SYNTHETIC-CAPTURE-ID",
             input_fn=lambda _: "YES stale-challenge",
-            output_fn=lambda _: None, nonce_fn=lambda _: "abc123abc123")
+            output_fn=lambda _: None, nonce_fn=lambda _: "abc123abc123",
+            consume_authorization_fn=lambda: tmp_path / "must-not-exist.json")
     campaign.assert_authorization_unused(approval["authorization_id"])
 
 
@@ -522,6 +535,58 @@ def test_authorization_id_rejects_symlinked_ledger(tmp_path, monkeypatch):
 def test_authorization_id_rejects_malformed_value():
     with pytest.raises(collector.SafetyStop, match="approval ID is malformed"):
         campaign.assert_authorization_unused("../bad")
+
+
+def test_consumed_approval_rejects_preexisting_marker_symlink(tmp_path, monkeypatch):
+    ledger = tmp_path / "private-state" / "consumed-approvals"
+    ledger.mkdir(parents=True, mode=0o700)
+    target = tmp_path / "target.json"
+    target.write_text(json.dumps({"authorization_id": "e" * 32}))
+    (ledger / ("e" * 32 + ".json")).symlink_to(target)
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR", ledger)
+    with pytest.raises(collector.SafetyStop, match="unable to verify consumed owner approval"):
+        campaign.assert_authorization_consumed(
+            "e" * 32, reviewed_commit_sha="b" * 40, profile_hash="c" * 64)
+
+
+def test_ledger_home_is_not_redirected_by_home_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "alternate-home"))
+    code = ("import sys; from pathlib import Path; "
+            f"sys.path.insert(0, {str(TOOLS)!r}); import campaign_runner as c; "
+            "print(c.CONSUMED_AUTHORIZATIONS_DIR)")
+    actual = subprocess.check_output([sys.executable, "-c", code], text=True,
+                                     env=os.environ.copy()).strip()
+    assert actual != str(tmp_path / "alternate-home" / "Library" / "Application Support" /
+                         "ClarityLink" / "C-P" / "consumed-approvals")
+
+
+def test_signal_after_yes_is_delivered_only_after_authorization_consumption(tmp_path, monkeypatch):
+    approval_path, _, _ = _approval(tmp_path)
+    approval = json.loads(approval_path.read_text())
+    ledger = tmp_path / "private-state" / "consumed-approvals"
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR", ledger)
+    handler = campaign._StopSignalHandler()
+    previous_handler = campaign.signal.signal(campaign.signal.SIGTERM, handler)
+
+    def answer_with_pending_termination(prompt):
+        os.kill(os.getpid(), campaign.signal.SIGTERM)
+        return prompt.split('"')[1]
+
+    try:
+        with pytest.raises(collector.SafetyStop, match="received SIGTERM"):
+            campaign.authorize_owner_one_run(
+                approval, "SYNTHETIC-EXACT-SERIAL", "c" * 64, {"source.py": "d" * 64},
+                "SYNTHETIC-CAPTURE-ID", tmp_path / "private-capture" / "SYNTHETIC-CAPTURE-ID",
+                input_fn=answer_with_pending_termination, output_fn=lambda _: None,
+                nonce_fn=lambda _: "abc123abc123",
+                consume_authorization_fn=lambda: campaign.consume_authorization(
+                    approval["authorization_id"], reviewed_commit_sha=approval["reviewed_commit_sha"],
+                    profile_hash="c" * 64))
+    finally:
+        campaign.signal.signal(campaign.signal.SIGTERM, previous_handler)
+    campaign.assert_authorization_consumed(
+        approval["authorization_id"], reviewed_commit_sha=approval["reviewed_commit_sha"],
+        profile_hash="c" * 64)
 
 
 def test_approval_requires_effective_policy_attestation(tmp_path):
@@ -683,6 +748,7 @@ def test_post_owner_authorization_revalidates_approval_and_policy(tmp_path, monk
     approval_path, profile_hash, sources = _approval(tmp_path)
     serial, approval = campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                                   source_hashes_verified=sources)
+    _consume_approval_for_test(approval, profile_hash, tmp_path, monkeypatch)
     policy_checks = []
     monkeypatch.setattr(campaign, "verify_effective_policy",
                         lambda policy, reviewed: policy_checks.append((policy, reviewed)))
@@ -696,6 +762,7 @@ def test_post_owner_authorization_rejects_profile_change(tmp_path, monkeypatch):
     approval_path, profile_hash, sources = _approval(tmp_path)
     _, approval = campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                              source_hashes_verified=sources)
+    _consume_approval_for_test(approval, profile_hash, tmp_path, monkeypatch)
     monkeypatch.setattr(campaign, "verify_pinned_profile", lambda: "f" * 64)
     with pytest.raises(collector.SafetyStop, match="profile changed after owner authorization"):
         campaign.revalidate_after_owner_authorization(
@@ -707,6 +774,7 @@ def test_post_owner_authorization_rejects_source_change(tmp_path, monkeypatch):
     approval_path, profile_hash, sources = _approval(tmp_path)
     _, approval = campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                              source_hashes_verified=sources)
+    _consume_approval_for_test(approval, profile_hash, tmp_path, monkeypatch)
     monkeypatch.setattr(campaign, "source_hashes", lambda: {**sources, "campaign_runner.py": "f" * 64})
     with pytest.raises(collector.SafetyStop, match="source lock changed after owner authorization"):
         campaign.revalidate_after_owner_authorization(
@@ -718,6 +786,7 @@ def test_post_owner_authorization_rejects_approval_change(tmp_path, monkeypatch)
     approval_path, profile_hash, sources = _approval(tmp_path)
     serial, approval = campaign.validate_approval(approval_path, profile_hash=profile_hash,
                                                   source_hashes_verified=sources)
+    _consume_approval_for_test(approval, profile_hash, tmp_path, monkeypatch)
     changed = json.loads(approval_path.read_text())
     changed["adb_serial"] = "DIFFERENT-SYNTHETIC-SERIAL"
     approval_path.write_text(json.dumps(changed)); approval_path.chmod(0o600)
@@ -866,12 +935,16 @@ def test_live_runner_stops_at_policy_gate_before_adb_or_capture(tmp_path, monkey
 def test_live_runner_revalidates_approval_after_owner_prompt_before_adb(tmp_path, monkeypatch, capsys):
     approval_path, _, _ = _approval(tmp_path)
     output_root = tmp_path / "private-output"
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR",
+                        tmp_path / "private-state" / "consumed-approvals")
 
     def mutate_approval_during_prompt(approval, *args, **kwargs):
+        marker = kwargs["consume_authorization_fn"]()
         changed = json.loads(approval_path.read_text())
         changed["adb_serial"] = "DIFFERENT-SYNTHETIC-SERIAL"
         approval_path.write_text(json.dumps(changed)); approval_path.chmod(0o600)
-        return {"decision": "YES", "single_run": True}
+        return {"decision": "YES", "single_run": True,
+                "consumed_marker_path": str(marker)}
 
     monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
     monkeypatch.setattr(campaign, "authorize_owner_one_run", mutate_approval_during_prompt)
@@ -889,11 +962,15 @@ def test_live_runner_rechecks_private_output_root_after_owner_prompt(tmp_path, m
     output_root.mkdir(mode=0o700)
     target_root = tmp_path / "redirected-output"
     target_root.mkdir(mode=0o700)
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR",
+                        tmp_path / "private-state" / "consumed-approvals")
 
     def replace_output_with_symlink(*args, **kwargs):
+        marker = kwargs["consume_authorization_fn"]()
         output_root.rmdir()
         output_root.symlink_to(target_root, target_is_directory=True)
-        return {"decision": "YES", "single_run": True}
+        return {"decision": "YES", "single_run": True,
+                "consumed_marker_path": str(marker)}
 
     monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
     monkeypatch.setattr(campaign, "authorize_owner_one_run", replace_output_with_symlink)
@@ -991,10 +1068,14 @@ def test_preimport_component_lock_rejects_malformed_or_mismatched_entries(tmp_pa
 def test_unavailable_adb_preserves_initialized_private_recovery_checkpoint(tmp_path, monkeypatch):
     approval_path, _, _ = _approval(tmp_path)
     output_root = tmp_path / "private-output"
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR",
+                        tmp_path / "private-state" / "consumed-approvals")
     monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
     monkeypatch.setattr(campaign, "authorize_owner_one_run",
-                        lambda *args, **_kwargs: {"decision": "YES", "single_run": True,
-                                                  "capture_id": args[4], "capture_path": str(args[5])})
+                        lambda *args, **kwargs: {
+                            "decision": "YES", "single_run": True,
+                            "capture_id": args[4], "capture_path": str(args[5]),
+                            "consumed_marker_path": str(kwargs["consume_authorization_fn"]())})
     monkeypatch.setattr(collector.shutil, "which", lambda _: None)
     result = campaign.main(["run", "--approval-file", str(approval_path),
                             "--output-root", str(output_root)])

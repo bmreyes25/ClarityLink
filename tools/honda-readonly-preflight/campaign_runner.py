@@ -18,10 +18,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import select
 import secrets
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -89,7 +91,7 @@ BASELINE_COMMAND_MANIFEST_SHA256 = "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc
 SCOPE_EXCLUSIONS = ["root_or_su", "adb_root", "instrumentation_or_process_attachment",
                     "HondaHack", "receiver_or_display_modification", "firmware", "CAN_or_vehicle_control",
                     "warning_interference", "driving_test", "deployment"]
-CONSUMED_AUTHORIZATIONS_DIR = (Path.home() / "Library" / "Application Support" /
+CONSUMED_AUTHORIZATIONS_DIR = (Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library" / "Application Support" /
                                "ClarityLink" / "C-P" / "consumed-approvals")
 
 
@@ -286,7 +288,7 @@ def profile_payload() -> dict[str, object]:
             ],
             "no_collection_during_operator_transition_waits": True,
         },
-        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation and the approval ID is atomically consumed in a private host ledger after YES and before ADB; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
+        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation and SIGINT/SIGTERM/SIGHUP are deferred across the bounded prompt until exact YES is durably consumed; if ledger failure occurs before marker creation, no-retry/new-owner-decision is procedural and not validator-enforced; the private host ledger is anchored to the passwd home and is not tamper-proof against the local owner; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
         "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
         "prohibitions": ["auto_serial", "adb_devices", "network_scan", "su", "adb_root",
                          "setting_changes", "install", "write", "signal", "ptrace",
@@ -473,6 +475,39 @@ def assert_authorization_unused(authorization_id: object) -> None:
     _authorization_marker_path(authorization_id)
 
 
+def assert_authorization_consumed(authorization_id: object, *, reviewed_commit_sha: str,
+                                 profile_hash: str) -> None:
+    """Verify the exact durable marker created immediately after owner YES."""
+    if not isinstance(authorization_id, str) or not re.fullmatch(r"[0-9a-f]{32}", authorization_id):
+        raise SafetyStop("owner approval ID is malformed")
+    state_dir = CONSUMED_AUTHORIZATIONS_DIR
+    if (state_dir.is_symlink() or not state_dir.is_dir()
+            or state_dir.stat().st_uid != os.getuid()
+            or state_dir.stat().st_mode & 0o777 != 0o700
+            or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY")):
+        raise SafetyStop("consumed-approval ledger is missing or unsafe")
+    dir_fd: int | None = None
+    try:
+        dir_fd = os.open(state_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        fd = os.open(f"{authorization_id}.json", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+        with os.fdopen(fd, "r", encoding="utf-8") as stream:
+            metadata = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                    or metadata.st_mode & 0o777 != 0o600):
+                raise SafetyStop("consumed-approval marker is not a private regular file")
+            marker = json.load(stream)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise SafetyStop("unable to verify consumed owner approval before ADB") from exc
+    finally:
+        if dir_fd is not None:
+            os.close(dir_fd)
+    if (not isinstance(marker, dict) or marker.get("authorization_id") != authorization_id
+            or marker.get("reviewed_commit_sha") != reviewed_commit_sha
+            or marker.get("profile_sha256") != profile_hash
+            or not isinstance(marker.get("consumed_utc"), str)):
+        raise SafetyStop("consumed-approval marker does not match the authorized scope")
+
+
 def consume_authorization(authorization_id: object, *, reviewed_commit_sha: str,
                          profile_hash: str) -> Path:
     """Persist one-use state after YES and before any capture directory or ADB client."""
@@ -647,14 +682,18 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
                            capture_path: Path, *,
                            input_fn: Callable[[str], str] | None = None,
                            output_fn: Callable[[str], None] = print,
-                           nonce_fn: Callable[[int], str] = secrets.token_hex) -> dict[str, object]:
+                           nonce_fn: Callable[[int], str] = secrets.token_hex,
+                           consume_authorization_fn: Callable[[], Path]) -> dict[str, object]:
     """Ask for fresh, exact owner authorization after all static/effective gates.
 
     The review/risk file cannot authorize execution by itself and never stores
     a reusable YES. Each invocation creates a fresh challenge before capture or
-    ADB setup. After YES and revalidation, the approval ID is atomically consumed
-    in a private host ledger before any capture directory or ADB client exists.
-    An interrupted run requires a new owner-reviewed approval ID.
+    ADB setup. Termination signals are held only while the bounded owner prompt
+    resolves and an exact YES is durably consumed. A pending signal is delivered
+    immediately after consumption, before post-prompt revalidation or ADB.
+    After a durable marker, another attempt requires a new owner-reviewed ID.
+    If persistence fails before marker creation, no-retry/new-owner-decision is
+    procedural because validation cannot enforce a new record without a marker.
     """
     if input_fn is None:
         input_fn = _read_owner_input
@@ -684,16 +723,26 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     output_fn("Privacy: bounded raw dumpsys stdout/stderr is retained in this private directory and may include window/app titles or identifying metadata; logcat source lines are not retained.")
     output_fn("Compatibility risk: this head unit has not demonstrated support for the fixed API17 logcat -d -t 500 form; unsupported or unexpected output stops the session without substitution.")
     output_fn("Interruption: do not retry after a stop. SIGKILL, power loss, or runtime failure may leave incomplete evidence; host cleanup cannot guarantee a remote child has stopped after ADB exits.")
-    output_fn("A matching YES consumes this approval ID in an owner-only host ledger before any capture directory or ADB client is created. This exact approval cannot be reused; a future attempt requires a new owner-reviewed approval record with a new ID and a fresh challenge. If the private ledger cannot be written, the run stops before ADB.")
-    output_fn("Declining or interrupting before exact YES leaves this approval ID unused; no capture directory or failure card is created because collection has not started.")
+    output_fn("SIGINT, SIGTERM and SIGHUP are held only while this bounded prompt resolves and an exact YES is durably consumed; any pending signal then stops the run before revalidation, capture creation or ADB.")
+    output_fn("A matching YES consumes this approval ID in an owner-only host ledger before any capture directory or ADB client is created. After a durable marker, this approval cannot be reused; any future attempt requires a new owner-reviewed record with a new ID and a fresh challenge. If ledger persistence fails, the run stops before ADB. If no marker was created, the ID remains technically unused; a partial marker, if present, causes future validation to fail closed. Do not retry without resolving the failure and making a new owner decision; the validator cannot enforce a new record when no marker exists.")
+    output_fn("A non-YES response or prompt timeout leaves this approval ID unused; no capture directory or failure card is created. Termination signals received during the prompt are deferred until it resolves.")
     output_fn("Scope: the fixed eight-phase passive profile only. AI reviews are not human safety certification.")
     output_fn("No root, su, HondaHack, instrumentation, receiver/display modification, firmware, CAN, warning changes, driving, or deployment.")
-    response = input_fn(f'Type exactly "{phrase}" to authorize this one run; anything else stops: ')
-    if response != phrase:
-        raise SafetyStop("owner did not confirm the fresh one-run authorization challenge")
+    if not hasattr(signal, "pthread_sigmask"):
+        raise SafetyStop("host cannot safely defer termination signals across one-run authorization")
+    protected_signals = {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, protected_signals)
+    try:
+        response = input_fn(f'Type exactly "{phrase}" to authorize this one run; anything else stops: ')
+        if response != phrase:
+            raise SafetyStop("owner did not confirm the fresh one-run authorization challenge")
+        consumed_marker = consume_authorization_fn()
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
     return {"owner": "Ben Reyes", "decision": "YES", "authorized_utc": datetime.now(timezone.utc).isoformat(),
             "authorization_nonce": nonce, "single_run": True,
             "authorization_id": approval["authorization_id"],
+            "consumed_marker_path": str(consumed_marker),
             "vehicle": "2018 Honda Clarity PHEV Touring", "adb_serial": serial,
             "capture_id": capture_id, "capture_path": str(capture_path),
             "profile_sha256": profile_hash, "source_hashes": source_hashes_verified,
@@ -707,7 +756,8 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
 
 
 def validate_approval(path: Path, *, profile_hash: str,
-                      source_hashes_verified: dict[str, str]) -> tuple[str, dict[str, object]]:
+                      source_hashes_verified: dict[str, str],
+                      after_owner_yes: bool = False) -> tuple[str, dict[str, object]]:
     approval_path = _path_outside_repo(path, "approval record")
     if approval_path.is_symlink() or not approval_path.is_file() or approval_path.stat().st_size > 1024 * 1024:
         raise SafetyStop("approval record must be a bounded regular file")
@@ -732,7 +782,13 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("stored approval cannot authorize a run; fresh one-run confirmation is required")
     if set(approval) != set(_approval_template(profile_hash, source_hashes_verified)):
         raise SafetyStop("approval record contains unknown or missing fields")
-    assert_authorization_unused(approval.get("authorization_id"))
+    if after_owner_yes:
+        assert_authorization_consumed(
+            approval.get("authorization_id"),
+            reviewed_commit_sha=approval.get("reviewed_commit_sha", ""),
+            profile_hash=profile_hash)
+    else:
+        assert_authorization_unused(approval.get("authorization_id"))
     if approval.get("profile_sha256") != profile_hash:
         raise SafetyStop("approval profile hash does not match the pinned campaign")
     if approval.get("source_hashes") != source_hashes_verified:
@@ -801,7 +857,8 @@ def revalidate_after_owner_authorization(approval_path: Path, *, approval: dict[
     if current_sources != source_hashes_verified:
         raise SafetyStop("campaign source lock changed after owner authorization")
     current_serial, current_approval = validate_approval(
-        approval_path, profile_hash=current_profile_hash, source_hashes_verified=current_sources)
+        approval_path, profile_hash=current_profile_hash, source_hashes_verified=current_sources,
+        after_owner_yes=True)
     if current_serial != serial or current_approval != approval:
         raise SafetyStop("approval record changed after owner authorization")
     verify_effective_policy(current_approval["policy_effective_commit_sha"],
@@ -1272,14 +1329,14 @@ def main(argv: list[str] | None = None) -> int:
         deadline = time.monotonic() + MAX_SESSION_DURATION_SECONDS
         run_authorization = authorize_owner_one_run(
             approval, serial, profile_hash, verified_sources, capture_id, output,
-            input_fn=_read_owner_input, output_fn=print)
+            input_fn=_read_owner_input, output_fn=print,
+            consume_authorization_fn=lambda: consume_authorization(
+                approval["authorization_id"],
+                reviewed_commit_sha=approval["reviewed_commit_sha"],
+                profile_hash=profile_hash))
         revalidate_after_owner_authorization(
             args.approval_file, approval=approval, serial=serial, profile_hash=profile_hash,
             source_hashes_verified=verified_sources)
-        consumed_marker = consume_authorization(
-            approval["authorization_id"], reviewed_commit_sha=approval["reviewed_commit_sha"],
-            profile_hash=profile_hash)
-        run_authorization["consumed_marker_path"] = str(consumed_marker)
         output_root = validate_private_capture_root(args.output_root)
         output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if output_root.stat().st_mode & 0o777 != 0o700:

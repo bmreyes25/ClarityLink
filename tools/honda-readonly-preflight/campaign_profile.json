@@ -1,5 +1,5 @@
 {
-  "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation and the approval ID is atomically consumed in a private host ledger after YES and before ADB; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
+  "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation and SIGINT/SIGTERM/SIGHUP are deferred across the bounded prompt until exact YES is durably consumed; if ledger failure occurs before marker creation, no-retry/new-owner-decision is procedural and not validator-enforced; the private host ledger is anchored to the passwd home and is not tamper-proof against the local owner; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
   "approved_vehicle_power_state": "ON mode; brake pedal not pressed; READY indicator absent",
   "authorization_category": "C-P-MA-OWNER-ASSUMED-RISK",
   "campaign_bounds": {
@@ -1555,8 +1555,8 @@
   ],
   "policy_documents_sha256": {
     "AGENTS.md": "4bf982ab6026c15cf4c1ace29a96f158588f0f00f365a9a6e84e1df5039c4401",
-    "docs/safety/vehicle-testing.md": "f387220354c94931a1a78ec3a003c7863dbaab508b5e4e60aa44940faa7bb59f",
-    "docs/security/single-owner-cp-review-policy.md": "5b0d344639c3bcf5de2dd65f2ed57e6832f59e41c4304c36f242429c7457982e",
+    "docs/safety/vehicle-testing.md": "b1ebcd3b73d0a1884760b0abc6aeccd82d2d3827d5b3ced81b75bd023f0f89c1",
+    "docs/security/single-owner-cp-review-policy.md": "1c1d9ed7ae2e91debc59f2a9795c5737fccfaabc7a64fdfdcc7b104e2aaaaae1",
     "docs/security/vehicle-safety-gates.md": "5b3ecac2bfbf9516c87e2efb34da66ee2fd1e266ff6ed665a396bb8a6ee0a91d"
   },
   "privacy": {
@@ -1596,7 +1596,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "35e6024c81d223b52b82ea14642d898a79b0489f218020c6cf8c5edba0178a01",
+  "source_lock_sha256": "ab52103b009a0c46a58a7e7edf62b1d1da266fde0b457d5472235e9149944f0b",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",
