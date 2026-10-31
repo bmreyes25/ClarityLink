@@ -10,14 +10,14 @@ At every stop: preserve host evidence, assess normal factory behavior with the o
 
 ## Stage P — passive C-P
 
-**Eligibility:** PR #120 must be adopted on protected `main`; the then-current main checkout must pass the pinned profile/source checks; Codex, Claude, and ECC must each supply validator-accepted exact-source AI engineering records; Ben Reyes must sign a separate one-run authorization. This is owner-assumed risk, not human certification. HondaHack and root are excluded.
+**Eligibility:** The C-P policy amendment must be adopted on protected `main`; the current main checkout must pass pinned profile/source checks; Codex and Claude must supply exact-source AI engineering records; ECC is optional when unavailable and that status is recorded truthfully. Ben Reyes must sign a separate one-run authorization. This is owner-assumed risk, not human certification. HondaHack and root remain excluded.
 
 **Entry point:**
 
 ```sh
 python3 tools/honda-readonly-preflight/campaign_runner.py dry-run
 python3 tools/honda-readonly-preflight/campaign_runner.py run \
-  --approval /owner-only/reviews/cp-authorization.json \
+  --approval-file /owner-only/reviews/cp-authorization.json \
   --output-root /owner-only/captures
 ```
 

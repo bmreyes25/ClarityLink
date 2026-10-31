@@ -1,5 +1,5 @@
 {
-  "approval_semantics": "owner risk acceptance is separate from three hash-bound AI review records; records do not authenticate agent identity, independence, competence, or vehicle safety",
+  "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status; records do not authenticate agent identity, independence, competence, or vehicle safety",
   "approved_vehicle_power_state": "ON mode; brake pedal not pressed; READY indicator absent",
   "authorization_category": "C-P-MA-OWNER-ASSUMED-RISK",
   "campaign_bounds": {
@@ -1554,7 +1554,7 @@
     }
   ],
   "policy_documents_sha256": {
-    "AGENTS.md": "1004cab81b9ee4e487017f885cc90df8097472d81f2786f05b5ac709f5638256",
+    "AGENTS.md": "4bf982ab6026c15cf4c1ace29a96f158588f0f00f365a9a6e84e1df5039c4401",
     "docs/safety/vehicle-testing.md": "f728656cc2bc6d4a2ac366a311c80d1465370781cf38decc9e67f445aae5657e",
     "docs/security/single-owner-cp-review-policy.md": "e7e00691ceef8829e21b0c15e482e8319acb241b73cccd9e7d6c670ee90fdb63",
     "docs/security/vehicle-safety-gates.md": "49717977c78466bf28332c36b6318c2a8013595c9d45fdef6427b04ff7cb6854"
@@ -1582,7 +1582,7 @@
     "receiver_patch",
     "can"
   ],
-  "review_semantics": "three hash-bound AI engineering reviews plus separate owner-assumed-risk authorization; not independent human safety certification and not a safety finding",
+  "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional when unavailable and its status must be truthful; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
   "schema_version": 1,
   "scope_exclusions": [
     "root_or_su",
@@ -1596,7 +1596,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "74b1195a28aff3dccad7101050b0b38970b17b711469bccb96210824f649e9d3",
+  "source_lock_sha256": "1c1e933754f5148ffe7b85d42ee698fdd204a7cbf55db9a5971c949ae8e5cd13",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",
