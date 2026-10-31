@@ -342,6 +342,34 @@ def test_profile_tampering_is_rejected(tmp_path, monkeypatch):
         campaign.verify_pinned_profile()
 
 
+def test_empty_profile_hash_pin_fails_closed(tmp_path, monkeypatch):
+    empty_pin = tmp_path / "empty-profile.sha256"
+    empty_pin.write_text("  \n")
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", empty_pin)
+    with pytest.raises(collector.SafetyStop, match="hash pin is missing or invalid"):
+        campaign.verify_pinned_profile()
+
+
+def test_profile_hash_pin_rejects_extra_tokens(tmp_path, monkeypatch):
+    malformed_pin = tmp_path / "malformed-profile.sha256"
+    malformed_pin.write_text("0" * 64 + " campaign_profile.json unexpected\n")
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", malformed_pin)
+    with pytest.raises(collector.SafetyStop, match="hash pin is missing or invalid"):
+        campaign.verify_pinned_profile()
+
+
+@pytest.mark.parametrize(("pin", "expected_error"), [
+    ("0" * 64 + " wrong-profile.json\n", "hash pin is missing or invalid"),
+    ("A" * 64 + " campaign_profile.json\n", "does not match its committed pin"),
+])
+def test_profile_hash_pin_rejects_wrong_filename_or_uppercase_digest(tmp_path, monkeypatch, pin, expected_error):
+    malformed_pin = tmp_path / "malformed-profile.sha256"
+    malformed_pin.write_text(pin)
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", malformed_pin)
+    with pytest.raises(collector.SafetyStop, match=expected_error):
+        campaign.verify_pinned_profile()
+
+
 def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
     profile_hash = campaign.verify_pinned_profile()
     sources = campaign.source_hashes()
@@ -371,7 +399,8 @@ def _approval(tmp_path: Path) -> tuple[Path, str, dict[str, str]]:
                           "artifact_sha256": hashlib.sha256(review_path.read_bytes()).hexdigest()}
     row["multi_agent_reviews"] = reviews
     row["multi_agent_reviews"].pop("ecc")
-    row["ecc_review_status"] = {"status": "UNAVAILABLE", "reason": "ECC service unavailable"}
+    row["ecc_review_status"] = {"status": "UNAVAILABLE", "reason": "ECC review service unavailable",
+                                "no_completed_review_withheld": True}
     approval_path = tmp_path / "owner-approval.json"
     approval_path.write_text(json.dumps(row))
     approval_path.chmod(0o600)
@@ -435,9 +464,17 @@ def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tm
     assert "remote child" in " ".join(printed)
     assert str(auth["capture_path"]) in " ".join(printed)
     assert "Source SHA-256 map" in " ".join(printed)
+    printed_text = " ".join(printed)
+    assert "ECC review status: UNAVAILABLE" in printed_text
+    assert "ECC review service unavailable" in printed_text
+    assert "no completed review withheld: True" in printed_text
+    assert "validator cannot independently verify" in printed_text
+    assert "tool does not persistently consume the private approval record" in printed_text
+    assert "Reviewed protected-main commit: " + approval["reviewed_commit_sha"] in printed_text
+    assert "No capture directory or failure card is created if interrupted during this prompt" in printed_text
 
 
-def test_one_run_authorization_rejects_replay_or_wrong_challenge(tmp_path):
+def test_one_run_authorization_rejects_wrong_fresh_challenge(tmp_path):
     approval_path, _, _ = _approval(tmp_path)
     approval = json.loads(approval_path.read_text())
     with pytest.raises(collector.SafetyStop, match="fresh one-run authorization challenge"):
@@ -487,28 +524,47 @@ def test_missing_or_tampered_ai_review_stops(tmp_path, mutation, message):
                                    source_hashes_verified=sources)
 
 
-@pytest.mark.parametrize("status, reason", [("UNAVAILABLE", ""), ("FORGED", "fake")])
-def test_optional_ecc_status_must_be_valid_and_truthful(tmp_path, status, reason):
+@pytest.mark.parametrize(("status", "reason", "error"), [
+    ("UNAVAILABLE", "", "ECC unavailability needs a truthful reason"),
+    ("FORGED", "fake", "ECC status must truthfully state UNAVAILABLE or REVIEW_COMPLETED"),
+])
+def test_optional_ecc_status_must_be_valid_and_truthful(tmp_path, status, reason, error):
     approval_path, profile_hash, sources = _approval(tmp_path)
     record = json.loads(approval_path.read_text())
-    record["ecc_review_status"] = {"status": status, "reason": reason}
+    record["ecc_review_status"] = {"status": status, "reason": reason,
+                                   "no_completed_review_withheld": True}
     approval_path.write_text(json.dumps(record)); approval_path.chmod(0o600)
-    with pytest.raises(collector.SafetyStop):
+    with pytest.raises(collector.SafetyStop, match=error):
         campaign.validate_approval(approval_path, profile_hash=profile_hash, source_hashes_verified=sources)
 
 
 @pytest.mark.parametrize("ecc_status", [
-    {"status": "UNAVAILABLE", "reason": "<state actual availability>"},
-    {"status": "UNAVAILABLE", "reason": "service pending <availability>"},
-    {"status": "UNAVAILABLE", "reason": "ECC service unavailable", "artifact_path": "fake-review.json"},
+    {"status": "UNAVAILABLE", "reason": "<state actual availability>", "no_completed_review_withheld": True},
+    {"status": "UNAVAILABLE", "reason": "service pending <availability>", "no_completed_review_withheld": True},
+    {"status": "UNAVAILABLE", "reason": "ECC service unavailable", "no_completed_review_withheld": True,
+     "artifact_path": "fake-review.json"},
 ])
 def test_optional_ecc_status_rejects_template_and_extra_fields(tmp_path, ecc_status):
     approval_path, profile_hash, sources = _approval(tmp_path)
     record = json.loads(approval_path.read_text())
     record["ecc_review_status"] = ecc_status
     approval_path.write_text(json.dumps(record)); approval_path.chmod(0o600)
-    with pytest.raises(collector.SafetyStop, match="non-placeholder reason"):
+    with pytest.raises(collector.SafetyStop, match="truthful reason"):
         campaign.validate_approval(approval_path, profile_hash=profile_hash, source_hashes_verified=sources)
+
+
+@pytest.mark.parametrize("attestation", [None, False])
+def test_optional_ecc_unavailable_requires_no_withheld_review_attestation(tmp_path, attestation):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    record = json.loads(approval_path.read_text())
+    if attestation is None:
+        record["ecc_review_status"].pop("no_completed_review_withheld")
+    else:
+        record["ecc_review_status"]["no_completed_review_withheld"] = attestation
+    approval_path.write_text(json.dumps(record)); approval_path.chmod(0o600)
+    with pytest.raises(collector.SafetyStop, match="no completed review is withheld"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
 
 
 def test_optional_ecc_no_go_is_rejected(tmp_path):
