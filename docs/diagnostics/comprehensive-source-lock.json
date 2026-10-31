@@ -1,0 +1,34 @@
+{
+  "base_main_commit": "563d3a9896b33f653282be97b083ef93c42c2f1a",
+  "campaign_id": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031",
+  "live_execution_enabled": false,
+  "profile": {
+    "path": "docs/diagnostics/comprehensive-campaign-proposal.json",
+    "sha256": "c2f89630003b6b73a7fa56c402aa782685ae5b581ee1c9c10a6ab8b6038b62a6"
+  },
+  "requirements_baseline": "CL-HONDA-RUNTIME-EVIDENCE-20261030",
+  "schema": "claritylink-comprehensive-source-lock-v1",
+  "sources": {
+    "AGENTS.md": "6629d2127613feff28c07312761f9fea23b7f4fd0bd9f10737a1f9175ce2462a",
+    "docs/diagnostics/comprehensive-runtime-campaign.md": "17a069090cf313e103edfa60d44edb395de55abff2194bd9eb437d50642b3e25",
+    "docs/diagnostics/evidence-coverage.json": "c85233ce70b9083dc0e4da6e16d149e65ca9890401022fdeab2790144c955df3",
+    "docs/safety/vehicle-testing.md": "09b468ab9e72df8b6239b05cc7852c6bb76021c45f296069d8718ee77601c49c",
+    "tests/honda/test_campaign_runner.py": "3d245bffbe0474071c4cecf259086a14a3cc1c0048a27f1fb97b8c037b0dcbc2",
+    "tests/honda/test_comprehensive_proposal.py": "4c80d08071ff545b7f01c50176c28dbc382fd2204b22b74156a11a047c2dd2aa",
+    "tests/honda/test_comprehensive_source_lock.py": "605fec4572f09af82a180c74ef174694aee7bad09c67d6b835949b735b8aac1b",
+    "tests/honda/test_display_compare.py": "607acf190170d63e99c59f6b9ff3de272bcb9a93c21c53a2aa1b947515a57a34",
+    "tests/honda/test_evidence_coverage.py": "c358131d759a0196b1bcfb45e5bc09c8e973c1dd4f74ae82dc6c243fc92a8ca8",
+    "tests/honda/test_validate_comprehensive_proposal.py": "31652ddc9407fa3abcfc79856c68838717d0e4e6daa57f9bd882d9ce29d7aa31",
+    "tools/honda-readonly-preflight/README.md": "b239d3b1c243886019421f96b396db67b14319e6677ce817c26a61fa47f295bf",
+    "tools/honda-readonly-preflight/analyze.py": "d134e466e26b49d17e97332ee1ec610332bd37b9a5f1823c659840a859652f82",
+    "tools/honda-readonly-preflight/campaign_runner.py": "ab2160fdee5db1cc500b756515ce4b5ab8239d00e2b7fe9a105823d4da8236fc",
+    "tools/honda-readonly-preflight/collector.py": "724b98a25197e70c0cc7512db3dd5c0106c2f44fb9db90b30f2af360b9500c34",
+    "tools/honda-readonly-preflight/display_compare.py": "9e3c1fcf9cecbc9ad398ce07474f7ea267dab902137e29d0ea4c067a961a15d3",
+    "tools/honda-readonly-preflight/evidence_coverage.py": "42dfd46d906e16c0025b919a2e60733a6185784cbbabf6507cc628198ecc7c61",
+    "tools/honda-readonly-preflight/parsers.py": "75976f12fe81f92a73f30e137d5f0544cf9cad124d23d4f9ea7080b0fbdfb85c",
+    "tools/honda-readonly-preflight/privileged.py": "01ab8bd98d2ad2dd9a167debabbdf7195d49bf44276da1b5eb3cce6251edab26",
+    "tools/honda-readonly-preflight/session.py": "ee9e2edd93aa769ca104656f12096c063cec33d5aacc6a5c2e0d84bfd67f9e79",
+    "tools/honda-readonly-preflight/validate_comprehensive_proposal.py": "1f7b880f1cf8cc383cf1cbf86ea99b3e7e6ea538a89dd0f95769d6a252de5d55",
+    "tools/honda-readonly-preflight/verify_comprehensive_source_lock.py": "8837e138e643acaab273caff85a8ce07f3e9e5106fc5f0b222af62ff2b585176"
+  }
+}

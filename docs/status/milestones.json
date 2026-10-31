@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "updated": "2026-10-20",
-  "current_campaign": "CL-R4 reliability and public-source publication complete; OEM contract investigation remains",
-  "current_milestone": "CL-R4",
-  "current_milestone_state": "COMPLETE",
+  "updated": "2026-10-31",
+  "current_campaign": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031 offline engineering ready; live diagnostics not authorized; Type111 evidence remains unresolved",
+  "current_milestone": "CL-R5",
+  "current_milestone_state": "IN_PROGRESS",
   "next_technical_milestone": "CL-R5",
   "safeForHonda": false,
   "hardware_validation_state": "NOT_STARTED",
