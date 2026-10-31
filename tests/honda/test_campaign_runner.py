@@ -760,6 +760,27 @@ def test_controller_orders_phases_and_writes_complete_hash_verified_manifest(tmp
     assert "completeness_report.json" in campaign.verify_capture_hashes(output)
 
 
+def test_first_termination_during_success_finalization_enters_failure_path(tmp_path):
+    runner, fake, output = _campaign(tmp_path)
+    handler = campaign._StopSignalHandler()
+    runner.stop_signal_handler = handler
+    original_finalize = fake.finalize
+    fired = False
+    def finalize_then_signal(phase_order):
+        nonlocal fired
+        original_finalize(phase_order)
+        if not fired:
+            fired = True
+            handler(campaign.signal.SIGTERM, None)
+    fake.finalize = finalize_then_signal
+    assert runner.run() is False
+    failure = json.loads((output / "failure_card.json").read_text())
+    assert failure["actual"] == "SafetyStop"
+    assert handler.finalizing is True
+    # Once failure finalization has started, another termination is ignored.
+    assert handler(campaign.signal.SIGHUP, None) is None
+
+
 def test_final_restoration_is_attested_after_last_observation(tmp_path):
     runner, fake, _ = _campaign(tmp_path)
     events = []

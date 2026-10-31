@@ -878,8 +878,6 @@ class Campaign:
                 self.completed.append(phase.key)
                 self.capture.phase_times[phase.key]["finished_utc"] = datetime.now(timezone.utc).isoformat()
                 self._checkpoint("phase_complete")
-            if self.stop_signal_handler is not None:
-                self.stop_signal_handler.begin_finalization()
             self._checkpoint("complete")
             self.capture.finalize(self.phase_order)
             verify_capture_hashes(self.output)
