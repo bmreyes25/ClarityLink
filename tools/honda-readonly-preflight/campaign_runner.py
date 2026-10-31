@@ -227,7 +227,7 @@ def profile_payload() -> dict[str, object]:
                    "platform_family": "Tegra (historical evidence; exact properties checked above)"},
         "privacy": {"raw_output_root": "outside-git-worktree", "directory_mode": "0700",
                     "file_mode": "0600",
-                    "dumpsys": "bounded raw output retained in private host capture; may include window/app titles and identifying metadata",
+                    "dumpsys": "bounded stdout and stderr retained in private host capture; may include window/app titles and identifying metadata",
                     "logcat": "bounded in-memory summary; source lines and stderr are never persisted"},
         "source_lock_sha256": hashlib.sha256(SOURCE_LOCK_FILE.read_bytes()).hexdigest(),
         "policy_documents_sha256": {
@@ -495,21 +495,23 @@ def _read_owner_input(prompt: str, *, deadline_monotonic: float | None = None) -
     return answer.rstrip("\r\n")
 
 
-def _make_stop_signal_handler() -> Callable[[int, object], None]:
-    stopping = False
+class _StopSignalHandler:
+    def __init__(self) -> None:
+        self.stopping = False
+        self.finalizing = False
 
-    def handle(signum: int, _frame: object) -> None:
-        nonlocal stopping
-        if stopping:
+    def __call__(self, signum: int, _frame: object) -> None:
+        if self.finalizing or self.stopping:
             return
-        stopping = True
+        self.stopping = True
         try:
             name = signal.Signals(signum).name
         except ValueError:
             name = str(signum)
         raise SafetyStop(f"received {name}; stop and preserve the incomplete campaign")
 
-    return handle
+    def begin_finalization(self) -> None:
+        self.finalizing = True
 
 
 def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_hash: str,
@@ -539,6 +541,8 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     output_fn(f"Policy commit: {approval['policy_effective_commit_sha']}")
     output_fn(f"Power state: {APPROVED_POWER_STATE}; outdoors, stationary in Park, parking brake set")
     output_fn(f"Private evidence directory: {capture_path}")
+    output_fn("Privacy: bounded raw dumpsys stdout/stderr is retained in this private directory and may include window/app titles or identifying metadata; logcat source lines are not retained.")
+    output_fn("Interruption: do not retry after a stop. SIGKILL, power loss, or runtime failure may leave incomplete evidence; host cleanup cannot guarantee a remote child has stopped after ADB exits.")
     output_fn("Scope: the fixed eight-phase passive profile only. AI reviews are not human safety certification.")
     output_fn("No root, su, HondaHack, instrumentation, receiver/display modification, firmware, CAN, warning changes, driving, or deployment.")
     response = input_fn(f'Type exactly "{phrase}" to authorize this one run; anything else stops: ')
@@ -738,7 +742,8 @@ class Campaign:
                  input_fn: Callable[[str], str] = input,
                  output_fn: Callable[[str], None] = print,
                  run_authorization: dict[str, object] | None = None,
-                 session_deadline_monotonic: float | None = None):
+                 session_deadline_monotonic: float | None = None,
+                 stop_signal_handler: _StopSignalHandler | None = None):
         self.capture = capture
         self.output = output
         self.profile_hash = profile_hash
@@ -746,6 +751,7 @@ class Campaign:
         self.serial = serial
         self.run_authorization = run_authorization
         self.session_deadline_monotonic = session_deadline_monotonic
+        self.stop_signal_handler = stop_signal_handler
         self.input = input_fn
         self.output_fn = output_fn
         self.phase_order: list[str] = []
@@ -872,6 +878,8 @@ class Campaign:
                 self.completed.append(phase.key)
                 self.capture.phase_times[phase.key]["finished_utc"] = datetime.now(timezone.utc).isoformat()
                 self._checkpoint("phase_complete")
+            if self.stop_signal_handler is not None:
+                self.stop_signal_handler.begin_finalization()
             self._checkpoint("complete")
             self.capture.finalize(self.phase_order)
             verify_capture_hashes(self.output)
@@ -899,6 +907,8 @@ class Campaign:
             verify_capture_hashes(self.output)
             return True
         except (Exception, KeyboardInterrupt, EOFError) as exc:
+            if self.stop_signal_handler is not None:
+                self.stop_signal_handler.begin_finalization()
             self.capture.stop_result = type(exc).__name__
             self.capture.phase_times.setdefault(self.current_phase, {})["finished_utc"] = datetime.now(timezone.utc).isoformat()
             last_command = self.capture.reader.records[-1] if self.capture.reader.records else {}
@@ -1001,7 +1011,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     previous_umask: int | None = None
     previous_handlers: dict[int, object] = {}
-    stop_signal_handler = _make_stop_signal_handler()
+    stop_signal_handler = _StopSignalHandler()
     try:
         if args.command == "dry-run":
             return _print_dry_run()
@@ -1047,7 +1057,8 @@ def main(argv: list[str] | None = None) -> int:
         capture = Capture(reader, output)
         return 0 if Campaign(capture, output, profile_hash, verified_sources, serial,
                              input_fn=_read_owner_input, run_authorization=run_authorization,
-                             session_deadline_monotonic=deadline).run() else 1
+                             session_deadline_monotonic=deadline,
+                             stop_signal_handler=stop_signal_handler).run() else 1
     except (OSError, ValueError, SafetyStop, KeyboardInterrupt, EOFError) as exc:
         print(f"refusing/stopped: {exc}", file=sys.stderr)
         return 2

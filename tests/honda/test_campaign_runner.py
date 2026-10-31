@@ -155,7 +155,7 @@ def test_owner_prompt_rejects_noninteractive_input(monkeypatch):
 
 
 def test_termination_signal_uses_campaign_stop_path():
-    handler = campaign._make_stop_signal_handler()
+    handler = campaign._StopSignalHandler()
     with pytest.raises(collector.SafetyStop, match="SIGTERM"):
         handler(campaign.signal.SIGTERM, None)
     # Repeated termination signals during failure-card finalization are ignored.
@@ -421,6 +421,9 @@ def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tm
     assert auth["command_manifest_sha256"] == campaign.command_manifest_sha256()
     assert auth["decision"] == "YES"
     assert "not human safety certification" in " ".join(printed)
+    assert "window/app titles" in " ".join(printed)
+    assert "SIGKILL, power loss" in " ".join(printed)
+    assert "remote child" in " ".join(printed)
     assert str(auth["capture_path"]) in " ".join(printed)
     assert "Source SHA-256 map" in " ".join(printed)
 

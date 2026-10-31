@@ -331,16 +331,30 @@ class FixedAdb:
                 code = 125
             record["truncated"] = truncated
         except KeyboardInterrupt:
-            if proc is not None and proc.poll() is None:
-                proc.kill()
-                try:
-                    proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    pass
+            record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
+                           "exit_code": None, "result": "interrupted",
+                           "interruption_type": "KeyboardInterrupt"})
+            if "chunks" in locals():
+                for stream_name in ("stdout", "stderr"):
+                    partial = bytes(chunks[stream_name])
+                    record[f"partial_{stream_name}_bytes"] = len(partial)
+                    record[f"partial_{stream_name}_sha256"] = hashlib.sha256(partial).hexdigest()
+            self.records.append(record)
             raise
         except OSError as exc:
             out, err, code = b"", str(exc).encode(), 127
             record["host_execution_error"] = True
+        except BaseException as exc:
+            record.update({"finished_utc": datetime.now(timezone.utc).isoformat(),
+                           "exit_code": None, "result": "interrupted",
+                           "interruption_type": type(exc).__name__})
+            if "chunks" in locals():
+                for stream_name in ("stdout", "stderr"):
+                    partial = bytes(chunks[stream_name])
+                    record[f"partial_{stream_name}_bytes"] = len(partial)
+                    record[f"partial_{stream_name}_sha256"] = hashlib.sha256(partial).hexdigest()
+            self.records.append(record)
+            raise
         finally:
             if selector is not None:
                 try:

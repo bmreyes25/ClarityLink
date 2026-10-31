@@ -325,6 +325,42 @@ def test_adb_client_is_killed_when_unexpected_collector_error_occurs(monkeypatch
     with pytest.raises(RuntimeError, match="synthetic selector failure"):
         reader.run("read", "/proc/version")
     assert child.killed is True
+    assert reader.records[-1]["result"] == "interrupted"
+    assert reader.records[-1]["interruption_type"] == "RuntimeError"
+
+
+def test_safety_stop_during_adb_command_records_inflight_operation(monkeypatch):
+    class Stream:
+        def close(self):
+            pass
+    class Child:
+        def __init__(self):
+            self.stdout, self.stderr = Stream(), Stream()
+            self.killed = False
+        def poll(self):
+            return -9 if self.killed else None
+        def kill(self):
+            self.killed = True
+        def wait(self, timeout=None):
+            return -9
+    class StopSelector:
+        def register(self, *_args):
+            pass
+        def get_map(self):
+            return {1: object()}
+        def select(self, *_args):
+            raise collector.SafetyStop("synthetic stop during command")
+        def close(self):
+            pass
+    child = Child()
+    monkeypatch.setattr(collector.subprocess, "Popen", lambda *args, **kwargs: child)
+    monkeypatch.setattr(collector.selectors, "DefaultSelector", StopSelector)
+    reader = collector.FixedAdb("SERIAL-42")
+    with pytest.raises(collector.SafetyStop, match="synthetic stop"):
+        reader.run("read", "/proc/version")
+    assert child.killed is True
+    assert reader.records[-1]["operation"] == "read"
+    assert reader.records[-1]["result"] == "interrupted"
 
 
 def test_analyze_phase_uses_direct_smaps_page_and_exact_elf_bias(tmp_path):
