@@ -13,7 +13,7 @@ The collector exposes only fixed operations:
 - symlink target inspection via fixed `ls -l` on validated process exe/cwd/root and numeric FD paths (the collector does not assume a standalone `readlink` applet exists);
 - `getprop` for an enumerated build/device property set;
 - read-only `dumpsys display`, `SurfaceFlinger`, and `window`;
-- bounded `logcat -d -t 500` (no buffer clear); new captures summarize event markers in memory and persist only counts, timestamp bounds, result status, and a SHA-256 digest. Source log lines and stderr are not written to capture files.
+- bounded `logcat -d -t 500` (no buffer clear); its exact API17 support on this head unit is unverified, so unsupported or unexpected output stops the session without substitution. New captures summarize event markers in memory and persist only counts, timestamp bounds, result status, and a SHA-256 digest. Source log lines and stderr are not written to capture files.
 
 The collector rejects all other operations and paths. There is no arbitrary shell string, upload, install, write, signal, service restart, `adb root`, ptrace, `/proc/PID/mem`, or custom-code execution path. The campaign controller additionally enforces each phase's exact ordered operation, arguments, timeout, and byte limit from the pinned manifest before execution. Every command has a timeout and output ceiling. API-17 legacy `adb shell` may not reliably report remote exit status; required outputs are checked for known shell errors, empty dumpsys results, and malformed nonempty logcat output. These checks cannot recognize every target-specific error message, so actual API-17 command behavior remains unverified. No status field alone proves a remote command succeeded.
 

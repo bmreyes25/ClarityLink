@@ -421,6 +421,7 @@ def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tm
     assert auth["command_manifest_sha256"] == campaign.command_manifest_sha256()
     assert auth["decision"] == "YES"
     assert "not human safety certification" in " ".join(printed)
+    assert "fixed API17 logcat -d -t 500" in " ".join(printed)
     assert "window/app titles" in " ".join(printed)
     assert "SIGKILL, power loss" in " ".join(printed)
     assert "remote child" in " ".join(printed)
@@ -613,16 +614,19 @@ def test_live_runner_stops_at_policy_gate_before_adb_or_capture(tmp_path, monkey
     assert not output_root.exists()
 
 
-def test_live_runner_stops_when_owner_declines_fresh_run_before_adb_or_capture(tmp_path, monkeypatch):
+def test_live_runner_stops_when_owner_declines_fresh_run_before_adb_or_capture(tmp_path, monkeypatch, capsys):
     approval_path, _, _ = _approval(tmp_path)
     monkeypatch.setattr(campaign, "verify_effective_policy", lambda *_: None)
-    monkeypatch.setattr("builtins.input", lambda _: "NO")
+    # The controller's terminal-only reader is the actual live input seam;
+    # patching builtins.input would not exercise the decline path.
+    monkeypatch.setattr(campaign, "_read_owner_input", lambda _: "NO")
     monkeypatch.setattr(collector.shutil, "which",
                         lambda *_: pytest.fail("ADB lookup occurred before one-run authorization"))
     output_root = tmp_path / "private-output"
     result = campaign.main(["run", "--approval-file", str(approval_path),
                             "--output-root", str(output_root)])
     assert result == 2
+    assert "owner did not confirm the fresh one-run authorization challenge" in capsys.readouterr().err
     assert not output_root.exists()
 
 
@@ -636,6 +640,60 @@ def test_missing_approval_stops_before_adb_client_or_capture_creation(tmp_path, 
                             "--output-root", str(output_root)])
     assert result == 2
     assert not output_root.exists()
+
+
+def test_approval_and_review_symlinks_are_rejected(tmp_path):
+    approval_path, profile_hash, sources = _approval(tmp_path)
+    approval_target = tmp_path / "approval-target.json"
+    approval_target.write_bytes(approval_path.read_bytes())
+    approval_target.chmod(0o600)
+    approval_path.unlink()
+    approval_path.symlink_to(approval_target)
+    with pytest.raises(collector.SafetyStop, match="approval record cannot be a symlink"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+    approval_path.unlink()
+    approval_path.write_bytes(approval_target.read_bytes())
+    approval_path.chmod(0o600)
+    record = json.loads(approval_path.read_text())
+    review_path = Path(record["multi_agent_reviews"]["codex"]["artifact_path"])
+    review_target = tmp_path / "codex-review-target.json"
+    review_target.write_bytes(review_path.read_bytes())
+    review_target.chmod(0o600)
+    review_path.unlink()
+    review_path.symlink_to(review_target)
+    with pytest.raises(collector.SafetyStop, match="codex review artifact cannot be a symlink"):
+        campaign.validate_approval(approval_path, profile_hash=profile_hash,
+                                   source_hashes_verified=sources)
+
+
+def test_source_lock_rejects_import_shadowing(monkeypatch):
+    class Shadow:
+        __file__ = "/tmp/unapproved/collector.py"
+
+    monkeypatch.setattr(campaign, "collector_module", Shadow())
+    with pytest.raises(collector.SafetyStop, match="import provenance mismatch: collector"):
+        campaign.source_hashes()
+
+
+def test_preimport_guard_rejects_an_inherited_module_search_root():
+    with pytest.raises(RuntimeError, match="campaign import root must be the pinned tool directory"):
+        campaign._require_pinned_import_root(["/tmp/unapproved"])
+
+
+@pytest.mark.parametrize(("source_lock", "message"), [
+    ("[]", "campaign pre-import source lock is invalid"),
+    (json.dumps({"collector.py": "0" * 64, "parsers.py": "0" * 64}),
+     "campaign pre-import source hash mismatch: collector.py"),
+])
+def test_preimport_component_lock_rejects_malformed_or_mismatched_entries(tmp_path, monkeypatch,
+                                                                          source_lock, message):
+    lock = tmp_path / "source-lock.json"
+    lock.write_text(source_lock)
+    monkeypatch.setattr(campaign, "PREIMPORT_SOURCE_LOCK_FILE", lock)
+    with pytest.raises(RuntimeError, match=message):
+        campaign._verify_preimport_component_hashes()
 
 
 def test_unavailable_adb_preserves_initialized_private_recovery_checkpoint(tmp_path, monkeypatch):
@@ -775,7 +833,7 @@ def test_first_termination_during_success_finalization_enters_failure_path(tmp_p
     fake.finalize = finalize_then_signal
     assert runner.run() is False
     failure = json.loads((output / "failure_card.json").read_text())
-    assert failure["actual"] == "SafetyStop"
+    assert failure["actual"].startswith("SafetyStop: received SIGTERM")
     assert handler.finalizing is True
     # Once failure finalization has started, another termination is ignored.
     assert handler(campaign.signal.SIGHUP, None) is None
@@ -836,7 +894,7 @@ def test_failed_completion_report_downgrade_writes_incomplete_fallback(tmp_path,
     assert report["capture_hashes_verified"] is False
     assert not (output / "completeness_report.json.tmp").exists()
     failure = json.loads((output / "failure_card.json").read_text())
-    assert failure["actual"] == "SafetyStop"
+    assert failure["actual"].startswith("SafetyStop: received SIGTERM")
     assert failure["partial_hash_verification"] == "verified"
     assert "completeness_report.json" in campaign.verify_capture_hashes(output)
 

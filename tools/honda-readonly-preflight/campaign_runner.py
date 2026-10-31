@@ -26,6 +26,39 @@ import sys
 import time
 from typing import Callable
 
+# Refuse inherited-module resolution before importing any campaign component.
+# The supported invocation is this pinned script (or tests that first insert
+# this exact directory); a different first import root could load a same-named
+# collector before its source lock can be checked.
+HERE = Path(__file__).resolve().parent
+PREIMPORT_SOURCE_LOCK_FILE = HERE / "campaign_source_hashes.json"
+
+
+def _require_pinned_import_root(path_entries: list[str] | None = None) -> None:
+    entries = sys.path if path_entries is None else path_entries
+    if not entries or Path(entries[0] or ".").resolve() != HERE:
+        raise RuntimeError("campaign import root must be the pinned tool directory")
+
+
+def _verify_preimport_component_hashes() -> None:
+    """Check sibling modules before Python executes either campaign component."""
+    try:
+        lock = json.loads(PREIMPORT_SOURCE_LOCK_FILE.read_text(encoding="utf-8"))
+        if not isinstance(lock, dict):
+            raise ValueError("source lock is not an object")
+        for name in ("collector.py", "parsers.py"):
+            expected = lock[name]
+            if not isinstance(expected, str) or hashlib.sha256((HERE / name).read_bytes()).hexdigest() != expected:
+                raise RuntimeError(f"campaign pre-import source hash mismatch: {name}")
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError("campaign pre-import source lock is invalid") from exc
+
+
+_require_pinned_import_root()
+_verify_preimport_component_hashes()
+
+import collector as collector_module
+import parsers as parsers_module
 from collector import (Capture, FixedAdb, ProcessIdentity, SafetyStop,
                        REPO_ROOT, SAFE_DUMPSYS, EXPECTED_ANDROID_RELEASE,
                        EXPECTED_ANDROID_SDK, EXPECTED_PRODUCT_DEVICE,
@@ -33,7 +66,6 @@ from collector import (Capture, FixedAdb, ProcessIdentity, SafetyStop,
                        EXPECTED_PRODUCT_BOARD, EXPECTED_HARDWARE)
 
 
-HERE = Path(__file__).resolve().parent
 PROFILE_FILE = HERE / "campaign_profile.json"
 PROFILE_HASH_FILE = HERE / "campaign_profile.sha256"
 SOURCE_LOCK_FILE = HERE / "campaign_source_hashes.json"
@@ -324,6 +356,19 @@ def verify_pinned_profile() -> str:
 
 
 def source_hashes() -> dict[str, str]:
+    # The hash lock is meaningful only if the modules executing this controller
+    # came from the locked sibling sources, rather than a same-named module on
+    # an inherited Python search path.  Resolve symlinks too: a redirected
+    # module is not an approved campaign component.
+    expected_modules = {
+        "collector": HERE / "collector.py",
+        "parsers": HERE / "parsers.py",
+    }
+    actual_modules = {"collector": collector_module, "parsers": parsers_module}
+    for name, expected_path in expected_modules.items():
+        module_path = getattr(actual_modules[name], "__file__", None)
+        if not isinstance(module_path, str) or Path(module_path).resolve() != expected_path.resolve():
+            raise SafetyStop(f"campaign import provenance mismatch: {name}")
     lock = json.loads(SOURCE_LOCK_FILE.read_text(encoding="utf-8"))
     expected_sources = {"analyze.py", "campaign_runner.py", "collector.py", "parsers.py", "session.py"}
     if not isinstance(lock, dict) or set(lock) != expected_sources:
@@ -542,6 +587,7 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     output_fn(f"Power state: {APPROVED_POWER_STATE}; outdoors, stationary in Park, parking brake set")
     output_fn(f"Private evidence directory: {capture_path}")
     output_fn("Privacy: bounded raw dumpsys stdout/stderr is retained in this private directory and may include window/app titles or identifying metadata; logcat source lines are not retained.")
+    output_fn("Compatibility risk: this head unit has not demonstrated support for the fixed API17 logcat -d -t 500 form; unsupported or unexpected output stops the session without substitution.")
     output_fn("Interruption: do not retry after a stop. SIGKILL, power loss, or runtime failure may leave incomplete evidence; host cleanup cannot guarantee a remote child has stopped after ADB exits.")
     output_fn("Scope: the fixed eight-phase passive profile only. AI reviews are not human safety certification.")
     output_fn("No root, su, HondaHack, instrumentation, receiver/display modification, firmware, CAN, warning changes, driving, or deployment.")
@@ -966,7 +1012,7 @@ class Campaign:
                 "phase": self.current_phase,
                 "action": next((p.owner_action for p in phase_rows if p.key == self.current_phase), "host setup"),
                 "expected": next((p.expected_state for p in phase_rows if p.key == self.current_phase), "capture initialized"),
-                "actual": type(exc).__name__,
+                "actual": f"{type(exc).__name__}: {exc}",
                 "operation": last_command.get("operation"),
                 "arguments": last_command.get("arguments", []),
                 "stock_behavior": "requires owner assessment; software cannot determine physical factory behavior",
@@ -1011,10 +1057,11 @@ class Campaign:
             self.output_fn(f"Phase: {self.current_phase}")
             self.output_fn(f"Action: {next((p.owner_action for p in phase_rows if p.key == self.current_phase), 'host setup')}")
             self.output_fn(f"Expected: {next((p.expected_state for p in phase_rows if p.key == self.current_phase), 'capture initialized')}")
-            self.output_fn(f"Actual: stopped ({type(exc).__name__}); private checkpoint preserved at {self.output}")
-            self.output_fn(f"Last fixed operation: {last_command.get('operation', 'none')} {last_command.get('arguments', [])}")
+            self.output_fn(f"Actual: stopped ({type(exc).__name__}: {exc}); private checkpoint path: {self.output}")
+            self.output_fn(f"Last recorded fixed operation: {last_command.get('operation', 'none')} {last_command.get('arguments', [])}")
             self.output_fn("Factory behavior: owner assessment required before deciding what to do next.")
-            self.output_fn(f"Evidence saved: {len(self.capture.files)} private artifacts; incomplete phase manifest retained.")
+            partial_hash_status = self.capture.failure_card.get("partial_hash_verification", "not recorded")
+            self.output_fn(f"Private checkpoint attempt recorded; persisted artifacts: {len(self.capture.files)}; partial-hash status: {partial_hash_status}. Command output may be absent if the stop occurred before persistence.")
             self.output_fn("Recommended response: stop and preserve stock factory behavior.")
             self.output_fn("Owner decision required before any new phase or retry.")
             return False
