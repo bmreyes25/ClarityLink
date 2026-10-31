@@ -1,0 +1,423 @@
+{
+  "schema": "claritylink-evidence-coverage-v1",
+  "campaign_id": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031",
+  "baseline_campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
+  "baseline_campaign_status": "COMPLETED_HISTORICAL_HASH_BOUND",
+  "engineering_state": "IN_PROGRESS",
+  "live_state": "NOT_AUTHORIZED",
+  "safeForHonda": false,
+  "vehicle_deployment": "VEHICLE_DEPLOYMENT_NOT_AUTHORIZED",
+  "objectives": [
+    {
+      "id": "ordinary-adb-identity",
+      "required_observation": "Current exact target identity, existing ordinary ADB authorization, shell UID/groups, selected build properties, and receiver process identity.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "New exact-run ordinary unprivileged ADB phase using one owner-approved existing endpoint and process start-time correlation.",
+      "prepared_collector_or_parser": "campaign_runner.py, collector.py, parse_process_identity, parse_proc_stat_start_time.",
+      "offline_test_status": "Existing regression coverage exercises fixed commands, target/process identity, and campaign gates.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "The exact identity and existing authorization are historical; a current comprehensive-campaign check is blocked pending a new exact-run approval.",
+      "next_engineering_action": "After the separate comprehensive campaign review, obtain a new exact-run authorization and verify target identity using the bounded ordinary ADB phase.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb"
+      ]
+    },
+    {
+      "id": "existing-root-supersu-state",
+      "required_observation": "Assess existing root/SuperSU capability, visible authorization state, logging/daemon side effects, and restoration implications without installing a new root solution.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Offline archive and provenance review first; any live proposal is blocked until new evidence and independent review establish a justified access method, then requires separate exact owner approval.",
+      "prepared_collector_or_parser": "privileged.py fingerprint and fixed-operation interfaces; no live invocation in this task.",
+      "offline_test_status": "Existing regression coverage exercises fixed operations and fingerprint parsing; it does not establish live SuperSU side effects.",
+      "live_authorization_status": "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD",
+      "actual_observation_status": "UNRESOLVED",
+      "blocker": "Current target state and the runtime side effects of SuperSU authorization are unknown.",
+      "next_engineering_action": "Review the original 40E3/40E4 records and obtain new offline evidence plus independent review of side effects and recovery before considering any live proposal; owner approval alone is insufficient.",
+      "required": true,
+      "evidence_provenance": [
+        "PUBLIC_PROJECT_RESEARCH",
+        "OWNER_PRIVATE_HISTORY_REVIEWED"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "existing_privileged_read"
+      ]
+    },
+    {
+      "id": "jmcs-process-identity-continuity",
+      "required_observation": "Correlate PID with process start time and executable identity before/after each observation; distinguish PID reuse from a stable process instance.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Bounded stat, cmdline, status, and process-list reads around each phase with identity revalidation.",
+      "prepared_collector_or_parser": "collector.py process identity verifier and campaign_runner identity revalidation.",
+      "offline_test_status": "Existing regression coverage exercises PID reuse and process start-time parsing.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "Historical process identity is known, but the required pre/post revalidation around comprehensive-phase observations is blocked pending a new exact-run approval.",
+      "next_engineering_action": "Retain PID plus start-time checks in the new design; bind any future maps/FD capture to that instance.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb"
+      ]
+    },
+    {
+      "id": "jmcs-maps-smaps-protections-load-bias",
+      "required_observation": "Read maps/smaps for the verified jmcs instance; identify executable mappings, page sizes, permissions and load bias for known static callsites without reading process memory.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Exact privileged read only if separate access is reviewed and approved; otherwise keep the live map unavailable and use archived binary analysis only.",
+      "prepared_collector_or_parser": "parsers.py parse_maps/parse_smaps/load_bias_from_mapping; analyze.py executable-page and callsite-range checks.",
+      "offline_test_status": "Existing regression coverage exercises malformed maps/smaps, permission denial, ELF bias, and executable mapping analysis.",
+      "live_authorization_status": "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD",
+      "actual_observation_status": "UNRESOLVED",
+      "blocker": "No currently justified privileged access method is approved; static analysis cannot establish runtime mappings or load bias.",
+      "next_engineering_action": "Leave runtime mapping unresolved until new evidence and independent side-effect/recovery review establish a legitimate access method.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "existing_privileged_read"
+      ]
+    },
+    {
+      "id": "jmcs-loaded-library-inventory",
+      "required_observation": "Identify actual runtime mapped native libraries and compare them to static ELF dependency evidence.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Path inventory derived from a validated runtime maps capture; static ELF dependencies retained as a separate evidence class.",
+      "prepared_collector_or_parser": "analyze.py maps inventory; ELF tools and archived dependency reports.",
+      "offline_test_status": "Existing maps parser and offline ELF analysis checks are present; runtime mapping availability is not simulated as live proof.",
+      "live_authorization_status": "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "Runtime mappings were not captured.",
+      "next_engineering_action": "Derive only from the approved maps source; preserve NOT_COLLECTED if the source remains inaccessible.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "existing_privileged_read"
+      ]
+    },
+    {
+      "id": "jmcs-fd-socket-owner-correlation",
+      "required_observation": "Join jmcs FD symlink socket inode identities to TCP/UDP/Unix endpoint tables; report ownership only on inode equality.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Same-phase FD symlinks and narrowly scoped socket tables under an approved access method, bound to the verified process instance.",
+      "prepared_collector_or_parser": "parsers.py correlate_process_socket_endpoints; analyze.py emits exact-inode joins.",
+      "offline_test_status": "Existing regression coverage exercises exact and mismatching FD/socket inode joins.",
+      "live_authorization_status": "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "No C-P FD-to-socket join exists; timing or system-wide sockets cannot establish ownership.",
+      "next_engineering_action": "Require same-phase process FD inode and socket-table equality; otherwise leave owner unresolved.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "existing_privileged_read"
+      ]
+    },
+    {
+      "id": "usb0-network-phase-correlation",
+      "required_observation": "Capture bounded usb0 interface state and eligible endpoint tables across CarPlay steady states; do not assign an endpoint to jmcs without an exact same-phase FD/socket inode match.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Phase 4 fixed /proc/net and usb0 operstate snapshots at disconnected, connected, disconnected, reconnect, and final disconnect steady states.",
+      "prepared_collector_or_parser": "Existing 43T0-D4 analysis; parsers.py exact socket-table and inode correlator for the separate ownership row.",
+      "offline_test_status": "Existing regression coverage exercises bounded network parsing and phase correlation.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "NOT_COLLECTED",
+      "blocker": "No comprehensive follow-up network phase observations have been collected; the historical private report is not represented by a hash reference in this public matrix.",
+      "next_engineering_action": "Require the ordinary ADB and stock iPhone/CarPlay transition approvals, then compare same-run steady-state snapshots; keep process socket ownership a separate privileged objective.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "stock_iphone_carplay_transition"
+      ]
+    },
+    {
+      "id": "carplay-info-setup-observability",
+      "required_observation": "Determine whether existing diagnostics expose /info response events and SETUP request/response boundaries, while not assuming they expose full plist values.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Existing bounded log buffers first; static receiver control flow for exact known boundaries; any missing values require a separately reviewed active observation.",
+      "prepared_collector_or_parser": "parsers.py summarize_diagnostic_logs has allowlisted info_boundary/setup_boundary marker counts and timestamps.",
+      "offline_test_status": "Existing regression coverage exercises bounded log markers, malformed input, output ceilings, and privacy filtering.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "NOT_COLLECTED",
+      "blocker": "The comprehensive follow-up has not collected a reviewed source for these runtime boundaries; a missing marker is not proof of absence.",
+      "next_engineering_action": "Do not repeat log collection without a new source/window hypothesis; document exact boundary signals for the instrumentation decision.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "stock_iphone_carplay_transition"
+      ]
+    },
+    {
+      "id": "type110-session-lifecycle",
+      "required_observation": "Record ordinary stock Type110 CarPlay visible connect/disconnect lifecycle and distinguish it from protocol packet capture.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Three-state ordinary user transition with process/log/display snapshots and owner observation; protocol packets remain separate.",
+      "prepared_collector_or_parser": "campaign_runner phase controller and bounded process/log/display parsers.",
+      "offline_test_status": "Existing regression coverage exercises campaign transitions, abort handling, and restoration gates.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "The bounded objective is only the visible Type110 connect/disconnect lifecycle; C-P did not capture protocol packets or establish receiver internals, which remain separate objectives.",
+      "next_engineering_action": "Keep UI lifecycle, protocol events, and actual packet evidence in separate fields.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "stock_iphone_carplay_transition"
+      ]
+    },
+    {
+      "id": "type111-negotiation-and-authority",
+      "required_observation": "Observe Type111 request/SETUP, session and stream identity, parent teardown, Type110 coexistence, and legitimate cryptographic/session authority.",
+      "existing_evidence": "The repository includes non-Honda lab research, which is not Honda receiver evidence. Owner-private Honda observations are omitted from this public matrix.",
+      "planned_evidence_source": "Static analysis and existing logs first; bench instrumentation for parser/observation feasibility; future active receiver experiment only with separate qualified reviews and legitimate session authority.",
+      "prepared_collector_or_parser": "Static Step 43S/PR #117 analysis and bounded event parser; no current logger observes payload or cryptographic authority.",
+      "offline_test_status": "Existing parser and Type111 synthetic tests do not establish Honda negotiation; full regression will preserve this distinction.",
+      "live_authorization_status": "NOT_IN_SCOPE_REQUIRES_SEPARATE_APPROVAL",
+      "actual_observation_status": "NOT_COLLECTED",
+      "blocker": "No Honda Type111 negotiation, authoritative session data, or valid receiver cryptographic context was captured.",
+      "next_engineering_action": "Do not repeat passive logs hoping to trigger Type111; define the least intrusive exact boundary observation and legitimate authority in a separate proposal.",
+      "required": true,
+      "evidence_provenance": [
+        "PUBLIC_PROJECT_RESEARCH",
+        "NON_HONDA_LAB_RESEARCH",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "stock_iphone_carplay_transition"
+      ]
+    },
+    {
+      "id": "display-manager-inventory",
+      "required_observation": "Compare logical display devices, types, dimensions, layer stacks, and inventory stability across CarPlay and Navigation phases.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Existing DisplayManager dump parser/comparator and phase-bound display captures.",
+      "prepared_collector_or_parser": "display_compare.py DisplayDeviceInfo/mBaseDisplayInfo inventory.",
+      "offline_test_status": "Synthetic regression tests cover display snapshot parsing, phase comparison, and integrity handling.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "Logical display inventory does not identify exact physical pixels or all renderer ownership contracts.",
+      "next_engineering_action": "Retain display inventory as topology evidence; do not equate it with frame admission or physical safe-area proof.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "factory_navigation_observation"
+      ]
+    },
+    {
+      "id": "display1-window-view-lifecycle",
+      "required_observation": "Compare WindowManager window entries listed in logical Display 1 sections across the approved states; do not infer focus or pixel visibility.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Phase-ordered WindowManager capture and page-aware comparison; corroborate with owner observation and SurfaceFlinger names.",
+      "prepared_collector_or_parser": "display_compare.py parses display sections, normalizes volatile window pointers, and reports additions/removals/persistence.",
+      "offline_test_status": "Synthetic regression tests cover navigation phase comparison; prior private evidence was analyzed offline.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "No public comprehensive-campaign capture is included; section membership alone cannot prove focus, visibility, pixel contribution, or OEM ownership.",
+      "next_engineering_action": "Use this as phase-specific owner/window lifecycle evidence and keep physical ownership assertions bounded.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "factory_navigation_observation"
+      ]
+    },
+    {
+      "id": "surfaceflinger-layer-lifecycle",
+      "required_observation": "Compare named SurfaceFlinger layers across the same phase transitions and identify persistent versus phase-specific names.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Phase comparison after normalization of volatile layer pointers; compare with WindowManager and display topology without timing-only ownership inference.",
+      "prepared_collector_or_parser": "display_compare.py named SurfaceFlinger layer delta parser.",
+      "offline_test_status": "Synthetic regression tests cover navigation phase comparison; prior private evidence was analyzed offline.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "No public comprehensive-campaign capture is included; layer names alone cannot establish physical scanout, pixel contribution, or OEM-approved frame ownership.",
+      "next_engineering_action": "Keep owner and layer facts as correlated observations; obtain a separately reviewed physical/display-host contract before implementation.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "factory_navigation_observation"
+      ]
+    },
+    {
+      "id": "factory-navigation-transitions",
+      "required_observation": "Compare Navigation selected, deselected, and reselected factory page lifecycle and verify visible restoration.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Ordinary owner controls, no capture during transition, phase-timestamped display snapshots, owner observation, and post-capture checks.",
+      "prepared_collector_or_parser": "campaign_runner owner gates plus display_compare.py.",
+      "offline_test_status": "Synthetic regression tests cover phase gates and comparison behavior.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "One successful ordinary transition does not establish all page lifecycle, geometry, warning priority, or future build behavior.",
+      "next_engineering_action": "Treat C-P sequence as historical observation only; do not repeat without a distinct question and exact approval.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "factory_navigation_observation"
+      ]
+    },
+    {
+      "id": "hondahack-casting-and-withdrawal",
+      "required_observation": "Observe existing HondaHack casting disabled/enabled, Navigation page transitions, ordinary Stop Casting, and baseline restoration.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Separate approved ordinary UI sequence only; record snapshots at each fixed state; no code or hook changes.",
+      "prepared_collector_or_parser": "display_compare.py generic phase labels and evidence matrix; no HondaHack live collector is currently authorized.",
+      "offline_test_status": "Synthetic comparator state-delta tests cover lifecycle transitions; live HondaHack behavior remains untested.",
+      "live_authorization_status": "SEPARATE_HONDAHACK_REVIEW_AND_EXACT_OWNER_APPROVAL_REQUIRED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "No C-P HondaHack state transition was performed; past warning preemption is not a restoration guarantee.",
+      "next_engineering_action": "Prepare exact ordinary UI and abort/restoration card; require independent review and separate owner approval before any phase.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "factory_navigation_observation",
+        "existing_hondahack_observation"
+      ]
+    },
+    {
+      "id": "carplay-disconnect-reconnect-restoration",
+      "required_observation": "Observe normal CarPlay disconnect/reconnect and compare process/display/log state, with stock display/audio restored afterward.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Three-state phase capture with no collection during transitions and explicit baseline/post-disconnect comparisons.",
+      "prepared_collector_or_parser": "Existing campaign_runner phase gates, log summary, process identity parser, and display_compare.py.",
+      "offline_test_status": "Regression tests cover campaign interruption, restoration gates, and display comparison.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "blocker": "The comprehensive reconnect/restoration sequence has not been authorized or collected; prior session details remain private and are not substituted.",
+      "next_engineering_action": "Keep remote child/shared ADB-server uncertainty explicit; future approved cleanup must use only safe host-side checks.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "ordinary_unprivileged_adb",
+        "stock_iphone_carplay_transition"
+      ]
+    },
+    {
+      "id": "recovery-prerequisites",
+      "required_observation": "Inventory verified backup/version, ordinary shutdown and stock recovery path; distinguish these from recovery of corrupted receiver code.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Offline recovery inventory and separate qualified review before any modification proposal.",
+      "prepared_collector_or_parser": "docs/recovery, historical backup provenance, and phase-7 restoration checklist in the campaign design.",
+      "offline_test_status": "Offline records reviewed; independent native recovery proof is not present.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "UNRESOLVED",
+      "blocker": "No independently demonstrated recovery from receiver binary or system modification is approved.",
+      "next_engineering_action": "Do not include receiver modification in a future live plan until independent recovery is demonstrated on non-vehicle equipment and reviewed.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "offline_historical_evidence_review"
+      ]
+    },
+    {
+      "id": "instrumentation-decision",
+      "required_observation": "Rank exact missing /info, SETUP, stream identity, session authority, parent teardown, and display-host ownership facts by evidence value and risk across existing logs, static analysis, privileged reads, synthetic/bench instrumentation, dynamic instrumentation, and binary modification.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Offline design in the comprehensive campaign report, with method, data, risk, compatibility, cleanup, recovery, and authorization columns.",
+      "prepared_collector_or_parser": "Existing bounded log parser, static analysis records, synthetic host receiver, and future-reviewed strategy matrix.",
+      "offline_test_status": "Strategy documentation and parser regression tests cover offline behavior; no vehicle instrumentation is performed.",
+      "live_authorization_status": "NOT_IN_SCOPE_REQUIRES_SEPARATE_APPROVAL",
+      "actual_observation_status": "UNRESOLVED",
+      "blocker": "A passive source cannot expose payload values or a legitimate Honda session authority that it never logs.",
+      "next_engineering_action": "First complete exact offline instrument compatibility and crash/cleanup analysis; propose a separately authorized bench or receiver experiment only for a named signal.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "offline_historical_evidence_review"
+      ]
+    },
+    {
+      "id": "capture-integrity-and-privacy",
+      "required_observation": "Validate every retained evidence object's hash and private permissions; never place raw or derived private data in public Git.",
+      "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
+      "planned_evidence_source": "Host-only capture manifest, SHA-256 inventory, privacy validator, and post-session completeness report.",
+      "prepared_collector_or_parser": "campaign_runner capture inventory/recovery and offline evidence validators.",
+      "offline_test_status": "Existing regression coverage exercises hash tampering, permissions, incomplete captures, and privacy boundaries.",
+      "live_authorization_status": "NOT_AUTHORIZED",
+      "actual_observation_status": "NOT_COLLECTED",
+      "blocker": "No evidence capture was created or validated for the comprehensive follow-up.",
+      "next_engineering_action": "Use the existing host-only validation path and create no capture during offline development.",
+      "required": true,
+      "evidence_provenance": [
+        "OWNER_PRIVATE_HISTORY_REVIEWED",
+        "NO_DIRECT_CAPTURE"
+      ],
+      "evidence_refs": [],
+      "live_approval_categories": [
+        "host_private_evidence_handling"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,883 @@
+{
+  "schema": "claritylink-proposed-campaign-scope-v1",
+  "campaign_id": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031",
+  "requirements_baseline": "CL-HONDA-RUNTIME-EVIDENCE-20261030",
+  "historical_campaign": {
+    "campaign_id": "CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION",
+    "state": "COMPLETED_FROZEN_HASH_BOUND",
+    "profile_sha256": "c58864a9454f525ac0a4758f8828a92f70208bf2142a2dead261e5545c51b10d",
+    "manifest_sha256": "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc43b244f2e8798bce5388",
+    "reuse_allowed": false
+  },
+  "live_execution_enabled": false,
+  "live_authorization": "NOT_AUTHORIZED",
+  "controller": "NONE: proposal only; not consumable by the historical C-P runner",
+  "host": "existing authorized Mac; offline preparation only",
+  "target": "2018 Honda Clarity PHEV Touring, MY16ADA; private identity required at a future review",
+  "execution_bounds_proposal": {
+    "max_command_timeout_seconds": 20,
+    "max_command_output_bytes": 4194304,
+    "max_total_elapsed_seconds": 3600,
+    "max_owner_prompt_idle_seconds": 300,
+    "capture_during_owner_ui_transition": false,
+    "auto_retry": false,
+    "auto_privilege_escalation": false,
+    "raw_evidence_destination": "new host-only directory outside Git, mode 0700; files mode 0600",
+    "evidence_integrity": "SHA-256 per artifact plus immutable source/profile/manifest binding",
+    "per_command_bounds": {
+      "timeout_seconds": 20,
+      "combined_stdout_stderr_bytes": 4194304,
+      "enforced_by": "future fixed-operation controller must reject every operation exceeding these ceilings before spawning adb"
+    },
+    "process_placeholder_binding": "Resolve exactly one jmcs PID from the existing ps parser; accept decimal PID 1..4194304 only. Bind it to /proc/PID/stat start-time ticks, /proc/PID/cmdline naming /system/bin/jmcs, /proc/PID/status root UID/GID, and ls -l /proc/PID/exe -> /system/bin/jmcs. Substitute PID only as a single argv element, never via shell interpolation. Revalidate all four identity facts before and after every steady-state capture.",
+    "command_form": "Every listed command is a fixed argv vector; no shell string executor, command concatenation, or caller-provided argv is permitted."
+  },
+  "global_stop_conditions": [
+    "target or process identity mismatch, PID/start-time change, or authorization mismatch",
+    "unexpected vehicle warning, READY indicator, engine start, abnormal power/battery behavior, or loss of safe Park/outdoor conditions",
+    "center display, cluster, Navigation, CarPlay, HondaHack, or audio behavior outside the specifically approved expected state",
+    "ADB transport error, permission denial, unsupported command, timeout, output limit, or controller exception",
+    "source/profile/manifest hash mismatch, incomplete command ledger, or evidence integrity/privacy failure",
+    "any command or action not enumerated in the reviewed phase profile"
+  ],
+  "required_conditions_for_any_future_run": [
+    "separate exact owner authorization for each live category and selected phase",
+    "current exact-main and source/profile review packet for the new proposal",
+    "stationary outdoors, Park, parking brake engaged, approved power state, READY absent",
+    "owner physically present; factory display, cluster, Navigation, warning behavior, and audio normal",
+    "one already-authorized ADB endpoint; no scan, endpoint fallback, setting change, or escalation",
+    "independent review of command list, SuperSU side effects, failure handling, privacy, and recovery",
+    "separate qualified vehicle-safety review before any modification or operation affecting factory display/warnings",
+    "qualified vehicle-safety review of Phase 6 HondaHack/Display 1 interaction is complete before proposing that live subtest"
+  ],
+  "phases": [
+    {
+      "id": "phase0_baseline_safety_identity",
+      "category": "owner_attested_precondition",
+      "authorization_status": "NOT_AUTHORIZED",
+      "commands": [],
+      "owner_actions": [
+        "confirm stationary outdoors, Park, parking brake engaged, approved power state, READY absent, engine not running",
+        "confirm owner present and normal factory warning/display/cluster/Navigation/audio state",
+        "record iPhone and existing debugging state without changing either",
+        "identify normal shutdown and previously verified backup/recovery records"
+      ],
+      "stop": "Any abnormal condition or missing prerequisite; no ADB.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry"
+    },
+    {
+      "id": "phase1_ordinary_adb_capability",
+      "category": "ordinary_unprivileged_adb",
+      "authorization_status": "SEPARATE_EXACT_RUN_APPROVAL_REQUIRED",
+      "commands": [
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ps"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "id"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.build.version.release"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.build.version.sdk"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.product.device"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.product.board"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.hardware"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.secure"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "getprop",
+          "ro.debuggable"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "display"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "SurfaceFlinger"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "display"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "SurfaceFlinger"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ]
+      ],
+      "owner_actions": [],
+      "stop": "Any target/process mismatch, permission denial, unsupported API17 command, timeout, output limit, warning, transport error, or abnormal factory behavior.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry"
+    },
+    {
+      "id": "phase2_existing_root_supersu_review",
+      "category": "existing_privileged_read",
+      "authorization_status": "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD",
+      "access_decision": "Step 40E4 found no currently justifiable privileged path. Owner approval alone is insufficient; no live su argv is proposed.",
+      "required_evidence_to_reconsider": [
+        "new offline evidence justifying a least-impact access method",
+        "independent review of SuperSU prompts, logs, daemon effects, and recovery consequences",
+        "separate exact owner approval after the above review"
+      ],
+      "offline_actions": [
+        "review archived SuperSU provenance, exact hash/mode, prompts, logs, daemon behavior, and recovery implications",
+        "do not install, update, configure, or replace the existing root mechanism"
+      ],
+      "known_side_effect": "SuperSU invocation may create logs or alter daemon/authorization state; zero-write behavior is not established.",
+      "live_argv": [],
+      "stop": "No live privileged operation under the current finding. No adb root or fallback.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry"
+    },
+    {
+      "id": "phase3_jmcs_maps_libraries_fd_socket_ownership",
+      "category": "existing_privileged_read",
+      "authorization_status": "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD",
+      "access_decision": "No live procfs access is proposed until Phase 2 reconsideration criteria are met and independently reviewed.",
+      "required_observations_if_reconsidered": [
+        "PID and process start-time ticks before and after bounded metadata reads",
+        "maps and smaps for mappings, protections, and load-bias inputs",
+        "FD symlink inode identities and same-phase socket tables for exact inode joins",
+        "only explicitly approved /proc/net tables; no process memory, credentials, environment, keys, or secrets"
+      ],
+      "live_argv": [],
+      "process_identity_revalidation": "Re-read stat/cmdline/status before and after; compare PID plus start-time ticks.",
+      "owner_actions": [],
+      "prohibited_reads": [
+        "/proc/<pid>/mem",
+        "credentials",
+        "environment",
+        "keys",
+        "secrets"
+      ],
+      "stop": "Any permission denial, identity change, malformed output, non-enumerated path, unexpected side effect, timeout, or limit.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry"
+    },
+    {
+      "id": "phase4_three_state_carplay",
+      "category": "ordinary_unprivileged_adb_plus_stock_iphone_transition",
+      "authorization_status": "SEPARATE_ADB_AND_IPHONE_TRANSITION_APPROVALS_REQUIRED",
+      "states": [
+        "disconnected_baseline",
+        "stock_carplay_connected",
+        "disconnected_again",
+        "stock_carplay_reconnected",
+        "final_disconnected"
+      ],
+      "commands": [
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ps"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "display"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "SurfaceFlinger"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/tcp"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/tcp6"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/udp"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/udp6"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/unix"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/sys/class/net/usb0/operstate"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "logcat",
+          "-d",
+          "-t",
+          "500"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ]
+      ],
+      "commands_apply_at_each_steady_state": true,
+      "identity_revalidation": "At every steady state, run stat, cmdline, status and exe-link checks as a bracket; require the same PID/start-time, cmdline /system/bin/jmcs, root UID/GID and executable symlink /system/bin/jmcs before and after all display, network, and log reads.",
+      "owner_actions": [
+        "connect once through the normal stock flow",
+        "disconnect through the normal user flow",
+        "reconnect through the normal stock flow",
+        "disconnect once more through the normal user flow"
+      ],
+      "capture_during_transition": false,
+      "network_scope": "Fixed read-only /proc/net socket tables and /sys/class/net/usb0/operstate observations are included at steady states. No packet capture, connect/probe, or mutation; process-owned socket attribution remains blocked in the separate privileged-read objective.",
+      "stop": "Any global stop condition, abnormal Type110 display/audio/call/warning behavior, receiver identity change, or unexpected transport state.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry",
+      "log_collection_purpose": "A bounded log snapshot at each steady state is a comparative diagnostic input for lifecycle/event deltas, not a repeated search for a success marker; no capture during transitions; logs remain private; missing /info or SETUP markers remains NOT_OBSERVED and never implies Type111 support.",
+      "logcat_capture_count_per_steady_state": 1
+    },
+    {
+      "id": "phase5_display1_navigation_lifecycle",
+      "category": "ordinary_unprivileged_adb_plus_factory_navigation",
+      "authorization_status": "SEPARATE_EXACT_RUN_APPROVAL_REQUIRED",
+      "states": [
+        "navigation_selected",
+        "navigation_deselected",
+        "navigation_reselected"
+      ],
+      "commands_after_each_owner_confirmation": [
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "display"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "SurfaceFlinger"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ]
+      ],
+      "owner_actions": [
+        "use ordinary factory controls to select Navigation",
+        "use ordinary factory controls to deselect it",
+        "use ordinary factory controls to reselect it"
+      ],
+      "capture_during_transition": false,
+      "stop": "Any global stop condition, unexpected warning, page transition, display/window/layer, cluster, or audio behavior.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry",
+      "process_identity_revalidation": "Bracket each steady-state snapshot with stat, cmdline, status and exe-link checks; require stable PID/start-time, /system/bin/jmcs command line, root UID/GID, and /system/bin/jmcs executable symlink."
+    },
+    {
+      "id": "phase6_existing_hondahack_casting",
+      "category": "existing_hondahack_observation",
+      "authorization_status": "SEPARATE_HONDAHACK_REVIEW_AND_EXACT_OWNER_APPROVAL_REQUIRED",
+      "required_categories": [
+        "ordinary_unprivileged_adb",
+        "factory_navigation_observation",
+        "existing_hondahack_observation"
+      ],
+      "states": [
+        "casting_disabled",
+        "ordinary_start_casting",
+        "navigation_deselected",
+        "navigation_reselected",
+        "ordinary_stop_casting",
+        "factory_baseline_restored"
+      ],
+      "commands_after_each_allowed_state": [
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "display"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "SurfaceFlinger"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ]
+      ],
+      "owner_actions": [
+        "ordinary existing HondaHack Start Casting/Stop Casting UI only",
+        "ordinary factory Navigation selection transitions"
+      ],
+      "prohibited": [
+        "install or update HondaHack",
+        "change Xposed or hooks",
+        "private control APIs",
+        "induce warnings",
+        "force-stop or kill processes"
+      ],
+      "stop": "Any global stop condition, warning/display/cluster/audio/Navigation anomaly, or uncertain restoration.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry",
+      "qualified_vehicle_safety_review": "REQUIRED before any live HondaHack casting observation because Display 1 is directly involved; no conditional exception.",
+      "process_identity_revalidation": "Bracket each steady-state snapshot with stat, cmdline, status and exe-link checks; require stable PID/start-time, /system/bin/jmcs command line, root UID/GID, and /system/bin/jmcs executable symlink."
+    },
+    {
+      "id": "phase7_recovery_restoration",
+      "category": "host_cleanup_and_factory_restoration",
+      "authorization_status": "NORMAL_COMPLETION_ONLY; ABORT PATH IS HOST_ONLY",
+      "commands": [
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ps"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "display"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "SurfaceFlinger"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/stat"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/cmdline"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/<verified-jmcs-pid>/status"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "-l",
+          "/proc/<verified-jmcs-pid>/exe"
+        ]
+      ],
+      "owner_checks": [
+        "iPhone disconnected",
+        "factory CarPlay normal",
+        "Navigation normal",
+        "center display/cluster/audio normal",
+        "no new warning",
+        "vehicle still Park and READY absent"
+      ],
+      "host_checks": [
+        "campaign process exited",
+        "approved ADB client exited",
+        "evidence hashes and permissions verified",
+        "one-use ledger final state recorded"
+      ],
+      "shared_adb_server": "Do not stop or inspect a shared server without a reviewed host-only reason; report uncertainty if it remains unknown.",
+      "abort_path": "Host-only controller/capture cleanup. No additional ADB or other vehicle command after an abort unless a new exact recovery action is independently reviewed and authorized.",
+      "stop": "Any global stop condition or restoration uncertainty requires owner attention; no additional vehicle command after abort and no remote power-off.",
+      "per_command_timeout_seconds": 20,
+      "per_command_output_limit_bytes": 4194304,
+      "failure_policy": "stop immediately; do not retry",
+      "process_identity_revalidation": "Require the reviewed exact process path and the same PID/start-time, cmdline, UID/GID, and executable symlink before and after the restoration snapshot."
+    }
+  ],
+  "post_session_instrumentation": {
+    "execution_enabled": false,
+    "separate_future_categories": [
+      "synthetic_or_bench_observer",
+      "temporary_target_helper",
+      "dynamic_ptrace_frida_xposed_instrumentation",
+      "receiver_binary_modification"
+    ],
+    "authorization": "separate proposal, exact signal, independent technical/security review, owner approval, and recovery evidence; qualified vehicle-safety review for vehicle use"
+  },
+  "process_identity_expectations": {
+    "process_name": "jmcs",
+    "executable_path": "/system/bin/jmcs",
+    "cmdline_identity": "/system/bin/jmcs",
+    "uid": 0,
+    "gid": 0,
+    "start_time": "/proc/PID/stat field 22 (clock ticks)",
+    "pid_source": "exactly one jmcs candidate from the fixed ps parser on the approved serial"
+  }
+}

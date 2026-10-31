@@ -20,6 +20,69 @@ import campaign_runner as campaign
 import collector
 
 
+HISTORICAL_PROFILE_FILE = campaign.PROFILE_FILE
+HISTORICAL_PROFILE_HASH_FILE = campaign.PROFILE_HASH_FILE
+
+
+@pytest.fixture(autouse=True)
+def isolate_current_policy_profile(tmp_path, monkeypatch):
+    """Use a temporary current-policy profile for controller mechanics tests.
+
+    The committed C-P profile is a frozen historical baseline. Policy edits
+    must invalidate it rather than silently rebind its authorization scope.
+    """
+    profile_path = tmp_path / "campaign_profile.json"
+    profile_bytes = campaign.canonical_json(campaign.profile_payload())
+    profile_path.write_bytes(profile_bytes)
+    hash_path = tmp_path / "campaign_profile.sha256"
+    digest = hashlib.sha256(profile_bytes).hexdigest()
+    hash_path.write_text(f"{digest}  campaign_profile.json\n", encoding="ascii")
+    monkeypatch.setattr(campaign, "PROFILE_FILE", profile_path)
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", hash_path)
+
+
+def test_historical_cp_profile_pins_are_unchanged_and_policy_drift_fails_closed(monkeypatch):
+    expected_hash = "c58864a9454f525ac0a4758f8828a92f70208bf2142a2dead261e5545c51b10d"
+    assert HISTORICAL_PROFILE_HASH_FILE.read_text(encoding="ascii") == (
+        f"{expected_hash}  campaign_profile.json\n")
+    assert hashlib.sha256(HISTORICAL_PROFILE_FILE.read_bytes()).hexdigest() == expected_hash
+    expected_manifest = "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc43b244f2e8798bce5388"
+    expected_source_lock = "ab52103b009a0c46a58a7e7edf62b1d1da266fde0b457d5472235e9149944f0b"
+    assert campaign.BASELINE_COMMAND_MANIFEST_SHA256 == expected_manifest
+    assert campaign.command_manifest_sha256() == expected_manifest
+    assert sum(len(phase.operations) for phase in campaign.phases()) == 135
+    assert hashlib.sha256(campaign.SOURCE_LOCK_FILE.read_bytes()).hexdigest() == expected_source_lock
+    monkeypatch.setattr(campaign, "PROFILE_FILE", HISTORICAL_PROFILE_FILE)
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", HISTORICAL_PROFILE_HASH_FILE)
+    with pytest.raises(collector.SafetyStop, match="profile file does not match the executable fixed profile"):
+        campaign.verify_pinned_profile()
+
+
+def test_historical_c_p_cli_dry_run_fails_closed_after_policy_change(monkeypatch, capsys):
+    monkeypatch.setattr(campaign, "PROFILE_FILE", HISTORICAL_PROFILE_FILE)
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", HISTORICAL_PROFILE_HASH_FILE)
+    assert campaign.main(["dry-run"]) == 2
+    assert "profile file does not match the executable fixed profile" in capsys.readouterr().err
+
+
+def test_policy_document_drift_invalidates_current_exact_profile(tmp_path, monkeypatch):
+    policy = tmp_path / "docs" / "safety" / "vehicle-testing.md"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("approved policy\n")
+    profile = tmp_path / "campaign_profile.json"
+    pin = tmp_path / "campaign_profile.sha256"
+    monkeypatch.setattr(campaign, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(campaign, "POLICY_FILES", (policy,))
+    monkeypatch.setattr(campaign, "PROFILE_FILE", profile)
+    monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", pin)
+    payload = campaign.canonical_json(campaign.profile_payload())
+    profile.write_bytes(payload)
+    pin.write_text(f"{hashlib.sha256(payload).hexdigest()}  {profile.name}\n")
+    policy.write_text("changed policy\n")
+    with pytest.raises(collector.SafetyStop, match="profile file does not match"):
+        campaign.verify_pinned_profile()
+
+
 def test_dry_run_is_complete_and_never_contacts_adb(monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("dry-run attempted host/device process access")
@@ -163,7 +226,7 @@ def test_termination_signal_uses_campaign_stop_path():
     assert handler(campaign.signal.SIGHUP, None) is None
 
 
-def test_profile_manifest_is_exact_and_all_operations_use_fixed_legacy_shell():
+def test_generated_test_profile_is_exact_and_all_operations_use_fixed_legacy_shell():
     profile = json.loads(campaign.PROFILE_FILE.read_text())
     assert profile == campaign.profile_payload()
     assert "window/app titles" in profile["privacy"]["dumpsys"]

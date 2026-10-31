@@ -1,5 +1,52 @@
 # Honda read-only runtime preflight and fixed campaign runner
 
+## Comprehensive follow-up preparation
+
+The distinct `CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031` design and offline
+tools are documented in `docs/diagnostics/comprehensive-runtime-campaign.md`.
+Its machine-readable phase proposal is explicitly non-executable; the current
+controller supports only the frozen historical C-P profile. The follow-up
+source/profile binding is separate at
+`docs/diagnostics/comprehensive-source-lock.json`. Verify it offline with:
+
+```sh
+python3 tools/honda-readonly-preflight/verify_comprehensive_source_lock.py \
+  docs/diagnostics/comprehensive-source-lock.json
+```
+
+The proposal-only command validator provides an offline bounded-plan check; it
+never locates ADB or runs any listed command:
+
+```sh
+python3 tools/honda-readonly-preflight/validate_comprehensive_proposal.py \
+  docs/diagnostics/comprehensive-campaign-proposal.json
+```
+
+`display_compare.py` requires a private capture directory, a SHA-256
+manifest for all compared snapshots, and a caller-supplied candidate Android
+logical display ID. The comparator reports only whether that ID appears in the
+`Logical Displays` inventory; it does not verify that it is factory Display 1.
+An absent ID keeps the result `INCOMPLETE`.
+`SNAPSHOT_COMPARISON_COMPLETE` means only that the named snapshots were
+integrity checked and compared; it does not validate vehicle/process
+identity or certify campaign completeness. SurfaceFlinger layers are global in
+these dumps and are not attributed to a display. The output does not establish
+focus, visibility, physical ownership, or campaign completeness.
+The default comparison is written mode 0600 inside the owner-only capture
+directory. The statement below that C-P captures retain only marker counts
+describes the historical C-P controller; the disabled comprehensive proposal
+would retain bounded raw log snapshots only in its private evidence root.
+`evidence_coverage.py` exits nonzero while any required evidence objective is
+unresolved. A `CONFIRMED` row needs an objective-scoped artifact path and
+SHA-256 rechecked against the private evidence inventory, the exact owner-
+approvable categories, and the profile/source-lock binding. Campaign success
+also requires a consumed-ledger entry matching the authorization ID, run ID,
+nonce digest, evidence-matrix digest, and evidence-manifest digest. The lock is
+resolved from this tool's repository, not from the matrix directory. Use
+`--structural-only` only to validate the matrix
+shape without reporting campaign success. Neither tool accesses ADB or the
+vehicle.
+
 This is a host-side Python collector for Step 40E. It stores target command output on the Mac under `~/CLARITY_RUNTIME_<timestamp>/`, with mode-restricted files, a per-command manifest, and SHA-256 records. Raw output can include sensitive platform, socket, log, and display details: never copy the capture tree into Git.
 
 ## Legacy collector operation inventory (not the C-P live allowlist)
@@ -31,7 +78,12 @@ The campaign-specific controller is the only live entry point that enforces the 
 python3 tools/honda-readonly-preflight/campaign_runner.py dry-run
 ```
 
-The dry-run verifies the canonical profile and source lock, and prints all ordered phases, fixed argv, expected output, bounds, failure behavior, and private artifact destinations. It does not locate ADB, enumerate devices, create files, or contact a vehicle. `campaign_profile.sha256` pins the exact profile, which itself binds the source-hash lock.
+The historical C-P dry-run does not locate ADB, enumerate devices, create
+files, or contact a vehicle. On this source tree it is expected to fail closed:
+the policy documents have changed and the frozen C-P profile must not be
+silently rebound. A regression test verifies that failure. Do not interpret
+the historical command manifest as the comprehensive follow-up profile; the
+new follow-up profile is proposal-only and has a separate source lock.
 
 `campaign_runner.py run` requires adopted `C-P-MA-OWNER-ASSUMED-RISK` policy and an owner-only private record binding the exact commit, source/profile hashes, manifest, phases, serial and owner risk acceptance. Codex and Claude exact-source reports are required. ECC may be recorded as `UNAVAILABLE` only when unavailable, with a truthful reason and `no_completed_review_withheld: true`; the owner attests that no completed or received ECC report is withheld; any such report must be included and pass hash/findings validation. This is an owner attestation, not an independently enforceable control: the validator cannot inspect external services or independently prove availability or truthfulness. No saved record grants a run: the runner requests a fresh nonce-bound owner confirmation for each invocation. During the bounded final challenge, SIGINT, SIGTERM and SIGHUP are held only until the prompt resolves and exact YES atomically consumes the unique authorization ID in an owner-only host ledger. Pending signals are delivered once the marker is durable, before revalidation, capture creation or ADB; the same ID is rejected later. A non-YES response or prompt timeout does not consume the ID. Termination signals received during the prompt are deferred until it resolves; exact YES consumes the ID before a pending signal is delivered. The ledger is anchored to the current UID’s passwd home rather than mutable `HOME`. It prevents ordinary accidental replay, not deliberate modification or deletion by the local owner. If ledger persistence fails, execution stops before ADB. If no marker was created, the ID remains technically unused; a no-retry/new-owner-decision requirement applies until the failure is resolved, but the validator cannot enforce a new record when no marker exists. Interruption during the final owner prompt stops before capture creation, so no capture directory or failure card is created. SIGTERM/SIGHUP during collection or normal completion use the failure-finalization path; SIGKILL and power loss are not guaranteed to produce a failure card. AI review is not human safety certification. Root, HondaHack, instrumentation and deployment remain outside this C-P exception.
 

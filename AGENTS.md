@@ -1,70 +1,134 @@
-# Repository workflow rules
+# ClarityLink agent instructions
 
-These rules apply to every Codex campaign in this repository.
+These instructions apply to Codex, Claude, and other automated contributors in
+this repository. They distinguish offline engineering permission from live
+vehicle authorization.
 
-## Autonomous Milestone Completion Policy
+## 1. Authorized offline engineering
 
-- At the beginning of every Codex task, read this file; identify the active repository, branch, and worktree; fetch remote references; inspect current `origin/main`, local changes, untracked files, unpublished commits, related worktrees, existing commit/push/PR automation, and current GitHub rulesets/protection; and establish acceptance criteria. Preserve unrelated work.
-- Establish acceptance criteria before implementation, then keep working after ordinary test failures, races, emulator timeouts, and review findings. Investigate root causes, add regression coverage, correct defects, and rerun affected checks instead of stopping at the first failure.
-- Do not claim PASS without the required runtime evidence. Do not weaken mandatory tests or replace runtime proof with simulation or static validation.
-- Commit every completed, verified development unit before ending the task. Use a descriptive message; do not create empty commits or mix unrelated changes. A missing reviewer does not prevent a verified local commit. If a genuine blocker prevents verification, preserve the work and report the blocker; use a clearly marked local WIP checkpoint only when safe, without claiming it passed.
-- Stop only for a specific external blocker that prevents authorized progress; state the blocker and evidence while continuing independent work.
-- Retain all project safety restrictions: offline research/prototypes may follow `docs/safety/vehicle-testing.md`. The bounded C-P passive profile may use the prospective `C-P-MA-OWNER-ASSUMED-RISK` category only after its policy amendment is adopted on protected `main`, exact-source Codex and Claude review records pass validation, ECC status is truthfully recorded (`UNAVAILABLE` when the reviewer is unavailable, or a validated bound report when completed), and the owner separately authorizes that exact run. This is AI-assisted owner-assumed risk, not independent human safety certification. No other Honda/live-iPhone operation is authorized by default; `safeForHonda() == false`.
+Offline work needed to advance the primary goal is authorized without asking
+the owner for a new permission each time. This includes:
 
-## Campaign start and closeout
+- Analyze archived firmware, binaries, decompilations, and privately retained
+  runtime evidence on the authorized Mac.
+- Build host-side collectors, fixed-operation manifests, parsers, correlation
+  tools, synthetic fixtures, and offline instrumentation prototypes.
+- Design read-only privileged diagnostic candidates and assess existing
+  SuperSU behavior from archived evidence. Design is not permission to invoke
+  `su` on a vehicle.
+- Examine binary callsites offline and prepare Type111 receiver experiments on
+  synthetic or separately approved bench equipment.
+- Analyze Display 1 ownership, Navigation lifecycle, and existing HondaHack
+  behavior from retained evidence.
+- Generate source/profile pins, add regression tests, run repository checks,
+  obtain technical reviews, and publish public-safe tooling through protected
+  pull requests.
+- Write or revise campaign plans and evidence matrices. A plan is not live
+  authorization.
 
-- At campaign start, record the repository path, worktree, local `HEAD`, branch, `git status --short --branch`, untracked files, unpublished commits, and relevant `origin` state. Fetch current remote references before using remote state as a baseline.
-- Before finishing any task, report work completed; tests and results; final local commit SHA; branch and worktree; clean/dirty state; untracked and unpublished work; push status; PR URL; CI/CodeQL status; review status; and remaining blockers. Include `origin/main` when publication was requested. If a field cannot be verified, say so and explain why. Never finish with verified development work unsaved.
-- If a field cannot be verified, say so and explain why. Do not substitute assumptions or stale receipts for current state.
+Keep raw or derived vehicle evidence, identifiers, credentials, authentication
+material, private blueprints, and firmware outside public Git. Commit only
+sanitized, purpose-limited results after a privacy review.
 
-## Development units and commits
+## 2. Separate live diagnostic categories
 
-- Complete each coherent development unit, run its relevant checks, verify the resulting diff is public-safe, and commit it before moving to unrelated work or ending the campaign.
-- Do not claim a unit is tested unless the tests ran on the recorded commit or exact working tree. When verification is blocked, report the blocker and preserve the work; create a clearly marked local WIP checkpoint only when safe, without claiming it passed.
-- Keep commits focused. Do not include local research, vehicle captures, credentials, generated artifacts, or unrelated checkout changes in public commits.
-- Before committing, inspect staged paths and contents, check whitespace, and confirm the commit contains only the intended public-safe unit.
+Every live category requires a new exact-scope owner authorization and its own
+review record. Authorization for one category does not authorize another.
+Preparation may continue offline while a live gate is pending.
 
-## Public source and private research
+| Category | Offline preparation | Live gate and limit |
+|---|---|---|
+| Ordinary unprivileged ADB | Authorized | New exact-run owner approval, exact identity, existing ADB authorization, fixed argv, bounds, parked conditions, stop rules, private evidence, and restoration plan. No device scan or transport changes. |
+| Stock iPhone/CarPlay transition | Authorized | Separate exact-run owner approval for each planned ordinary connect/disconnect transition and the phone state. No capture during transition, pairing/settings change, or protocol injection. |
+| Existing privileged read | Authorized | Current evidence finds no justifiable zero-write privileged path. A separate exact approval is necessary but not sufficient: first obtain an independently reviewed access method and SuperSU side-effect/recovery assessment. No `su` invocation under the current finding. Never describe it as zero-write unless proven. No `adb root`, replacement root solution, or escalation fallback. |
+| Factory Navigation observation | Authorized | New exact-run approval for ordinary owner-operated select/deselect transitions. No private controls, warning triggers, or evidence capture during transitions. |
+| Existing HondaHack observation | Authorized | Separate HondaHack approval and exact ordinary UI action list, baseline, observer, stop conditions, and restoration plan. Require independent technical review and qualified vehicle-safety review because the casting observation involves factory Display 1. No install, Xposed changes, new hooks, or induced warnings. |
+| Temporary runtime instrumentation | Authorized for design and synthetic/bench prototype | **Not authorized by the comprehensive diagnostic campaign.** Requires a separate exact proposal, compatibility and interruption assessment, technical/security review, owner approval, bounded cleanup, and independent recovery evidence. |
+| Receiver or display modification | Authorized for offline research/prototype | Separate higher-risk proposal, qualified independent vehicle-safety review, legitimate protocol/security authority, verified independent recovery, exact owner approval, and protected deployment review. No deployment by default. |
 
-- Treat ignored status as a Git exclusion only; it is not evidence of backup, encryption, or safe deletion.
-- Keep raw or derived vehicle data, private Honda evidence, credentials, signing material, and local research outside public Git. Never publish private Honda evidence.
-- Do not perform Honda or vehicle operations except a future C-P run after every gate in `docs/safety/vehicle-testing.md` is effective and satisfied. This task itself performs no vehicle operations. `safeForHonda()` must remain `false`.
-- Review ignore rules whenever source or tests are added. Broad ignore patterns must have explicit, narrow exceptions for intended public source; verify with `git check-ignore -v` and `git ls-files` that important source is not hidden.
-- If private test code or evidence is needed, keep it in an explicitly private location and document its runner/dependency boundary without copying private evidence into public source.
+The completed `CL-HONDA-RUNTIME-DIAGNOSTIC-EXECUTION` C-P session is a frozen,
+historical, hash-bound baseline. It contained eight phases and 135 operations.
+Do not extend, relabel, or reuse its consumed authorization, profile, source
+pins, or manifest for the comprehensive follow-up.
 
-## Publication
+## 3. Prohibited and higher-risk operations
 
-- For tested, public-safe development changes, publication is part of task completion: inspect the complete staged diff, check for credentials and private data, run appropriate tests and security scans, commit verified changes, push an appropriate feature branch, and create or update the relevant PR. Do not wait for a separate request to push or open a PR. Reuse an appropriate existing PR. Inspect and follow current GitHub rulesets and protections; never bypass them. Verify the remote commit SHA and check GitHub Actions and CodeQL; investigate and address actionable failures.
-- Never publish private Honda research, firmware, captures, credentials, identifying material, or a historical branch containing private data. If a branch contains such material, publish only a clean public branch based on the appropriate public base.
-- Use `@ECC` when available and seek separate independent code and security reviews for relevant changes. Never claim independent approval or fabricate review results. If no actual independent reviewer is available, run available static checks and security scans, document the missing review, and do not merge changes that require mandatory independent review. Independently inspected, public-safe, tested synthetic laboratory work may be published to a non-merged feature branch and PR while review is outstanding. Missing independent review does not block a verified local commit.
-- Never automatically merge Honda integration, receiver authentication or security, vehicle-control, factory-warning, or `safeForHonda()` changes; unverified or failing code; or historical branches containing private data. Keep auto-merge disabled for these categories and use the existing protected-main workflow. Do not weaken Honda safety gates.
-- Never force-push, discard local work, remove worktrees, or delete research files as part of routine campaign cleanup.
+- No driving during testing; no CAN/control-message transmission.
+- Never interfere with, suppress, or deliberately trigger factory warnings.
+- No unreviewed firmware, system, receiver, cluster, or display modification.
+- No unapproved persistent software installation or startup change.
+- No unreviewed debugger attachment, ptrace, process injection, or live code
+  patching.
+- No credential, authentication-secret, or protected process-memory
+  extraction.
+- No unauthorized privilege escalation, branch-protection bypass, or
+  authorization-check bypass.
+- Vehicle-related policy, receiver authentication/security, factory-warning,
+  `safeForHonda()`, and deployment changes must not be auto-merged. Follow the
+  protected-main review process.
+- Publication and CI must never connect to or issue commands to the Honda.
+- No vehicle operation under this engineering task. `safeForHonda()` remains
+  `false`; `VEHICLE_DEPLOYMENT_NOT_AUTHORIZED` remains in force.
 
-## Mandatory local execution and GitHub checkpoints
+## 4. Execution behavior
 
-- Execute ClarityLink work locally on the authorized Mac. REA/Ghidra/JADX, macOS development tools, Android API 17 build tools, USB/test equipment, and separately authorized private evidence remain local. Do not move development to Codex Cloud and do not create another repository.
-- `origin` must identify `bmreyes25/ClarityLink`. Use the `gh` credential helper/Keychain-backed login; never put credentials in files, commands, or logs. Do not weaken sandboxing globally.
-- Every coherent approved development unit must end with a live GitHub checkpoint before unrelated work begins. A local commit, clean worktree, or Codex response is not proof of publication. Verify `git ls-remote` SHA equals local `HEAD` using `tools/verify_remote_publication.py`.
-- Use `tools/publish_checkpoint.sh` with explicit task ID, branch, file list, message, verification level, optional existing PR, and `--public-safe-reviewed` only after reviewing every scoped file. Never stage repository-wide. Review full staged content and classify ignored files before publication. The designated maintenance workflow alone may use `--maintenance-owner` for shared status files.
-- `VERIFIED` requires a successful verification command. `WIP_UNVERIFIED` may be pushed only when its entire explicit scope is public-safe; this repository is public, so never include newly sensitive or restricted material. Clearly label WIP, do not create a PR for a first WIP, resume on the same branch, and never merge it automatically. Record failing or incomplete checks honestly.
-- Never publish a WIP or any source whose public safety is uncertain. Preserve it locally and use an approved restricted backup; report that exception and blocker. No publish operation requires or triggers car access.
-- Each concurrent Codex session owns its own feature branch/worktree and explicit file scope. Do not switch to, update, or publish another session's branch. Do not routinely edit shared roadmap/status files; only a designated maintenance task reconciles canonical global status.
-- Read actual remote ancestry before branch changes. Do not create speculative merges or rewrite history to make a branch appear current. Never force-push or push directly to protected `main`.
-- A final PASS requires remote SHA verification. Every final development report includes repository, branch, local SHA, remote SHA, commit URL, PR URL (or none), tests, worktree status, unpushed commit count, uncommitted source count, and pending blockers. If any source or commit is unpublished, say so and do not report completion.
-- `.codex/hooks.json` configures read-only SessionStart and Stop audits. The Stop hook may request another bounded turn but must never commit/push unknown files; honor `stop_hook_active` and report a blocker after the continuation has already been used. Hooks are not crash protection and run only after project trust approval in Codex Desktop.
-- `tools/check_source_discovery.py` reports source-like files excluded by ignore rules. Review each result; never auto-add ignored files.
-- Maintain `safeForHonda() == false`. Honda/ADB/vehicle use remains separately gated and owner-authorized; publication and CI must never connect to the car.
+- An unavailable live-vehicle authorization must not prevent independently
+  permitted offline engineering. Complete authorized implementation, testing,
+  documentation, and publication, then name the exact live gate that remains.
+- Continue after routine patch failures, test failures, races, and review
+  findings. Diagnose causes, use smaller edits when broad patches fail, repair
+  defects, and rerun affected checks.
+- Avoid repeated audits that do not answer a new question. Preserve existing
+  worktrees, unrelated changes, and private research.
+- Ask the owner only for decisions that cannot be resolved from the repository
+  or existing authorization. Do not treat a missing live permission as a
+  reason to stop unrelated offline work.
+- Never treat an unattempted objective as completed. Never equate command
+  success with evidence success. Label `CONFIRMED`, `NOT_OBSERVED`,
+  `NOT_COLLECTED`, `PERMISSION_DENIED`, `UNSUPPORTED`,
+  `BLOCKED_PENDING_AUTHORIZATION`, `FAILED`, and `UNRESOLVED` accurately.
+- Separate `ENGINEERING READY`, `LIVE READY`, and `EVIDENCE COMPLETE`. AI
+  review is technical review, not qualified vehicle-safety certification.
+- Do not weaken tests, safety gates, evidence requirements, or privacy controls
+  to make a report pass.
 
-## Non-negotiable safety boundaries
+## 5. Repository and publication workflow
 
-- `safeForHonda()` must remain false.
-- Do not perform automatic vehicle access, Honda ADB operations outside the narrow, effectively adopted C-P process, authentication bypasses, firmware modifications, private display-control operations, or CAN transmission. C-P does not authorize automation beyond the reviewed fixed profile and interactive owner-guided transitions.
-- Do not use destructive Git commands or reset/overwrite existing worktrees.
+- At task start, read this file, identify repository/worktree/branch/HEAD,
+  fetch `origin`, record local and untracked changes, unpublished commits,
+  related worktrees, and relevant GitHub protection. Preserve unrelated work.
+- Execute ClarityLink work locally on the authorized Mac. `origin` must be
+  `bmreyes25/ClarityLink`; use the configured `gh` credential helper and never
+  put credentials in commands, files, or logs.
+- Keep each development unit focused. Run its relevant checks, inspect every
+  scoped file for privacy and public safety, and commit verified work before
+  starting unrelated work. Do not claim verification for another tree or
+  commit.
+- For public-safe verified changes, use
+  `tools/publish_checkpoint.sh` with an explicit task, branch, file list,
+  message, and verification command. Never stage repository-wide or unknown
+  files. Do not push directly to protected `main`, force-push, auto-merge
+  vehicle-related policy changes, or remove existing worktrees.
+- Check current rulesets, remote SHA, PR checks, CI, and CodeQL. A local commit
+  is not publication. Never publish private vehicle evidence or a branch
+  containing private material.
+- Never invent or overstate Claude, ECC, independent technical, or qualified
+  vehicle-safety reviews. If a reviewer is unavailable, report that fact and
+  leave any required review gate open. AI review is not vehicle-safety
+  certification.
+- `tools/check_source_discovery.py` results require manual review. Never
+  auto-add ignored files.
+- Final reports give repository, branch, local/remote SHA, commit and PR links,
+  tests, worktree state, unpushed/uncommitted counts, review/CI status, and
+  blockers. Unknown values must be stated as unverified.
 
-## ClarityLink development authorization
+## 6. Primary goal and invariant
 
-- Offline factory APK/native-binary research, decompiled-code analysis, adapter prototypes, reversible modification prototypes, synthetic receiver/cluster simulation, API17 emulator work, disconnect/recovery regression tests, and separately approved bench-only experiments are permitted within repository public/private-data rules.
-- Runtime hooks, factory delegate changes, display ownership/rendering changes, inter-process video delivery, in-memory extensions, binary modification proposals, and custom receiver lifecycle work require technical design and safety/security review before any vehicle use. They may be researched and prototyped offline.
-- Installation outside C-P, firmware/service replacement, persistent head-unit changes, cluster modifications, vehicle-side display experiments, connected-iPhone integration outside the exact reviewed C-P sequence, and any operation that may affect factory display behavior require separate explicit owner authorization and qualified vehicle-safety review. This authorization is not present by default. C-P is limited to the exact hash-pinned PR #118 profile and command manifest: read-only host diagnostics around only its owner-guided CarPlay and factory Navigation transitions. The prospective `C-P-MA-OWNER-ASSUMED-RISK` path requires protected-main adoption, required exact Codex/Claude technical review records and truthful optional ECC status (these AI reviews are not human certification), owner risk acceptance, exact target identity, stationary Park, parking brake, owner presence, ON mode with READY absent, unprivileged commands, pinned aggregate time/output limits, private host-only evidence, normal factory behavior, and immediate stop on unexpected behavior. The approved profile must stop if this power state does not support the required session; it must not escalate to READY or root. This does not authorize retries, scope changes, debug-setting changes, escalation, installation, process attachment/modification, firmware/CAN/display changes, warning interference, or driving tests. See `docs/safety/vehicle-testing.md` for the full boundary.
-- CAN/control-message experiments, warning suppression/interception, safety-critical ECU changes, unreviewed cluster firmware flashing, unrecoverable writes, authentication-secret extraction/disclosure, testing while driving, automatic deployment, and bypassing review/safety gates are prohibited.
-- Required design invariant: `CARPLAY_DISCONNECTED => FACTORY_BEHAVIOR_ONLY`. It is a target requiring evidence, not a demonstrated property. Do not set `safeForHonda()` true or represent offline permission as vehicle permission.
+The goal is genuine iPhone-origin Type111 video on factory Display 1 while
+factory Type110 CarPlay remains normal on Display 0 and all factory safety
+behavior retains priority. Synthetic, third-party, static, and Honda evidence
+are distinct and must not be conflated. Maintain:
+
+`safeForHonda() == false`
+
+`VEHICLE_DEPLOYMENT_NOT_AUTHORIZED`
