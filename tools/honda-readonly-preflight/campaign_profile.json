@@ -1596,7 +1596,7 @@
     "driving_test",
     "deployment"
   ],
-  "source_lock_sha256": "6be7bbb220721ccc94297b38ba53dad5ed47df1acb1a519d0ffede063c46919a",
+  "source_lock_sha256": "01a1d9552810045fc77b9cdf24da6a3090c1c32f767300d396bcecc94280b7a8",
   "target": {
     "android_release": "4.2.2",
     "android_sdk": "17",

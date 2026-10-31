@@ -926,10 +926,39 @@ class Campaign:
                     else:
                         self.capture.files.append(report_metadata)
                 except (OSError, ValueError, json.JSONDecodeError):
-                    # Preserve the file if it cannot be rewritten; the failure
-                    # card remains authoritative and the partial hash check below
-                    # will expose any inconsistency.
-                    pass
+                    # Atomic replacement can fail after a success report was
+                    # written. Try a minimal direct incomplete stub so a
+                    # transient rename/serialization failure cannot leave a
+                    # validly hashed success claim behind.
+                    fallback = {"status": "INCOMPLETE_FINALIZATION",
+                                "capture_hashes_verified": False,
+                                "completion_interruption_type": type(exc).__name__}
+                    try:
+                        report_path.write_text(json.dumps(fallback, sort_keys=True) + "\n",
+                                               encoding="utf-8")
+                        report_path.chmod(0o600)
+                        report_path.with_name(report_path.name + ".tmp").unlink(missing_ok=True)
+                        report_metadata = {"path": "completeness_report.json",
+                                           "size": report_path.stat().st_size,
+                                           "sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
+                                           "kind": "incomplete_completeness_report"}
+                        report_row = next((item for item in self.capture.files
+                                           if item.get("path") == "completeness_report.json"), None)
+                        if report_row is None:
+                            self.capture.files.append(report_metadata)
+                        else:
+                            report_row.update(report_metadata)
+                    except OSError:
+                        # If neither replacement nor cleanup works, omit the
+                        # stale report from the artifact index. The failure
+                        # card remains the authoritative stop record.
+                        for candidate in (report_path, report_path.with_name(report_path.name + ".tmp")):
+                            try:
+                                candidate.unlink(missing_ok=True)
+                            except OSError:
+                                pass
+                        self.capture.files = [item for item in self.capture.files
+                                              if item.get("path") != "completeness_report.json"]
             self.capture.stop_result = type(exc).__name__
             self.capture.phase_times.setdefault(self.current_phase, {})["finished_utc"] = datetime.now(timezone.utc).isoformat()
             last_command = self.capture.reader.records[-1] if self.capture.reader.records else {}

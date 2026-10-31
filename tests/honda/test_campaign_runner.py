@@ -803,6 +803,44 @@ def test_signal_during_second_finalize_downgrades_completion_report(tmp_path):
     assert "completeness_report.json" in campaign.verify_capture_hashes(output)
 
 
+def test_failed_completion_report_downgrade_writes_incomplete_fallback(tmp_path, monkeypatch):
+    runner, fake, output = _campaign(tmp_path)
+    handler = campaign._StopSignalHandler()
+    runner.stop_signal_handler = handler
+    original_finalize = fake.finalize
+    finalize_calls = 0
+
+    def finalize_then_signal(phase_order):
+        nonlocal finalize_calls
+        original_finalize(phase_order)
+        finalize_calls += 1
+        if finalize_calls == 2:
+            handler(campaign.signal.SIGTERM, None)
+
+    fake.finalize = finalize_then_signal
+    original_atomic_json = campaign._atomic_json
+    completion_writes = 0
+
+    def fail_completion_rewrite(path, value):
+        nonlocal completion_writes
+        if path.name == "completeness_report.json":
+            completion_writes += 1
+            if completion_writes == 2:
+                raise OSError("synthetic report rewrite failure")
+        return original_atomic_json(path, value)
+
+    monkeypatch.setattr(campaign, "_atomic_json", fail_completion_rewrite)
+    assert runner.run() is False
+    report = json.loads((output / "completeness_report.json").read_text())
+    assert report["status"] == "INCOMPLETE_FINALIZATION"
+    assert report["capture_hashes_verified"] is False
+    assert not (output / "completeness_report.json.tmp").exists()
+    failure = json.loads((output / "failure_card.json").read_text())
+    assert failure["actual"] == "SafetyStop"
+    assert failure["partial_hash_verification"] == "verified"
+    assert "completeness_report.json" in campaign.verify_capture_hashes(output)
+
+
 def test_final_restoration_is_attested_after_last_observation(tmp_path):
     runner, fake, _ = _campaign(tmp_path)
     events = []
