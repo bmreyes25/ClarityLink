@@ -1,0 +1,580 @@
+{
+  "approval": "independent qualified human review and separate exact owner authorization are required for every live stage; this file is not an approval",
+  "campaign_id": "CL-HONDA-ROOT-READ-EVIDENCE",
+  "exclusions": [
+    "/proc/<pid>/mem",
+    "credentials",
+    "environ",
+    "auth secrets",
+    "private keys",
+    "signals",
+    "ptrace",
+    "debugger attach",
+    "memory permission changes",
+    "process modification",
+    "helper upload/exec",
+    "adb root",
+    "settings/properties/mount changes",
+    "CAN",
+    "deployment"
+  ],
+  "limits": {
+    "fallback": false,
+    "max_command_output_bytes": 16777216,
+    "max_command_timeout_seconds": 30,
+    "max_fd_entries": 256,
+    "phase_upper_bounds": {
+      "R0_nonexecuting": {
+        "command_count": 9,
+        "output_bytes_sum": 442368,
+        "timeout_seconds_sum": 45
+      },
+      "R1_minimum_privilege_check": {
+        "command_count": 1,
+        "output_bytes_sum": 16384,
+        "timeout_seconds_sum": 5
+      },
+      "R2_targeted_metadata": {
+        "command_count": 276,
+        "output_bytes_sum": 55476224,
+        "timeout_seconds_sum": 1450
+      },
+      "R3_normal_carplay_correlation": {
+        "command_count": 828,
+        "output_bytes_sum": 166428672,
+        "timeout_seconds_sum": 4350
+      },
+      "human_transition_waits_included": false
+    },
+    "retry": false,
+    "stop_on_timeout_output_limit_permission_denial_or_identity_change": true
+  },
+  "private_evidence": {
+    "files": "mode 0600",
+    "manifest": "SHA-256 covers every evidence artifact",
+    "network_endpoints_and_process_metadata": "private; sanitized public summaries only",
+    "raw_output": "owner-only host directory outside Git, mode 0700"
+  },
+  "privilege": {
+    "executable": "/system/xbin/su",
+    "expected_sha256": "d95fdbb551aca66d8a81471ea7683f58dba75a09d5cdc4712209b955574eab26",
+    "group_other_writable": false,
+    "invocation": "-c",
+    "required_owner": "root",
+    "required_setuid": true,
+    "zero_target_write": "NOT ESTABLISHED; review must explicitly accept possible SuperSU state/log/daemon writes"
+  },
+  "schema_version": 1,
+  "socket_attribution": "only exact jmcs fd symlink socket:[inode] correspondence to /proc/net rows; otherwise unattributed",
+  "source_lock_sha256": "a83a3ad4fdbc7c2db2e7b2d865ae97bb78d2c5ec7e6351c90a9440e8f82215b9",
+  "stages": [
+    {
+      "elevated": false,
+      "id": "R0_nonexecuting",
+      "operations": [
+        {
+          "argv": [
+            "adb",
+            "-s",
+            "<EXACT_SERIAL>",
+            "shell",
+            "id"
+          ],
+          "max_output_bytes": 16384,
+          "operation": "id",
+          "timeout_seconds": 5
+        },
+        {
+          "argv": [
+            "adb",
+            "-s",
+            "<EXACT_SERIAL>",
+            "shell",
+            "cat",
+            "/proc/version"
+          ],
+          "max_output_bytes": 65536,
+          "operation": "kernel_identity",
+          "timeout_seconds": 5
+        },
+        {
+          "argv": [
+            "adb",
+            "-s",
+            "<EXACT_SERIAL>",
+            "shell",
+            "getprop",
+            "<one fixed Android identity property>"
+          ],
+          "max_output_bytes": 65536,
+          "operation": "identity_properties",
+          "properties": [
+            "ro.build.version.release",
+            "ro.build.version.sdk",
+            "ro.product.device",
+            "ro.product.board",
+            "ro.hardware"
+          ],
+          "timeout_seconds": 5
+        },
+        {
+          "argv": [
+            "adb",
+            "-s",
+            "<EXACT_SERIAL>",
+            "shell",
+            "sha256sum",
+            "/system/xbin/su"
+          ],
+          "max_output_bytes": 16384,
+          "operation": "sha256sum",
+          "timeout_seconds": 5
+        },
+        {
+          "argv": [
+            "adb",
+            "-s",
+            "<EXACT_SERIAL>",
+            "shell",
+            "ls",
+            "-l",
+            "/system/xbin/su"
+          ],
+          "max_output_bytes": 16384,
+          "operation": "ls_metadata",
+          "timeout_seconds": 5
+        }
+      ],
+      "purpose": "Check target identity and su file metadata/hash without executing su; stop if fingerprint or mode fails."
+    },
+    {
+      "elevated": true,
+      "id": "R1_minimum_privilege_check",
+      "operations": [
+        {
+          "command": "/system/xbin/su -c id",
+          "expected": "exit 0 and uid=0; any prompt, denial or unexpected state stops",
+          "max_output_bytes": 16384,
+          "operation": "identity",
+          "timeout_seconds": 5
+        }
+      ]
+    },
+    {
+      "elevated": true,
+      "id": "R2_targeted_metadata",
+      "operations": [
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16384,
+          "operation": "identity",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "stat"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "status"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 262144,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "cmdline"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_exe_link",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "maps"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 4194304,
+          "operation": "process_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "smaps"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16777216,
+          "operation": "process_read",
+          "timeout_seconds": 30
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "fd_list",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "<FD_NONNEGATIVE_32BIT>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "fd_link_each",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "tcp"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "tcp6"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "udp"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "udp6"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "unix"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "stat"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "status"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 262144,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "cmdline"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_exe_link",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16384,
+          "operation": "identity",
+          "timeout_seconds": 5
+        }
+      ],
+      "phases": [
+        "R2_baseline_disconnected"
+      ]
+    },
+    {
+      "elevated": true,
+      "id": "R3_normal_carplay_correlation",
+      "operations": [
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16384,
+          "operation": "identity",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "stat"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "status"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 262144,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "cmdline"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_exe_link",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "maps"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 4194304,
+          "operation": "process_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "smaps"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16777216,
+          "operation": "process_read",
+          "timeout_seconds": 30
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "fd_list",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "<FD_NONNEGATIVE_32BIT>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "fd_link_each",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "tcp"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "tcp6"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "udp"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "udp6"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "unix"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "network_read",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 2097152,
+          "operation": "ps",
+          "timeout_seconds": 10
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "stat"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "status"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 262144,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>",
+            "cmdline"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_read",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [
+            "<JMCS_PID>"
+          ],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 65536,
+          "operation": "process_exe_link",
+          "timeout_seconds": 5
+        },
+        {
+          "arguments": [],
+          "failure_policy": "stop_without_retry",
+          "max_output_bytes": 16384,
+          "operation": "identity",
+          "timeout_seconds": 5
+        }
+      ],
+      "owner_transitions": [
+        "normal stock CarPlay connect",
+        "normal disconnect"
+      ],
+      "phases": [
+        "R3_before_connect_disconnected",
+        "R3_carplay_connected",
+        "R3_post_disconnect"
+      ]
+    }
+  ],
+  "status": "REVIEW_REQUIRED_LIVE_DISABLED",
+  "target": {
+    "android_release": "4.2.2",
+    "android_sdk": "17",
+    "expected_gid": "0",
+    "expected_uid": "0",
+    "hardware": "vcm30t30",
+    "process": "/system/bin/jmcs",
+    "product_board": "Andromeda",
+    "product_device": "vcm30t30a"
+  },
+  "transport": "one exact owner-approved existing ADB serial; never auto-enumerate"
+}

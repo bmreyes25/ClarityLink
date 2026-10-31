@@ -1,0 +1,23 @@
+{
+  "campaign_id": "CL-HONDAHACK-DISPLAY-OBSERVATION",
+  "schema_version": 1,
+  "status": "REVIEW_REQUIRED_NOT_AUTHORIZED",
+  "vehicle": "2018 Honda Clarity PHEV Touring",
+  "head_unit": "MY16ADA Android 4.2.2 API 17",
+  "method": "existing HondaHack casting UI plus ordinary factory controls; owner observation only",
+  "phases": [
+    "factory_cluster_baseline",
+    "casting_disabled",
+    "normal_start_casting",
+    "factory_navigation_active",
+    "navigation_deselected",
+    "navigation_reselected",
+    "normal_stop_casting",
+    "factory_display_restoration"
+  ],
+  "excluded": [
+    "ADB", "su", "Xposed hooks", "APK installation", "warning generation", "service restart",
+    "cluster firmware modification", "receiver modification", "direct display control", "vehicle while driving"
+  ],
+  "approval": "separate qualified human safety review and exact owner authorization required"
+}
