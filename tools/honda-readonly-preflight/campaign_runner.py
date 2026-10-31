@@ -89,6 +89,8 @@ BASELINE_COMMAND_MANIFEST_SHA256 = "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc
 SCOPE_EXCLUSIONS = ["root_or_su", "adb_root", "instrumentation_or_process_attachment",
                     "HondaHack", "receiver_or_display_modification", "firmware", "CAN_or_vehicle_control",
                     "warning_interference", "driving_test", "deployment"]
+CONSUMED_AUTHORIZATIONS_DIR = (Path.home() / "Library" / "Application Support" /
+                               "ClarityLink" / "C-P" / "consumed-approvals")
 
 
 @dataclass(frozen=True)
@@ -269,7 +271,7 @@ def profile_payload() -> dict[str, object]:
             for path in POLICY_FILES
         },
         "authorization_category": AUTHORIZATION_CATEGORY,
-        "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional only when unavailable with a truthful reason and owner attestation that no completed review is withheld; any completed ECC review must be provided; validator cannot independently prove availability or truthfulness; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
+        "review_semantics": "required hash-bound Codex and Claude AI engineering reviews; ECC is optional only when unavailable with a truthful reason and owner attestation that no completed review is withheld; any completed ECC review must be provided; validator cannot independently prove ECC availability or attestation truthfulness; each accepted owner approval ID is persistently consumed before ADB; separate owner-assumed-risk authorization; not human safety certification or a safety finding",
         "approved_vehicle_power_state": APPROVED_POWER_STATE,
         "scope_exclusions": SCOPE_EXCLUSIONS,
         "campaign_bounds": {
@@ -284,7 +286,7 @@ def profile_payload() -> dict[str, object]:
             ],
             "no_collection_during_operator_transition_waits": True,
         },
-        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation, but approval file is not persistently consumed; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
+        "approval_semantics": "owner risk acceptance is separate from required hash-bound Codex and Claude AI reviews and truthful optional ECC status plus non-withholding owner attestation when unavailable; validator cannot inspect external services or prove attestation truthfulness; each invocation needs fresh nonce-bound owner confirmation and the approval ID is atomically consumed in a private host ledger after YES and before ADB; records do not authenticate agent identity, independence, competence, ECC availability, or vehicle safety",
         "host_adb_server": "may remain running after the adb client exits; campaign does not stop a shared host server",
         "prohibitions": ["auto_serial", "adb_devices", "network_scan", "su", "adb_root",
                          "setting_changes", "install", "write", "signal", "ptrace",
@@ -451,6 +453,63 @@ def validate_private_capture_root(path: Path) -> Path:
     return output_root
 
 
+def _authorization_marker_path(authorization_id: object) -> Path:
+    if not isinstance(authorization_id, str) or not re.fullmatch(r"[0-9a-f]{32}", authorization_id):
+        raise SafetyStop("owner approval ID is malformed")
+    state_dir = CONSUMED_AUTHORIZATIONS_DIR
+    if state_dir.is_symlink() or (state_dir.exists() and not state_dir.is_dir()):
+        raise SafetyStop("consumed-approval state directory must be a real directory")
+    if state_dir.exists() and (state_dir.stat().st_uid != os.getuid()
+                               or state_dir.stat().st_mode & 0o777 != 0o700):
+        raise SafetyStop("consumed-approval state directory must be owner-only (mode 0700)")
+    marker = state_dir / f"{authorization_id}.json"
+    if marker.is_symlink() or marker.exists():
+        raise SafetyStop("owner approval ID has already been consumed")
+    return marker
+
+
+def assert_authorization_unused(authorization_id: object) -> None:
+    """Fail closed if this private approval ID was accepted in an earlier invocation."""
+    _authorization_marker_path(authorization_id)
+
+
+def consume_authorization(authorization_id: object, *, reviewed_commit_sha: str,
+                         profile_hash: str) -> Path:
+    """Persist one-use state after YES and before any capture directory or ADB client."""
+    marker = _authorization_marker_path(authorization_id)
+    state_dir = marker.parent
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise SafetyStop("host lacks required no-follow directory protections for authorization ledger")
+    dir_fd: int | None = None
+    try:
+        state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if (state_dir.is_symlink() or not state_dir.is_dir()
+                or state_dir.stat().st_uid != os.getuid()
+                or state_dir.stat().st_mode & 0o777 != 0o700):
+            raise SafetyStop("consumed-approval state directory is not owner-controlled")
+        dir_fd = os.open(state_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        fd = os.open(marker.name, flags, 0o600, dir_fd=dir_fd)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump({"authorization_id": authorization_id,
+                       "reviewed_commit_sha": reviewed_commit_sha,
+                       "profile_sha256": profile_hash,
+                       "consumed_utc": datetime.now(timezone.utc).isoformat()}, stream,
+                      sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.fsync(dir_fd)
+    except FileExistsError as exc:
+        raise SafetyStop("owner approval ID has already been consumed") from exc
+    except (OSError, ValueError) as exc:
+        raise SafetyStop("unable to persist one-use owner approval before ADB") from exc
+    finally:
+        if dir_fd is not None:
+            os.close(dir_fd)
+    return marker
+
+
 def verify_effective_policy(policy_commit_sha: str, reviewed_commit_sha: str | None = None,
                             *, run: Callable[..., object] = subprocess.run) -> None:
     """Require the adopted policy on a fresh, clean local main checkout.
@@ -593,9 +652,9 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
 
     The review/risk file cannot authorize execution by itself and never stores
     a reusable YES. Each invocation creates a fresh challenge before capture or
-    ADB setup. This is per-invocation confirmation, not persistent consumption of
-    the approval file; operator discipline prohibits relaunch after a stop without
-    resolving the cause and obtaining a new explicit owner decision.
+    ADB setup. After YES and revalidation, the approval ID is atomically consumed
+    in a private host ledger before any capture directory or ADB client exists.
+    An interrupted run requires a new owner-reviewed approval ID.
     """
     if input_fn is None:
         input_fn = _read_owner_input
@@ -605,6 +664,7 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     phrase = f"YES {nonce}"
     output_fn("FINAL ONE-RUN AUTHORIZATION — review, do not infer any scope beyond this prompt.")
     output_fn("Owner: Ben Reyes | Vehicle: 2018 Honda Clarity PHEV Touring")
+    output_fn(f"One-use owner approval ID: {approval['authorization_id']}")
     output_fn(f"Exact ADB serial: {serial}")
     output_fn(f"Reviewed protected-main commit: {approval['reviewed_commit_sha']}")
     output_fn(f"Profile SHA-256: {profile_hash}")
@@ -624,8 +684,8 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
     output_fn("Privacy: bounded raw dumpsys stdout/stderr is retained in this private directory and may include window/app titles or identifying metadata; logcat source lines are not retained.")
     output_fn("Compatibility risk: this head unit has not demonstrated support for the fixed API17 logcat -d -t 500 form; unsupported or unexpected output stops the session without substitution.")
     output_fn("Interruption: do not retry after a stop. SIGKILL, power loss, or runtime failure may leave incomplete evidence; host cleanup cannot guarantee a remote child has stopped after ADB exits.")
-    output_fn("This nonce authorizes this invocation only. A later invocation would require a fresh challenge, but the tool does not persistently consume the private approval record; do not relaunch after a stop or interruption without resolving the cause and making a new explicit owner decision.")
-    output_fn("No capture directory or failure card is created if interrupted during this prompt because collection has not started.")
+    output_fn("A matching YES consumes this approval ID in an owner-only host ledger before any capture directory or ADB client is created. This exact approval cannot be reused; a future attempt requires a new owner-reviewed approval record with a new ID and a fresh challenge. If the private ledger cannot be written, the run stops before ADB.")
+    output_fn("Declining or interrupting before exact YES leaves this approval ID unused; no capture directory or failure card is created because collection has not started.")
     output_fn("Scope: the fixed eight-phase passive profile only. AI reviews are not human safety certification.")
     output_fn("No root, su, HondaHack, instrumentation, receiver/display modification, firmware, CAN, warning changes, driving, or deployment.")
     response = input_fn(f'Type exactly "{phrase}" to authorize this one run; anything else stops: ')
@@ -633,6 +693,7 @@ def authorize_owner_one_run(approval: dict[str, object], serial: str, profile_ha
         raise SafetyStop("owner did not confirm the fresh one-run authorization challenge")
     return {"owner": "Ben Reyes", "decision": "YES", "authorized_utc": datetime.now(timezone.utc).isoformat(),
             "authorization_nonce": nonce, "single_run": True,
+            "authorization_id": approval["authorization_id"],
             "vehicle": "2018 Honda Clarity PHEV Touring", "adb_serial": serial,
             "capture_id": capture_id, "capture_path": str(capture_path),
             "profile_sha256": profile_hash, "source_hashes": source_hashes_verified,
@@ -671,6 +732,7 @@ def validate_approval(path: Path, *, profile_hash: str,
         raise SafetyStop("stored approval cannot authorize a run; fresh one-run confirmation is required")
     if set(approval) != set(_approval_template(profile_hash, source_hashes_verified)):
         raise SafetyStop("approval record contains unknown or missing fields")
+    assert_authorization_unused(approval.get("authorization_id"))
     if approval.get("profile_sha256") != profile_hash:
         raise SafetyStop("approval profile hash does not match the pinned campaign")
     if approval.get("source_hashes") != source_hashes_verified:
@@ -1143,6 +1205,7 @@ class Campaign:
 def _approval_template(profile: str, sources: dict[str, str]) -> dict[str, object]:
     return {"campaign_id": CAMPAIGN_ID,
             "authorization_category": AUTHORIZATION_CATEGORY,
+            "authorization_id": secrets.token_hex(16),
             "owner_identity": "Ben Reyes",
             "owner_risk_acceptance": False,
             "vehicle": "2018 Honda Clarity PHEV Touring",
@@ -1213,6 +1276,10 @@ def main(argv: list[str] | None = None) -> int:
         revalidate_after_owner_authorization(
             args.approval_file, approval=approval, serial=serial, profile_hash=profile_hash,
             source_hashes_verified=verified_sources)
+        consumed_marker = consume_authorization(
+            approval["authorization_id"], reviewed_commit_sha=approval["reviewed_commit_sha"],
+            profile_hash=profile_hash)
+        run_authorization["consumed_marker_path"] = str(consumed_marker)
         output_root = validate_private_capture_root(args.output_root)
         output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         if output_root.stat().st_mode & 0o777 != 0o700:

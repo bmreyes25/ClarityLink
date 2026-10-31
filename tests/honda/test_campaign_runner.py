@@ -469,9 +469,11 @@ def test_one_run_authorization_requires_fresh_exact_challenge_and_binds_scope(tm
     assert "ECC review service unavailable" in printed_text
     assert "no completed review withheld: True" in printed_text
     assert "validator cannot independently verify" in printed_text
-    assert "tool does not persistently consume the private approval record" in printed_text
+    assert "consumes this approval ID in an owner-only host ledger" in printed_text
+    assert "This exact approval cannot be reused" in printed_text
+    assert "ledger cannot be written" in printed_text
     assert "Reviewed protected-main commit: " + approval["reviewed_commit_sha"] in printed_text
-    assert "No capture directory or failure card is created if interrupted during this prompt" in printed_text
+    assert "interrupting before exact YES leaves this approval ID unused" in printed_text
 
 
 def test_one_run_authorization_rejects_wrong_fresh_challenge(tmp_path):
@@ -483,6 +485,43 @@ def test_one_run_authorization_rejects_wrong_fresh_challenge(tmp_path):
             "SYNTHETIC-CAPTURE-ID", tmp_path / "private-capture" / "SYNTHETIC-CAPTURE-ID",
             input_fn=lambda _: "YES stale-challenge",
             output_fn=lambda _: None, nonce_fn=lambda _: "abc123abc123")
+    campaign.assert_authorization_unused(approval["authorization_id"])
+
+
+def test_owner_authorization_id_is_persistently_consumed_once(tmp_path, monkeypatch):
+    ledger = tmp_path / "private-state" / "consumed-approvals"
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR", ledger)
+    approval_id = "a" * 32
+    campaign.assert_authorization_unused(approval_id)
+    marker = campaign.consume_authorization(
+        approval_id, reviewed_commit_sha="b" * 40, profile_hash="c" * 64)
+    assert marker.is_file()
+    assert marker.stat().st_mode & 0o777 == 0o600
+    assert ledger.stat().st_mode & 0o777 == 0o700
+    record = json.loads(marker.read_text())
+    assert record["authorization_id"] == approval_id
+    assert record["reviewed_commit_sha"] == "b" * 40
+    assert record["profile_sha256"] == "c" * 64
+    with pytest.raises(collector.SafetyStop, match="already been consumed"):
+        campaign.assert_authorization_unused(approval_id)
+    with pytest.raises(collector.SafetyStop, match="already been consumed"):
+        campaign.consume_authorization(
+            approval_id, reviewed_commit_sha="b" * 40, profile_hash="c" * 64)
+
+
+def test_authorization_id_rejects_symlinked_ledger(tmp_path, monkeypatch):
+    target = tmp_path / "target-ledger"
+    target.mkdir(mode=0o700)
+    link = tmp_path / "ledger-link"
+    link.symlink_to(target, target_is_directory=True)
+    monkeypatch.setattr(campaign, "CONSUMED_AUTHORIZATIONS_DIR", link)
+    with pytest.raises(collector.SafetyStop, match="real directory"):
+        campaign.assert_authorization_unused("d" * 32)
+
+
+def test_authorization_id_rejects_malformed_value():
+    with pytest.raises(collector.SafetyStop, match="approval ID is malformed"):
+        campaign.assert_authorization_unused("../bad")
 
 
 def test_approval_requires_effective_policy_attestation(tmp_path):
