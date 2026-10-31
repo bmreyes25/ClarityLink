@@ -11,7 +11,7 @@
   },
   "live_execution_enabled": false,
   "live_authorization": "NOT_AUTHORIZED",
-  "controller": "NONE: proposal only; not consumable by the historical C-P runner",
+  "controller": "tools/honda-readonly-preflight/comprehensive_controller.py; live sessions require a valid private one-use authorization and exact review gates",
   "host": "existing authorized Mac; offline preparation only",
   "target": "2018 Honda Clarity PHEV Touring, MY16ADA; private identity required at a future review",
   "execution_bounds_proposal": {
@@ -29,7 +29,7 @@
       "combined_stdout_stderr_bytes": 4194304,
       "enforced_by": "future fixed-operation controller must reject every operation exceeding these ceilings before spawning adb"
     },
-    "process_placeholder_binding": "Resolve exactly one jmcs PID from the existing ps parser; accept decimal PID 1..4194304 only. Bind it to /proc/PID/stat start-time ticks, /proc/PID/cmdline naming /system/bin/jmcs, /proc/PID/status root UID/GID, and ls -l /proc/PID/exe -> /system/bin/jmcs. Substitute PID only as a single argv element, never via shell interpolation. Revalidate all four identity facts before and after every steady-state capture.",
+    "process_placeholder_binding": "Only a separately justified Phase 3 privileged read may substitute a validated PID as one argv element. Before/after that exact read, Revalidate all four identity facts: bind PID to stat start-time ticks, cmdline /system/bin/jmcs, root UID/GID, and exe symlink /system/bin/jmcs. Ordinary observations use ps PID continuity and make no start-time claim.",
     "command_form": "Every listed command is a fixed argv vector; no shell string executor, command concatenation, or caller-provided argv is permitted."
   },
   "global_stop_conditions": [
@@ -71,54 +71,13 @@
       "id": "phase1_ordinary_adb_capability",
       "category": "ordinary_unprivileged_adb",
       "authorization_status": "SEPARATE_EXACT_RUN_APPROVAL_REQUIRED",
+      "owner_actions": [
+        "confirm the exact physical Honda identity against the owner-private vehicle reference and verify its existing authorized ADB serial",
+        "confirm the endpoint is already authorized; do not enumerate devices, scan, change transport, use adb root, or change settings",
+        "confirm the owner-only local evidence directory, free capacity, mode 0700, files mode 0600, and cloud sync disabled",
+        "review the fixed target properties, evidence question, current source/profile/manifest pins, stop conditions, and recovery prerequisites"
+      ],
       "commands": [
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ps"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "id"
-        ],
         [
           "adb",
           "-s",
@@ -164,104 +123,21 @@
           "-s",
           "<private-approved-serial>",
           "shell",
-          "getprop",
-          "ro.secure"
+          "id"
         ],
         [
           "adb",
           "-s",
           "<private-approved-serial>",
           "shell",
-          "getprop",
-          "ro.debuggable"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "display"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "SurfaceFlinger"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "window"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "display"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "SurfaceFlinger"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "window"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
+          "ps"
         ]
       ],
-      "owner_actions": [],
       "stop": "Any target/process mismatch, permission denial, unsupported API17 command, timeout, output limit, warning, transport error, or abnormal factory behavior.",
       "per_command_timeout_seconds": 20,
       "per_command_output_limit_bytes": 4194304,
-      "failure_policy": "stop immediately; do not retry"
+      "failure_policy": "stop immediately; do not retry",
+      "identity_revalidation": "Verify the exact API-17 target properties, ordinary shell UID/GID, and exactly one jmcs PID before any later observation. Start-time and executable identity are reserved for the blocked privileged Phase 3 method."
     },
     {
       "id": "phase2_existing_root_supersu_review",
@@ -317,6 +193,9 @@
       "states": [
         "disconnected_baseline",
         "stock_carplay_connected",
+        "navigation_selected",
+        "navigation_deselected",
+        "navigation_reselected",
         "disconnected_again",
         "stock_carplay_reconnected",
         "final_disconnected"
@@ -328,39 +207,6 @@
           "<private-approved-serial>",
           "shell",
           "ps"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
         ],
         [
           "adb",
@@ -443,47 +289,18 @@
           "-d",
           "-t",
           "500"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
         ]
       ],
       "commands_apply_at_each_steady_state": true,
       "identity_revalidation": "At every steady state, run stat, cmdline, status and exe-link checks as a bracket; require the same PID/start-time, cmdline /system/bin/jmcs, root UID/GID and executable symlink /system/bin/jmcs before and after all display, network, and log reads.",
       "owner_actions": [
-        "connect once through the normal stock flow",
-        "disconnect through the normal user flow",
-        "reconnect through the normal stock flow",
+        "confirm the disconnected factory baseline",
+        "connect once through the normal stock CarPlay flow and wait for the active steady state",
+        "use the normal factory control to select Navigation while stock CarPlay is active",
+        "use the normal factory control to deselect Navigation",
+        "use the normal factory control to reselect Navigation",
+        "disconnect through the normal owner-operated flow",
+        "reconnect through the normal stock flow and wait for the active steady state",
         "disconnect once more through the normal user flow"
       ],
       "capture_during_transition": false,
@@ -493,7 +310,9 @@
       "per_command_output_limit_bytes": 4194304,
       "failure_policy": "stop immediately; do not retry",
       "log_collection_purpose": "A bounded log snapshot at each steady state is a comparative diagnostic input for lifecycle/event deltas, not a repeated search for a success marker; no capture during transitions; logs remain private; missing /info or SETUP markers remains NOT_OBSERVED and never implies Type111 support.",
-      "logcat_capture_count_per_steady_state": 1
+      "logcat_capture_count_per_steady_state": 1,
+      "process_identity_revalidation": "At each stable state require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method.",
+      "comparative_purpose": "Each steady-state snapshot is compared with the disconnected baseline and adjacent state to measure stock CarPlay, Navigation, reconnect, display, log, and USB-network deltas. Identical source hashes are reported as unchanged, not counted as new evidence."
     },
     {
       "id": "phase5_display1_navigation_lifecycle",
@@ -510,33 +329,7 @@
           "-s",
           "<private-approved-serial>",
           "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
+          "ps"
         ],
         [
           "adb",
@@ -561,39 +354,6 @@
           "shell",
           "dumpsys",
           "window"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
         ]
       ],
       "owner_actions": [
@@ -606,7 +366,7 @@
       "per_command_timeout_seconds": 20,
       "per_command_output_limit_bytes": 4194304,
       "failure_policy": "stop immediately; do not retry",
-      "process_identity_revalidation": "Bracket each steady-state snapshot with stat, cmdline, status and exe-link checks; require stable PID/start-time, /system/bin/jmcs command line, root UID/GID, and /system/bin/jmcs executable symlink."
+      "process_identity_revalidation": "At each observation, require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method."
     },
     {
       "id": "phase6_existing_hondahack_casting",
@@ -631,33 +391,7 @@
           "-s",
           "<private-approved-serial>",
           "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
+          "ps"
         ],
         [
           "adb",
@@ -682,39 +416,6 @@
           "shell",
           "dumpsys",
           "window"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
         ]
       ],
       "owner_actions": [
@@ -733,7 +434,7 @@
       "per_command_output_limit_bytes": 4194304,
       "failure_policy": "stop immediately; do not retry",
       "qualified_vehicle_safety_review": "REQUIRED before any live HondaHack casting observation because Display 1 is directly involved; no conditional exception.",
-      "process_identity_revalidation": "Bracket each steady-state snapshot with stat, cmdline, status and exe-link checks; require stable PID/start-time, /system/bin/jmcs command line, root UID/GID, and /system/bin/jmcs executable symlink."
+      "process_identity_revalidation": "At each observation, require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method."
     },
     {
       "id": "phase7_recovery_restoration",
@@ -746,39 +447,6 @@
           "<private-approved-serial>",
           "shell",
           "ps"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
         ],
         [
           "adb",
@@ -803,39 +471,6 @@
           "shell",
           "dumpsys",
           "window"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/stat"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/cmdline"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "cat",
-          "/proc/<verified-jmcs-pid>/status"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ls",
-          "-l",
-          "/proc/<verified-jmcs-pid>/exe"
         ]
       ],
       "owner_checks": [
@@ -858,7 +493,12 @@
       "per_command_timeout_seconds": 20,
       "per_command_output_limit_bytes": 4194304,
       "failure_policy": "stop immediately; do not retry",
-      "process_identity_revalidation": "Require the reviewed exact process path and the same PID/start-time, cmdline, UID/GID, and executable symlink before and after the restoration snapshot."
+      "process_identity_revalidation": "At each observation, require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method.",
+      "owner_actions": [
+        "restore the owner-defined factory display and Navigation baseline using ordinary controls before final observation",
+        "confirm no abnormal warning and normal Display 1, center display, cluster, Navigation, and audio behavior",
+        "confirm host evidence finalization only; no vehicle power-off, automatic retry, or next experiment"
+      ]
     }
   ],
   "post_session_instrumentation": {
@@ -877,7 +517,7 @@
     "cmdline_identity": "/system/bin/jmcs",
     "uid": 0,
     "gid": 0,
-    "start_time": "/proc/PID/stat field 22 (clock ticks)",
+    "start_time": "/proc/PID/stat field 22 is required only for Phase 3, which remains blocked; ordinary phases use fixed ps PID continuity only.",
     "pid_source": "exactly one jmcs candidate from the fixed ps parser on the approved serial"
   }
 }

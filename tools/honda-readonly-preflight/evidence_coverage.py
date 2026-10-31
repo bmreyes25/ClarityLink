@@ -84,6 +84,19 @@ REQUIRED_FIELDS = (
     "live_authorization_status", "actual_observation_status", "blocker",
     "next_engineering_action", "required",
 )
+READINESS_FIELDS = frozenset({
+    "expected_data", "actual_source", "access_method", "android_api17_compatibility",
+    "likely_evidence_value", "usability_criterion", "output_privacy_recovery_bound",
+})
+API17_READINESS = frozenset({
+    "SUPPORTED_FIXED_ARGV", "ARCHIVE_ANALYSIS_ONLY", "PARTIAL_UID2000_PID_ONLY",
+    "PROCFS_PATH_PRESENT_ACCESS_BLOCKED", "DEPENDS_ON_BLOCKED_MAPS",
+    "FIXED_API17_COMMANDS_VALIDATED", "PASSIVE_LIMITATION_CONFIRMED",
+    "NOT_EXPOSED_BY_CURRENT_METHOD", "API17_DUMPSYS_FIXED_PLANNER",
+    "PARTIAL_VIEW_OWNERSHIP_UNEXPOSED", "OWNER_UI_PROCEDURE_PREPARED",
+    "SIMULATED_LIFECYCLE_ONLY", "CHECKLIST_ONLY_NO_INDEPENDENT_BINARY_RECOVERY",
+    "OFFLINE_RESEARCH_TESTED", "SYNTHETIC_ARCHIVE_REPLAY_TESTED",
+})
 
 
 def evaluate_matrix(value: Any, verified_refs: set[tuple[str, str]] | None = None,
@@ -145,6 +158,14 @@ def evaluate_matrix(value: Any, verified_refs: set[tuple[str, str]] | None = Non
             raise ValueError(f"objective {identifier} required must be boolean")
         if not objective["required"]:
             raise ValueError(f"baseline objective {identifier} cannot be marked optional")
+        readiness = objective.get("evidence_readiness")
+        if not isinstance(readiness, dict) or set(readiness) != READINESS_FIELDS:
+            raise ValueError(f"objective {identifier} lacks the complete evidence-readiness record")
+        if (any(not isinstance(readiness.get(field), str) or not readiness[field].strip()
+                for field in READINESS_FIELDS)
+                or readiness.get("android_api17_compatibility") not in API17_READINESS
+                or readiness.get("likely_evidence_value") not in {"HIGH", "MEDIUM", "LOW"}):
+            raise ValueError(f"objective {identifier} has an invalid evidence-readiness assessment")
         for field in REQUIRED_FIELDS:
             if field in {"required", "evidence_provenance", "evidence_refs", "live_approval_categories"}:
                 continue

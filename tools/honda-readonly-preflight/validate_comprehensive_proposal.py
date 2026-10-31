@@ -19,7 +19,8 @@ PHASES = (
     "phase6_existing_hondahack_casting", "phase7_recovery_restoration",
 )
 EXPECTED_STATES = {
-    PHASES[4]: ["disconnected_baseline", "stock_carplay_connected", "disconnected_again",
+    PHASES[4]: ["disconnected_baseline", "stock_carplay_connected", "navigation_selected",
+               "navigation_deselected", "navigation_reselected", "disconnected_again",
                "stock_carplay_reconnected", "final_disconnected"],
     PHASES[5]: ["navigation_selected", "navigation_deselected", "navigation_reselected"],
     PHASES[6]: ["casting_disabled", "ordinary_start_casting", "navigation_deselected",
@@ -36,7 +37,7 @@ FORBIDDEN_TOKENS = {"su", "root", "ptrace", "frida", "mem", "environ", "install"
 PHASE_TOOLS = {
     PHASES[0]: set(), PHASES[1]: {"id", "ps", "getprop", "cat", "ls", "dumpsys"},
     PHASES[2]: set(), PHASES[3]: set(), PHASES[4]: {"ps", "cat", "ls", "dumpsys", "logcat"},
-    PHASES[5]: {"cat", "ls", "dumpsys"}, PHASES[6]: {"cat", "ls", "dumpsys"},
+    PHASES[5]: {"ps", "cat", "ls", "dumpsys"}, PHASES[6]: {"ps", "cat", "ls", "dumpsys"},
     PHASES[7]: {"ps", "cat", "ls", "dumpsys"},
 }
 TOP_FIELDS = frozenset({
@@ -55,6 +56,7 @@ PHASE_FIELDS = frozenset({
     "logcat_capture_count_per_steady_state", "prohibited", "prohibited_reads", "access_decision",
     "required_evidence_to_reconsider", "required_observations_if_reconsidered", "known_side_effect",
     "abort_path", "shared_adb_server", "capture_during_transition", "required_categories",
+    "comparative_purpose",
     "offline_actions", "qualified_vehicle_safety_review",
 })
 NESTED_FIELDS = {
@@ -168,12 +170,12 @@ def validate_proposal(value: Any) -> dict[str, Any]:
         raise ValueError("campaign identity differs from the approved requirements baseline")
     if value.get("live_execution_enabled") is not False or value.get("live_authorization") != "NOT_AUTHORIZED":
         raise ValueError("comprehensive proposal must remain non-executable and unauthorized")
-    if not str(value.get("controller", "")).startswith("NONE: proposal only"):
-        raise ValueError("proposal must not name a live controller")
+    if value.get("controller") != "tools/honda-readonly-preflight/comprehensive_controller.py; live sessions require a valid private one-use authorization and exact review gates":
+        raise ValueError("proposal must name the fixed authorization-gated controller without enabling live execution")
     if value.get("process_identity_expectations") != {
         "process_name": "jmcs", "executable_path": "/system/bin/jmcs",
         "cmdline_identity": "/system/bin/jmcs", "uid": 0, "gid": 0,
-        "start_time": "/proc/PID/stat field 22 (clock ticks)",
+        "start_time": "/proc/PID/stat field 22 is required only for Phase 3, which remains blocked; ordinary phases use fixed ps PID continuity only.",
         "pid_source": "exactly one jmcs candidate from the fixed ps parser on the approved serial",
     }:
         raise ValueError("exact jmcs executable, command-line, UID/GID, PID, and start-time identity is required")
@@ -196,7 +198,7 @@ def validate_proposal(value: Any) -> dict[str, Any]:
         raise ValueError("proposal exceeds or omits a required session/command bound")
     binding = bounds.get("process_placeholder_binding", "")
     if (not isinstance(binding, str) or "/system/bin/jmcs" not in binding
-            or "single argv element" not in binding or "Revalidate all four identity facts" not in binding):
+            or "one argv element" not in binding or "Revalidate all four identity facts" not in binding):
         raise ValueError("process placeholder must be tied to exact identity and pre/post validation")
     if (not isinstance(phases, list) or any(not isinstance(phase, dict) for phase in phases)
             or [phase.get("id") for phase in phases] != list(PHASES)):
@@ -252,23 +254,23 @@ def validate_proposal(value: Any) -> dict[str, Any]:
                 and sequence[:len(identity_ops)] == identity_ops
                 and sequence[-len(identity_ops):] == identity_ops)
     phase1_ops = ops(phases[1], "commands")
-    if (len(phase1_ops) < 9 or phase1_ops[0] != ["ps"]
-            or phase1_ops[1:5] != identity_ops
-            or phase1_ops[-4:] != identity_ops):
-        raise ValueError("Phase 1 must resolve one PID, verify identity, then bracket diagnostics")
+    identity_properties = [["getprop", prop] for prop in (
+        "ro.build.version.release", "ro.build.version.sdk", "ro.product.device",
+        "ro.product.board", "ro.hardware")]
+    if (phase1_ops != identity_properties + [["id"], ["ps"]]):
+        raise ValueError("Phase 1 must limit itself to exact target properties, shell identity, and one jmcs PID lookup")
     phase4_ops = ops(phases[4], "commands")
-    if (not identity_bracket(phase4_ops[1:]) or phase4_ops[0] != ["ps"]
+    if (phase4_ops[0] != ["ps"] or any("<verified-jmcs-pid>" in part for op in phase4_ops for part in op)
             or sum(item[0] == "logcat" for item in phase4_ops) != 1
-            or phase4_ops.index(["logcat", "-d", "-t", "500"]) >= len(phase4_ops) - 4):
-        raise ValueError("Phase 4 needs one steady-state log snapshot inside complete identity brackets")
+            or phase4_ops.index(["logcat", "-d", "-t", "500"]) >= len(phase4_ops)):
+        raise ValueError("Phase 4 must use unprivileged fixed observations and one bounded log snapshot")
     for phase_index, command_field in ((5, "commands_after_each_owner_confirmation"),
                                        (6, "commands_after_each_allowed_state"),
                                        (7, "commands")):
         sequence = ops(phases[phase_index], command_field)
-        if phase_index == 7 and sequence and sequence[0] == ["ps"]:
-            sequence = sequence[1:]
-        if not identity_bracket(sequence):
-            raise ValueError(f"{PHASES[phase_index]} must bracket every stable-state capture with full identity checks")
+        if (not sequence or sequence[0] != ["ps"]
+                or any("<verified-jmcs-pid>" in part for op in sequence for part in op)):
+            raise ValueError(f"{PHASES[phase_index]} must use unprivileged fixed observations and resolve jmcs presence")
     command_count = 0
     for path, argv in _commands_in(value):
         _validate_argv(path, argv)
