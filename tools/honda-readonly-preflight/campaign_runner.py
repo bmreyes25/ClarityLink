@@ -907,6 +907,29 @@ class Campaign:
         except (Exception, KeyboardInterrupt, EOFError) as exc:
             if self.stop_signal_handler is not None:
                 self.stop_signal_handler.begin_finalization()
+            report_path = self.output / "completeness_report.json"
+            if report_path.is_file():
+                try:
+                    report = json.loads(report_path.read_text(encoding="utf-8"))
+                    report["status"] = "INCOMPLETE_FINALIZATION"
+                    report["capture_hashes_verified"] = False
+                    report["completion_interruption_type"] = type(exc).__name__
+                    _atomic_json(report_path, report)
+                    report_row = next((item for item in self.capture.files
+                                       if item.get("path") == "completeness_report.json"), None)
+                    report_metadata = {"path": "completeness_report.json",
+                                       "size": report_path.stat().st_size,
+                                       "sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
+                                       "kind": "incomplete_completeness_report"}
+                    if report_row is not None:
+                        report_row.update(report_metadata)
+                    else:
+                        self.capture.files.append(report_metadata)
+                except (OSError, ValueError, json.JSONDecodeError):
+                    # Preserve the file if it cannot be rewritten; the failure
+                    # card remains authoritative and the partial hash check below
+                    # will expose any inconsistency.
+                    pass
             self.capture.stop_result = type(exc).__name__
             self.capture.phase_times.setdefault(self.current_phase, {})["finished_utc"] = datetime.now(timezone.utc).isoformat()
             last_command = self.capture.reader.records[-1] if self.capture.reader.records else {}

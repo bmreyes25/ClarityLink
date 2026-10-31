@@ -781,6 +781,28 @@ def test_first_termination_during_success_finalization_enters_failure_path(tmp_p
     assert handler(campaign.signal.SIGHUP, None) is None
 
 
+def test_signal_during_second_finalize_downgrades_completion_report(tmp_path):
+    runner, fake, output = _campaign(tmp_path)
+    handler = campaign._StopSignalHandler()
+    runner.stop_signal_handler = handler
+    original_finalize = fake.finalize
+    finalize_calls = 0
+    def finalize_then_signal(phase_order):
+        nonlocal finalize_calls
+        original_finalize(phase_order)
+        finalize_calls += 1
+        if finalize_calls == 2:
+            handler(campaign.signal.SIGTERM, None)
+    fake.finalize = finalize_then_signal
+    assert runner.run() is False
+    report = json.loads((output / "completeness_report.json").read_text())
+    assert report["status"] == "INCOMPLETE_FINALIZATION"
+    assert report["capture_hashes_verified"] is False
+    assert report["completion_interruption_type"] == "SafetyStop"
+    assert (output / "failure_card.json").is_file()
+    assert "completeness_report.json" in campaign.verify_capture_hashes(output)
+
+
 def test_final_restoration_is_attested_after_last_observation(tmp_path):
     runner, fake, _ = _campaign(tmp_path)
     events = []
