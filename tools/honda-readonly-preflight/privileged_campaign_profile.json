@@ -66,7 +66,7 @@
   },
   "schema_version": 1,
   "socket_attribution": "only exact jmcs fd symlink socket:[inode] correspondence to /proc/net rows; otherwise unattributed",
-  "source_lock_sha256": "051e1498a17289d9ba399835061e819a6662a53f5a93ba45dbeef07eac403cca",
+  "source_lock_sha256": "a83a3ad4fdbc7c2db2e7b2d865ae97bb78d2c5ec7e6351c90a9440e8f82215b9",
   "stages": [
     {
       "elevated": false,

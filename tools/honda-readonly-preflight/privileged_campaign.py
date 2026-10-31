@@ -477,6 +477,7 @@ def execute_approved_stage(authorization: dict[str, Any], stage_id: str, output_
     """Execute only one already reviewed/authorized stage; no enumeration or retry."""
     if not LIVE_CAPTURE_ENABLED:
         raise SafetyStop("live root capture is disabled pending SuperSU safety resolution")
+    consume_authorization_nonce(authorization)
     serial = authorization["adb_serial"]
     if serial == "auto":
         raise SafetyStop("auto serial selection is never permitted")
@@ -662,6 +663,9 @@ def validate_authorization(path: Path, *, stage_id: str,
         raise SafetyStop("owner authorization phase list does not exactly match the stage")
     if data.get("owner_authorized") is not True:
         raise SafetyStop("separate exact owner authorization is absent")
+    nonce = data.get("authorization_nonce")
+    if not isinstance(nonce, str) or not re.fullmatch(r"[0-9a-f]{32,128}", nonce):
+        raise SafetyStop("authorization must include a fresh 128-bit-or-longer hexadecimal nonce")
     try:
         datetime.fromisoformat(str(data.get("owner_authorized_utc", "")).replace("Z", "+00:00"))
     except ValueError as exc:
@@ -738,7 +742,35 @@ def validate_authorization(path: Path, *, stage_id: str,
         raise SafetyStop("independent review artifact must be owner-only (mode 0600)")
     if hashlib.sha256(artifact.read_bytes()).hexdigest() != reviewer.get("artifact_sha256"):
         raise SafetyStop("independent review artifact hash does not match authorization")
+    data["_authorization_path"] = str(requested.resolve())
     return data
+
+
+def consume_authorization_nonce(authorization: dict[str, Any]) -> None:
+    """Atomically consume a verified authorization before constructing ADB."""
+    path = Path(str(authorization.get("_authorization_path", "")))
+    nonce = authorization.get("authorization_nonce")
+    if not path.is_absolute() or not isinstance(nonce, str) or not re.fullmatch(r"[0-9a-f]{32,128}", nonce):
+        raise SafetyStop("validated authorization has no consumable nonce")
+    ledger = path.parent / ".claritylink-consumed-authorizations"
+    if ledger.exists():
+        if ledger.is_symlink() or not ledger.is_dir() or ledger.stat().st_mode & 0o777 != 0o700:
+            raise SafetyStop("authorization consumption ledger is unsafe")
+    else:
+        ledger.mkdir(mode=0o700)
+    marker = ledger / nonce
+    try:
+        descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise SafetyStop("authorization nonce was already consumed; no retry is permitted") from exc
+    except OSError as exc:
+        raise SafetyStop("authorization nonce could not be consumed safely") from exc
+    try:
+        payload = {"campaign_id": CAMPAIGN_ID, "stage_id": authorization["stage_id"],
+                   "profile_sha256": authorization["profile_sha256"], "consumed_utc": datetime.now(timezone.utc).isoformat()}
+        os.write(descriptor, canonical_json(payload))
+    finally:
+        os.close(descriptor)
 
 
 def main(argv: list[str] | None = None) -> int:

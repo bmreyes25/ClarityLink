@@ -121,6 +121,7 @@ def test_authorization_requires_external_private_bound_artifacts(tmp_path):
         "stage_id": "R0_nonexecuting",
         "phase_ids": [],
         "owner_authorized": True,
+        "authorization_nonce": "a" * 32,
         "owner_authorized_utc": "2026-10-30T12:00:00Z",
         "adb_serial": "SYNTHETIC-SERIAL",
         "owner_confirmed_park": True,
@@ -143,10 +144,27 @@ def test_authorization_requires_external_private_bound_artifacts(tmp_path):
     auth.write_text(json.dumps(record))
     auth.chmod(0o600)
     assert campaign.validate_authorization(auth, stage_id="R0_nonexecuting")["adb_serial"] == "SYNTHETIC-SERIAL"
+    del record["authorization_nonce"]
+    auth.write_text(json.dumps(record))
+    with pytest.raises(collector.SafetyStop, match="fresh 128-bit"):
+        campaign.validate_authorization(auth, stage_id="R0_nonexecuting")
+    record["authorization_nonce"] = "a" * 32
     record["source_hashes"]["privileged.py"] = "0" * 64
     auth.write_text(json.dumps(record))
     with pytest.raises(collector.SafetyStop, match="does not bind"):
         campaign.validate_authorization(auth, stage_id="R0_nonexecuting")
+
+
+def test_authorization_nonce_is_required_and_consumed_once(tmp_path):
+    authorization = {
+        "_authorization_path": str(tmp_path / "authorization.json"),
+        "authorization_nonce": "a" * 32,
+        "stage_id": "R0_nonexecuting",
+        "profile_sha256": "b" * 64,
+    }
+    campaign.consume_authorization_nonce(authorization)
+    with pytest.raises(collector.SafetyStop, match="already consumed"):
+        campaign.consume_authorization_nonce(authorization)
 
 
 def test_live_cli_requires_stage_authorization_before_any_adb_construction(monkeypatch, capsys):

@@ -10,13 +10,13 @@ The target is a Honda Clarity MY16ADA, Android 4.2.2/API 17, ARMv7. The executab
 
 ## B. Exact profile and commands
 
-The machine-readable manifest is [`privileged_campaign_profile.json`](../../tools/honda-readonly-preflight/privileged_campaign_profile.json), SHA-256 `74b37c720fbe4b40d7e39b75a27bb951dd68c90d67965f95c98b60f7dd893f64`. The committed source lock covers:
+The machine-readable manifest is [`privileged_campaign_profile.json`](../../tools/honda-readonly-preflight/privileged_campaign_profile.json), SHA-256 `aba7efb8ac07a45144f9e3a2ffecf0c4fc2109f7e482827dad734907e8d8d755`. The committed source lock covers:
 
 | Source | SHA-256 |
 |---|---|
 | `analyze.py` | `d134e466e26b49d17e97332ee1ec610332bd37b9a5f1823c659840a859652f82` |
 | `privileged.py` | `2b92cf5ba79de5e0a252eb5f73db03c15421ba4adb6c8bf82250256090406e51` |
-| `privileged_campaign.py` | `061a5fd595c4100e12e499c31865a05575811c59bf65f1dbeaa6825689fdb084` |
+| `privileged_campaign.py` | `90d97b3967bdde2d6acef7f6d6880166677ac341e5e45959a180ff9b4ca35876` |
 | `collector.py` | `55dd87677ca9f3c2a2609f1a7df2f242140f7dbd110356ed7865d40127df91f9` |
 | `parsers.py` | `75976f12fe81f92a73f30e137d5f0544cf9cad124d23d4f9ea7080b0fbdfb85c` |
 | `privileged_campaign_static_dependencies.json` | `68d6234246b90522da0f76569cd67156e38b0d4e9a824b0091ada22cc6c27658` |
