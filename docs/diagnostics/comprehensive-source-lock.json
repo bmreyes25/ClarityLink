@@ -21,7 +21,7 @@
     "docs/security/single-owner-cp-review-policy.md": "1849f54dac795c4b09028aa143f5fbb6232766e48e9ee64a533280e8bd1a1803",
     "docs/security/vehicle-safety-gates.md": "dff245cec6fbf91a9cd38306f41d9079037985c014b01e0783f2c4de4e3b7176",
     "tests/honda/test_campaign_runner.py": "266c6da2f5cd84e2fbc6a965e7cc701c05255ff2505d48c64a3e9140efd0ce78",
-    "tests/honda/test_comprehensive_controller.py": "ee027ded9a9d078ab042bf9f1539c80f3f4f3f251feecb2c4f1acf45594f991d",
+    "tests/honda/test_comprehensive_controller.py": "afe08aef21e6d0f8512c92db06251157c08c4afbda81b3622cd43b538fe62f5b",
     "tests/honda/test_comprehensive_proposal.py": "4f8293e6568095de10c19c42e5fbd6d05407b72139888587ee2e0db6be67ebeb",
     "tests/honda/test_comprehensive_source_lock.py": "98bd308cdeeb648798639b6bba0f392cd87ecf4582b71e8a6eb46d9c52c1fe33",
     "tests/honda/test_display_compare.py": "607acf190170d63e99c59f6b9ff3de272bcb9a93c21c53a2aa1b947515a57a34",

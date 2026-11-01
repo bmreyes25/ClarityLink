@@ -1375,13 +1375,68 @@ def test_nonce_cannot_be_reused_under_a_different_authorization_id(tmp_path):
 
 def test_ledger_symlink_refused(tmp_path):
     real = tmp_path / "real"
-    real.mkdir()
+    real.mkdir(mode=0o700)
+    sentinel = real / "sentinel.json"
+    sentinel.write_text("preserve")
+    sentinel.chmod(0o600)
+    before_directory = real.stat()
+    before_file = sentinel.stat()
     link = tmp_path / "link"
     link.symlink_to(real)
     with pytest.raises(controller.ControllerError, match="symbolic link"):
         controller.consume_once({"authorization_id": "AUTH-12345678", "run_id": "b" * 32,
                                  "nonce": "a" * 32, "schema": controller.SESSION_AUTHORIZATION_SCHEMA,
                                  "preparation_only": False}, ledger=link)
+    after_directory = real.stat()
+    after_file = sentinel.stat()
+    assert after_directory.st_mtime_ns == before_directory.st_mtime_ns
+    assert after_file.st_mtime_ns == before_file.st_mtime_ns
+    assert after_file.st_mode == before_file.st_mode
+    assert sentinel.read_text() == "preserve"
+    assert list(real.iterdir()) == [sentinel]
+
+
+def test_ledger_rejects_symlinked_ancestor_without_mutation(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir(mode=0o700)
+    sentinel = target / "sentinel.json"
+    sentinel.write_text("preserve")
+    sentinel.chmod(0o600)
+    before = target.stat()
+    alias = tmp_path / "alias"
+    alias.symlink_to(target, target_is_directory=True)
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller.consume_once(record, ledger=alias / "ledger")
+    after = target.stat()
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert list(target.iterdir()) == [sentinel]
+    assert sentinel.read_text() == "preserve"
+
+
+def test_ledger_rejects_dangling_symlink_without_creating_target(tmp_path):
+    missing_target = tmp_path / "missing-target"
+    alias = tmp_path / "dangling-ledger"
+    alias.symlink_to(missing_target)
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller.consume_once(record, ledger=alias)
+    assert alias.is_symlink()
+    assert not missing_target.exists()
+
+
+def test_default_one_use_ledger_fails_closed_without_creating_missing_parents(tmp_path, monkeypatch):
+    runtime = Path.home() / "Library/Application Support/ClarityLink" / f"missing-ledger-test-{tmp_path.name}"
+    ledger = runtime / "consumed"
+    monkeypatch.setattr(controller, "PRIVATE_LEDGER", ledger)
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    assert not runtime.exists()
+    with pytest.raises(controller.ControllerError, match="private preparation directory"):
+        controller.consume_once(record)
+    assert not runtime.exists()
 
 
 def test_pid_start_time_and_receiver_identity_are_revalidated():
