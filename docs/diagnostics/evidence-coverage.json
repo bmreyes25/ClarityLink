@@ -35,7 +35,7 @@
         "android_api17_compatibility": "SUPPORTED_FIXED_ARGV",
         "likely_evidence_value": "MEDIUM",
         "usability_criterion": "Require all five exact target values, shell uid/gid 2000 and exactly one jmcs row; otherwise abort.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB per operation; raw private; factory baseline checked before and after."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling per operation; raw private; factory baseline checked before and after."
       }
     },
     {
@@ -95,7 +95,7 @@
         "android_api17_compatibility": "PARTIAL_UID2000_PID_ONLY",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Unprivileged data supports PID continuity only; full process-instance attribution requires the same PID/start-time/cmdline/UID/GID/exe tuple before and after.",
-        "output_privacy_recovery_bound": "Ordinary raw ps private; privileged outputs 20 s / 4 MiB each; abort on change."
+        "output_privacy_recovery_bound": "Ordinary raw ps private; privileged outputs 10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling each; abort on change."
       }
     },
     {
@@ -125,7 +125,7 @@
         "android_api17_compatibility": "PROCFS_PATH_PRESENT_ACCESS_BLOCKED",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Historical maps establish that snapshot only. Current load bias needs a fresh exact PID/start-time-bound map plus matching pinned ELF PT_LOAD; do not reuse 0x4008f000.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB per file; raw private; no process memory access; process must remain stable."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling per file; raw private; no process memory access; process must remain stable."
       }
     },
     {
@@ -185,14 +185,14 @@
         "android_api17_compatibility": "PROCFS_PATH_PRESENT_ACCESS_BLOCKED",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Historical ownership requires exact inode match in the same capture; current ownership requires current PID-bound FD links and same-bracket socket tables.",
-        "output_privacy_recovery_bound": "Limit to numeric FD symlinks and socket tables; 20 s / 4 MiB per read; private raw output."
+        "output_privacy_recovery_bound": "Limit to numeric FD symlinks and socket tables; 10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling per read; private raw output."
       }
     },
     {
       "id": "usb0-network-phase-correlation",
       "required_observation": "Capture bounded usb0 interface state and eligible endpoint tables across CarPlay steady states; do not assign an endpoint to jmcs without an exact same-phase FD/socket inode match.",
       "existing_evidence": "A historical disconnected jmcs archive has captured TCP/TCP6/Unix tables, and an earlier connected-state archive exists from a different session. They are not an atomic comparative run and cannot establish current phase changes.",
-      "planned_evidence_source": "Phase 4 fixed /proc/net and usb0 operstate snapshots at disconnected, connected, disconnected, reconnect, and final disconnect steady states.",
+      "planned_evidence_source": "Cycle 6 Phase 4 fixed /proc/net and usb0 operstate snapshots at disconnected, connected, disconnected, reconnect, and final disconnect steady states.",
       "prepared_collector_or_parser": "comprehensive_replay.py validates and compares parsed /proc/net tables and usb0 state without claiming process ownership; parsers.py exact-inode correlation remains available only if a justified Phase 3 FD source is obtained.",
       "offline_test_status": "Synthetic tests cover network parsing, state comparison, API 17 command bounds, and the fact that global socket entries do not prove jmcs ownership.",
       "live_authorization_status": "NOT_AUTHORIZED",
@@ -211,19 +211,19 @@
       ],
       "evidence_readiness": {
         "expected_data": "usb0 operstate and TCP/TCP6/UDP/UDP6/Unix socket-table deltas per CarPlay steady state.",
-        "actual_source": "Phase 4 fixed /proc/net reads and exact cat /sys/class/net/usb0/operstate at eight owner-confirmed states.",
+        "actual_source": "Phase 4 fixed /proc/net reads and exact cat /sys/class/net/usb0/operstate at ten owner-confirmed lifecycle states and once after restoration.",
         "access_method": "ADB shell UID 2000; stock CarPlay and Navigation category authorization.",
         "android_api17_compatibility": "FIXED_API17_COMMANDS_VALIDATED",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Require every approved stable state, monotonic timestamps, parsable table headers and baseline/adjacent hash deltas; it does not prove receiver socket ownership.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB per command; host private; no packet capture, probes, or writes."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling per command; host private; no packet capture, probes, or writes."
       }
     },
     {
       "id": "carplay-info-setup-observability",
       "required_observation": "Determine whether existing diagnostics expose /info response events and SETUP request/response boundaries, while not assuming they expose full plist values.",
       "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
-      "planned_evidence_source": "Phase 4 fixed logcat -d -t 500 snapshots can show allowlisted /info and SETUP marker counts only. Existing static reports map the serializer/handler paths. Neither this log source nor network-table snapshots expose decoded plist values or handler acceptance; those require a separately reviewed boundary observer.",
+      "planned_evidence_source": "Cycle 6 Phase 4 fixed logcat -d -t 500 snapshots can show allowlisted /info and SETUP marker counts only. Existing static reports map the serializer/handler paths. Neither this log source nor network-table snapshots expose decoded plist values or handler acceptance; those require a separately reviewed boundary observer.",
       "prepared_collector_or_parser": "comprehensive_replay.py preserves raw bounded log output and invokes parsers.py summarize_diagnostic_logs for allowlisted marker counts and timestamps.",
       "offline_test_status": "Synthetic tests cover bounded log markers, parser limits, privacy summaries, and an archive replay that preserves the passive-observability limitation.",
       "live_authorization_status": "NOT_AUTHORIZED",
@@ -278,7 +278,7 @@
         "android_api17_compatibility": "FIXED_API17_COMMANDS_VALIDATED",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Require state completeness and comparable dumps/log/network observations; visible lifecycle does not prove protocol packet content or receiver authority.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB per command; private raw; stop on abnormal cluster/display/warning/audio."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling per command; private raw; stop on abnormal cluster/display/warning/audio."
       }
     },
     {
@@ -317,7 +317,7 @@
       "id": "display-manager-inventory",
       "required_observation": "Compare logical display devices, types, dimensions, layer stacks, and inventory stability across CarPlay and Navigation phases.",
       "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
-      "planned_evidence_source": "Phase 4/5/6 fixed dumpsys display snapshots at selected steady states, compared offline using the existing DisplayManager inventory parser.",
+      "planned_evidence_source": "Cycle 6 Phase 4 and Phase 7 fixed dumpsys display snapshots at selected steady states, compared offline using the existing DisplayManager inventory parser.",
       "prepared_collector_or_parser": "comprehensive_replay.py invokes display_compare.py DisplayDeviceInfo/mBaseDisplayInfo inventory parser and reports per-state deltas.",
       "offline_test_status": "Synthetic tests exercise the same display parser through both its standalone comparator and comprehensive archive replay.",
       "live_authorization_status": "NOT_AUTHORIZED",
@@ -341,14 +341,14 @@
         "android_api17_compatibility": "API17_DUMPSYS_FIXED_PLANNER",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Parse complete display sections; corroborate IDs and volatile fields across WindowManager/SurfaceFlinger; this does not prove physical scanout.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB; raw dumps private; abort on factory anomaly."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling; raw dumps private; abort on factory anomaly."
       }
     },
     {
       "id": "display1-window-view-lifecycle",
       "required_observation": "Compare WindowManager window entries listed in logical Display 1 sections across the approved states; do not infer focus or pixel visibility.",
       "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
-      "planned_evidence_source": "Phase 4/5/6 fixed dumpsys window snapshots at selected steady states; reported logical display association and window-name deltas only. The command does not expose View class or lifetime.",
+      "planned_evidence_source": "Cycle 6 Phase 4 and Phase 7 fixed dumpsys window snapshots at selected steady states; reported logical display association and window-name deltas only. The command does not expose View class or lifetime.",
       "prepared_collector_or_parser": "comprehensive_replay.py invokes display_compare.py window-section parser and pointer-normalized per-state comparisons.",
       "offline_test_status": "Synthetic tests exercise stable-state window association, lifecycle deltas, malformed/missing output and explicit View-lifecycle limits.",
       "live_authorization_status": "NOT_AUTHORIZED",
@@ -372,14 +372,14 @@
         "android_api17_compatibility": "PARTIAL_VIEW_OWNERSHIP_UNEXPOSED",
         "likely_evidence_value": "HIGH",
         "usability_criterion": "Usable for named window/layer additions/removals only; never infer focus, pixels, scanout, or actual View lifetime from names alone.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB; private raw; Level 3 if adding View instrumentation or changing display ownership."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling; private raw; Level 3 if adding View instrumentation or changing display ownership."
       }
     },
     {
       "id": "surfaceflinger-layer-lifecycle",
       "required_observation": "Compare named SurfaceFlinger layers across the same phase transitions and identify persistent versus phase-specific names.",
       "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
-      "planned_evidence_source": "Phase 4/5/6 fixed dumpsys SurfaceFlinger snapshots at selected steady states; global layer-name changes are compared but are not attributed to Display 1.",
+      "planned_evidence_source": "Cycle 6 Phase 4 and Phase 7 fixed dumpsys SurfaceFlinger snapshots at selected steady states; global layer-name changes are compared but are not attributed to Display 1.",
       "prepared_collector_or_parser": "comprehensive_replay.py invokes display_compare.py SurfaceFlinger layer-name normalization and delta parser.",
       "offline_test_status": "Synthetic tests exercise layer deltas and retain explicit non-attribution and no-physical-scanout conclusions.",
       "live_authorization_status": "NOT_AUTHORIZED",
@@ -403,7 +403,7 @@
         "android_api17_compatibility": "API17_DUMPSYS_FIXED_PLANNER",
         "likely_evidence_value": "MEDIUM",
         "usability_criterion": "Require stable state labels, full successful capture and normalized name/ID comparison; layer presence is not physical display output.",
-        "output_privacy_recovery_bound": "20 s / 4 MiB; names may identify apps; keep private."
+        "output_privacy_recovery_bound": "10 s / 900,000 bytes; 158,400,512-byte shared campaign ceiling; names may identify apps; keep private."
       }
     },
     {
@@ -441,11 +441,11 @@
       "id": "hondahack-casting-and-withdrawal",
       "required_observation": "Observe existing HondaHack casting disabled/enabled, Navigation page transitions, ordinary Stop Casting, and baseline restoration.",
       "existing_evidence": "Relevant historical Honda material was reviewed offline. Target-specific observations remain in owner-private records and are not reproduced in this public matrix; historical material is not treated as completion of the comprehensive follow-up.",
-      "planned_evidence_source": "Only if separately reviewed and approved: casting-disabled baseline, ordinary existing Start Casting UI, stable snapshot, Navigation deselect/reselect, normal Stop Casting UI, and factory restoration. No hook/install changes.",
+      "planned_evidence_source": "Excluded from the Cycle 6 ordinary ADB campaign; any future HondaHack observation needs a separate exact technical and qualified vehicle-safety review and owner authorization.",
       "prepared_collector_or_parser": "comprehensive_controller.py fixed owner-action sequence; comprehensive_replay.py existing display/window/layer comparisons. It does not establish supported Type111 ingress.",
       "offline_test_status": "Synthetic controller and lifecycle comparison tests cover the planned order and failure stops; no HondaHack activation or live behavior is verified.",
-      "live_authorization_status": "SEPARATE_HONDAHACK_REVIEW_AND_EXACT_OWNER_APPROVAL_REQUIRED",
-      "actual_observation_status": "BLOCKED_PENDING_AUTHORIZATION",
+      "live_authorization_status": "NOT_IN_SCOPE_SEPARATE_APPROVAL_REQUIRED",
+      "actual_observation_status": "NOT_COLLECTED",
       "blocker": "No C-P HondaHack state transition was performed; past warning preemption is not a restoration guarantee.",
       "next_engineering_action": "Prepare exact ordinary UI and abort/restoration card; require independent review and separate owner approval before any phase.",
       "required": true,
@@ -590,5 +590,14 @@
         "output_privacy_recovery_bound": "Never publish raw outputs; publish only reviewed sanitized findings."
       }
     }
-  ]
+  ],
+  "campaign_profile": {
+    "name": "Cycle 6 comprehensive ordinary ADB lifecycle",
+    "fixed_command_shapes": 44,
+    "total_commands": 161,
+    "per_command_timeout_seconds": 10,
+    "per_command_output_limit_bytes": 900000,
+    "aggregate_output_limit_bytes": 158400512,
+    "live_collection": "NOT_AUTHORIZED"
+  }
 }

@@ -11,44 +11,52 @@
   },
   "live_execution_enabled": false,
   "live_authorization": "NOT_AUTHORIZED",
-  "controller": "tools/honda-readonly-preflight/comprehensive_controller.py; live sessions require a valid private one-use authorization and exact review gates",
+  "controller": "tools/honda-readonly-preflight/comprehensive_controller.py; ordinary ADB only; exact owner state confirmations, one-use review-bound authorization, fixed allowlist, and 158400512-byte combined stdout/stderr session limit",
   "host": "existing authorized Mac; offline preparation only",
-  "target": "2018 Honda Clarity PHEV Touring, MY16ADA; private identity required at a future review",
+  "target": "2018 Honda Clarity PHEV Touring, MY16ADA; owner privately verifies exact unit and already-authorized ADB serial; never persist serial publicly.",
   "execution_bounds_proposal": {
-    "max_command_timeout_seconds": 20,
-    "max_command_output_bytes": 4194304,
+    "max_command_timeout_seconds": 10,
+    "max_command_output_bytes": 900000,
     "max_total_elapsed_seconds": 3600,
-    "max_owner_prompt_idle_seconds": 300,
+    "max_owner_prompt_idle_seconds": 90,
     "capture_during_owner_ui_transition": false,
     "auto_retry": false,
     "auto_privilege_escalation": false,
     "raw_evidence_destination": "new host-only directory outside Git, mode 0700; files mode 0600",
     "evidence_integrity": "SHA-256 per artifact plus immutable source/profile/manifest binding",
     "per_command_bounds": {
-      "timeout_seconds": 20,
-      "combined_stdout_stderr_bytes": 4194304,
-      "enforced_by": "future fixed-operation controller must reject every operation exceeding these ceilings before spawning adb"
+      "timeout_seconds": 10,
+      "combined_stdout_stderr_bytes": 900000,
+      "session_combined_stdout_stderr_bytes": 158400512,
+      "enforced_by": "FixedAdb byte cap includes its bounded failure marker; SessionOutputBudget accounts stdout+stderr across all phases before persistence. A total-bound violation aborts and cannot produce campaign success."
     },
     "process_placeholder_binding": "Only a separately justified Phase 3 privileged read may substitute a validated PID as one argv element. Before/after that exact read, Revalidate all four identity facts: bind PID to stat start-time ticks, cmdline /system/bin/jmcs, root UID/GID, and exe symlink /system/bin/jmcs. Ordinary observations use ps PID continuity and make no start-time claim.",
-    "command_form": "Every listed command is a fixed argv vector; no shell string executor, command concatenation, or caller-provided argv is permitted."
+    "command_form": "Every listed command is a fixed argv vector; no shell string executor, command concatenation, or caller-provided argv is permitted.",
+    "max_session_output_bytes": 158400512,
+    "max_campaign_command_count": 162,
+    "max_campaign_command_output_bytes": 145800000,
+    "max_command_time_sum_seconds": 1620,
+    "max_owner_prompt_time_sum_seconds": 1350,
+    "max_bounded_elapsed_seconds": 2970,
+    "remaining_elapsed_margin_seconds": 630,
+    "minimum_private_evidence_free_bytes": 166789120
   },
   "global_stop_conditions": [
     "target or process identity mismatch, PID/start-time change, or authorization mismatch",
     "unexpected vehicle warning, READY indicator, engine start, abnormal power/battery behavior, or loss of safe Park/outdoor conditions",
     "center display, cluster, Navigation, CarPlay, HondaHack, or audio behavior outside the specifically approved expected state",
-    "ADB transport error, permission denial, unsupported command, timeout, output limit, or controller exception",
+    "ADB transport error, permission denial from a required operation, unsupported required command, timeout, output limit, or controller exception; optional fixed graphics/network reads reported absent or denied, and fixed OEM packages reported absent, are recorded once without retry",
     "source/profile/manifest hash mismatch, incomplete command ledger, or evidence integrity/privacy failure",
     "any command or action not enumerated in the reviewed phase profile"
   ],
   "required_conditions_for_any_future_run": [
-    "separate exact owner authorization for each live category and selected phase",
-    "current exact-main and source/profile review packet for the new proposal",
+    "separate exact owner authorization for the selected ordinary ADB and owner-operated stock CarPlay phases",
+    "current exact candidate source/profile/source-lock review packet bound to the candidate commit",
     "stationary outdoors, Park, parking brake engaged, approved power state, READY absent",
     "owner physically present; factory display, cluster, Navigation, warning behavior, and audio normal",
     "one already-authorized ADB endpoint; no scan, endpoint fallback, setting change, or escalation",
-    "independent review of command list, SuperSU side effects, failure handling, privacy, and recovery",
-    "separate qualified vehicle-safety review before any modification or operation affecting factory display/warnings",
-    "qualified vehicle-safety review of Phase 6 HondaHack/Display 1 interaction is complete before proposing that live subtest"
+    "independent review of fixed ADB commands, API-17 compatibility assumptions, resource accounting, failure handling, privacy, and restoration",
+    "qualified vehicle-safety review before any operation affecting factory display or warnings"
   ],
   "phases": [
     {
@@ -63,8 +71,8 @@
         "identify normal shutdown and previously verified backup/recovery records"
       ],
       "stop": "Any abnormal condition or missing prerequisite; no ADB.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
+      "per_command_timeout_seconds": 10,
+      "per_command_output_limit_bytes": 900000,
       "failure_policy": "stop immediately; do not retry"
     },
     {
@@ -131,13 +139,131 @@
           "<private-approved-serial>",
           "shell",
           "ps"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "service",
+          "list"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "ls",
+          "/sys/class/graphics"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "package",
+          "com.mitsubishielectric.ada.appservice.navigation"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "pm",
+          "path",
+          "com.mitsubishielectric.ada.appservice.navigation"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "package",
+          "com.mitsubishielectric.ada.app.carplay"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "pm",
+          "path",
+          "com.mitsubishielectric.ada.app.carplay"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "package",
+          "com.mitsubishielectric.ada.appservice.carplayapservice"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "pm",
+          "path",
+          "com.mitsubishielectric.ada.appservice.carplayapservice"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "package",
+          "com.mitsubishielectric.ada.appservice.externaldisplay"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "pm",
+          "path",
+          "com.mitsubishielectric.ada.appservice.externaldisplay"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "package",
+          "com.mitsubishielectric.ada.app.externaldisplay"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "pm",
+          "path",
+          "com.mitsubishielectric.ada.app.externaldisplay"
         ]
       ],
-      "stop": "Any target/process mismatch, permission denial, unsupported API17 command, timeout, output limit, warning, transport error, or abnormal factory behavior.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
+      "stop": "Any target/process mismatch, permission denial from a required identity/service operation, unsupported required API17 command, timeout, output limit, warning, transport error, or abnormal factory behavior. A fixed package absence or optional graphics/network read denial/absence is recorded once and does not trigger retry or escalation.",
+      "per_command_timeout_seconds": 10,
+      "per_command_output_limit_bytes": 900000,
       "failure_policy": "stop immediately; do not retry",
-      "identity_revalidation": "Verify the exact API-17 target properties, ordinary shell UID/GID, and exactly one jmcs PID before any later observation. Start-time and executable identity are reserved for the blocked privileged Phase 3 method."
+      "identity_revalidation": "Verify the exact API-17 target properties, ordinary shell UID/GID, and exactly one jmcs PID before any later observation. Start-time and executable identity are reserved for the blocked privileged Phase 3 method.",
+      "baseline_inventory": {
+        "purpose": "Capture installed factory package metadata, APK paths, and Android service inventory once before state transitions. A single bounded ls /sys/class/graphics reports exposed graphics node names if present; it is inventory only and not a framebuffer access test.",
+        "packages": [
+          "com.mitsubishielectric.ada.appservice.navigation",
+          "com.mitsubishielectric.ada.app.carplay",
+          "com.mitsubishielectric.ada.appservice.carplayapservice",
+          "com.mitsubishielectric.ada.appservice.externaldisplay",
+          "com.mitsubishielectric.ada.app.externaldisplay"
+        ],
+        "expected_answers": "Package presence/version/code path and service declarations; one package APK path per package; framework service inventory. Graphics class node names where exposed.",
+        "privacy": "OEM build/package metadata remains in the private run archive."
+      }
     },
     {
       "id": "phase2_existing_root_supersu_review",
@@ -156,8 +282,8 @@
       "known_side_effect": "SuperSU invocation may create logs or alter daemon/authorization state; zero-write behavior is not established.",
       "live_argv": [],
       "stop": "No live privileged operation under the current finding. No adb root or fallback.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
+      "per_command_timeout_seconds": 10,
+      "per_command_output_limit_bytes": 900000,
       "failure_policy": "stop immediately; do not retry"
     },
     {
@@ -182,14 +308,14 @@
         "secrets"
       ],
       "stop": "Any permission denial, identity change, malformed output, non-enumerated path, unexpected side effect, timeout, or limit.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
+      "per_command_timeout_seconds": 10,
+      "per_command_output_limit_bytes": 900000,
       "failure_policy": "stop immediately; do not retry"
     },
     {
       "id": "phase4_three_state_carplay",
       "category": "ordinary_unprivileged_adb_plus_stock_iphone_transition",
-      "authorization_status": "SEPARATE_ADB_AND_IPHONE_TRANSITION_APPROVALS_REQUIRED",
+      "authorization_status": "SEPARATE_EXACT_RUN_APPROVAL_REQUIRED",
       "states": [
         "disconnected_baseline",
         "stock_carplay_connected",
@@ -198,6 +324,8 @@
         "navigation_reselected",
         "disconnected_again",
         "stock_carplay_reconnected",
+        "navigation_selected_after_reconnect",
+        "navigation_deselected_after_reconnect",
         "final_disconnected"
       ],
       "commands": [
@@ -207,6 +335,24 @@
           "<private-approved-serial>",
           "shell",
           "ps"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "activity",
+          "activities"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "activity",
+          "services"
         ],
         [
           "adb",
@@ -294,152 +440,32 @@
       "commands_apply_at_each_steady_state": true,
       "identity_revalidation": "At each steady state, the listed unprivileged ps command requires exactly one jmcs row and the same PID across the phase. This does not establish process start time, cmdline, UID/GID, or executable identity; those observations require the separately blocked privileged metadata method.",
       "owner_actions": [
-        "confirm the disconnected factory baseline",
-        "connect once through the normal stock CarPlay flow and wait for the active steady state",
-        "use the normal factory control to select Navigation while stock CarPlay is active",
-        "use the normal factory control to deselect Navigation",
-        "use the normal factory control to reselect Navigation",
-        "disconnect through the normal owner-operated flow",
-        "reconnect through the normal stock flow and wait for the active steady state",
-        "disconnect once more through the normal user flow"
+        "Confirm the disconnected baseline.",
+        "Connect stock Type110 CarPlay and wait for a stable normal state.",
+        "Select factory Navigation, deselect it, then reselect it using normal controls.",
+        "Disconnect CarPlay using its normal owner-operated flow.",
+        "Reconnect stock CarPlay and wait for a stable normal state.",
+        "After reconnection, select Navigation and then deselect it using normal controls.",
+        "Disconnect CarPlay for the final time."
       ],
       "capture_during_transition": false,
-      "network_scope": "Fixed read-only /proc/net socket tables and /sys/class/net/usb0/operstate observations are included at steady states. No packet capture, connect/probe, or mutation; process-owned socket attribution remains blocked in the separate privileged-read objective.",
+      "network_scope": "Read-only global socket tables and usb0 operstate at each stable state. Never attribute global rows to jmcs without an exact same-snapshot FD/socket inode join. No packet capture, socket probe, mutation, retry, or privilege escalation.",
       "stop": "Any global stop condition, abnormal Type110 display/audio/call/warning behavior, receiver identity change, or unexpected transport state.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
+      "per_command_timeout_seconds": 10,
+      "per_command_output_limit_bytes": 900000,
       "failure_policy": "stop immediately; do not retry",
-      "log_collection_purpose": "A bounded log snapshot at each steady state is a comparative diagnostic input for lifecycle/event deltas, not a repeated search for a success marker; no capture during transitions; logs remain private; missing /info or SETUP markers remains NOT_OBSERVED and never implies Type111 support.",
+      "log_collection_purpose": "One bounded 500-line log snapshot after each owner-confirmed state; compare event timing offline. Raw logs remain private. Absence of /info or SETUP text means NOT_OBSERVED and never implies Type111 support.",
       "logcat_capture_count_per_steady_state": 1,
       "process_identity_revalidation": "At each stable state require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method.",
-      "comparative_purpose": "Each steady-state snapshot is compared with the disconnected baseline and adjacent state to measure stock CarPlay, Navigation, reconnect, display, log, and USB-network deltas. Identical source hashes are reported as unchanged, not counted as new evidence."
-    },
-    {
-      "id": "phase5_display1_navigation_lifecycle",
-      "category": "ordinary_unprivileged_adb_plus_factory_navigation",
-      "authorization_status": "SEPARATE_EXACT_RUN_APPROVAL_REQUIRED",
-      "states": [
-        "navigation_selected",
-        "navigation_deselected",
-        "navigation_reselected"
-      ],
-      "commands_after_each_owner_confirmation": [
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ps"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "display"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "SurfaceFlinger"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "window"
-        ]
-      ],
-      "owner_actions": [
-        "use ordinary factory controls to select Navigation",
-        "use ordinary factory controls to deselect it",
-        "use ordinary factory controls to reselect it"
-      ],
-      "capture_during_transition": false,
-      "stop": "Any global stop condition, unexpected warning, page transition, display/window/layer, cluster, or audio behavior.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
-      "failure_policy": "stop immediately; do not retry",
-      "process_identity_revalidation": "At each observation, require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method."
-    },
-    {
-      "id": "phase6_existing_hondahack_casting",
-      "category": "existing_hondahack_observation",
-      "authorization_status": "SEPARATE_HONDAHACK_REVIEW_AND_EXACT_OWNER_APPROVAL_REQUIRED",
-      "required_categories": [
-        "ordinary_unprivileged_adb",
-        "factory_navigation_observation",
-        "existing_hondahack_observation"
-      ],
-      "states": [
-        "casting_disabled",
-        "ordinary_start_casting",
-        "navigation_deselected",
-        "navigation_reselected",
-        "ordinary_stop_casting",
-        "factory_baseline_restored"
-      ],
-      "commands_after_each_allowed_state": [
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "ps"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "display"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "SurfaceFlinger"
-        ],
-        [
-          "adb",
-          "-s",
-          "<private-approved-serial>",
-          "shell",
-          "dumpsys",
-          "window"
-        ]
-      ],
-      "owner_actions": [
-        "ordinary existing HondaHack Start Casting/Stop Casting UI only",
-        "ordinary factory Navigation selection transitions"
-      ],
-      "prohibited": [
-        "install or update HondaHack",
-        "change Xposed or hooks",
-        "private control APIs",
-        "induce warnings",
-        "force-stop or kill processes"
-      ],
-      "stop": "Any global stop condition, warning/display/cluster/audio/Navigation anomaly, or uncertain restoration.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
-      "failure_policy": "stop immediately; do not retry",
-      "qualified_vehicle_safety_review": "REQUIRED before any live HondaHack casting observation because Display 1 is directly involved; no conditional exception.",
-      "process_identity_revalidation": "At each observation, require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method."
+      "comparative_purpose": "Compare process PID, ActivityManager activity/service records, logical display, WindowManager, SurfaceFlinger layers, global network tables, usb0 operstate and bounded recent log records across all ten owner-confirmed states. These are process/window/layer lifetime proxies only; they do not expose ViewRoot ownership, physical pixels, warning precedence, or decoded Type111 events. Global socket rows are not jmcs-owned without same-snapshot FD-to-inode correlation.",
+      "activity_manager_scope": "dumpsys activity activities/services may identify resumed activities, service records and component/process relationships; they do not expose the full View hierarchy or Surface producer ownership.",
+      "owner_confirmation_rule": "Every listed stable state requires one explicit READY confirmation before any state commands. The owner watches for abnormal factory behavior during the snapshot and interrupts to STOP if observed; after STOP no further vehicle command is issued.",
+      "qualified_vehicle_safety_review": "Required before the ordinary Type110/Navigation transition campaign; review the exact fixed command set and stationary owner operation."
     },
     {
       "id": "phase7_recovery_restoration",
       "category": "host_cleanup_and_factory_restoration",
-      "authorization_status": "NORMAL_COMPLETION_ONLY; ABORT PATH IS HOST_ONLY",
+      "authorization_status": "NORMAL_COMPLETION_ONLY; ABORT PATH IS HOST ONLY",
       "commands": [
         [
           "adb",
@@ -454,6 +480,24 @@
           "<private-approved-serial>",
           "shell",
           "dumpsys",
+          "activity",
+          "activities"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
+          "activity",
+          "services"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "dumpsys",
           "display"
         ],
         [
@@ -471,15 +515,73 @@
           "shell",
           "dumpsys",
           "window"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/tcp"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/tcp6"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/udp"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/udp6"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/proc/net/unix"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "cat",
+          "/sys/class/net/usb0/operstate"
+        ],
+        [
+          "adb",
+          "-s",
+          "<private-approved-serial>",
+          "shell",
+          "logcat",
+          "-d",
+          "-t",
+          "500"
         ]
       ],
       "owner_checks": [
-        "iPhone disconnected",
-        "factory CarPlay normal",
-        "Navigation normal",
-        "center display/cluster/audio normal",
-        "no new warning",
-        "vehicle still Park and READY absent"
+        "CarPlay disconnected",
+        "factory Navigation normal",
+        "center display and cluster normal",
+        "audio normal",
+        "no abnormal warning",
+        "vehicle remains stationary in Park and READY absent"
       ],
       "host_checks": [
         "campaign process exited",
@@ -490,15 +592,19 @@
       "shared_adb_server": "Do not stop or inspect a shared server without a reviewed host-only reason; report uncertainty if it remains unknown.",
       "abort_path": "Host-only controller/capture cleanup. No additional ADB or other vehicle command after an abort unless a new exact recovery action is independently reviewed and authorized.",
       "stop": "Any global stop condition or restoration uncertainty requires owner attention; no additional vehicle command after abort and no remote power-off.",
-      "per_command_timeout_seconds": 20,
-      "per_command_output_limit_bytes": 4194304,
+      "per_command_timeout_seconds": 10,
+      "per_command_output_limit_bytes": 900000,
       "failure_policy": "stop immediately; do not retry",
-      "process_identity_revalidation": "At each observation, require exactly one jmcs PID and the same PID as the approved baseline. This unprivileged check does not establish start-time or executable identity; those require the blocked Phase 3 method.",
+      "process_identity_revalidation": "Exactly one jmcs row and PID continuity from baseline; ordinary shell does not establish start-time, cmdline, UID/GID, or executable identity.",
       "owner_actions": [
-        "restore the owner-defined factory display and Navigation baseline using ordinary controls before final observation",
-        "confirm no abnormal warning and normal Display 1, center display, cluster, Navigation, and audio behavior",
-        "confirm host evidence finalization only; no vehicle power-off, automatic retry, or next experiment"
-      ]
+        "Restore the owner-defined normal factory state using ordinary controls after the final disconnect.",
+        "Confirm CarPlay disconnected and factory Navigation, center display, cluster, audio, and warnings are normal.",
+        "Confirm host archive finalization; then power down normally using factory controls."
+      ],
+      "comparative_purpose": "Compare the owner-confirmed factory restoration snapshot against the disconnected baseline, including process, activity/service, display/window/layer, network, usb0 and bounded log results.",
+      "network_scope": "Read-only global socket tables and usb0 operstate for restoration comparison; no jmcs ownership claim without FD-to-inode join.",
+      "log_collection_purpose": "One bounded log snapshot for restoration comparison; raw logs remain private.",
+      "capture_during_transition": false
     }
   ],
   "post_session_instrumentation": {
@@ -509,7 +615,7 @@
       "dynamic_ptrace_frida_xposed_instrumentation",
       "receiver_binary_modification"
     ],
-    "authorization": "separate proposal, exact signal, independent technical/security review, owner approval, and recovery evidence; qualified vehicle-safety review for vehicle use"
+    "authorization": "HondaHack observation, privileged access, receiver hooks, and active Type111 instrumentation remain excluded and require separate proposal, exact signal, independent technical/security review, qualified vehicle-safety review where applicable, owner approval, and restoration evidence."
   },
   "process_identity_expectations": {
     "process_name": "jmcs",

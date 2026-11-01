@@ -23,6 +23,7 @@ REQUIRED_SOURCE_PATHS = frozenset({
     "docs/development/cl-honda-comprehensive-readiness.json",
     "docs/development/cl-honda-comprehensive-runbook.md",
     "tools/honda-readonly-preflight/README.md",
+    "tools/honda-readonly-preflight/campaign_source_hashes.json",
     "docs/diagnostics/comprehensive-runtime-campaign.md",
     "docs/diagnostics/evidence-coverage.json",
     "tools/honda-readonly-preflight/display_compare.py",
@@ -106,10 +107,19 @@ def verify_lock(root: Path, lock_path: Path, *, verify_git_ancestry: bool = True
 
 
 def command_manifest_sha256(profile: dict[str, Any]) -> str:
-    fields = ("commands", "commands", "live_argv", "live_argv", "commands",
-              "commands_after_each_owner_confirmation", "commands_after_each_allowed_state", "commands")
+    fields = {
+        "phase0_baseline_safety_identity": "commands",
+        "phase1_ordinary_adb_capability": "commands",
+        "phase2_existing_root_supersu_review": "live_argv",
+        "phase3_jmcs_maps_libraries_fd_socket_ownership": "live_argv",
+        "phase4_three_state_carplay": "commands",
+        "phase7_recovery_restoration": "commands",
+    }
     rows = []
-    for phase, field in zip(profile.get("phases", []), fields):
+    for phase in profile.get("phases", []):
+        field = fields.get(phase.get("id"))
+        if field is None:
+            raise ValueError("campaign phase has no fixed command-manifest field")
         for command in phase.get(field, []):
             argv = [str(item).replace("<private-approved-serial>", "EXACT_APPROVED_SERIAL")
                     .replace("<verified-jmcs-pid>", "1234") for item in command]

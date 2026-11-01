@@ -171,6 +171,77 @@ def test_dry_run_builds_command_plan_without_invoking_adb(monkeypatch, capsys):
     assert " shell cat /proc/version" in output
 
 
+def test_api17_factory_inventory_operations_are_exact_and_package_scoped():
+    reader = object.__new__(collector.FixedAdb)
+    reader.adb, reader.serial = "/mock/adb", "SERIAL-42"
+    assert reader.plan("service-list", ()) == ("/mock/adb", "-s", "SERIAL-42", "shell", "service", "list")
+    for args in (("activity", "activities"), ("activity", "services")):
+        assert reader.plan("dumpsys", args)[4:] == ("dumpsys", *args)
+    package = "com.mitsubishielectric.ada.appservice.navigation"
+    assert reader.plan("dumpsys", ("package", package))[4:] == ("dumpsys", "package", package)
+    assert reader.plan("package-path", (package,))[4:] == ("pm", "path", package)
+    assert reader.plan("list", ("/sys/class/graphics",))[4:] == ("ls", "/sys/class/graphics")
+    with pytest.raises(collector.SafetyStop):
+        reader.plan("dumpsys", ("package", "com.example.unlisted"))
+    with pytest.raises(collector.SafetyStop):
+        reader.plan("package-path", ("com.example.unlisted",))
+    with pytest.raises(collector.SafetyStop):
+        reader.plan("list", ("/dev/graphics",))
+
+
+@pytest.mark.parametrize(("operation", "args", "stdout"), [
+    ("service-list", (), b"Found 1 service:\n0 nav: [factory]\n"),
+    ("package-path", ("com.mitsubishielectric.ada.appservice.navigation",),
+     b"package:/system/app/navigation.apk\n"),
+    ("package-path", ("com.mitsubishielectric.ada.appservice.navigation",),
+     b"package:/vendor/app/Navigation.apk\n"),
+    ("dumpsys", ("package", "com.mitsubishielectric.ada.appservice.navigation"),
+     b"Package [com.mitsubishielectric.ada.appservice.navigation] codePath=/system/app\n"),
+])
+def test_new_inventory_output_forms_are_checked(operation, args, stdout):
+    collector.validate_legacy_shell_output(operation, args, 0, stdout, b"")
+
+
+def test_new_inventory_output_rejects_missing_or_ambiguous_metadata():
+    with pytest.raises(collector.SafetyStop):
+        collector.validate_legacy_shell_output("service-list", (), 0, b"navigation service\n", b"")
+    with pytest.raises(collector.SafetyStop):
+        collector.validate_legacy_shell_output("package-path",
+            ("com.mitsubishielectric.ada.appservice.navigation",), 0,
+            b"package:/system/app/a.apk\npackage:/system/app/b.apk\n", b"")
+
+
+@pytest.mark.parametrize(("operation", "args", "output"), [
+    ("read", ("/proc/net/tcp",), b"cat: /proc/net/tcp: Permission denied\n"),
+    ("read", ("/proc/net/unix",), b"cat: /proc/net/unix: No such file or directory\n"),
+    ("list", ("/sys/class/graphics",), b"ls: /sys/class/graphics: Permission denied\n"),
+    ("package-path", ("com.mitsubishielectric.ada.appservice.navigation",),
+     b"Error: package not found\n"),
+    ("dumpsys", ("package", "com.mitsubishielectric.ada.appservice.navigation"),
+     b"Unable to find package: com.mitsubishielectric.ada.appservice.navigation\n"),
+])
+def test_optional_inventory_absence_or_denial_is_recordable_without_retry(operation, args, output):
+    # API-17's shell may return 0 despite a target-side diagnostic. The raw
+    # message remains evidence; this validator neither retries nor escalates.
+    collector.validate_legacy_shell_output(operation, args, 0, output, b"")
+
+
+def test_optional_target_absence_does_not_hide_adb_transport_failure():
+    with pytest.raises(collector.SafetyStop, match="transport failure"):
+        collector.validate_legacy_shell_output("read", ("/proc/net/tcp",), 0,
+            b"cat: /proc/net/tcp: Permission denied\n", b"error: device offline")
+
+
+@pytest.mark.parametrize(("operation", "args"), [
+    ("package-path", ("com.mitsubishielectric.ada.appservice.navigation",)),
+    ("dumpsys", ("package", "com.mitsubishielectric.ada.appservice.navigation")),
+])
+def test_factory_package_permission_denial_stops(operation, args):
+    with pytest.raises(collector.SafetyStop):
+        collector.validate_legacy_shell_output(operation, args, 0,
+            b"Permission denied\n", b"")
+
+
 @pytest.mark.parametrize(("code", "out", "err", "expected"), [
     (0, b"Linux version 3.1.10+", b"", collector.CommandResult.SUCCESS),
     (127, b"", b"/system/bin/sh: uname: not found", collector.CommandResult.COMMAND_UNAVAILABLE),
@@ -264,8 +335,10 @@ def test_adb_output_limit_stops_host_client_before_unbounded_capture(monkeypatch
     fake = FinishedProcess(os.fdopen(out_read, "rb"), os.fdopen(err_read, "rb"))
     monkeypatch.setattr(collector.subprocess, "Popen", lambda *args, **kwargs: fake)
     reader = collector.FixedAdb("SERIAL-42")
-    code, out, err = reader.run("read", "/proc/version", max_bytes=4)
+    ceiling = collector.COMMAND_MARKER_RESERVE + 4
+    code, out, err = reader.run("read", "/proc/version", max_bytes=ceiling)
     assert (code, out) == (125, b"abcd")
+    assert len(out) + len(err) <= ceiling
     assert b"output limit" in err
     assert fake.killed is True
 

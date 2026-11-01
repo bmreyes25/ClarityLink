@@ -1,17 +1,49 @@
-# Honda experiment workflow
+# Cycle 6 Honda ordinary ADB session runbook
 
-This entry replaces the former multi-stage approval runbook. Use the
-[three-level experiment workflow](../safety/experiment-risk-levels.md) for
-scope, review, and one session-level owner decision, and
-[vehicle-testing.md](../safety/vehicle-testing.md) for practical readiness,
-stop, privacy, and restoration requirements.
+**Status: proposal only. Live access is disabled.** The owner must verify the exact 2018 Honda Clarity PHEV Touring identity and intended, already-authorized ADB serial, obtain the independent technical and qualified vehicle-safety reviews bound to the exact source hashes, and issue the one-session authorization before any live command. No vehicle access is authorized by this document.
 
-The C-P capture and its approval remain historical and untouched. The separate
-comprehensive Type111 evidence plan is described in the
-[current campaign status](../diagnostics/comprehensive-runtime-campaign.md);
-its fixed live backend is available only behind exact private session
-authorization. The unchanged Phase 0/1 identity check is Level 1 and requires a
-fresh owner session decision; transition and diagnostic phases add only the
-technical or qualified safety review required by their risk. No current scope
-has owner session authorization, so there is no session to start.
-`safeForHonda() == false` and deployment remains unauthorized.
+## Scope and evidence limits
+
+The controller accepts only fixed `adb -s SERIAL shell` operations from `docs/diagnostics/comprehensive-campaign-proposal.json`. It uses ordinary shell identity, no `su`, no root, no arbitrary shell, no writes to the car, no HondaHack, no receiver hooks, no private display control, no CAN, and no active instrumentation. Historical protected `/proc/PID` denial is not retried. `safeForHonda()` remains false.
+
+The session gathers process/service/package metadata; ActivityManager, DisplayManager, WindowManager, and SurfaceFlinger snapshots; bounded global network tables; usb0 operstate; and bounded log snapshots. Logical display IDs and layer names do not establish physical cluster scanout or warning precedence. Global socket tables do not establish jmcs ownership. Passive logs do not establish decoded Type111 negotiation or authority. Historical ordinary-shell Honda captures demonstrate the API17 forms `dumpsys activity activities`, `dumpsys activity services`, and `service list`; these are historical command-availability evidence, not current state. Historical package-path output was summarized only for a disposable lab package; raw `pm path` evidence for the Honda's factory packages and Honda `dumpsys package` evidence are unavailable. A prior `/sys/class/graphics` listing exists, but its privilege provenance is unknown. The new package queries and this campaign's exact graphics query therefore remain unproven on ordinary shell for the target Honda.
+
+## Exact limits and source binding
+
+The owner/operator first runs offline `dry-run`, `validate_comprehensive_proposal.py`, and `verify_comprehensive_source_lock.py`; the reviewed source-lock JSON supplies the exact SHA-256 values. The campaign records these source and command-manifest hashes in its private archive. Every command has a 10-second timeout and 900,000-byte combined stdout/stderr ceiling, including truthful collector failure markers. One shared **raw stdout+stderr** counter across all phases enforces exactly **158,400,512 bytes** (158.400512 decimal MB; 151.0625 MiB). At most 162 commands may start; the sum of individual ceilings is 145,800,000 bytes. Profile/source-lock/objective metadata, the command/session ledger, and the SHA-256 inventory are archive overhead, excluded from the raw-output counter and reserved in the separate 8 MiB storage headroom. Optional visual media are outside the controller archive and both budgets; store them separately in the same private custody boundary if collected. Evidence storage must have at least 166,789,120 bytes available before start. Session deadline is 3,600 seconds; the schedule budgets 1,620 seconds of command time and 1,350 seconds of owner prompts (90 seconds each), total 2,970 seconds with 630 seconds remaining. No retries. Truncation, incomplete file writes, budget exhaustion, timeout, or an unexpected command result aborts the session without a success claim.
+
+## Owner/operator sequence
+
+At each listed phase/state the controller requires an explicit `READY` immediately before capture. The owner alone operates the stationary, parked vehicle using normal factory controls. Collect no snapshot during an action or transition.
+
+1. **Initial readiness / baseline:** owner confirms exact vehicle, intended existing ADB authorization, Park, parking brake, approved power state, normal warnings/displays/audio, private storage, and restoration baseline. No ADB operation until confirmation.
+2. **Disconnected factory baseline:** owner confirms Type110 is disconnected. Capture the one-time inventory: five target identity `getprop`s, `id`, `ps`, `service list`, `ls /sys/class/graphics`, then paired `dumpsys package PACKAGE` and `pm path PACKAGE` for each of the five APK-manifest-verified factory package names (19 commands total). Missing-package results and optional graphics/network denial/absence are recorded once; no retry or escalation. The graphics listing only records exposed kernel node names; it does not test access or prove physical output.
+3. **Type110 connected:** owner connects stock CarPlay through the normal flow, waits for steady state, confirms normal behavior. Capture the lifecycle set below.
+4. **Navigation selected:** owner selects Navigation normally, waits and confirms steady state; capture the lifecycle set.
+5. **Navigation deselected:** owner deselects Navigation normally; capture.
+6. **Navigation reselected:** owner selects Navigation normally; capture.
+7. **Type110 disconnected:** owner disconnects normally; capture.
+8. **Type110 reconnected:** owner reconnects normally, waits for stable state; capture.
+9. **Navigation selected after reconnect:** owner selects normally; capture.
+10. **Navigation deselected after reconnect:** owner deselects normally; capture.
+11. **Final Type110 disconnect:** owner disconnects normally; capture.
+12. **Factory restoration:** owner restores their recorded factory baseline using normal controls and confirms it before the final 13-command restoration snapshot; after capture the owner confirms restoration again.
+13. **Normal shutdown:** owner uses normal factory power controls and confirms power-off. No coding or recovery action is attempted automatically.
+
+The 13-command lifecycle set at each of the ten steady states and again at restoration is exactly: `ps`; `dumpsys activity activities`; `dumpsys activity services`; `dumpsys display`; `dumpsys SurfaceFlinger`; `dumpsys window`; `cat /proc/net/tcp`; `cat /proc/net/tcp6`; `cat /proc/net/udp`; `cat /proc/net/udp6`; `cat /proc/net/unix`; `cat /sys/class/net/usb0/operstate`; `logcat -d -t 500`. All commands are issued with the exact serial and through the fixed-operation planner. Phase 1 static package/service inventory is intentionally collected once at the disconnected baseline.
+
+## Storage, timing, and stop rules
+
+Store raw output only in an owner-controlled local directory outside the repository, owner-owned mode `0700`; files and SHA inventory mode `0600`. Disable cloud sync and backups for the destination. Do not include raw capture, serial, VIN, exact unit reference, photographs, or derived identifying data in Git or a public issue. Preserve original stdout/stderr, errors, timestamps, owner state markers, run ID, authorization reference, and hashes. The controller’s bounded logs may contain private data; review only in the private workspace.
+
+Stop immediately and do not retry if any warning, unexpected display/cluster/Navigation/audio behavior, command timeout, output cap, malformed required service/activity/display output, ADB disconnect, authorization/pin mismatch, storage/write/hash problem, unexpected process identity, uncertain state, or owner `STOP` occurs. A fixed OEM package reported absent, or an optional graphics/network read reported absent or denied, is recorded as an evidence gap and does not trigger a retry. Do not proceed to the next phase after a stop condition. The owner manually restores the recorded factory baseline using normal controls; the host records an aborted session and does not issue vehicle commands after abort. If the owner cannot establish normal restoration, stop and leave the vehicle with its owner for their judgment; no automatic recovery is provided.
+
+Optional physical cluster photo/video is owner-consented only and remains outside the controller archive and its storage caps. The owner must confirm separate private storage capacity before recording. Capture without operating controls during an ADB snapshot; record capture start/end wall clock and monotonic offset against the host command ledger, state label, and operator-confirmed observation. Avoid faces, screens with personal data, VIN, and location. Do not infer display routing from an image unless the physical surface is unambiguous and reviewed.
+
+## After capture
+
+Verify the private SHA-256 inventory, owner-only permissions, command ledger continuity, exact source/profile/manifest pins, cumulative byte accounting, and archive contents. Run `comprehensive_replay.py` offline on the private archive. Compare phase/state process and service token proxies, display/window/layer snapshots, global network tuple changes, usb0 state, reconnect and restoration observations, and optional time-aligned physical observations. Classify each finding as observed, supported but not proven, contradicted, or unknown. Keep data private; publish only sanitized summaries after review. A successful archive is not proof of Type111 support, physical scanout, arbitrary frame ingress, decoded SETUP, OEM warning precedence, or complete restoration beyond the owner-confirmed observations.
+
+## Separate future scopes
+
+Privileged reads, active instrumentation, receiver modifications, and HondaHack Start/Stop observation are excluded. Each requires its own fixed scope, independent review, qualified vehicle-safety review where applicable, and explicit owner authorization. Nothing in this ordinary ADB package approves them.

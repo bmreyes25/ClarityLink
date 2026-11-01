@@ -1,211 +1,53 @@
-# Type111 evidence follow-up
+# Cycle 6 comprehensive Honda ADB campaign
 
-**Campaign:** `CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031`
-**Baseline:** PR #124 at `0136ac241d94e1ebb1cc4403c07fd480728b47d6`
-**Result:** Offline simulator plus a fixed, authorization-gated live backend; no current session is authorized.
-**Deployment:** `safeForHonda() == false`; not authorized.
+**Scope:** fixed ordinary ADB observations plus owner-operated factory Type110 CarPlay and Navigation transitions. The purpose is to identify Honda process/service/display/network relationships needed to choose a Type111 integration point. This is not a stock Type111 feasibility experiment.
 
-The October 31 C-P campaign is historical and is not repeated. Its 135
-commands did not resolve the new Type111 questions. The comprehensive plan
-retains all eight phases and 19 evidence objectives; command/test completion
-never substitutes for an observed objective.
+**Status:** two independent AI technical/security reviews are complete for Cycle 6 source. Qualified vehicle-safety review and new owner authorization are pending. No live ADB or vehicle access has occurred. `safeForHonda() == false`; live execution remains disabled by default.
 
-## Existing high-value runtime archive
+## Why this session has high value
 
-Before proposing a new visit, the existing private 2026-09-29 disconnected
-`jmcs` archive was rechecked read-only in the owner’s USB checkout. Its
-70-entry `SHA256SUMS.txt` matches every retained file. The API 17 maps parser
-accepts all 202 mappings, identifies the `/system/bin/jmcs` executable
-mapping beginning at historical load bias `0x4008f000`, and confirms 45 unique
-mapped shared-object paths. The same archive contains 10 socket FD symlinks;
-exact inode joins identify two TCP and five Unix-socket rows. Network contents
-and peer addresses were not exported during this verification.
+Existing archives provide historical `jmcs` maps, library, FD/socket joins and separate disconnected/connected snapshots, but not a synchronized API-17 run through Navigation selection, Type110 disconnect/reconnect and restoration. The new session combines those transitions with ActivityManager activities/services, DisplayManager, WindowManager, SurfaceFlinger layers, process listings, bounded network tables, usb0 state and private bounded log snapshots. Static package metadata and binder service inventory are collected once at the initial disconnected baseline.
 
-This is useful historical runtime evidence and avoids recapturing an identical
-disconnected baseline merely to reproduce known facts. It is not a current
-process snapshot: the preserved set lacks `smaps`, `stat`, `cmdline`, and `exe`
-files, and the ASLR addresses must never be reused. It cannot prove a current
-process epoch, page-size fields, connected-state socket changes, `/info`
-values, SETUP acceptance, or Display 1 ownership. Maps permissions and the
-main executable mapping are available historically; resident-page accounting
-and all smaps fields are not.
+This should reveal whether Navigation and ExternalDisplay activity/service mentions, process continuity, display/window/layer names, and global network state change together at each owner-marked state. It provides lifetime and correlation proxies only. Logical display IDs do not prove physical cluster pixels, OEM warning precedence, or scanout. Global socket rows are not assigned to `jmcs` without same-time FD/inode ownership evidence. Passive diagnostics cannot establish decoded Type111 SETUP, arbitrary frame ingress, or session authority. HondaHack, privileged access, hooks, and active instrumentation are separate scopes and excluded.
 
-A separate 2026-09-25 CarPlay-connected private capture also contains maps,
-FD symlinks, and TCP/UDP/Unix tables. Offline parsing finds 54 mapped `.so`
-paths and 13 exact FD/socket inode joins among 15 socket FD links. Its manifest
-records command names and byte counts but has no per-file SHA-256 inventory.
-It belongs to a different process epoch and date than the disconnected
-archive, so the two are not a synchronized lifecycle comparison and cannot
-replace new same-session snapshots. Together they establish that previous
-`su -c` reads did obtain useful receiver metadata in past sessions;
-they do not justify the same invocation against the current target state.
+## Fixed command package and output
 
-## Current experiment view
+The one-time baseline runs 19 exact fixed operations: five target `getprop`s, `id`, `ps`, `service list`, `ls /sys/class/graphics`, and paired `dumpsys package PACKAGE` / `pm path PACKAGE` for the five APK-manifest-verified Mitsubishi Electric Navigation, CarPlay, CarPlay AP service, and ExternalDisplay packages listed in the profile. Expected evidence: API/build identity, ADB shell UID, process names/PIDs, binder service names, installed package metadata and APK paths. Missing-package responses and permission/absence responses for optional graphics/network reads are captured once as unavailable evidence and do not trigger retries or escalation. Malformed required output, transport failure, timeout, truncation or storage/accounting failure stops the campaign.
 
-The controller and Studio readiness JSON expose **Current objective**,
-**Latest evidence**, **Experiment ready**, **Run experiment**, **Results**, and
-**Next iteration**. The current objective is offline SuperSU method analysis
-needed to justify (or reject) the minimum `jmcs` maps/FD observation. The live
-backend is implemented, but no live session is ready; none of the 19 Honda
-objectives is confirmed. A dry-run or simulation cannot set campaign success.
+At each of ten owner-confirmed Type110/Navigation steady states and once after factory restoration, the exact 13-command set is: `ps`; `dumpsys activity activities`; `dumpsys activity services`; `dumpsys display`; `dumpsys SurfaceFlinger`; `dumpsys window`; read-only `/proc/net/tcp`, `tcp6`, `udp`, `udp6`, `unix`; `/sys/class/net/usb0/operstate`; and `logcat -d -t 500`. ActivityManager text is compared as token/hash deltas; no token alone proves an ownership edge. Existing display parsers compare reported logical inventory, WindowManager window names/IDs and SurfaceFlinger layer names. Network parsers compare tuple hashes and interface state. Log replay emits bounded marker counts only.
 
-| Question | Shortest useful method | New evidence / limit | Current gate |
+The fixed command planner emits exact-serial `adb -s SERIAL shell` argv, with no composed shell strings, arbitrary operation, writes, `su`, root, `input`, `screencap`, packet capture, procfs retry, HondaHack, receiver modification, or vehicle control. Android 4.2/API17 command compatibility is grounded in the archived ordinary-shell outputs for `dumpsys activity activities`, `dumpsys activity services`, and `service list`; existing captures also contain display/window/SurfaceFlinger and process snapshots. Those historical captures do not establish the present vehicle state. Prior `/proc/net` evidence exists but its privilege provenance is not uniformly established. Historical package-path evidence was only summarized for a disposable lab probe, not the factory packages; no Honda raw `dumpsys package` evidence is available. OEM package queries are planner/parser tested, not proven on the Honda. `/sys/class/graphics` output exists historically, but its privilege provenance is unknown. No on-car availability is inferred from offline tests.
+
+## Fixed operation contract
+
+Every target command uses the same exact-serial `adb -s SERIAL shell` wrapper, an ordinary `uid=2000(shell)` identity, a 10-second timeout, and a combined 900,000-byte stdout/stderr ceiling including the truthful termination marker. Raw output is owner-only (`0700` archive directory, `0600` files), retains timestamps and hashes, and is never emitted to public reports. A required-command timeout, transport failure, malformed output, output truncation, storage failure, or aggregate-budget failure aborts without retry. Explicitly optional fixed OEM package absence and graphics/network `permission denied` or `no such file` results are captured once and labeled unavailable; they do not authorize another path or privilege.
+
+| Fixed command form | Engineering question and expected output | API17 / Honda evidence status | Correlation and limitations |
 |---|---|---|---|
-| `jmcs` mappings, load bias, protections | Exact PID/start-time-bound maps/smaps | Historical disconnected maps, load bias and mapped libraries are verified; no smaps or complete process-epoch bracket, so current state remains unknown | Current access blocked on justified method |
-| Process-owned sockets | Numeric FD symlink inode joined to same-phase TCP/UDP/Unix inode | Ownership only on exact inode match | Blocked with maps/FD access |
-| Loaded libraries | Parse actual `maps`; compare static ELF imports separately | Runtime library set, not static dependency inference | Blocked with maps access |
-| `/info` advertisement | Receiver's decoded plist response/serializer boundary | Static dataflow exists; bounded logs/dumpsys do not show response values | No reviewed observer |
-| SETUP and Type111 rejection | Decoded request/response boundary before private handlers | Static path is mapped; passive campaign cannot expose handler acceptance or plist values | No reviewed observer |
-| Display 1 and Navigation | Bounded DisplayManager/WindowManager/SurfaceFlinger snapshots at selected/deselected/reselected states | Adds lifecycle deltas; does not prove physical pixels, z-order safety, or frame admission | Separate Level 2 review/session |
-| HondaHack casting lifecycle | Ordinary existing UI Start/Stop with stable-state snapshots | Tests ordinary withdrawal/restoration, not a supported Type111 ingress | Qualified safety review and session gate |
+| `getprop KEY` (five allowlisted identity keys), `id` | Is this the expected Android 4.2.2/API17 target and ordinary shell UID? One property or identity line per command. | Android shell built-ins; historical Honda identity output exists. | Pins target; unexpected model/build/UID stops before lifecycle capture. |
+| `ps` | Which process names/PIDs are visible in this state? Bounded process listing. | API17 `ps`; historical Honda process captures exist. | PID presence/continuity only; no start time or executable ownership proof. |
+| `service list` | Which Binder service names are registered? `Found N services` plus names. | Historical Honda ordinary-shell raw output, exit 0. | Names can suggest services; does not establish owning package or call flow. |
+| `dumpsys activity activities`; `dumpsys activity services` | Which activities/services/components/process records are present or change with Navigation? Framework diagnostic text. | Historical Honda ordinary-shell raw outputs, exit 0. | Component token/hash deltas only; no ViewRoot or Surface producer attribution. |
+| `dumpsys display`; `dumpsys window`; `dumpsys SurfaceFlinger` | Which logical displays, window records, and composition layer names change? Framework diagnostic text. | Existing Honda diagnostic captures; historical source privilege context is retained with those archives. | Logical display/layer IDs do not prove cluster pixels, scanout, physical routing, or warning priority. |
+| `dumpsys package PACKAGE`; `pm path PACKAGE` for five fixed packages | Are factory package metadata/version/code path and APK base path exposed? Package record or one `package:/system|data|vendor|product/...apk` line; absent package is explicit. | API17 package-manager forms and offline parsers; no Honda raw `dumpsys package` or factory-package `pm path` output yet. `/vendor/app/Navigation.apk` is observed in historical ActivityManager data, not from `pm path`. | Captures package facts for correlation; cannot prove runtime process ownership or service registration. |
+| `service list`; `ls /sys/class/graphics` | Which service and graphics-class names are exposed at the disconnected baseline? | Service inventory is Honda-tested as above; graphics listing exists historically but privilege provenance is unknown. | Graphics entries are node names only, not readable framebuffer or physical output evidence. |
+| `cat /proc/net/{tcp,tcp6,udp,udp6,unix}`; `cat /sys/class/net/usb0/operstate` | Do global network-table rows or `usb0` state change by owner-marked phase? Text table or one state value. | `/proc/net` output exists historically but ordinary-shell provenance varies; do not assume access. Exact present-session permission is unknown. | Global sockets are not assigned to `jmcs` absent same-snapshot FD/inode join; denial is retained and not retried. |
+| `logcat -d -t 500` | Are bounded recent marker lines visible without clearing buffers? At most 500 lines. | Fixed API17-form and parser are offline tested; exact form on this Honda remains unverified in the prior collector notes. Unsupported or malformed output aborts this profile; no command substitution. | Offline replay emits bounded counts only; absence of `/info` or SETUP text is not protocol evidence. |
 
-`/info` static dataflow is `_requestProcessInfo` → `AirPlayCopyServerInfo` →
-binary-plist response serialization ([source](../../research/carplay/honda-server-info.md)).
-SETUP parsing and response construction are mapped in the
-[43T1-R3 seam report](../../research/runtime/43t1-r3-setup-seam-map.md). A
-packet capture alone cannot prove decrypted plist content or handler
-acceptance. No reviewed runtime observer currently exposes either boundary
-without receiver attachment, injection, or modification.
+The profile hash and source-lock bind this complete fixed operation set; the replay binds each output to command argv, steady-state label, owner confirmation, monotonic timestamps, command index, byte counters, and SHA-256. Baseline inventory is captured once; lifecycle diagnostics repeat across ten Type110/Navigation states and final restoration. All comparisons use the initial disconnected state and restoration, with network deltas phase-labeled and not process-attributed.
 
-## Eight phase decisions
+## Session bounds and operation
 
-| Phase | Scope | Risk | Evidence value | Readiness |
-|---|---|---:|---|---|
-| 0 | Owner baseline and exact identity | 1 | Safe starting state and exact unit | Offline checklist only |
-| 1 | Existing ordinary ADB, target identity, bounded diagnostics | 1 | Current build/shell/process identity | Owner session approval only; the 7 fixed reads are an unchanged subset of the prior routine identity surface |
-| 2 | Archived SuperSU binary/policy/daemon side-effect assessment | 2 | Whether current privileged access can be justified | Static archive review complete and a historical `su -c` read is documented; exact invocation effects and current prompt/daemon/policy state remain unknown; no `su` invocation in this task |
-| 3 | Maps/smaps, libraries, FD links and socket inode correlation | 2 | Current mappings and socket ownership | **Blocked for new capture:** the old disconnected archive answers historical maps/libraries and exact socket inode joins; current state needs a justified access method |
-| 4 | Disconnected baseline; stock CarPlay active; Navigation selected/deselected/reselected while connected; disconnect/reconnect/final disconnect | 2 | Comparative display, bounded log, USB/network, and receiver-process lifecycle deltas; not protocol payload | Technical and qualified Display 1 safety review plus one exact session approval pending; cannot answer `/info` values |
-| 5 | Navigation selected/deselected/reselected after CarPlay disconnection | 2 | Compare factory Navigation display/window/layer dumps with active-CarPlay context; View class/lifecycle remains unexposed | Technical, qualified safety review, and session approval missing |
-| 6 | Existing HondaHack ordinary UI casting/withdrawal | 2 | Casting and ordinary restoration behavior | Technical and qualified Display 1 safety reviews missing; the reviewed scope is only normal existing Start/Stop behavior |
-| 7 | Ordinary restoration and host evidence integrity | 1 | End-state and evidence integrity | Only with an authorized preceding session |
+The reviewed profile has 45 unique command shapes and 162 total commands. Each has a 10-second timeout and a 900,000-byte combined stdout/stderr limit. The controller shares one aggregate **raw command output** budget across every command and phase: exactly 158,400,512 bytes (158.400512 decimal MB, 151.0625 MiB). Both streams, including target errors and collector termination markers, count; writes are reserved/accounted before an artifact can be treated as successful. Summed per-command ceilings are 145,800,000 bytes. The three pre-captured pinned metadata files (`campaign-proposal.json`, `source-lock.json`, and `evidence-objectives.json`), the separately written `session-summary.json`/command ledger, and SHA-256 inventory are archive overhead outside the raw-output counter, reserved within the separate 8 MiB storage headroom. Optional photos/video are outside the controller archive, output counter, and storage calculation; if owner-supplied, store separately and privately. Minimum free private evidence storage is 166,789,120 bytes. The schedule allows 1,620 seconds for commands and 1,350 seconds for 15 owner prompts, within the 3,600-second session deadline. It does not retry. It records each owner confirmation immediately before capture. The complete operator sequence and abort/restoration steps are in [the runbook](../development/cl-honda-comprehensive-runbook.md).
 
-Phase 6 UI sequence is fixed: casting disabled baseline → ordinary Start
-Casting → stable display snapshot → Navigation deselected → Navigation
-reselected → ordinary Stop Casting → verify factory Display 1, Navigation,
-center display, cluster and audio restored. No install, hook change, private
-API, forced stop, induced warning, or retry.
+Only the owner may identify the exact vehicle, confirm the already-authorized serial, operate normal factory controls while stationary in Park, approve private local storage, and authorize the exact one-session scope. Exact source/profile/manifest hashes must be independently reviewed before any request for authorization. A qualified vehicle-safety review is separate from AI technical review. At present the owner is away; do not start live collection.
 
-Phase 4 captures the disconnected baseline, ordinary stock CarPlay active
-state, Navigation selection changes while connected, normal disconnection,
-reconnection, and final disconnection. Captures occur only after the owner
-confirms each stable state. The separate Phase 5 Navigation pass compares the
-factory Navigation display after CarPlay is disconnected. Each stable-state
-capture is compared with its baseline and adjacent state; identical hashes are
-reported as unchanged, not as new evidence.
+## Evidence ranking
 
-## SuperSU access decision
+1. **Highest value:** repeated ActivityManager, process, display/window/layer and network snapshots across connected Navigation selected/deselected/reselected and the same Navigation cycle after reconnect. These are synchronized, phase-labeled observations missing from historical cross-date captures.
+2. **High value:** disconnected package/service inventory and process/service relationship changes. New package/service queries may expose OEM names, component metadata and path relationships; actual on-car availability remains unknown until observed.
+3. **High value for restoration:** final disconnect and post-restore snapshots compared with the initial disconnected baseline, plus owner confirmation and optional private time-aligned physical cluster observation.
+4. **Limited value:** log marker counts and global socket-table changes. Neither reveals payload decoding or process ownership on its own.
+5. **Explicitly out of scope:** privileged maps/FD access, HondaHack casting, Type111 protocol instrumentation, receiver changes, warning induction or vehicle control.
 
-The archived `/system/xbin/su` is a 75,348-byte ARM EABI5 Chainfire
-SuperSU-family binary (SHA-256
-`d95fdbb551aca66d8a81471ea7683f58dba75a09d5cdc4712209b955574eab26`), archived
-mode 06777. Static strings/imports show daemon/autodaemon, request, log/config,
-permission, mount/ioctl, process, IPC, and credential-changing capabilities.
-Earlier owner records confirm a narrowly scoped `su -c` read succeeded on the
-historical unit, so this is a demonstrated access path, not a hypothetical
-mechanism. The read did not attach, signal, reconfigure, or replace `jmcs`;
-that does not audit writes made internally by `su` or its daemon. The exact
-ordinary `su -c` path, current policy/config, daemon-present/absent
-behavior on API 17, actual prompt/log/write reachability, and process impact
-remain unresolved. Prior `su -c id` only proves past UID 0 access. It does not
-prove zero writes or harmlessness. Ordinary shell previously received
-permission denied for `maps`, `smaps`, and `fd`; no less-intrusive source is
-currently established. See the archived
-[execution-path analysis](../../research/runtime/supersu-execution-path.md),
-[write inventory](../../research/runtime/supersu-write-side-effects.md), and
-[40E4 decision](../../step-reports/40E4-zero-write-privilege-path.md).
-
-The existing `PrivilegedRead` API has enumerated identity/process/FD/network
-operations and binds the installed `su` fingerprint. This fixed API does not
-resolve the undocumented SuperSU behavior and is not permission to invoke it.
-If that existing path is justified offline and independently reviewed, the
-exact minimal read proposal is below. It is **not executable or authorized
-now**. Use only enumerated operations; do not turn `su -c` into an arbitrary
-shell executor. Bound every operation to 20 seconds/4 MiB and validate process
-identity before and after. One FD-list read supplies all symlink targets; parse
-numeric FDs and match socket inodes against tables captured in the same
-bracket. Do not issue one command per FD or read process memory, environment,
-credentials, or keys.
-
-```text
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/stat"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/status"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/cmdline"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/maps"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/smaps"
-adb -s <private-approved-serial> shell /system/xbin/su -c "ls -l /proc/<verified-jmcs-pid>/fd"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/net/tcp"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/net/tcp6"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/net/udp"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/net/udp6"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/net/unix"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/stat"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/status"
-adb -s <private-approved-serial> shell /system/xbin/su -c "cat /proc/<verified-jmcs-pid>/cmdline"
-```
-
-The shortest blocker-resolution path is a bounded control-flow analysis of the
-exact hash-matched `su` binary plus any matched daemon/config/log artifacts,
-focused on the normal `-c` branch, pre/post daemon behavior, prompt handling,
-files opened with write-capable flags, durable policy updates, and child
-credentials. Then obtain independent technical review of that exact evidence
-and fixed reader. If the matching active policy/daemon state is absent or the
-branches remain unresolved, keep Phase 2/3 blocked; do not treat successful
-historical commands or owner risk acceptance as proof of no side effects.
-Never execute `su` to discover its effects.
-
-## Controller, authorization and safety
-
-`live_execution_enabled` remains false in the published proposal and unfilled
-template. A qualifying one-run owner record must set it true only after its
-selected phase gates pass. The record lists review types derived from phase
-risk; the owner separately confirms technical reviewer independence and, for
-Display 1, the safety reviewer’s qualifications. The artifact validator checks
-structure and exact source pins only. It cannot prove reviewer identity,
-independence, competence, or certification. Review-gated execution requires a
-clean worktree at the reviewed commit. Ordinary `ps` provides PID continuity
-only; the controller does not claim start-time or executable identity without
-the blocked Phase 3 source.
-
-The controller verifies eight phases and 30 fixed API-17 argv shapes. Ordinary
-phases do not repeat known-inaccessible root-owned `/proc/PID` reads: they use
-exact target properties, shell identity, `ps` PID continuity, and public
-display/network snapshots. PID start-time, cmdline, root UID/GID, and executable
-revalidation belong only to the blocked Phase 3 privileged method.
-source/profile/manifest pins, per-run binding, PID/start-time identity, bounds,
-private evidence requirements, abort behavior, evidence coverage, and
-terminal/notification outcomes. Dry-run and fault simulation use no device,
-ADB lookup, subprocess, or capture file. The live backend is fixed-operation
-and one-use authorization-gated; it does not discover devices, invoke root, or
-accept arbitrary commands. Proposal-level live execution remains false, and
-the current readiness view correctly shows that no session is authorized.
-
-Use one owner decision for one exact session and an explicitly listed set of
-compatible phases/categories. The approval includes exact vehicle/endpoint,
-fresh expiring run ID and nonce, readiness checks, source pins, stop/recovery
-scope and only risk-required review artifacts. Adding a phase or action outside
-that set requires a new decision. The owner physically present confirms Park,
-parking brake, reviewed power state, normal displays and no abnormal warning.
-One-use authorization and nonce markers are separate from historical C-P
-ledger records.
-
-Before a session, confirm the evidence destination: host-local and outside the
-repository; owner-only directory and file modes; cloud sync disabled; and a
-hash inventory ready. Do not put serials, raw procfs/log output, images, or
-credentials in the public report. Abort cleanup is host-only; no automatic
-retry, transport switch, privilege escalation, vehicle power-off, or next
-session. The owner confirms the exact normal-state restoration observations
-and the available manual stop route before authorizing any transition. For
-Display 1/HondaHack, confirm factory Display 1 ownership, Navigation selection,
-center display, cluster, and audio return to their pre-session state. If any
-restoration step is unverified or unavailable, do not start that phase. See the
-[three-level workflow](../../docs/safety/experiment-risk-levels.md).
-
-**FULL CAMPAIGN LIVE READY: NO. PARTIAL CAMPAIGN LIVE READY: NONE.** Current
-external gates are a justified Phase 2/3 access method or less-intrusive
-source, an observer for `/info`/SETUP if those values remain required, a
-technical review for Level 2 methods and qualified Display 1 safety review for
-Phases 4–6. A real Claude read-only review found actionable controller issues;
-they are being corrected. That review is technical input, not final approval or
-qualified vehicle-safety review. No qualified safety review was obtained.
-Do not prepare the Honda for this campaign.
+After an authorized run, `comprehensive_replay.py` verifies the private SHA-256 inventory, pinned source and manifest, command ledger, output counter, and exact fixed command provenance, then compares each state with the disconnected baseline and restoration. Findings are classified observed, supported but not proven, contradicted, or unknown. Raw Honda output remains private.

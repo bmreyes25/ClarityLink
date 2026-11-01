@@ -35,6 +35,11 @@ class ArchiveError(ValueError):
     pass
 
 
+PACKAGE_NOT_INSTALLED_RE = re.compile(
+    r"(?i)(?:unable to find package|unknown package|package(?:\s+[^\r\n]*)?\s+not found|no package)"
+)
+
+
 def _private_archive(path: Path) -> Path:
     if path.is_symlink() or not path.is_dir():
         raise ArchiveError("archive must be a non-symlink private directory")
@@ -140,8 +145,153 @@ def _verify_source_revision(root: Path, source_lock: dict[str, Any], pins: dict[
         raise ArchiveError("archive manifest pin differs from the executed session")
 
 
+def _summarize_baseline_inventory(records: list[dict[str, Any]], root: Path) -> dict[str, Any]:
+    """Extract bounded, non-payload identity facts from one-time Phase 1 output."""
+    summary: dict[str, Any] = {"service_list": {"status": "NOT_COLLECTED"},
+        "graphics_nodes": {"status": "NOT_COLLECTED"}, "packages": []}
+    package_rows: dict[str, dict[str, Any]] = {}
+    for row in records:
+        if row.get("phase") != "phase1_ordinary_adb_capability":
+            continue
+        operation, args = row.get("operation"), row.get("arguments", [])
+        relative = row.get("stdout_file")
+        raw = b""
+        if isinstance(relative, str):
+            candidate = root / relative
+            if candidate.is_file() and not candidate.is_symlink():
+                raw = candidate.read_bytes()
+        stderr = b""
+        stderr_relative = row.get("stderr_file")
+        if isinstance(stderr_relative, str):
+            candidate = root / stderr_relative
+            if candidate.is_file() and not candidate.is_symlink():
+                stderr = candidate.read_bytes()
+        if operation == "service-list":
+            match = re.search(rb"(?im)^Found ([0-9]+) services?:\s*$", raw)
+            relevant = []
+            for line in raw.decode("utf-8", "replace").splitlines():
+                service = re.match(r"^\s*[0-9]+\s+(.+?):\s*\[", line)
+                if service and re.search(r"navigation|externaldisplay|carplay", service.group(1), re.I):
+                    relevant.append(service.group(1))
+            summary["service_list"] = {"status": "OBSERVED" if match else row.get("result_status", "UNRESOLVED"),
+                "reported_service_count": int(match.group(1)) if match else None,
+                "relevant_service_names": sorted(set(relevant)),
+                "stdout_sha256": hashlib.sha256(raw).hexdigest() if raw else None}
+        elif operation == "list" and args == ["/sys/class/graphics"]:
+            output_text = (raw + b"\n" + stderr).decode("utf-8", "replace")
+            unavailable = re.search(r"(?i)(no such file|permission denied|not found)", output_text)
+            names = sorted({name for name in re.findall(r"(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)(?![A-Za-z0-9_.-])",
+                       raw.decode("utf-8", "replace")) if name != "total"}) if not unavailable else []
+            summary["graphics_nodes"] = {"status": ("UNAVAILABLE_OR_DENIED" if unavailable else
+                "OBSERVED" if row.get("exit_code") == 0 else row.get("result_status", "UNRESOLVED")),
+                "entry_names": names, "stdout_sha256": hashlib.sha256(raw).hexdigest() if raw else None,
+                "interpretation": "kernel graphics class names only; does not establish access, ownership, or physical scanout"}
+        elif operation == "dumpsys" and len(args) == 2 and args[0] == "package":
+            package = args[1]
+            text = raw.decode("utf-8", "replace")
+            entry = package_rows.setdefault(package, {"package": package, "metadata_status": "NOT_COLLECTED",
+                "apk_path_status": "NOT_COLLECTED", "apk_path": None})
+            version_code = re.search(r"\bversionCode=([0-9]+)", text)
+            version_name = re.search(r"\bversionName=([^\s]+)", text)
+            code_path = re.search(r"\bcodePath=([^\s]+)", text)
+            absent = PACKAGE_NOT_INSTALLED_RE.search(text)
+            entry.update({"metadata_status": ("PACKAGE_NOT_INSTALLED" if absent else
+                "OBSERVED" if row.get("exit_code") == 0 and package.encode() in raw
+                else row.get("result_status", "UNRESOLVED")),
+                "version_code": version_code.group(1) if version_code else None,
+                "version_name": version_name.group(1) if version_name else None,
+                "code_path": code_path.group(1) if code_path else None,
+                "metadata_stdout_sha256": hashlib.sha256(raw).hexdigest() if raw else None})
+        elif operation == "package-path" and len(args) == 1:
+            package = args[0]
+            entry = package_rows.setdefault(package, {"package": package, "metadata_status": "NOT_COLLECTED",
+                "apk_path_status": "NOT_COLLECTED", "apk_path": None})
+            match = re.fullmatch(r"\s*package:(/(?:system|data|vendor|product)/[^\s:]+\.apk)\s*", raw.decode("utf-8", "replace"))
+            absent = PACKAGE_NOT_INSTALLED_RE.search(raw.decode("utf-8", "replace"))
+            entry.update({"apk_path_status": ("PACKAGE_NOT_INSTALLED" if absent else
+                "OBSERVED" if row.get("exit_code") == 0 and match else row.get("result_status", "UNRESOLVED")),
+                "apk_path": match.group(1) if match else None,
+                "apk_path_stdout_sha256": hashlib.sha256(raw).hexdigest() if raw else None})
+    summary["packages"] = [package_rows[name] for name in sorted(package_rows)]
+    summary["interpretation"] = "baseline inventory preserves package identity/version/path and relevant binder-service names; it does not prove runtime ownership or Type111 support"
+    return summary
+
+
+LIFECYCLE_STATES = (
+    "disconnected_baseline", "stock_carplay_connected", "navigation_selected",
+    "navigation_deselected", "navigation_reselected", "disconnected_again",
+    "stock_carplay_reconnected", "navigation_selected_after_reconnect",
+    "navigation_deselected_after_reconnect", "final_disconnected",
+)
+LIFECYCLE_OPERATIONS = (
+    ("ps", ()), ("dumpsys", ("activity", "activities")),
+    ("dumpsys", ("activity", "services")), ("dumpsys", ("display",)),
+    ("dumpsys", ("SurfaceFlinger",)), ("dumpsys", ("window",)),
+    ("read", ("/proc/net/tcp",)), ("read", ("/proc/net/tcp6",)),
+    ("read", ("/proc/net/udp",)), ("read", ("/proc/net/udp6",)),
+    ("read", ("/proc/net/unix",)),
+    ("read_net_operstate", ("/sys/class/net/usb0/operstate",)), ("logcat", ()),
+)
+
+
+def _session_coverage(summary: dict[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Derive evidence presence from recorded owner confirmations and results."""
+    confirmations = summary.get("owner_state_confirmations", [])
+    confirmed_states = {(row.get("phase"), row.get("state")) for row in confirmations
+                        if isinstance(row, dict) and row.get("status") == "OWNER_CONFIRMED_STABLE"}
+    by_command = {(row.get("phase"), row.get("state"), row.get("operation"),
+                   tuple(row.get("arguments", []))): row for row in records if isinstance(row, dict)}
+    phase4_state_rows: dict[str, dict[str, Any]] = {}
+    for state in LIFECYCLE_STATES:
+        state_rows = [by_command.get(("phase4_three_state_carplay", state, operation, args))
+                      for operation, args in LIFECYCLE_OPERATIONS]
+        present = [row for row in state_rows if row is not None]
+        successful_core = all(
+            (row := by_command.get(("phase4_three_state_carplay", state, operation, args))) is not None
+            and row.get("result_status") == "success"
+            for operation, args in LIFECYCLE_OPERATIONS[:6]
+        )
+        phase4_state_rows[state] = {"owner_confirmed": ("phase4_three_state_carplay", state) in confirmed_states,
+            "commands_expected": len(LIFECYCLE_OPERATIONS), "commands_recorded": len(present),
+            "core_process_activity_display_success": successful_core,
+            "all_commands_success": len(present) == len(LIFECYCLE_OPERATIONS)
+                and all(row.get("result_status") == "success" for row in present)}
+    phase4_complete = all(row["owner_confirmed"] and row["commands_recorded"] == row["commands_expected"]
+                          and row["all_commands_success"]
+                          for row in phase4_state_rows.values())
+    phase4_core_complete = all(row["owner_confirmed"] and row["core_process_activity_display_success"]
+                               for row in phase4_state_rows.values())
+    phase7_confirmed = any(isinstance(row, dict) and row.get("phase") == "phase7_recovery_restoration"
+        and row.get("status") == "FACTORY_RESTORATION_CONFIRMED" for row in confirmations)
+    phase7_final_confirmed = any(isinstance(row, dict) and row.get("phase") == "phase7_recovery_restoration"
+        and row.get("status") == "FACTORY_RESTORATION_CONFIRMED_AFTER_READS" for row in confirmations)
+    phase7_records = [row for row in records if row.get("phase") == "phase7_recovery_restoration"
+                      and row.get("state") == "factory_restoration"]
+    phase7_complete = (phase7_confirmed and phase7_final_confirmed
+        and len(phase7_records) == len(LIFECYCLE_OPERATIONS)
+        and all(row.get("result_status") == "success" for row in phase7_records))
+    phase1_identity_ops = [
+        ("property", (name,)) for name in ("ro.build.version.release", "ro.build.version.sdk",
+            "ro.product.device", "ro.product.board", "ro.hardware")
+    ] + [("id", ()), ("ps", ())]
+    phase1_identity_complete = all(
+        (row := by_command.get(("phase1_ordinary_adb_capability", "single_phase_capture", operation, args))) is not None
+        and row.get("result_status") == "success" for operation, args in phase1_identity_ops
+    )
+    network_all_states = all(
+        (row := by_command.get(("phase4_three_state_carplay", state, operation, args))) is not None
+        and row.get("result_status") == "success"
+        for state in LIFECYCLE_STATES for operation, args in LIFECYCLE_OPERATIONS[6:12]
+    )
+    return {"phase1_identity_complete": phase1_identity_complete,
+        "phase4_state_coverage": phase4_state_rows, "phase4_all_states_recorded": phase4_complete,
+        "phase4_core_snapshots_complete": phase4_core_complete,
+        "phase4_network_snapshots_complete": network_all_states,
+        "phase7_restoration_confirmed": phase7_complete}
+
+
 def _compare_states(records: list[dict[str, Any]], root: Path) -> dict[str, Any]:
-    """Compare raw steady-state display snapshots with the existing parser."""
+    """Compare display snapshots and ActivityManager component mentions."""
     import sys
     sys.path.insert(0, str(HERE))
     try:
@@ -151,15 +301,18 @@ def _compare_states(records: list[dict[str, Any]], root: Path) -> dict[str, Any]
             sys.path.pop(0)
 
     comparisons: dict[str, Any] = {}
-    for phase in ("phase4_three_state_carplay", "phase5_display1_navigation_lifecycle",
-                  "phase6_existing_hondahack_casting"):
+    for phase in ("phase4_three_state_carplay", "phase7_recovery_restoration"):
+        phase_records = [r for r in records if r.get("phase") == phase]
+        if phase == "phase7_recovery_restoration":
+            phase_records += [r for r in records if r.get("phase") == "phase4_three_state_carplay"
+                              and r.get("state") == "disconnected_baseline"]
         states: dict[str, dict[str, Any]] = {}
-        for row in records:
-            if row.get("phase") != phase or row.get("exit_code") != 0:
+        for row in phase_records:
+            if row.get("exit_code") != 0:
                 continue
             operation = row.get("operation")
             source_filename = None
-            if operation == "dumpsys":
+            if operation == "dumpsys" and row.get("arguments", [""])[0] in {"display", "window", "SurfaceFlinger"}:
                 source_filename = {
                     "display": DISPLAY_SOURCES["display"],
                     "window": DISPLAY_SOURCES["window"],
@@ -172,7 +325,10 @@ def _compare_states(records: list[dict[str, Any]], root: Path) -> dict[str, Any]
             if not raw_path.is_file() or raw_path.is_symlink():
                 continue
             states.setdefault(state, {})[source_filename] = raw_path.read_bytes()
-        state_order = list(dict.fromkeys(r.get("state") for r in records if r.get("phase") == phase))
+        state_order = list(dict.fromkeys(r.get("state") for r in phase_records))
+        if phase == "phase7_recovery_restoration" and "disconnected_baseline" in states:
+            state_order = ["disconnected_baseline"] + [state for state in state_order
+                if state != "disconnected_baseline"]
         if not state_order:
             continue
         baseline = state_order[0]
@@ -213,6 +369,57 @@ def _compare_states(records: list[dict[str, Any]], root: Path) -> dict[str, Any]
         comparisons[phase] = {"baseline_state": baseline, "state_order": state_order,
                               "baseline_source_count": len(base_inputs), "deltas": deltas,
                               "interpretation": "existing bounded display parsers compare reported display inventory, WindowManager names, and SurfaceFlinger layer names; they do not establish View class/lifetime, physical scanout, protocol acceptance, or OEM ownership"}
+    # ActivityManager output is variable OEM text. Compare normalized token sets
+    # and hashes only; do not interpret tokens as authoritative ownership edges.
+    activity_deltas: dict[str, Any] = {}
+    for phase in ("phase1_ordinary_adb_capability", "phase4_three_state_carplay",
+                  "phase7_recovery_restoration"):
+        snapshots: dict[str, dict[str, set[str]]] = {}
+        for row in records:
+            in_phase = row.get("phase") == phase
+            restoration_baseline = (phase == "phase7_recovery_restoration"
+                and row.get("phase") == "phase4_three_state_carplay"
+                and row.get("state") == "disconnected_baseline")
+            if (not in_phase and not restoration_baseline) or row.get("exit_code") != 0 or row.get("operation") != "dumpsys":
+                continue
+            args = row.get("arguments", [])
+            label = {("activity", "activities"): "activities",
+                     ("activity", "services"): "services"}.get(tuple(args))
+            if not label:
+                continue
+            path = root / row.get("stdout_file", "")
+            if not path.is_file() or path.is_symlink():
+                continue
+            raw = path.read_bytes()
+            tokens = set(re.findall(rb"[A-Za-z0-9_.$]+", raw))
+            snapshots.setdefault(str(row.get("state", "")), {})[label] = {
+                hashlib.sha256(token).hexdigest() for token in tokens
+            }
+        order = list(dict.fromkeys(r.get("state") for r in records
+                     if r.get("phase") == phase or (phase == "phase7_recovery_restoration"
+                     and r.get("phase") == "phase4_three_state_carplay"
+                     and r.get("state") == "disconnected_baseline")))
+        if phase == "phase7_recovery_restoration" and "disconnected_baseline" in snapshots:
+            order = ["disconnected_baseline"] + [state for state in order
+                if state != "disconnected_baseline"]
+        if not order:
+            continue
+        baseline = snapshots.get(order[0], {})
+        deltas = []
+        for state in order:
+            current = snapshots.get(state, {})
+            row_delta = {}
+            for source in ("activities", "services"):
+                left, right = baseline.get(source), current.get(source)
+                row_delta[source] = ({"status": "COMPARED", "baseline_token_count": len(left),
+                    "state_token_count": len(right), "added_token_sha256": sorted(right - left),
+                    "removed_token_sha256": sorted(left - right)} if left is not None and right is not None
+                    else {"status": "UNRESOLVED", "baseline_collected": left is not None,
+                          "state_collected": right is not None})
+            deltas.append({"state": state, "component_token_deltas": row_delta})
+        activity_deltas[phase] = {"baseline_state": order[0], "state_order": order,
+            "deltas": deltas, "interpretation": "normalized ActivityManager text-token deltas are correlation clues only; they do not prove service ownership, display assignment, or protocol handling"}
+    comparisons["activity_service_relationship_proxies"] = activity_deltas
     return comparisons
 
 
@@ -235,7 +442,8 @@ def _compare_network_states(records: list[dict[str, Any]], root: Path) -> dict[s
     }
     snapshots: dict[str, dict[str, list[str] | str]] = {}
     for row in records:
-        if row.get("exit_code") != 0 or row.get("operation") not in {"read", "read_net_operstate"}:
+        if (row.get("phase") not in {"phase4_three_state_carplay", "phase7_recovery_restoration"}
+                or row.get("exit_code") != 0 or row.get("operation") not in {"read", "read_net_operstate"}):
             continue
         args = row.get("arguments", [])
         if not args:
@@ -267,7 +475,8 @@ def _compare_network_states(records: list[dict[str, Any]], root: Path) -> dict[s
         except (UnicodeDecodeError, ValueError):
             snapshots.setdefault(state, {})[label] = "UNPARSEABLE"
 
-    state_order = list(dict.fromkeys(row.get("state") for row in records))
+    state_order = list(dict.fromkeys(row.get("state") for row in records
+                       if row.get("phase") in {"phase4_three_state_carplay", "phase7_recovery_restoration"}))
     if not any(snapshots.values()):
         return {}
     baseline = state_order[0] if state_order else ""
@@ -309,7 +518,16 @@ def analyze_archive(path: Path) -> dict[str, Any]:
     records = summary.get("command_artifacts")
     if not isinstance(records, list) or len(records) != summary.get("command_count"):
         raise ArchiveError("command ledger is incomplete")
+    budget = summary.get("session_output_budget")
+    if (not isinstance(budget, dict) or budget.get("limit_bytes") != 158400512
+            or type(budget.get("used_bytes")) is not int
+            or not 0 <= budget["used_bytes"] <= budget["limit_bytes"]
+            or type(budget.get("commands_started")) is not int
+            or not 0 <= budget["commands_started"] <= 162):
+        raise ArchiveError("aggregate output budget ledger is missing or outside the reviewed bounds")
     seen_indices = set()
+    accounted_output_bytes = 0
+    started_commands = 0
     for row in records:
         if not isinstance(row, dict):
             raise ArchiveError("command ledger row is malformed")
@@ -317,11 +535,36 @@ def analyze_archive(path: Path) -> dict[str, Any]:
         if not isinstance(index, int) or index in seen_indices:
             raise ArchiveError("command indices are missing or duplicated")
         seen_indices.add(index)
+        if isinstance(row.get("started_monotonic_ns"), int):
+            started_commands += 1
         if tuple(row.get("argv", [])) not in allowed.get(row.get("phase"), set()):
             raise ArchiveError("captured command does not match the pinned API-17 allowlist")
+        failure_status = row.get("result_status")
+        if failure_status in {"SESSION_OUTPUT_BUDGET_EXCEEDED",
+                              "SESSION_OUTPUT_BUDGET_EXHAUSTED_BEFORE_COMMAND",
+                              "PER_COMMAND_OUTPUT_LIMIT_EXCEEDED",
+                              "PRIVATE_EVIDENCE_WRITE_FAILED"}:
+            if row.get("stdout_file") is not None or row.get("stderr_file") is not None:
+                raise ArchiveError("failed budget/write command must not claim archived output")
+            if failure_status == "PRIVATE_EVIDENCE_WRITE_FAILED":
+                observed = row.get("stdout_bytes_observed", -1) + row.get("stderr_bytes_observed", -1)
+                if (observed != row.get("session_output_bytes_reserved")
+                        or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("stdout_sha256", "")))
+                        or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("stderr_sha256", "")))):
+                    raise ArchiveError("private write failure lacks truthful output accounting metadata")
+                accounted_output_bytes += observed
+            elif failure_status in {"SESSION_OUTPUT_BUDGET_EXCEEDED", "PER_COMMAND_OUTPUT_LIMIT_EXCEEDED"}:
+                observed = row.get("stdout_bytes_observed", -1) + row.get("stderr_bytes_observed", -1)
+                if (observed < 0
+                        or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("stdout_sha256", "")))
+                        or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("stderr_sha256", "")))):
+                    raise ArchiveError("rejected output lacks truthful failure metadata")
+            continue
         if row.get("exit_code") is None:
             if row.get("result_status") != "INTERRUPTED_OR_HOST_EXECUTION_ERROR":
                 raise ArchiveError("command failure status is ambiguous")
+            if row.get("stdout_file") is not None or row.get("stderr_file") is not None:
+                raise ArchiveError("interrupted command unexpectedly references output files")
             continue
         if (row.get("finished_monotonic_ns", 0) < row.get("started_monotonic_ns", 0)
                 or row.get("stdout_bytes", 0) + row.get("stderr_bytes", 0) > MAX_ARCHIVE_FILE_BYTES):
@@ -334,11 +577,16 @@ def analyze_archive(path: Path) -> dict[str, Any]:
             if (len(raw) != row.get(f"{kind}_bytes")
                     or hashlib.sha256(raw).hexdigest() != row.get(f"{kind}_sha256")):
                 raise ArchiveError(f"command {kind} does not match the command ledger")
+            accounted_output_bytes += len(raw)
+    if (accounted_output_bytes != budget["used_bytes"]
+            or started_commands != budget["commands_started"]):
+        raise ArchiveError("aggregate output/command counters do not match archived bytes and explicit write-failure accounting")
     if seen_indices and seen_indices != set(range(max(seen_indices) + 1)):
         raise ArchiveError("command ledger has a gap")
 
     comparisons = _compare_states(records, root)
     network_comparisons = _compare_network_states(records, root)
+    baseline_inventory = _summarize_baseline_inventory(records, root)
     try:
         import sys
         sys.path.insert(0, str(HERE))
@@ -360,25 +608,34 @@ def analyze_archive(path: Path) -> dict[str, Any]:
     except Exception as exc:
         raise ArchiveError("bounded offline log parser rejected the archive") from exc
 
-    phase_set = set(summary.get("approved_phases", []))
+    coverage_status = _session_coverage(summary, records)
+    lifecycle_observed = coverage_status["phase4_core_snapshots_complete"]
+    lifecycle_full = coverage_status["phase4_all_states_recorded"]
+    nav_states = coverage_status["phase4_state_coverage"]
+    nav_transitions = all(nav_states[state]["owner_confirmed"]
+        and nav_states[state]["core_process_activity_display_success"] for state in (
+            "navigation_selected", "navigation_deselected", "navigation_reselected",
+            "navigation_selected_after_reconnect", "navigation_deselected_after_reconnect"))
+    display_status = "OBSERVED_PENDING_COMPARISON" if lifecycle_observed else "PARTIAL_OR_NOT_COLLECTED"
+    lifecycle_status = "OWNER_CONFIRMED_CORE_SNAPSHOTS_PENDING_COMPARISON" if lifecycle_observed else "PARTIAL_OR_NOT_COLLECTED"
     objective_status = {
-        "ordinary-adb-identity": "COLLECTED_PENDING_OWNER_AND_TARGET_REVIEW" if "phase1_ordinary_adb_capability" in phase_set else "NOT_COLLECTED",
+        "ordinary-adb-identity": "IDENTITY_COMMANDS_CAPTURED_PENDING_TARGET_REVIEW" if coverage_status["phase1_identity_complete"] else "PARTIAL_OR_NOT_COLLECTED",
         "existing-root-supersu-state": "ARCHIVE_ONLY_CURRENT_RUNTIME_STATE_UNKNOWN",
-        "jmcs-process-identity-continuity": "PID_CONTINUITY_ONLY_START_TIME_UNAVAILABLE" if phase_set & {"phase1_ordinary_adb_capability", "phase4_three_state_carplay", "phase5_display1_navigation_lifecycle", "phase6_existing_hondahack_casting"} else "NOT_COLLECTED",
+        "jmcs-process-identity-continuity": "PID_SNAPSHOTS_CAPTURED_START_TIME_UNAVAILABLE" if any(row.get("operation") == "ps" and row.get("result_status") == "success" for row in records) else "NOT_COLLECTED",
         "jmcs-maps-smaps-protections-load-bias": "BLOCKED_PHASE3_ACCESS_METHOD_UNJUSTIFIED",
         "jmcs-loaded-library-inventory": "BLOCKED_PHASE3_ACCESS_METHOD_UNJUSTIFIED",
         "jmcs-fd-socket-owner-correlation": "BLOCKED_PHASE3_ACCESS_METHOD_UNJUSTIFIED",
-        "usb0-network-phase-correlation": "COLLECTED_PENDING_STATE_DELTA_ANALYSIS" if "phase4_three_state_carplay" in phase_set else "NOT_COLLECTED",
+        "usb0-network-phase-correlation": "ALL_STATE_TABLE_COMMANDS_CAPTURED_PENDING_DELTA_ANALYSIS" if coverage_status["phase4_network_snapshots_complete"] else "PARTIAL_OR_PERMISSION_OR_PARSE_GAPS",
         "carplay-info-setup-observability": "PASSIVE_LOG_MARKERS_ONLY_VALUES_NOT_EXPOSED",
-        "type110-session-lifecycle": "VISIBLE_LIFECYCLE_DELTAS_ONLY" if "phase4_three_state_carplay" in phase_set else "NOT_COLLECTED",
+        "type110-session-lifecycle": "OWNER_CONFIRMED_CORE_SNAPSHOTS_PENDING_COMPARISON" if lifecycle_full else "PARTIAL_OR_NOT_COLLECTED",
         "type111-negotiation-and-authority": "NOT_ESTABLISHED_PASSIVE_SOURCE_HAS_NO_NEGOTIATION_AUTHORITY",
-        "display-manager-inventory": "DISPLAY_SNAPSHOT_ONLY" if phase_set & {"phase5_display1_navigation_lifecycle", "phase6_existing_hondahack_casting"} else "NOT_COLLECTED",
-        "display1-window-view-lifecycle": "WINDOW_AND_LAYER_DELTAS_ONLY_VIEW_LIFETIME_NOT_EXPOSED" if phase_set & {"phase5_display1_navigation_lifecycle", "phase6_existing_hondahack_casting"} else "NOT_COLLECTED",
-        "surfaceflinger-layer-lifecycle": "LAYER_NAME_DELTAS_ONLY_PHYSICAL_SCANOUT_NOT_PROVEN" if phase_set & {"phase5_display1_navigation_lifecycle", "phase6_existing_hondahack_casting"} else "NOT_COLLECTED",
-        "factory-navigation-transitions": "OWNER_CONFIRMED_STATES_PENDING_COMPARISON" if phase_set & {"phase4_three_state_carplay", "phase5_display1_navigation_lifecycle", "phase6_existing_hondahack_casting"} else "NOT_COLLECTED",
-        "hondahack-casting-and-withdrawal": "OWNER_CONFIRMED_EXISTING_UI_STATES_PENDING_REVIEW" if "phase6_existing_hondahack_casting" in phase_set else "NOT_COLLECTED_OR_NOT_APPROVED",
-        "carplay-disconnect-reconnect-restoration": "OWNER_CONFIRMED_SEQUENCE_PENDING_COMPARISON" if "phase4_three_state_carplay" in phase_set else "NOT_COLLECTED",
-        "recovery-prerequisites": "OWNER_RESTORATION_CONFIRMED" if "phase7_recovery_restoration" in phase_set else "NOT_CONFIRMED",
+        "display-manager-inventory": display_status,
+        "display1-window-view-lifecycle": "WINDOW_AND_LAYER_DELTAS_ONLY_VIEW_LIFETIME_NOT_EXPOSED" if lifecycle_observed else "PARTIAL_OR_NOT_COLLECTED",
+        "surfaceflinger-layer-lifecycle": "LAYER_NAME_DELTAS_ONLY_PHYSICAL_SCANOUT_NOT_PROVEN" if lifecycle_observed else "PARTIAL_OR_NOT_COLLECTED",
+        "factory-navigation-transitions": "SELECTED_DESELECTED_TRANSITIONS_CAPTURED_PENDING_COMPARISON" if nav_transitions else "PARTIAL_OR_NOT_COLLECTED",
+        "hondahack-casting-and-withdrawal": "EXCLUDED_FROM_ORDINARY_ADB_CAMPAIGN",
+        "carplay-disconnect-reconnect-restoration": "OWNER_CONFIRMED_SEQUENCE_PENDING_COMPARISON" if lifecycle_full and coverage_status["phase7_restoration_confirmed"] else "PARTIAL_OR_NOT_COLLECTED",
+        "recovery-prerequisites": "OWNER_RESTORATION_CONFIRMED_AND_SNAPSHOTS_CAPTURED" if coverage_status["phase7_restoration_confirmed"] else "NOT_CONFIRMED_OR_INCOMPLETE",
         "instrumentation-decision": "OFFLINE_DECISION_REQUIRED_FOR_INFO_SETUP_AND_TYPE111",
         "capture-integrity-and-privacy": "SHA256_INVENTORY_AND_COMMAND_LEDGER_VERIFIED",
     }
@@ -390,6 +647,8 @@ def analyze_archive(path: Path) -> dict[str, Any]:
         "command_count": len(records),
         "approved_phases": summary.get("approved_phases", []),
         "phase_state_comparisons": comparisons,
+        "baseline_inventory": baseline_inventory,
+        "session_coverage": coverage_status,
         "network_state_comparison": network_comparisons,
         "bounded_log_summaries": log_results,
         "objective_assessment": [{"id": key, "status": value} for key, value in objective_status.items()],

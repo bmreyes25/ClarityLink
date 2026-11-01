@@ -34,8 +34,14 @@ EVIDENCE = ROOT / "docs/diagnostics/evidence-coverage.json"
 STUDIO_READINESS = ROOT / "docs/development/cl-honda-comprehensive-readiness.json"
 CAMPAIGN_ID = "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031"
 PROPOSAL_LIVE_EXECUTION_ENABLED = False
-MAX_TIMEOUT_SECONDS = 20
-MAX_OUTPUT_BYTES = 4 * 1024 * 1024
+MAX_TIMEOUT_SECONDS = 10
+MAX_OUTPUT_BYTES = 900_000
+MAX_SESSION_OUTPUT_BYTES = 158_400_512
+SESSION_OUTPUT_HEADROOM_BYTES = 8 * 1024 * 1024
+MIN_EVIDENCE_FREE_BYTES = MAX_SESSION_OUTPUT_BYTES + SESSION_OUTPUT_HEADROOM_BYTES
+MAX_SESSION_COMMANDS = 162
+MIN_COMMAND_OUTPUT_BUDGET_BYTES = 128
+MAX_OWNER_PROMPT_SECONDS = 90
 PRIVATE_LEDGER = Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library/Application Support/ClarityLink/comprehensive-runtime/consumed"
 
 COMMAND_FIELDS = {
@@ -44,8 +50,6 @@ COMMAND_FIELDS = {
     "phase2_existing_root_supersu_review": "live_argv",
     "phase3_jmcs_maps_libraries_fd_socket_ownership": "live_argv",
     "phase4_three_state_carplay": "commands",
-    "phase5_display1_navigation_lifecycle": "commands_after_each_owner_confirmation",
-    "phase6_existing_hondahack_casting": "commands_after_each_allowed_state",
     "phase7_recovery_restoration": "commands",
 }
 PHASE_CATEGORIES = {
@@ -55,8 +59,6 @@ PHASE_CATEGORIES = {
     "phase3_jmcs_maps_libraries_fd_socket_ownership": ("privileged_diagnostics",),
     "phase4_three_state_carplay": ("ordinary_unprivileged_adb", "stock_carplay_transition",
                                    "factory_navigation_observation"),
-    "phase5_display1_navigation_lifecycle": ("ordinary_unprivileged_adb", "factory_navigation_observation"),
-    "phase6_existing_hondahack_casting": ("ordinary_unprivileged_adb", "factory_navigation_observation", "existing_hondahack_observation"),
     "phase7_recovery_restoration": ("ordinary_unprivileged_adb",),
 }
 LIVE_PERMISSION_CATEGORIES = (
@@ -71,18 +73,12 @@ PHASE_RISK_LEVELS = {
     "phase2_existing_root_supersu_review": 2,
     "phase3_jmcs_maps_libraries_fd_socket_ownership": 2,
     "phase4_three_state_carplay": 2,
-    "phase5_display1_navigation_lifecycle": 2,
-    # This phase observes only the existing ordinary Start/Stop UI behavior.
-    # Any ownership reassignment outside that behavior is a separate Level 3 scope.
-    "phase6_existing_hondahack_casting": 2,
     "phase7_recovery_restoration": 1,
 }
 PHASE_REVIEW_REQUIREMENTS = {
     "phase2_existing_root_supersu_review": ("technical",),
     "phase3_jmcs_maps_libraries_fd_socket_ownership": ("technical",),
     "phase4_three_state_carplay": ("technical", "qualified_vehicle_safety"),
-    "phase5_display1_navigation_lifecycle": ("technical", "qualified_vehicle_safety"),
-    "phase6_existing_hondahack_casting": ("technical", "qualified_vehicle_safety"),
 }
 BLOCKED_PHASES = {
     "phase2_existing_root_supersu_review",
@@ -104,35 +100,74 @@ STATE_PROMPTS = {
     "navigation_selected": "Use the normal factory control to select Navigation.",
     "navigation_deselected": "Use the normal factory control to deselect Navigation.",
     "navigation_reselected": "Use the normal factory control to reselect Navigation.",
-    "casting_disabled": "Verify existing HondaHack casting is disabled at baseline.",
-    "ordinary_start_casting": "Start Casting with the existing normal HondaHack UI.",
-    "ordinary_stop_casting": "Stop Casting with the existing normal HondaHack UI.",
+    "navigation_selected_after_reconnect": "After CarPlay reconnects, use the normal factory control to select Navigation.",
+    "navigation_deselected_after_reconnect": "After reconnect, use the normal factory control to deselect Navigation.",
     "factory_baseline_restored": "Restore the owner-defined factory UI baseline using normal controls.",
 }
 TRANSITION_ACTION_STATES = frozenset({
     "stock_carplay_connected", "disconnected_again", "stock_carplay_reconnected",
     "final_disconnected", "navigation_selected", "navigation_deselected",
-    "navigation_reselected", "ordinary_start_casting", "ordinary_stop_casting",
+    "navigation_reselected", "navigation_selected_after_reconnect",
+    "navigation_deselected_after_reconnect",
 })
 POTENTIAL_OBJECTIVES = {
     "phase1_ordinary_adb_capability": ("ordinary-adb-identity",),
     "phase4_three_state_carplay": ("type110-session-lifecycle", "carplay-disconnect-reconnect-restoration",
                                     "usb0-network-phase-correlation", "carplay-info-setup-observability",
-                                    "type111-negotiation-and-authority"),
-    "phase5_display1_navigation_lifecycle": ("display-manager-inventory", "display1-window-view-lifecycle",
-                                             "surfaceflinger-layer-lifecycle", "factory-navigation-transitions"),
-    "phase6_existing_hondahack_casting": ("display-manager-inventory", "display1-window-view-lifecycle",
-                                          "surfaceflinger-layer-lifecycle", "factory-navigation-transitions",
-                                          "hondahack-casting-and-withdrawal"),
+                                    "type111-negotiation-and-authority", "display-manager-inventory",
+                                    "display1-window-view-lifecycle", "surfaceflinger-layer-lifecycle",
+                                    "factory-navigation-transitions"),
     "phase7_recovery_restoration": ("recovery-prerequisites", "capture-integrity-and-privacy"),
 }
 MAX_SESSION_DURATION_SECONDS = 60 * 60
-MAX_OWNER_PROMPT_SECONDS = 300
 MAX_AUTHORIZATION_DURATION_SECONDS = 60 * 60
 
 
 class ControllerError(RuntimeError):
     pass
+
+
+@dataclass
+class SessionOutputBudget:
+    """Count exact persisted stdout/stderr bytes across every phase."""
+
+    limit_bytes: int = MAX_SESSION_OUTPUT_BYTES
+    used_bytes: int = 0
+    exhausted: bool = False
+    commands_started: int = 0
+
+    def __post_init__(self) -> None:
+        if (type(self.limit_bytes) is not int or self.limit_bytes <= 0
+                or type(self.used_bytes) is not int or self.used_bytes < 0
+                or self.used_bytes > self.limit_bytes
+                or type(self.commands_started) is not int or self.commands_started < 0):
+            raise ControllerError("session output budget initialization is invalid")
+
+    @property
+    def remaining_bytes(self) -> int:
+        return self.limit_bytes - self.used_bytes
+
+    def reserve(self, output_bytes: int) -> bool:
+        if not isinstance(output_bytes, int) or output_bytes < 0:
+            raise ControllerError("command output byte count is invalid")
+        if self.exhausted or self.used_bytes >= self.limit_bytes or output_bytes > self.remaining_bytes:
+            self.exhausted = True
+            return False
+        self.used_bytes += output_bytes
+        return True
+
+    def start_command(self) -> None:
+        if self.commands_started >= MAX_SESSION_COMMANDS:
+            self.exhausted = True
+            raise ControllerError("fixed campaign command-count ceiling reached before next ADB command")
+        self.commands_started += 1
+
+    def report(self) -> dict[str, int | float | bool]:
+        return {"limit_bytes": self.limit_bytes, "used_bytes": self.used_bytes,
+                "remaining_bytes": self.remaining_bytes, "exhausted": self.exhausted,
+                "commands_started": self.commands_started,
+                "limit_decimal_mb": self.limit_bytes / 1_000_000,
+                "limit_mib": self.limit_bytes / (1024 * 1024)}
 
 
 @dataclass(frozen=True)
@@ -196,7 +231,7 @@ def _validate_proposal(value: dict) -> dict:
             sys.path.pop(0)
     phases = value.get("phases")
     if not isinstance(phases, list) or tuple(p.get("id") for p in phases) != tuple(COMMAND_FIELDS):
-        raise ControllerError("proposal must retain all eight phases in fixed order")
+        raise ControllerError("proposal must retain the six fixed ordinary-campaign phases in order")
     return value
 
 
@@ -246,8 +281,8 @@ def _command_shapes(proposal: dict, serial: str) -> tuple[Command, ...]:
                 raise ControllerError("command timeout or output ceiling is outside reviewed bounds")
             _validate_fixed_argv(tuple(argv), FixedAdb)
             result.append(Command(phase["id"], tuple(argv), timeout, maximum))
-    if len(result) != 30:
-        raise ControllerError(f"expected 30 reviewed fixed command shapes, found {len(result)}")
+    if len(result) != 45:
+        raise ControllerError(f"expected 45 reviewed fixed command shapes, found {len(result)}")
     return tuple(result)
 
 
@@ -262,17 +297,26 @@ def _validate_fixed_argv(argv: tuple[str, ...], fixed_adb) -> None:
         return
     mapping = {
         ("id",): ("id", ()), ("ps",): ("ps", ()),
+        ("service", "list"): ("service-list", ()),
         ("dumpsys", "display"): ("dumpsys", ("display",)),
         ("dumpsys", "SurfaceFlinger"): ("dumpsys", ("SurfaceFlinger",)),
         ("dumpsys", "window"): ("dumpsys", ("window",)),
         ("logcat", "-d", "-t", "500"): ("logcat", ()),
     }
-    if len(remote) == 2 and remote[0] == "getprop":
+    if len(remote) == 3 and remote[:2] == ("dumpsys", "activity"):
+        op = ("dumpsys", remote[1:])
+    elif len(remote) == 3 and remote[:2] == ("dumpsys", "package"):
+        op = ("dumpsys", remote[1:])
+    elif len(remote) == 3 and remote[:2] == ("pm", "path"):
+        op = ("package-path", (remote[2],))
+    elif len(remote) == 2 and remote[0] == "getprop":
         op = ("property", (remote[1],))
     elif len(remote) == 2 and remote[0] == "cat":
         op = ("read", (remote[1],))
     elif len(remote) == 3 and remote[:2] == ("ls", "-l"):
         op = ("readlink", (remote[2],))
+    elif remote == ("ls", "/sys/class/graphics"):
+        op = ("list", (remote[1],))
     else:
         op = mapping.get(remote)
     if op is None:
@@ -332,11 +376,37 @@ def dry_run_report(*, serial: str = "EXACT_APPROVED_SERIAL") -> dict:
             "states": phase.get("states", []),
             "owner_checks": phase.get("owner_checks", []),
             "host_checks": phase.get("host_checks", []),
+            "baseline_inventory": phase.get("baseline_inventory"),
+            "comparative_purpose": phase.get("comparative_purpose"),
+            "activity_manager_scope": phase.get("activity_manager_scope"),
+            "network_scope": phase.get("network_scope"),
+            "owner_confirmation_rule": phase.get("owner_confirmation_rule"),
             "stop_conditions": phase.get("stop", ""),
             "commands": grouped[key],
+            "commands_per_state": len(grouped[key]) if phase.get("states") else 0,
             "blocked": key in BLOCKED_PHASES or phase["authorization_status"] != "AUTHORIZED",
             "failure_policy": "abort phase and campaign; no retry or next phase",
         })
+    execution_bounds = proposal["execution_bounds_proposal"]
+    campaign_command_count = sum(
+        len(phase.get("commands", phase.get("live_argv", []))) *
+        (len(phase.get("states", [])) if phase["id"] == "phase4_three_state_carplay" else 1)
+        for phase in proposal["phases"]
+    )
+    capture_schedule = []
+    for phase in proposal["phases"]:
+        phase_id = phase["id"]
+        commands = grouped[phase_id]
+        if phase.get("states"):
+            for state in phase["states"]:
+                capture_schedule.append({"phase": phase_id, "state": state,
+                                         "owner_confirmation_required": True,
+                                         "commands": commands})
+        elif commands:
+            state = "factory_restoration" if phase_id == "phase7_recovery_restoration" else "disconnected_baseline"
+            capture_schedule.append({"phase": phase_id, "state": state,
+                                     "owner_confirmation_required": True,
+                                     "commands": commands})
     studio = _load_json(STUDIO_READINESS)
     if (studio.get("schema") != "claritylink-experiment-readiness-v2"
             or studio.get("campaign_id") != CAMPAIGN_ID
@@ -348,6 +418,21 @@ def dry_run_report(*, serial: str = "EXACT_APPROVED_SERIAL") -> dict:
             "live_backend": "AUTHORIZATION_GATED_PRIVATE_SESSION_ONLY",
             "phases": phase_rows,
             "phase_count": len(phase_rows), "command_shapes": len(fixed),
+            "campaign_command_count": campaign_command_count,
+            "session_limits": {
+                "command_timeout_seconds": execution_bounds["max_command_timeout_seconds"],
+                "per_command_output_bytes": execution_bounds["max_command_output_bytes"],
+                "per_command_output_unit": "bytes, combined stdout plus stderr including collector failure marker",
+                "session_output_bytes": execution_bounds["max_session_output_bytes"],
+                "session_output_decimal_mb": execution_bounds["max_session_output_bytes"] / 1_000_000,
+                "session_output_mib": execution_bounds["max_session_output_bytes"] / (1024 * 1024),
+                "minimum_free_evidence_bytes": execution_bounds["minimum_private_evidence_free_bytes"],
+                "max_command_time_sum_seconds": execution_bounds["max_command_time_sum_seconds"],
+                "max_owner_prompt_time_sum_seconds": execution_bounds["max_owner_prompt_time_sum_seconds"],
+                "bounded_elapsed_seconds": execution_bounds["max_bounded_elapsed_seconds"],
+                "deadline_seconds": execution_bounds["max_total_elapsed_seconds"],
+            },
+            "capture_schedule": capture_schedule,
             "adb_executable_lookup": False, "device_enumeration": False,
             "subprocess_calls": 0, "capture_files_created": False,
             "pins": pins(), "coverage_required": len(_load_json(EVIDENCE)["objectives"]),
@@ -427,8 +512,7 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
         raise ControllerError("approved phases must follow the fixed campaign order")
     if any(p in BLOCKED_PHASES for p in phases):
         raise ControllerError("selected phase has no currently justified access method")
-    transition_phases = {"phase4_three_state_carplay", "phase5_display1_navigation_lifecycle",
-                         "phase6_existing_hondahack_casting"}
+    transition_phases = {"phase4_three_state_carplay"}
     if transition_phases.intersection(phases):
         baseline = record.get("factory_restoration_reference")
         if not isinstance(baseline, str) or not baseline.strip():
@@ -651,6 +735,11 @@ def _private_evidence_directory(record: dict) -> Path:
             os.close(fd)
         if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
             raise ControllerError("private evidence directory must be owner-owned with mode 0700")
+        if shutil.disk_usage(resolved).free < MIN_EVIDENCE_FREE_BYTES:
+            raise ControllerError(
+                f"private evidence volume needs at least {MIN_EVIDENCE_FREE_BYTES} free bytes "
+                "for the bounded archive and integrity metadata"
+            )
     except OSError as exc:
         raise ControllerError("private evidence directory changed or cannot be opened safely") from exc
     return resolved
@@ -664,11 +753,24 @@ def _write_private_file(path: Path, payload: bytes) -> None:
         fd = os.open(path, flags, 0o600)
     except OSError as exc:
         raise ControllerError("private evidence file could not be created without overwrite") from exc
-    with os.fdopen(fd, "wb") as output:
-        os.fchmod(output.fileno(), 0o600)
-        output.write(payload)
-        output.flush()
-        os.fsync(output.fileno())
+    written = 0
+    try:
+        with os.fdopen(fd, "wb", buffering=0) as output:
+            os.fchmod(output.fileno(), 0o600)
+            view = memoryview(payload)
+            while written < len(payload):
+                count = output.write(view[written:])
+                if count is None or count <= 0:
+                    raise OSError("private evidence write made no progress")
+                written += count
+            os.fsync(output.fileno())
+    except BaseException:
+        # A partial command artifact must never look complete in the archive.
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def _replace_private_file(path: Path, payload: bytes) -> None:
@@ -749,16 +851,26 @@ def _operation_for(argv: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
         return "id", ()
     if remote == ("ps",):
         return "ps", ()
+    if remote == ("service", "list"):
+        return "service-list", ()
     if len(remote) == 2 and remote[0] == "cat":
         if remote == ("cat", "/sys/class/net/usb0/operstate"):
             return "read_net_operstate", (remote[1],)
         return "read", (remote[1],)
     if len(remote) == 3 and remote[:2] == ("ls", "-l"):
         return "readlink", (remote[2],)
+    if remote == ("ls", "/sys/class/graphics"):
+        return "list", (remote[1],)
     if len(remote) == 2 and remote[0] == "getprop":
         return "property", (remote[1],)
     if len(remote) == 2 and remote[0] == "dumpsys":
         return "dumpsys", (remote[1],)
+    if len(remote) == 3 and remote[:2] == ("dumpsys", "activity"):
+        return "dumpsys", remote[1:]
+    if len(remote) == 3 and remote[:2] == ("dumpsys", "package"):
+        return "dumpsys", remote[1:]
+    if len(remote) == 3 and remote[:2] == ("pm", "path"):
+        return "package-path", (remote[2],)
     if remote == ("logcat", "-d", "-t", "500"):
         return "logcat", ()
     raise ControllerError("operation is outside the fixed API-17 planner")
@@ -852,13 +964,25 @@ def _save_command_result(run_dir: Path, command: Command, index: int,
                          finished_at_utc: str, finished_monotonic_ns: int,
                          result_status: str) -> dict:
     stem = f"{command.phase}-{index:03d}"
-    _write_private_file(run_dir / f"{stem}.stdout.bin", stdout)
-    _write_private_file(run_dir / f"{stem}.stderr.bin", stderr)
+    stdout_path = run_dir / f"{stem}.stdout.bin"
+    stderr_path = run_dir / f"{stem}.stderr.bin"
+    try:
+        _write_private_file(stdout_path, stdout)
+        _write_private_file(stderr_path, stderr)
+    except BaseException:
+        for path in (stdout_path, stderr_path):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
     return {"phase": command.phase, "state": state, "index": index,
             "operation": operation, "arguments": list(arguments), "argv": list(command.argv),
             "started_at_utc": started_at_utc, "started_monotonic_ns": started_monotonic_ns,
             "finished_at_utc": finished_at_utc, "finished_monotonic_ns": finished_monotonic_ns,
             "result_status": result_status, "exit_code": exit_code,
+            "timeout_seconds": command.timeout_seconds,
+            "max_output_bytes": command.max_output_bytes,
             "stdout_file": f"{stem}.stdout.bin",
             "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
             "stderr_file": f"{stem}.stderr.bin",
@@ -872,7 +996,8 @@ def _execute_batch(*, phase_id: str, state: str, rows: list[list[str]], serial: 
                    run_dir: Path, records: list[dict], index: int,
                    prior_identity: dict[str, str] | None,
                    authorization_record: dict, current_pins: dict[str, str],
-                   session_deadline: float, output: Callable[[str], None]) -> tuple[int, dict[str, str] | None]:
+                   session_deadline: float, output_budget: SessionOutputBudget,
+                   output: Callable[[str], None]) -> tuple[int, dict[str, str] | None]:
     try:
         sys.path.insert(0, str(HERE))
         from collector import FixedAdb, parse_ps_jmcs, validate_legacy_shell_output
@@ -901,13 +1026,23 @@ def _execute_batch(*, phase_id: str, state: str, rows: list[list[str]], serial: 
         if (not isinstance(timeout, int) or not 0 < timeout <= MAX_TIMEOUT_SECONDS
                 or not isinstance(maximum, int) or not 0 < maximum <= MAX_OUTPUT_BYTES):
             raise ControllerError("manifest command bounds exceed controller limits")
-        command = Command(phase_id, tuple(argv), timeout, maximum)
+        if output_budget.remaining_bytes < MIN_COMMAND_OUTPUT_BUDGET_BYTES:
+            output_budget.exhausted = True
+            records.append({"phase": phase_id, "state": state, "index": index,
+                            "argv": argv, "result_status": "SESSION_OUTPUT_BUDGET_EXHAUSTED_BEFORE_COMMAND",
+                            "session_output_bytes_before": output_budget.used_bytes,
+                            "session_output_limit_bytes": output_budget.limit_bytes,
+                            "stdout_file": None, "stderr_file": None})
+            raise ControllerError("session output budget exhausted before starting the next command")
+        command_limit = min(maximum, output_budget.remaining_bytes)
+        command = Command(phase_id, tuple(argv), timeout, command_limit)
         operation, args = _operation_for(command.argv)
         if operation == "read_net_operstate":
             if command.argv != ("adb", "-s", serial, "shell", "cat", "/sys/class/net/usb0/operstate"):
                 raise ControllerError("usb0 observation differs from its one fixed argv")
         elif FixedAdb.plan_without_adb_lookup(serial, operation, args) != command.argv:
             raise ControllerError("command differs from the fixed-operation planner")
+        output_budget.start_command()
         started_at_utc = datetime.now(timezone.utc).isoformat()
         started_monotonic_ns = time.monotonic_ns()
         try:
@@ -925,6 +1060,41 @@ def _execute_batch(*, phase_id: str, state: str, rows: list[list[str]], serial: 
             raise
         finished_at_utc = datetime.now(timezone.utc).isoformat()
         finished_monotonic_ns = time.monotonic_ns()
+        output_bytes = len(stdout) + len(stderr)
+        if output_bytes > command.max_output_bytes:
+            record = {"phase": phase_id, "state": state, "index": index,
+                      "operation": operation, "arguments": list(args),
+                      "argv": list(command.argv), "started_at_utc": started_at_utc,
+                      "started_monotonic_ns": started_monotonic_ns,
+                      "finished_at_utc": finished_at_utc,
+                      "finished_monotonic_ns": finished_monotonic_ns,
+                      "result_status": "PER_COMMAND_OUTPUT_LIMIT_EXCEEDED",
+                      "exit_code": exit_code, "stdout_file": None, "stderr_file": None,
+                      "stdout_bytes_observed": len(stdout), "stderr_bytes_observed": len(stderr),
+                      "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+                      "stderr_sha256": hashlib.sha256(stderr).hexdigest(),
+                      "command_output_limit_bytes": command.max_output_bytes,
+                      "session_output_bytes_before": output_budget.used_bytes,
+                      "session_output_limit_bytes": output_budget.limit_bytes}
+            records.append(record)
+            raise ControllerError("fixed command exceeded its output ceiling; raw output was not archived")
+        if not output_budget.reserve(output_bytes):
+            output_budget.exhausted = True
+            record = {"phase": phase_id, "state": state, "index": index,
+                      "operation": operation, "arguments": list(args),
+                      "argv": list(command.argv), "started_at_utc": started_at_utc,
+                      "started_monotonic_ns": started_monotonic_ns,
+                      "finished_at_utc": finished_at_utc,
+                      "finished_monotonic_ns": finished_monotonic_ns,
+                      "result_status": "SESSION_OUTPUT_BUDGET_EXCEEDED",
+                      "exit_code": exit_code, "stdout_file": None, "stderr_file": None,
+                      "stdout_bytes_observed": len(stdout), "stderr_bytes_observed": len(stderr),
+                      "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+                      "stderr_sha256": hashlib.sha256(stderr).hexdigest(),
+                      "session_output_bytes_before": output_budget.used_bytes,
+                      "session_output_limit_bytes": output_budget.limit_bytes}
+            records.append(record)
+            raise ControllerError("session output budget exceeded; command output was not archived and campaign cannot succeed")
         try:
             from collector import classify_command_result
             result_status = classify_command_result(
@@ -933,17 +1103,43 @@ def _execute_batch(*, phase_id: str, state: str, rows: list[list[str]], serial: 
                 output_limited=b"output limit reached" in stderr,
                 operation="read" if operation == "read_net_operstate" else operation,
             ).value
+            inventory_lookup = operation == "package-path" or (
+                operation == "dumpsys" and len(args) == 2 and args[0] == "package")
+            if inventory_lookup and re.search(
+                r"(?i)(?:unable to find package|unknown package|package(?:\s+[^\r\n]*)?\s+not found|no package)",
+                    (stderr + b"\n" + stdout).decode("utf-8", "replace")):
+                result_status = "not_exposed"
         except Exception as exc:
             result_status = f"CLASSIFICATION_ERROR:{type(exc).__name__}"
             classification_error = exc
         else:
             classification_error = None
-        records.append(_save_command_result(
-            run_dir, command, index, exit_code, stdout, stderr,
-            state=state, operation=operation, arguments=args,
-            started_at_utc=started_at_utc, started_monotonic_ns=started_monotonic_ns,
-            finished_at_utc=finished_at_utc, finished_monotonic_ns=finished_monotonic_ns,
-            result_status=result_status))
+        try:
+            saved = _save_command_result(
+                run_dir, command, index, exit_code, stdout, stderr,
+                state=state, operation=operation, arguments=args,
+                started_at_utc=started_at_utc, started_monotonic_ns=started_monotonic_ns,
+                finished_at_utc=finished_at_utc, finished_monotonic_ns=finished_monotonic_ns,
+                result_status=result_status)
+        except BaseException as exc:
+            records.append({"phase": phase_id, "state": state, "index": index,
+                            "operation": operation, "arguments": list(args),
+                            "argv": list(command.argv),
+                            "result_status": "PRIVATE_EVIDENCE_WRITE_FAILED",
+                            "error_type": type(exc).__name__, "stdout_file": None,
+                            "stderr_file": None, "exit_code": exit_code,
+                            "started_at_utc": started_at_utc,
+                            "started_monotonic_ns": started_monotonic_ns,
+                            "finished_at_utc": finished_at_utc,
+                            "finished_monotonic_ns": finished_monotonic_ns,
+                            "session_output_bytes_reserved": output_bytes,
+                            "stdout_bytes_observed": len(stdout), "stderr_bytes_observed": len(stderr),
+                            "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+                            "stderr_sha256": hashlib.sha256(stderr).hexdigest(),
+                            "session_output_bytes_used": output_budget.used_bytes})
+            raise ControllerError("private evidence write failed; session aborted without treating command as successful") from exc
+        saved["session_output_bytes_after"] = output_budget.used_bytes
+        records.append(saved)
         index += 1
         if classification_error is not None:
             raise ControllerError("fixed command result could not be classified; raw output preserved and session aborted") from classification_error
@@ -1041,8 +1237,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     validate_session_authorization(record, current_pins=current_pins)
     phases = list(record["approved_phases"])
     adb_needed = any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases)
-    transition_phases = {"phase4_three_state_carplay", "phase5_display1_navigation_lifecycle",
-                         "phase6_existing_hondahack_casting"}
+    transition_phases = {"phase4_three_state_carplay"}
     if adb_needed and not {"phase0_baseline_safety_identity", "phase1_ordinary_adb_capability"}.issubset(phases):
         raise ControllerError("execution requires the baseline and exact target-identity phase in the same approval")
     if transition_phases.intersection(phases) and "phase7_recovery_restoration" not in phases:
@@ -1108,6 +1303,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     marker = authorize_one_run(record, current_pins=current_pins, ledger=ledger)
     owner_notes = []
     command_records: list[dict] = []
+    output_budget = SessionOutputBudget()
     phase_results: list[dict] = []
     identity: dict[str, str] | None = None
     transition_started = False
@@ -1172,10 +1368,9 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                         execute_command=execute_command, run_dir=run_dir,
                         records=command_records, index=global_index,
                         prior_identity=identity, authorization_record=record,
-                        current_pins=current_pins, session_deadline=deadline, output=output,
+                        current_pins=current_pins, session_deadline=deadline,
+                        output_budget=output_budget, output=output,
                     )
-                    if _ask_owner(prompt, "If the observation caused any abnormal behavior, type STOP. Otherwise type READY: ").strip() != "READY":
-                        raise ControllerError("owner reported or did not exclude abnormal behavior")
                     if time.monotonic() >= deadline:
                         raise ControllerError("one-hour session bound reached after stable-state capture")
                 phase_results.append({"phase": phase_id,
@@ -1193,7 +1388,8 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                     execute_command=execute_command, run_dir=run_dir,
                     records=command_records, index=global_index,
                     prior_identity=identity, authorization_record=record,
-                    current_pins=current_pins, session_deadline=deadline, output=output,
+                    current_pins=current_pins, session_deadline=deadline,
+                    output_budget=output_budget, output=output,
                 )
                 phase_results.append({"phase": phase_id, "status": "COMMANDS_COMPLETE_PENDING_EVIDENCE_REVIEW",
                                       "command_count": len(rows),
@@ -1239,6 +1435,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "readiness_checks": record["readiness_checks"],
                    "evidence_destination_checklist": record["evidence_destination_checklist"],
                    "owner_state_confirmations": owner_notes, "command_count": len(command_records),
+                   "session_output_budget": output_budget.report(),
                    "command_artifacts": command_records, "candidate_objectives_pending_analysis": objective_map,
                    "unresolved_objectives": unresolved,
                    "session_started_at_utc": session_started_utc,
@@ -1290,6 +1487,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "readiness_checks": record["readiness_checks"],
                    "evidence_destination_checklist": record["evidence_destination_checklist"],
                    "owner_state_confirmations": owner_notes, "command_count": len(command_records),
+                   "session_output_budget": output_budget.report(),
                    "command_artifacts": command_records, "campaign_success": False,
                    "session_started_at_utc": session_started_utc,
                    "session_started_monotonic_ns": session_started_monotonic_ns,
