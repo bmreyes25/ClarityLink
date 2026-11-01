@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -119,8 +120,12 @@ def test_prepare_migrates_without_overwriting_and_never_sets_readiness_true(tmp_
     assert result["verified_source_count"] == len(result["source_hashes"]) == 33
     assert result["source_revision"] == controller._head_sha()
     assert result["origin_main_revision"] == controller._origin_main_sha()
-    assert result["head_matches_origin_main"] is False
-    assert "HEAD is not origin/main" in result["source_revision_warning"]
+    expected_main_match = result["source_revision"] == result["origin_main_revision"]
+    assert result["head_matches_origin_main"] is expected_main_match
+    if expected_main_match:
+        assert result["source_revision_warning"] is None
+    else:
+        assert "HEAD is not origin/main" in result["source_revision_warning"]
     assert evidence.stat().st_mode & 0o777 == 0o700
 
 
@@ -1314,6 +1319,51 @@ def test_one_use_ledger_is_private_and_replay_resistant(tmp_path):
         controller.consume_once(record, ledger=ledger)
 
 
+def test_one_use_ledger_does_not_mutate_existing_unsafe_directory(tmp_path):
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    ledger = tmp_path / "shared-ledger"
+    ledger.mkdir(mode=0o755)
+    ledger.chmod(0o755)
+    before = ledger.stat()
+    with pytest.raises(controller.ControllerError, match="mode 0700"):
+        controller.consume_once(record, ledger=ledger)
+    after = ledger.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert list(ledger.iterdir()) == []
+
+
+def test_one_use_ledger_requires_owner_owned_directory_without_chmod(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    ledger = tmp_path / "private-ledger"
+    ledger.mkdir(mode=0o700)
+    ledger.chmod(0o700)
+    before = ledger.stat()
+    actual_uid = os.getuid()
+    monkeypatch.setattr(controller.pwd, "getpwuid",
+                        lambda _uid: SimpleNamespace(pw_dir=str(tmp_path)))
+    monkeypatch.setattr(controller.os, "getuid", lambda: actual_uid + 1)
+    with pytest.raises(controller.ControllerError, match="owner-owned"):
+        controller.consume_once(record, ledger=ledger)
+    after = ledger.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert list(ledger.iterdir()) == []
+
+
+def test_one_use_ledger_does_not_create_missing_parent_directories(tmp_path):
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    ledger = tmp_path / "missing-parent" / "ledger"
+    with pytest.raises(controller.ControllerError, match="private preparation directory"):
+        controller.consume_once(record, ledger=ledger)
+    assert not ledger.parent.exists()
+
+
 def test_nonce_cannot_be_reused_under_a_different_authorization_id(tmp_path):
     ledger = tmp_path / "private-ledger"
     controller.consume_once({"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
@@ -1325,13 +1375,68 @@ def test_nonce_cannot_be_reused_under_a_different_authorization_id(tmp_path):
 
 def test_ledger_symlink_refused(tmp_path):
     real = tmp_path / "real"
-    real.mkdir()
+    real.mkdir(mode=0o700)
+    sentinel = real / "sentinel.json"
+    sentinel.write_text("preserve")
+    sentinel.chmod(0o600)
+    before_directory = real.stat()
+    before_file = sentinel.stat()
     link = tmp_path / "link"
     link.symlink_to(real)
-    with pytest.raises(controller.ControllerError, match="symlink"):
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
         controller.consume_once({"authorization_id": "AUTH-12345678", "run_id": "b" * 32,
                                  "nonce": "a" * 32, "schema": controller.SESSION_AUTHORIZATION_SCHEMA,
                                  "preparation_only": False}, ledger=link)
+    after_directory = real.stat()
+    after_file = sentinel.stat()
+    assert after_directory.st_mtime_ns == before_directory.st_mtime_ns
+    assert after_file.st_mtime_ns == before_file.st_mtime_ns
+    assert after_file.st_mode == before_file.st_mode
+    assert sentinel.read_text() == "preserve"
+    assert list(real.iterdir()) == [sentinel]
+
+
+def test_ledger_rejects_symlinked_ancestor_without_mutation(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir(mode=0o700)
+    sentinel = target / "sentinel.json"
+    sentinel.write_text("preserve")
+    sentinel.chmod(0o600)
+    before = target.stat()
+    alias = tmp_path / "alias"
+    alias.symlink_to(target, target_is_directory=True)
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller.consume_once(record, ledger=alias / "ledger")
+    after = target.stat()
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert list(target.iterdir()) == [sentinel]
+    assert sentinel.read_text() == "preserve"
+
+
+def test_ledger_rejects_dangling_symlink_without_creating_target(tmp_path):
+    missing_target = tmp_path / "missing-target"
+    alias = tmp_path / "dangling-ledger"
+    alias.symlink_to(missing_target)
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller.consume_once(record, ledger=alias)
+    assert alias.is_symlink()
+    assert not missing_target.exists()
+
+
+def test_default_one_use_ledger_fails_closed_without_creating_missing_parents(tmp_path, monkeypatch):
+    runtime = Path.home() / "Library/Application Support/ClarityLink" / f"missing-ledger-test-{tmp_path.name}"
+    ledger = runtime / "consumed"
+    monkeypatch.setattr(controller, "PRIVATE_LEDGER", ledger)
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    assert not runtime.exists()
+    with pytest.raises(controller.ControllerError, match="private preparation directory"):
+        controller.consume_once(record)
+    assert not runtime.exists()
 
 
 def test_pid_start_time_and_receiver_identity_are_revalidated():
