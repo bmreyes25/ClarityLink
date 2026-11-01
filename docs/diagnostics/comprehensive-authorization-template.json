@@ -1,4 +1,6 @@
 {
+  "schema": "claritylink-comprehensive-session-authorization-v1",
+  "preparation_only": false,
   "campaign_id": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031",
   "authorization_id": "OWNER-ASSIGNED-UNIQUE-ID",
   "run_id": "32-hex-character-random-run-id",
@@ -42,6 +44,11 @@
   "review_artifacts": {
     "technical": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW",
     "qualified_vehicle_safety": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW"
+  },
+  "reviewed_commit_sha": "EXACT_REVIEWED_COMMIT_SHA",
+  "review_artifact_sha256": {
+    "technical": "SHA256_OF_EXACT_PRIVATE_ARTIFACT_BYTES",
+    "qualified_vehicle_safety": "SHA256_OF_EXACT_PRIVATE_ARTIFACT_BYTES"
   },
   "technical_reviewer_independence_verified": false,
   "qualified_safety_reviewer_credentials_verified": false,

@@ -13,6 +13,14 @@ sys.path.insert(0, str(ROOT / "tools/honda-readonly-preflight"))
 import comprehensive_controller as controller
 import comprehensive_replay as replay
 
+_REAL_CANDIDATE_COMMIT = controller._candidate_commit
+
+
+@pytest.fixture(autouse=True)
+def _unit_tests_use_synthetic_main_revision(monkeypatch):
+    """Live-path unit tests use an injected local revision; the F5 test exercises the real gate."""
+    monkeypatch.setattr(controller, "_candidate_commit", controller._head_sha)
+
 
 def test_session_and_authorization_deadlines_provide_two_times_schedule_buffer():
     assert controller.MAX_SESSION_DURATION_SECONDS == 6000
@@ -74,12 +82,13 @@ def test_prepare_migrates_without_overwriting_and_never_sets_readiness_true(tmp_
         "evidence_destination_checklist": {"cloud_sync_disabled": True},
         "owner_verified_vehicle_reference": "stale-private-reference",
         "factory_restoration_reference": "stale baseline",
+        "adb_transport_details": "private Wi-Fi route; local identifiers omitted",
     }))
     draft.chmod(0o600)
     original = draft.read_bytes()
     monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
     monkeypatch.setattr(controller, "_review_inventory",
-                        lambda *_: ({}, [{"review_type": "technical", "structurally_valid": True,
+                        lambda *_: ({}, {}, [{"review_type": "technical", "structurally_valid": True,
                                           "exact_current_commit": False}]))
     candidate_path = runtime / "candidate.json"
     result = controller.prepare_candidate(draft_path=draft, evidence_path=evidence,
@@ -97,11 +106,21 @@ def test_prepare_migrates_without_overwriting_and_never_sets_readiness_true(tmp_
     assert all(value is False for value in candidate["evidence_destination_checklist"].values())
     assert "review_artifact_paths" not in candidate
     assert "required_review_types" not in candidate
-    assert "reviewed_commit_sha" not in candidate
+    assert candidate["reviewed_commit_sha"] == controller._head_sha()
+    assert candidate["review_artifact_sha256"] == {}
+    assert candidate["owner_verified_vehicle_reference"] == "stale-private-reference"
+    assert candidate["factory_restoration_reference"] == "stale baseline"
+    assert candidate["adb_transport_details"] == "private Wi-Fi route; local identifiers omitted"
+    assert set(candidate["owner_reconfirmation_required"]) == {
+        "owner_verified_vehicle_reference", "factory_restoration_reference", "adb_transport_details"}
     assert "readiness_answer" not in candidate
     assert result["campaign_command_count"] == 162
     assert result["command_shapes"] == 45
     assert result["verified_source_count"] == len(result["source_hashes"]) == 33
+    assert result["source_revision"] == controller._head_sha()
+    assert result["origin_main_revision"] == controller._origin_main_sha()
+    assert result["head_matches_origin_main"] is False
+    assert "HEAD is not origin/main" in result["source_revision_warning"]
     assert evidence.stat().st_mode & 0o777 == 0o700
 
 
@@ -112,8 +131,8 @@ def test_prepare_refuses_to_overwrite_candidate(tmp_path, monkeypatch):
     existing.write_text("preserve")
     existing.chmod(0o600)
     monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
-    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, []))
-    with pytest.raises(controller.ControllerError, match="could not be created without overwrite"):
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, {}, []))
+    with pytest.raises(controller.ControllerError, match="destination already exists"):
         controller.prepare_candidate(draft_path=runtime / "absent.json",
                                      evidence_path=runtime / "evidence", output_path=existing)
     assert existing.read_text() == "preserve"
@@ -138,10 +157,111 @@ def test_prepare_rejects_symlinked_evidence_path(tmp_path, monkeypatch):
     alias = runtime / "alias"
     alias.symlink_to(actual, target_is_directory=True)
     monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
-    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, []))
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, {}, []))
     with pytest.raises(controller.ControllerError, match="symbolic link"):
         controller.prepare_candidate(draft_path=runtime / "absent.json", evidence_path=alias,
                                      output_path=runtime / "candidate.json")
+
+
+def test_private_directory_rejects_existing_world_accessible_directory_without_chmod(tmp_path):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    unsuitable = runtime / "already-public"
+    unsuitable.mkdir(mode=0o755)
+    before = unsuitable.stat()
+    with pytest.raises(controller.ControllerError, match="mode 0700"):
+        controller._private_directory(unsuitable, create=True)
+    after = unsuitable.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+
+
+def test_private_directory_rejects_repository_docs_before_mutation(tmp_path, monkeypatch):
+    repository = tmp_path / "repository"
+    docs = repository / "docs"
+    docs.mkdir(parents=True, mode=0o755)
+    docs.chmod(0o755)
+    before = docs.stat()
+    monkeypatch.setattr(controller, "ROOT", repository)
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller._private_directory(docs, create=True)
+    after = docs.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+
+
+def test_private_directory_creates_only_one_new_owner_only_leaf(tmp_path):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    created = controller._private_directory(runtime / "evidence", create=True)
+    assert created.is_dir()
+    assert created.stat().st_uid == __import__("os").getuid()
+    assert created.stat().st_mode & 0o777 == 0o700
+    assert list(runtime.iterdir()) == [created]
+
+
+def test_private_directory_rejects_wrong_owner_without_creation(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    intended = runtime / "evidence"
+    actual_uid = __import__("os").getuid()
+    monkeypatch.setattr(controller.os, "getuid", lambda: actual_uid + 1)
+    with pytest.raises(controller.ControllerError, match="owner-owned"):
+        controller._private_directory(intended, create=True)
+    assert not intended.exists()
+
+
+def test_prepare_validates_output_and_evidence_paths_before_any_creation(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, {}, []))
+    bad_parent = runtime / "output-parent"
+    bad_parent.mkdir(mode=0o755)
+    bad_parent.chmod(0o755)
+    missing_evidence = runtime / "evidence"
+    with pytest.raises(controller.ControllerError, match="mode 0700"):
+        controller.prepare_candidate(draft_path=runtime / "missing-draft.json",
+                                     evidence_path=missing_evidence,
+                                     output_path=bad_parent / "candidate.json")
+    assert not missing_evidence.exists()
+
+    bad_evidence = runtime / "bad-evidence"
+    bad_evidence.mkdir(mode=0o755)
+    bad_evidence.chmod(0o755)
+    before = bad_evidence.stat()
+    output = runtime / "candidate.json"
+    with pytest.raises(controller.ControllerError, match="mode 0700"):
+        controller.prepare_candidate(draft_path=runtime / "missing-draft.json",
+                                     evidence_path=bad_evidence, output_path=output)
+    assert not output.exists()
+    assert bad_evidence.stat().st_mode == before.st_mode
+
+
+def test_repeated_prepare_does_not_mutate_existing_or_unrelated_directories(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    evidence = runtime / "evidence"
+    evidence.mkdir(mode=0o700)
+    unrelated = runtime / "unrelated"
+    unrelated.mkdir(mode=0o755)
+    unrelated.chmod(0o755)
+    marker = unrelated / "keep.txt"
+    marker.write_text("preserve")
+    marker.chmod(0o600)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, {}, []))
+    evidence_before = evidence.stat()
+    unrelated_before = unrelated.stat()
+    marker_before = marker.read_bytes()
+    for name in ("candidate-one.json", "candidate-two.json"):
+        controller.prepare_candidate(draft_path=runtime / "missing-draft.json",
+                                     evidence_path=evidence, output_path=runtime / name)
+    assert evidence.stat().st_mode == evidence_before.st_mode
+    assert evidence.stat().st_mtime_ns == evidence_before.st_mtime_ns
+    assert unrelated.stat().st_mode == unrelated_before.st_mode
+    assert unrelated.stat().st_mtime_ns == unrelated_before.st_mtime_ns
+    assert marker.read_bytes() == marker_before
 
 
 def test_prepare_stops_on_source_lock_failure_before_writing_candidate(tmp_path, monkeypatch):
@@ -161,7 +281,7 @@ def test_prepare_stops_when_private_storage_has_insufficient_space(tmp_path, mon
     runtime = tmp_path / "private-runtime"
     runtime.mkdir(mode=0o700)
     monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
-    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, []))
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, {}, []))
     usage = controller.shutil.disk_usage(tmp_path)
     monkeypatch.setattr(controller.shutil, "disk_usage",
                         lambda _path: type(usage)(usage.total, usage.used, 1))
@@ -242,9 +362,12 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
     phases = ["phase1_ordinary_adb_capability", "phase4_three_state_carplay",
               "phase7_recovery_restoration"]
     categories = sorted(set().union(*(set(controller.PHASE_CATEGORIES[p]) for p in phases)))
-    record = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
               "approved_categories": categories, "category_permissions": _category_permissions(categories), "risk_level": "LEVEL_2",
               "live_execution_enabled": True, "pins": {"pin": "value"},
+              "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {
+                  "technical": "a" * 64, "qualified_vehicle_safety": "b" * 64},
               "authorization_id": "AUTH-22334455", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
               "exact_adb_serial": "owner-private-serial",
@@ -266,10 +389,12 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
 
 
 def test_level_one_baseline_does_not_require_an_external_review():
-    record = {"campaign_id": controller.CAMPAIGN_ID,
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "campaign_id": controller.CAMPAIGN_ID,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
               "live_execution_enabled": True, "pins": {"pin": "value"},
+              "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {},
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
                             "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
@@ -302,7 +427,7 @@ def test_level_two_stock_carplay_requires_technical_review_attestation(tmp_path)
         controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
-def test_review_record_has_one_path_per_artifact_and_no_copied_commit_or_digest(tmp_path):
+def test_review_record_binds_exact_commit_and_digest_for_each_required_artifact(tmp_path):
     phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
               "phase4_three_state_carplay", "phase7_recovery_restoration"]
     record = _live_test_record(tmp_path, phases, controller.pins())
@@ -310,19 +435,24 @@ def test_review_record_has_one_path_per_artifact_and_no_copied_commit_or_digest(
     assert set(record["review_artifacts"]) == {"technical", "qualified_vehicle_safety"}
     assert all(Path(path).is_absolute() for path in record["review_artifacts"].values())
     assert "review_artifact_paths" not in record
-    assert "reviewed_commit_sha" not in record
+    assert record["reviewed_commit_sha"] == controller._head_sha()
+    assert set(record["review_artifact_sha256"]) == {"technical", "qualified_vehicle_safety"}
+    assert all(len(value) == 64 for value in record["review_artifact_sha256"].values())
     assert record["owner_confirmed"] is True
     assert "readiness_answer" not in record
     controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
-def test_controller_derives_review_digest_and_commit_from_artifact_and_clean_source(tmp_path, monkeypatch):
+def test_controller_checks_artifact_digest_and_commit_against_owner_attestation(tmp_path, monkeypatch):
     from types import SimpleNamespace
     import sys
 
     phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
               "phase4_three_state_carplay", "phase7_recovery_restoration"]
     record = _live_test_record(tmp_path, phases, controller.pins())
+    record["reviewed_commit_sha"] = "c" * 40
+    record["review_artifact_sha256"] = {"technical": "a" * 64,
+                                        "qualified_vehicle_safety": "b" * 64}
     seen = []
 
     def fake_validate(path, **kwargs):
@@ -346,10 +476,13 @@ def test_review_artifact_change_after_owner_yes_stops_before_one_use_consumption
               "phase4_three_state_carplay", "phase7_recovery_restoration"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["factory_restoration_reference"] = "owner-defined factory baseline"
-    first = {"reviewed_commit_sha": "c" * 40,
+    record["reviewed_commit_sha"] = controller._head_sha()
+    record["review_artifact_sha256"] = {"technical": "a" * 64,
+                                        "qualified_vehicle_safety": "b" * 64}
+    first = {"reviewed_commit_sha": controller._head_sha(),
              "review_artifact_sha256": {"technical": "a" * 64,
                                         "qualified_vehicle_safety": "b" * 64}}
-    changed = {"reviewed_commit_sha": "c" * 40,
+    changed = {"reviewed_commit_sha": controller._head_sha(),
                "review_artifact_sha256": {"technical": "d" * 64,
                                           "qualified_vehicle_safety": "b" * 64}}
     bindings = iter((first, changed))
@@ -369,10 +502,12 @@ def test_review_artifact_change_after_owner_yes_stops_before_one_use_consumption
 
 
 def test_session_authorization_requires_a_private_destination_and_recovery_route():
-    record = {"campaign_id": controller.CAMPAIGN_ID,
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "campaign_id": controller.CAMPAIGN_ID,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
               "live_execution_enabled": True, "pins": {"pin": "value"},
+              "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {},
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
                             "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
@@ -391,14 +526,24 @@ def test_session_authorization_requires_a_private_destination_and_recovery_route
 
 def _live_test_record(tmp_path, phases, pin_values):
     categories = sorted(set().union(*(set(controller.PHASE_CATEGORIES[p]) for p in phases)))
+    required_reviews = set().union(*(set(controller.PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases))
     evidence_dir = tmp_path / "evidence"
     evidence_dir.mkdir(mode=0o700)
     evidence_dir.chmod(0o700)
-    return {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
+    review_paths = {}
+    review_digests = {}
+    for review in sorted(required_reviews):
+        artifact = tmp_path / f"{review}.json"
+        review_digests[review] = _write_review_artifact(artifact, review)
+        review_paths[review] = str(artifact)
+    return {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+            "campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
             "approved_categories": categories, "category_permissions": _category_permissions(categories),
             "risk_level": f"LEVEL_{max(controller.PHASE_RISK_LEVELS[p] for p in phases)}",
               "live_execution_enabled": True,
               "pins": pin_values,
+            "reviewed_commit_sha": controller._head_sha(),
+            "review_artifact_sha256": review_digests,
             "authorization_id": "AUTH-55667788", "run_id": "f" * 32, "nonce": "e" * 32,
             **controller.new_run_identifiers(), "owner_confirmed": True,             "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
@@ -410,10 +555,126 @@ def _live_test_record(tmp_path, phases, pin_values):
             "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
             "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference",
             "exact_adb_serial": "private-owner-serial", "evidence_directory": str(evidence_dir),
-            "review_artifacts": {review: str(tmp_path / f"{review}.json")
-                                 for review in sorted(set().union(*(set(controller.PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases)))},
+            "review_artifacts": review_paths,
             "technical_reviewer_independence_verified": True,
             "qualified_safety_reviewer_credentials_verified": True}
+
+
+def _write_review_artifact(path, review_type, *, decision="APPROVE_ENGINEERING", phases=None,
+                           risk="LEVEL_2", reviewer_name="independent-reviewer-1"):
+    reviewer = {"reviewer_class": "independent_technical_reviewer", "provider": "Claude"}
+    if review_type == "qualified_vehicle_safety":
+        reviewer = {"reviewer_class": "qualified_vehicle_safety_reviewer", "provider": "Human"}
+    pins = controller.pins()
+    value = {"campaign_id": controller.CAMPAIGN_ID, "review_type": review_type, **reviewer,
+             "reviewer_name_or_id": reviewer_name,
+             "reviewed_commit_sha": controller._head_sha(),
+             "profile_sha256": pins["profile_sha256"],
+             "source_lock_sha256": pins["source_lock_sha256"],
+             "manifest_sha256": pins["command_manifest_sha256"],
+             "reviewed_phases": phases or ["phase0_baseline_safety_identity",
+                                            "phase1_ordinary_adb_capability",
+                                            "phase4_three_state_carplay",
+                                            "phase7_recovery_restoration"],
+             "risk_level": risk, "review_date": "2026-11-01",
+             "decision": decision, "findings": []}
+    value["artifact_sha256"] = hashlib.sha256(
+        (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()).hexdigest()
+    path.write_text(json.dumps(value, sort_keys=True, indent=2) + "\n")
+    path.chmod(0o600)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_review_inventory_rejects_request_changes_and_malformed_artifact(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    review_dir = runtime / "reviews"
+    review_dir.mkdir(mode=0o700)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    _write_review_artifact(review_dir / "technical.json", "technical", decision="REQUEST_CHANGES")
+    _write_review_artifact(review_dir / "safety.json", "qualified_vehicle_safety")
+    (review_dir / "malformed.json").write_text("{not-json")
+    (review_dir / "malformed.json").chmod(0o600)
+    paths, digests, report = controller._review_inventory(controller.pins(), phases)
+    assert "technical" not in paths and "technical" not in digests
+    assert "qualified_vehicle_safety" in paths
+    assert digests["qualified_vehicle_safety"] == hashlib.sha256(
+        Path(paths["qualified_vehicle_safety"]).read_bytes()).hexdigest()
+    assert any(item.get("status") == "VALID_NON_APPROVAL"
+               and item.get("decision") == "REQUEST_CHANGES" for item in report)
+    assert any(item.get("decision") == "INVALID" for item in report)
+    assert any("does not prove reviewer identity" in item.get("authenticity_limit", "")
+               for item in report)
+
+
+def test_review_inventory_reports_ambiguity_instead_of_selecting(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    review_dir = runtime / "reviews"
+    review_dir.mkdir(mode=0o700)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    _write_review_artifact(review_dir / "technical-a.json", "technical")
+    _write_review_artifact(review_dir / "technical-b.json", "technical")
+    _write_review_artifact(review_dir / "safety.json", "qualified_vehicle_safety")
+    paths, digests, report = controller._review_inventory(controller.pins(), phases)
+    assert "technical" not in paths and "technical" not in digests
+    assert "qualified_vehicle_safety" in paths
+    assert {item.get("status") for item in report if item.get("review_type") == "technical"} == {
+        "VALID_APPROVAL", "AMBIGUOUS"}
+
+
+def test_review_artifact_replacement_with_another_valid_review_fails_digest_binding(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    review_dir = tmp_path / "reviews"
+    review_dir.mkdir(mode=0o700)
+    technical = review_dir / "technical.json"
+    safety = review_dir / "safety.json"
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["reviewed_commit_sha"] = controller._head_sha()
+    record["review_artifacts"] = {"technical": str(technical), "qualified_vehicle_safety": str(safety)}
+    record["review_artifact_sha256"] = {
+        "technical": _write_review_artifact(technical, "technical"),
+        "qualified_vehicle_safety": _write_review_artifact(safety, "qualified_vehicle_safety"),
+    }
+    first = controller._validate_live_reviews(record, controller.pins())
+    assert first["review_artifact_sha256"] == record["review_artifact_sha256"]
+
+    _write_review_artifact(technical, "technical", reviewer_name="independent-reviewer-2")
+    with pytest.raises(controller.ControllerError, match="artifact bytes changed"):
+        controller._validate_live_reviews(record, controller.pins())
+
+
+@pytest.mark.parametrize("digest", [None, "not-a-sha256", "a" * 63])
+def test_authorization_rejects_missing_or_malformed_review_digest(tmp_path, digest):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    if digest is None:
+        record.pop("review_artifact_sha256")
+    else:
+        record["review_artifact_sha256"]["technical"] = digest
+    with pytest.raises(controller.ControllerError, match="digest bindings"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+
+
+def test_authorization_rejects_review_commit_change_and_extra_manual_review_types(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    record["reviewed_commit_sha"] = "0" * 40
+    with pytest.raises(controller.ControllerError, match="reviewed source commit"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+    record["reviewed_commit_sha"] = controller._head_sha()
+    record["required_review_types"] = ["technical", "qualified_vehicle_safety"]
+    with pytest.raises(controller.ControllerError, match="derived from the approved phases"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
 def test_adb_transport_independence_is_required_for_adb_authorization(tmp_path):
@@ -444,8 +705,23 @@ def test_candidate_review_pin_rejects_dirty_worktree(monkeypatch):
     class Result:
         returncode = 0
         stdout = " M tools/honda-readonly-preflight/comprehensive_controller.py\n"
+    monkeypatch.setattr(controller, "_candidate_commit", _REAL_CANDIDATE_COMMIT)
     monkeypatch.setattr(controller.subprocess, "run", lambda *_a, **_k: Result())
     with pytest.raises(controller.ControllerError, match="clean worktree"):
+        controller._candidate_commit()
+
+
+def test_live_commit_gate_rejects_clean_unmerged_branch(monkeypatch):
+    outputs = iter(("", "c" * 40, "b" * 40))
+    class Result:
+        returncode = 0
+        def __init__(self, stdout):
+            self.stdout = stdout
+    def run(*_args, **_kwargs):
+        return Result(next(outputs))
+    monkeypatch.setattr(controller, "_candidate_commit", _REAL_CANDIDATE_COMMIT)
+    monkeypatch.setattr(controller.subprocess, "run", run)
+    with pytest.raises(controller.ControllerError, match="unmerged checkout"):
         controller._candidate_commit()
 
 
@@ -513,7 +789,7 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
     assert len(list(run_dir.glob("*.stdout.bin"))) == 19
     archive_summary = json.loads((run_dir / "session-summary.json").read_text())
     binding = json.loads((run_dir / "authorization-binding.json").read_text())
-    assert binding == {"review_bindings": {"reviewed_commit_sha": None,
+    assert binding == {"review_bindings": {"reviewed_commit_sha": controller._head_sha(),
                                             "review_artifact_sha256": {}},
                        "source_pins": controller.pins()}
     assert (run_dir / "authorization-binding.json").stat().st_mode & 0o777 == 0o600
@@ -916,12 +1192,34 @@ def test_live_route_requires_a_private_owner_authorization_file():
         controller.execute_live()
 
 
+def test_preparation_candidate_cannot_run_consume_or_issue_adb_even_if_flags_are_toggled(tmp_path, monkeypatch):
+    candidate = tmp_path / "candidate.json"
+    value = {"schema": controller.PREPARATION_SCHEMA, "preparation_only": True,
+             "owner_confirmed": True, "live_execution_enabled": True}
+    candidate.write_text(json.dumps(value))
+    candidate.chmod(0o600)
+    adb_calls = []
+    monkeypatch.setattr(controller, "_execute_authorized_session",
+                        lambda *_a, **_k: pytest.fail("candidate reached the executor"))
+    with pytest.raises(controller.ControllerError, match="preparation-only candidates"):
+        controller.execute_live(candidate)
+    with pytest.raises(controller.ControllerError, match="cannot consume one-use"):
+        controller.consume_once({**value, "authorization_id": "AUTH-12345678",
+                                 "run_id": "a" * 32, "nonce": "b" * 32},
+                               ledger=tmp_path / "ledger")
+    assert adb_calls == []
+    assert not (tmp_path / "ledger").exists()
+
+
 def test_authorization_must_match_phase_and_exact_category_set():
     phase = "phase4_three_state_carplay"
-    approval = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
+    approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+                "campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {"pin": "value"},
+                "reviewed_commit_sha": controller._head_sha(),
+                "review_artifact_sha256": {"technical": "a" * 64, "qualified_vehicle_safety": "b" * 64},
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32,
                 "run_id": "b" * 32, **controller.new_run_identifiers(),
                 "exact_adb_serial": "owner-private-serial",
@@ -951,7 +1249,8 @@ def test_privileged_phase_authorization_remains_blocked(phase):
 
 def test_stale_source_pins_rejected():
     phase = "phase1_ordinary_adb_capability"
-    approval = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
+    approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+                "campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {},
@@ -975,7 +1274,8 @@ def test_expired_approval_rejected():
     from datetime import datetime, timedelta, timezone
     phase = "phase1_ordinary_adb_capability"
     old = datetime.now(timezone.utc) - timedelta(hours=1)
-    approval = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
+    approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+                "campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {"pin": "value"},
@@ -1004,7 +1304,8 @@ def test_invalid_authorization_does_not_consume_a_ledger_marker(tmp_path):
 
 
 def test_one_use_ledger_is_private_and_replay_resistant(tmp_path):
-    record = {"authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
     ledger = tmp_path / "private-ledger"
     marker = controller.consume_once(record, ledger=ledger)
     assert ledger.stat().st_mode & 0o777 == 0o700
@@ -1015,9 +1316,11 @@ def test_one_use_ledger_is_private_and_replay_resistant(tmp_path):
 
 def test_nonce_cannot_be_reused_under_a_different_authorization_id(tmp_path):
     ledger = tmp_path / "private-ledger"
-    controller.consume_once({"authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}, ledger=ledger)
+    controller.consume_once({"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+                             "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}, ledger=ledger)
     with pytest.raises(controller.ControllerError, match="nonce has already been consumed"):
-        controller.consume_once({"authorization_id": "AUTH-87654321", "run_id": "c" * 32, "nonce": "a" * 32}, ledger=ledger)
+        controller.consume_once({"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+                                 "authorization_id": "AUTH-87654321", "run_id": "c" * 32, "nonce": "a" * 32}, ledger=ledger)
 
 
 def test_ledger_symlink_refused(tmp_path):
@@ -1027,7 +1330,8 @@ def test_ledger_symlink_refused(tmp_path):
     link.symlink_to(real)
     with pytest.raises(controller.ControllerError, match="symlink"):
         controller.consume_once({"authorization_id": "AUTH-12345678", "run_id": "b" * 32,
-                                 "nonce": "a" * 32}, ledger=link)
+                                 "nonce": "a" * 32, "schema": controller.SESSION_AUTHORIZATION_SCHEMA,
+                                 "preparation_only": False}, ledger=link)
 
 
 def test_pid_start_time_and_receiver_identity_are_revalidated():

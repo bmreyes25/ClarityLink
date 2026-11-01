@@ -63,6 +63,29 @@ independently verify reviewer identity/qualification before setting the exact
 session attestations. Phase 2/3 privileged execution remains blocked and has
 no live argv.
 
+The final session record must use schema
+`claritylink-comprehensive-session-authorization-v1`, include the exact
+`reviewed_commit_sha`, and bind each required review type to the SHA-256 of the
+exact private artifact bytes in `review_artifact_sha256`. Required review types
+are derived from approved phases. The controller rejects missing or malformed
+bindings, changed artifacts, non-approving decisions, and candidate-schema
+records before readiness prompts or one-use consumption. A review inventory
+selects only one valid approval per type; multiple approvals are reported as
+ambiguous and must be resolved by the owner/reviewer.
+
+`prepare` prints `HEAD`, the locally fetched `origin/main`, and their match
+status. An unmerged branch may produce a non-executable review candidate, but
+the live path accepts only a clean checkout whose HEAD matches fetched
+`origin/main`. After merge, fetch origin, obtain explicit reviewer confirmation
+bound to the resulting main commit, and prepare against that commit. Existing
+approval commit or artifact digests are never rewritten automatically.
+
+Preparation may carry forward the private vehicle reference, restoration
+reference, and ADB transport description for owner reconfirmation. It clears
+old approval, readiness, timestamp, nonce, and one-use fields. Wi-Fi ADB socket
+observations can expose SSIDs, local addresses, and other network identifiers;
+keep transport notes and raw captures outside Git and cloud-synced storage.
+
 In a private authorization record, `review_artifacts` maps each required review
 type directly to its absolute private artifact path. The controller computes
 the artifact digest and checks its exact commit and source pins before the

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import hashlib
 import json
 import os
@@ -35,32 +36,52 @@ def validate_review_artifact(path: Path, *, review_type: str, pins: dict[str, st
         if (metadata.st_uid != os.getuid() or metadata.st_size > 2 * 1024 * 1024
                 or metadata.st_mode & 0o077):
             raise ValueError("review artifact must be a bounded regular private file")
-        value = json.loads(handle.read().decode("utf-8"))
+        raw_bytes = handle.read()
+        value = json.loads(raw_bytes.decode("utf-8"))
     if not isinstance(value, dict) or not REQUIRED.issubset(value):
         raise ValueError("review artifact is missing required fields")
     if value["review_type"] != review_type or value.get("campaign_id") != "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031":
         raise ValueError("review artifact is for a different campaign or review type")
-    if value.get("reviewed_phases") != approved_phases or value.get("risk_level") != risk_level:
+    reviewed_phases = value.get("reviewed_phases")
+    if (not isinstance(reviewed_phases, list)
+            or any(not isinstance(phase, str) for phase in reviewed_phases)
+            or len(reviewed_phases) != len(set(reviewed_phases))
+            or reviewed_phases != approved_phases or value.get("risk_level") != risk_level):
         raise ValueError("review artifact does not bind the exact approved phases and risk level")
     for field, expected in REQUIRED_REVIEWERS[review_type].items():
         if value.get(field) != expected:
             raise ValueError(f"review artifact has incorrect {field}")
     if review_type == "technical" and value.get("provider") not in {"Claude", "ECC", "Human"}:
         raise ValueError("technical review provider must be Claude, ECC, or Human")
-    reviewer_label = re.sub(r"[-_]+", " ", str(value.get("reviewer_name_or_id", "")).strip().lower())
+    reviewer_name = value.get("reviewer_name_or_id")
+    if (not isinstance(reviewer_name, str) or not reviewer_name.strip()
+            or len(reviewer_name) > 128 or any(ord(char) < 32 for char in reviewer_name)):
+        raise ValueError("reviewer metadata is malformed")
+    reviewer_label = re.sub(r"[-_]+", " ", reviewer_name.strip().lower())
     if (not reviewer_label or reviewer_label in {"owner", "self", "implementation agent"}
             or re.search(r"\bcodex(?:[-_ ]|$)", reviewer_label)
             or "implementation agent" in reviewer_label):
         raise ValueError("reviewer must be independent of the owner and implementation agent")
     if value.get("decision") not in {"APPROVE_ENGINEERING", "REQUEST_CHANGES", "BLOCKED"}:
         raise ValueError("review decision is invalid")
-    if not isinstance(value.get("findings"), list) or not all(isinstance(x, str) for x in value["findings"]):
+    if (not isinstance(value.get("findings"), list)
+            or not all(isinstance(x, str) and len(x) <= 4000 for x in value["findings"])):
         raise ValueError("review findings must be a string list")
+    if not isinstance(value.get("reviewed_commit_sha"), str) or not re.fullmatch(r"[0-9a-f]{40}", value["reviewed_commit_sha"]):
+        raise ValueError("reviewed commit binding is malformed")
     if value.get("reviewed_commit_sha") != commit_sha:
         raise ValueError("review is not bound to the exact candidate commit")
     for field in ("profile_sha256", "source_lock_sha256", "manifest_sha256"):
+        if not isinstance(value.get(field), str) or not re.fullmatch(r"[0-9a-f]{64}", value[field]):
+            raise ValueError(f"review {field} binding is malformed")
         if value.get(field) != pins.get(field):
             raise ValueError(f"review does not bind current {field}")
+    if value.get("risk_level") not in {"LEVEL_1", "LEVEL_2", "LEVEL_3"}:
+        raise ValueError("review risk level is invalid")
+    try:
+        date.fromisoformat(value.get("review_date", ""))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("review date is malformed") from exc
     expected_artifact = value.get("artifact_sha256")
     if not isinstance(expected_artifact, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_artifact):
         raise ValueError("artifact digest is malformed")
@@ -71,7 +92,8 @@ def validate_review_artifact(path: Path, *, review_type: str, pins: dict[str, st
         raise ValueError("review artifact self-digest mismatch")
     return {"review_type": review_type, "decision": value["decision"],
             "reviewer_class": value["reviewer_class"], "exact_commit": commit_sha,
-            "artifact_sha256": actual,
+            "artifact_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+            "artifact_self_digest_sha256": actual,
             "authenticity_limit": "structure and pins only; does not prove reviewer identity, independence, competence, or safety certification"}
 
 
