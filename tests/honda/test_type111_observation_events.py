@@ -1,112 +1,221 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from pathlib import Path
+import plistlib
 import sys
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/honda-readonly-preflight"))
+import type111_boundary_source as source
 import type111_observation_events as parser
 
-FIXTURES = Path(__file__).parent / "fixtures/type111-events"
+FIXTURE = Path(__file__).parent / "fixtures/type111-events/accepted.jsonl"
 
 
-def event(kind, data, second=0):
+def body(value):
+    return base64.b64encode(plistlib.dumps(value, fmt=plistlib.FMT_BINARY)).decode("ascii")
+
+
+def record(boundary, second, **values):
     return {
-        "schema": "claritylink-type111-observation-v1",
-        "session_id": "synthetic",
-        "phase": "synthetic-phase",
+        "schema": "claritylink-receiver-boundary-v1",
+        "session_id": "synthetic-session",
+        "phase": "navigation-selected",
         "timestamp": f"2026-01-01T12:00:{second:02d}Z",
-        "source": {
-            "method": "synthetic",
-            "artifact_sha256": "a" * 64,
-            "record_id": f"r{second}",
-        },
-        "event": kind,
-        "data": data,
+        "boundary": boundary,
+        **values,
     }
 
 
-def test_synthetic_accepted_stream_without_media_and_teardown():
-    events = parser.parse_jsonl((FIXTURES / "accepted.jsonl").read_text())
-    result = parser.classify(events)
-    assert result == [
-        "type111_requested", "type111_accepted", "type111_stream_created",
-        "stream_created_media_unavailable", "session_teardown_observed",
+def trace(records, method="synthetic-boundary-export"):
+    raw = "\n".join(json.dumps(row, sort_keys=True) for row in records).encode() + b"\n"
+    return source.parse_boundary_jsonl(raw, method=method), raw
+
+
+def accepted_records():
+    return [
+        record("info_response", 0, request_id="info-1", complete=True, http_status=200,
+               body_base64=body({"displays": [{"features": 1, "uuid": "main"}]})),
+        record("setup_request", 1, request_id="setup-1", complete=True,
+               body_base64=body({"streams": [{"type": 110}, {"type": 111, "custom": "kept"}]})),
+        record("setup_response", 2, request_id="setup-1", complete=True, http_status=200,
+               body_base64=body({"streams": [{"type": 110}, {"type": 111, "dataPort": 6000}]})),
+        record("stream_created", 3, request_id="setup-1", stream_id="s111-a", stream_type=111),
+        record("media_observation", 4, stream_id="s111-a", stream_type=111, available=False, complete=True),
+        record("session_closed", 5, reason="normal-close"),
     ]
 
 
-def test_no_advertisement_is_supported_by_complete_decoded_info_only():
-    assert parser.classify([event("info_response", {
-        "complete": True, "secondary_advertised": False,
-    })]) == ["no_secondary_capability_advertised"]
-    assert parser.classify([event("info_response", {
-        "complete": False, "secondary_advertised": False,
-    })]) == ["insufficient_observation"]
+def test_boundary_source_decodes_and_preserves_raw_plist_fields_and_hash():
+    parsed, raw = trace(accepted_records())
+    assert parsed.artifact_sha256 == hashlib.sha256(raw).hexdigest()
+    assert parsed.source_records[1][0] > parsed.source_records[0][0]
+    request = parsed.events[1]
+    assert request["data"]["payload"]["streams"][1] == {"custom": "kept", "type": 111}
+    assert base64.b64decode(request["data"]["body_base64"]) == plistlib.dumps(
+        {"streams": [{"type": 110}, {"type": 111, "custom": "kept"}]}, fmt=plistlib.FMT_BINARY
+    )
+    with pytest.raises(parser.EventError, match="SHA-256 mismatch"):
+        source.parse_boundary_jsonl(raw, expected_sha256="0" * 64)
 
 
-def test_no_request_requires_complete_setup_window():
-    base = event("info_response", {"complete": True, "secondary_advertised": True})
-    assert parser.classify([base]) == ["insufficient_observation"]
-    closed = event("window_closed", {"setup_observation_complete": True}, 1)
-    assert parser.classify([base, closed]) == ["advertised_but_no_type111_request"]
-
-
-def test_rejected_setup_is_separate_from_accepted_and_stream_created():
-    events = [
-        event("setup_request", {"complete": True, "stream_types": [110, 111]}, 0),
-        event("setup_response", {"complete": True, "stream_type": 111, "result": "rejected"}, 1),
+def test_correlated_type111_lifecycle_and_type110_coexistence():
+    parsed, _ = trace(accepted_records())
+    assert parser.classify(parsed) == [
+        "info_display_descriptors:1", "type111_requested", "type111_accepted",
+        "type110_setup_observed", "type111_stream_created", "stream_created_media_unavailable",
+        "session_teardown_observed",
     ]
-    assert parser.classify(events) == ["type111_requested", "type111_rejected"]
 
 
-def test_decoded_response_proves_acceptance_even_if_request_record_is_missing():
-    response = event("setup_response", {
-        "complete": True, "stream_type": 111, "result": "accepted",
-    })
-    assert parser.classify([response]) == ["type111_accepted"]
+def test_committed_synthetic_boundary_fixture_replays_offline():
+    parsed = source.parse_boundary_jsonl(FIXTURE.read_bytes())
+    assert parser.classify(parsed) == [
+        "info_display_descriptors:1", "type111_requested", "type111_accepted",
+        "type110_setup_observed", "type111_stream_created", "stream_created_media_unavailable",
+        "session_teardown_observed",
+    ]
 
 
-def test_stream_teardown_is_distinct_from_parent_session_teardown():
-    closed = event("stream_closed", {"stream_type": 111, "stream_id": "synthetic"})
-    assert parser.classify([closed]) == ["type111_stream_teardown_observed"]
+def test_generic_http_error_is_not_misreported_as_type111_rejection():
+    matching, _ = trace([
+        record("setup_request", 0, request_id="r", complete=True,
+               body_base64=body({"streams": [{"type": 111}]})),
+        record("setup_response", 1, request_id="r", complete=True, http_status=422,
+               body_base64=body({"error": "unsupported"})),
+    ])
+    assert parser.classify(matching) == ["type111_requested", "type111_setup_error_response_observed"]
+    orphan, _ = trace([
+        record("setup_response", 0, request_id="unmatched", complete=True, http_status=500,
+               body_base64=body({"error": "failure"})),
+    ])
+    assert parser.classify(orphan) == ["insufficient_observation"]
 
 
-def test_incomplete_setup_request_prevents_negative_request_claim():
-    info = event("info_response", {"complete": True, "secondary_advertised": True})
-    request = event("setup_request", {"complete": False, "stream_types": [110]}, 1)
-    window = event("window_closed", {"setup_observation_complete": True}, 2)
-    assert parser.classify([info, request, window]) == ["insufficient_observation"]
+def test_requested_type111_without_response_is_not_called_rejected():
+    parsed, _ = trace([
+        record("setup_request", 0, request_id="r", complete=True,
+               body_base64=body({"streams": [{"type": 111}]})),
+    ])
+    assert parser.classify(parsed) == ["type111_requested", "type111_request_without_complete_response"]
 
 
-@pytest.mark.parametrize("change", [
-    {"timestamp": "yesterday"},
-    {"source": {"method": "synthetic", "artifact_sha256": "bad", "record_id": "x"}},
-    {"data": {"complete": True}},
-])
-def test_invalid_event_fields_fail_closed(change):
-    item = event("info_response", {"complete": True, "secondary_advertised": True})
-    item.update(change)
-    with pytest.raises(parser.EventError):
-        parser.validate_event(item)
+def test_stream_media_must_match_the_accepted_stream_identity():
+    rows = accepted_records()[:-2] + [
+        record("stream_created", 3, request_id="setup-1", stream_id="type111-stream", stream_type=111),
+        record("media_observation", 4, stream_id="different-stream", stream_type=111, available=False, complete=True),
+    ]
+    parsed, _ = trace(rows)
+    assert parser.classify(parsed) == [
+        "info_display_descriptors:1", "type111_requested", "type111_accepted", "type110_setup_observed",
+        "type111_stream_created",
+    ]
 
 
-def test_jsonl_rejects_mixed_sessions_and_out_of_order_events():
-    first = event("session_closed", {"reason": "synthetic"}, 1)
-    second = event("session_closed", {"reason": "synthetic"}, 0)
-    with pytest.raises(parser.EventError, match="ordered"):
-        parser.parse_jsonl("\n".join(map(json.dumps, [first, second])))
-    second["session_id"] = "other"
-    with pytest.raises(parser.EventError, match="one session"):
-        parser.parse_jsonl("\n".join(map(json.dumps, [first, second])))
+def test_cross_phase_joins_are_rejected():
+    rows = accepted_records()
+    rows[2]["phase"] = "navigation-deselected"
+    parsed, _ = trace(rows)
+    with pytest.raises(parser.EventError, match="one phase"):
+        parser.classify(parsed)
 
 
-def test_source_artifact_hash_is_verified():
-    payload = b"synthetic decoded evidence"
-    digest = hashlib.sha256(payload).hexdigest()
-    parser.verify_artifact(payload, digest)
-    with pytest.raises(parser.EventError, match="mismatch"):
-        parser.verify_artifact(payload, "0" * 64)
+def test_negative_request_claim_needs_complete_same_phase_window():
+    parsed, _ = trace([
+        record("info_response", 0, request_id="i", complete=True, http_status=200, body_base64=body({"displays": []})),
+        record("window_closed", 1, setup_observation_complete=True),
+    ])
+    assert parser.classify(parsed) == [
+        "info_display_descriptors:0", "complete_info_and_setup_window_without_type111_request",
+    ]
+    incomplete, _ = trace([
+        record("info_response", 0, request_id="i", complete=True, http_status=200, body_base64=body({"displays": []})),
+        record("setup_request", 1, request_id="s", complete=False, body_base64=body({"streams": []})),
+        record("window_closed", 2, setup_observation_complete=True),
+    ])
+    assert parser.classify(incomplete) == ["info_display_descriptors:0"]
+
+
+def test_malformed_stream_or_display_arrays_never_look_empty():
+    malformed_request, _ = trace([
+        record("info_response", 0, request_id="i", complete=True, http_status=200,
+               body_base64=body({"displays": []})),
+        record("setup_request", 1, request_id="s", complete=True,
+               body_base64=body({"streams": [{"type": True}]})),
+        record("window_closed", 2, setup_observation_complete=True),
+    ])
+    assert parser.classify(malformed_request) == [
+        "info_display_descriptors:0", "setup_request_descriptor_inconclusive",
+    ]
+    missing_displays, _ = trace([
+        record("info_response", 0, request_id="i", complete=True, http_status=200,
+               body_base64=body({"other": "field"})),
+    ])
+    assert parser.classify(missing_displays) == ["info_display_inventory_inconclusive"]
+    malformed_displays, _ = trace([
+        record("info_response", 0, request_id="i", complete=True, http_status=200,
+               body_base64=body({"displays": ["not-a-descriptor"]})),
+    ])
+    assert parser.classify(malformed_displays) == ["info_display_inventory_inconclusive"]
+
+
+def test_accepted_response_requires_matching_type111_request_and_descriptor():
+    no_request, _ = trace([
+        record("setup_response", 0, request_id="r", complete=True, http_status=200,
+               body_base64=body({"streams": [{"type": 111}]})),
+    ])
+    assert parser.classify(no_request) == ["insufficient_observation"]
+    no_descriptor, _ = trace([
+        record("setup_request", 0, request_id="r", complete=True,
+               body_base64=body({"streams": [{"type": 111}]})),
+        record("setup_response", 1, request_id="r", complete=True, http_status=200,
+               body_base64=body({"streams": [{"type": 110}]})),
+    ])
+    assert parser.classify(no_descriptor) == ["type111_requested", "type111_response_semantics_inconclusive"]
+
+
+def test_event_classifier_requires_trace_with_computed_provenance():
+    parsed, raw = trace(accepted_records())
+    assert parsed.artifact_sha256 == hashlib.sha256(raw).hexdigest()
+    with pytest.raises(parser.EventError, match="parsed, hashed"):
+        parser.classify(list(parsed.events))
+
+
+def test_classifier_rederives_events_from_hashed_source_bytes():
+    parsed, raw = trace(accepted_records())
+    expected = parser.classify(parsed)
+    parsed.events[1]["correlation"]["request_id"] = "forged"
+    assert parser.classify(parsed) == expected
+    forged_cache = parser.Trace(parsed.artifact_sha256, parsed.method, tuple(), tuple(), raw, "boundary")
+    assert parser.classify(forged_cache) == expected
+
+
+def test_malformed_or_non_plist_boundary_payload_is_rejected():
+    malformed = [record("setup_request", 0, request_id="r", complete=True, body_base64="eA==")]
+    raw = (json.dumps(malformed[0]) + "\n").encode()
+    with pytest.raises(parser.EventError, match="invalid encoded plist"):
+        source.parse_boundary_jsonl(raw)
+
+
+def test_published_json_schema_tracks_runtime_event_and_correlation_shapes():
+    schema = json.loads((ROOT / "docs/diagnostics/type111-observation-events.schema.json").read_text())
+    by_event = {
+        item["properties"]["event"]["const"]: item["properties"]["data"]["required"]
+        for item in schema["oneOf"]
+    }
+    assert set(by_event) == parser.EVENTS
+    assert by_event["info_response"] == ["complete", "http_status", "body_base64", "payload"]
+    correlation = {
+        item["if"]["properties"]["event"]["const"]: item["then"]["properties"]["correlation"]["required"]
+        for item in schema["allOf"]
+    }
+    assert correlation == {
+        "info_response": ["request_id"], "setup_request": ["request_id"],
+        "setup_response": ["request_id"], "stream_created": ["request_id", "stream_id"],
+        "stream_closed": ["request_id", "stream_id"], "media_observation": ["stream_id"],
+    }

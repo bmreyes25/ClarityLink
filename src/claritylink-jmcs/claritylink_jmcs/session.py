@@ -7,6 +7,7 @@ from .receiver import Receiver, ReceiverError
 from .session_transport import (CarPlaySessionTransport, ControlRequest, ControlResponse,
                                 LabSessionTransport, ReplaySessionTransport, TransportError)
 from .trace import SanitizedTrace, TraceEvent
+from .synthetic_boundary import SyntheticBoundaryRecorder
 
 
 class SessionError(RuntimeError):
@@ -18,12 +19,17 @@ class SessionError(RuntimeError):
 class ReceiverSession:
     def __init__(self, provider: AuthenticationProvider, receiver: Receiver,
                  info_profile: InfoProfile, *, trace: SanitizedTrace | None = None,
-                 allow_replay: bool = False) -> None:
+                 allow_replay: bool = False,
+                 boundary_recorder: SyntheticBoundaryRecorder | None = None) -> None:
         self.provider = provider
         self.receiver = receiver
         self.info_profile = info_profile
         self.trace = trace if trace is not None else SanitizedTrace()
         self.allow_replay = allow_replay
+        if boundary_recorder is not None and not isinstance(boundary_recorder, SyntheticBoundaryRecorder):
+            raise SessionError("synthetic_boundary_recorder_required")
+        self.boundary_recorder = boundary_recorder
+        self._boundary_request_sequence = 0
         self.transport: CarPlaySessionTransport | None = None
         self.generation: int | None = None
         self._info_sent = False
@@ -31,6 +37,11 @@ class ReceiverSession:
     def open(self, replay_transport: ReplaySessionTransport | None = None) -> None:
         if self.transport is not None:
             raise SessionError("session_already_open")
+        if self.boundary_recorder is not None:
+            if not self.allow_replay or not isinstance(replay_transport, ReplaySessionTransport):
+                raise SessionError("boundary_recorder_replay_only")
+            if replay_transport.session_identifier != self.boundary_recorder.session_id:
+                raise SessionError("boundary_recorder_session_mismatch")
         self.trace.emit(TraceEvent.AUTH_START, status="begin")
         transport: CarPlaySessionTransport | None = None
         handoff = None
@@ -85,12 +96,26 @@ class ReceiverSession:
             self.close()
             raise
 
+    def _record_synthetic_boundary(self, method: str, *args: object) -> None:
+        if self.boundary_recorder is None:
+            return
+        try:
+            getattr(self.boundary_recorder, method)(*args)
+        except Exception:
+            # The opt-in host-only observer cannot change the simulated
+            # receiver result. The trace is marked incomplete instead.
+            self.boundary_recorder.mark_capture_incomplete()
+
     def _handle_one(self, timeout: float) -> ControlResponse:
         if self.transport is None or self.generation is None:
             raise SessionError("session_not_open")
         request: ControlRequest = self.transport.read_request(timeout)
         if request.generation != self.generation:
             raise SessionError("stale_control_request")
+        boundary_request_id = None
+        if self.boundary_recorder is not None:
+            self._boundary_request_sequence += 1
+            boundary_request_id = f"{self.boundary_recorder.session_id}-request-{self._boundary_request_sequence}"
         self.trace.emit_request(request)
         if request.method == "GET" and request.path == "/info":
             self.trace.emit(TraceEvent.INFO_REQUEST, generation=self.generation)
@@ -101,11 +126,15 @@ class ReceiverSession:
             self._info_sent = True
             response = ControlResponse(200, info, self.generation)
             self.transport.write_response(response)
+            if boundary_request_id is not None:
+                self._record_synthetic_boundary("info_response", boundary_request_id, response.status, response.body)
             self.trace.emit(TraceEvent.INFO_RESPONSE, generation=self.generation, status="ok")
             return response
         if request.method == "SETUP" and request.path == "/session":
             if not self._info_sent:
                 raise SessionError("info_required")
+            if boundary_request_id is not None:
+                self._record_synthetic_boundary("setup_request", boundary_request_id, request.body)
             self.trace.emit(TraceEvent.SETUP_REQUEST, generation=self.generation)
             streams = request.body.get("streams")
             if isinstance(streams, (list, tuple)):
@@ -119,6 +148,8 @@ class ReceiverSession:
             result = self.receiver.setup(request.body, self.generation)
             response = ControlResponse(200, result.fields, self.generation)
             self.transport.write_response(response)
+            if boundary_request_id is not None:
+                self._record_synthetic_boundary("setup_response", boundary_request_id, response.status, response.body)
             self.trace.emit(TraceEvent.SETUP_RESPONSE, generation=self.generation, status="ok")
             return response
         raise SessionError("unsupported_control_request")
@@ -139,4 +170,6 @@ class ReceiverSession:
                     transport.close()
                     self.trace.emit(TraceEvent.SESSION_CLOSE, generation=generation)
             finally:
+                if self.boundary_recorder is not None and generation is not None:
+                    self._record_synthetic_boundary("finish")
                 self.provider.close()

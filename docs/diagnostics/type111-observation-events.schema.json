@@ -1,38 +1,510 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:claritylink:type111-observation-events:v1",
-  "title": "ClarityLink Type111 observation event",
+  "$id": "urn:claritylink:type111-observation-events:v2",
+  "title": "ClarityLink Type111 correlated receiver-boundary event",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "session_id", "phase", "timestamp", "source", "event", "data"],
+  "required": [
+    "schema",
+    "session_id",
+    "phase",
+    "timestamp",
+    "event",
+    "correlation",
+    "data"
+  ],
   "properties": {
-    "schema": {"const": "claritylink-type111-observation-v1"},
-    "session_id": {"type": "string", "minLength": 1, "maxLength": 100},
-    "phase": {"type": "string", "minLength": 1, "maxLength": 100},
-    "timestamp": {"type": "string", "format": "date-time", "pattern": "Z$"},
-    "source": {
-      "type": "object", "additionalProperties": false,
-      "required": ["method", "artifact_sha256", "record_id"],
+    "schema": {
+      "const": "claritylink-type111-observation-v2"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "phase": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "event": {
+      "enum": [
+        "info_response",
+        "setup_request",
+        "setup_response",
+        "stream_created",
+        "media_observation",
+        "stream_closed",
+        "session_closed",
+        "window_closed"
+      ]
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "stream_id"
+      ],
       "properties": {
-        "method": {"type": "string", "minLength": 1},
-        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "record_id": {"type": "string", "minLength": 1}
+        "request_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "stream_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        }
       }
     },
-    "event": {"enum": ["info_response", "setup_request", "setup_response", "stream_created", "media_observation", "stream_closed", "session_closed", "window_closed"]},
-    "data": {"type": "object"}
+    "data": {
+      "type": "object"
+    }
   },
   "oneOf": [
-    {"properties": {"event": {"const": "info_response"}, "data": {"type": "object", "additionalProperties": false, "required": ["complete", "secondary_advertised"], "properties": {"complete": {"type": "boolean"}, "secondary_advertised": {"type": "boolean"}}}}},
-    {"properties": {"event": {"const": "setup_request"}, "data": {"type": "object", "additionalProperties": false, "required": ["complete", "stream_types"], "properties": {"complete": {"type": "boolean"}, "stream_types": {"type": "array", "items": {"type": "integer", "minimum": 0}}}}}},
-    {"properties": {"event": {"const": "setup_response"}, "data": {"type": "object", "additionalProperties": false, "required": ["complete", "stream_type", "result"], "properties": {"complete": {"type": "boolean"}, "stream_type": {"type": "integer"}, "result": {"enum": ["accepted", "rejected"]}}}}},
-    {"properties": {"event": {"const": "stream_created"}, "data": {"$ref": "#/$defs/stream"}}},
-    {"properties": {"event": {"const": "stream_closed"}, "data": {"$ref": "#/$defs/stream"}}},
-    {"properties": {"event": {"const": "media_observation"}, "data": {"type": "object", "additionalProperties": false, "required": ["stream_type", "available", "complete"], "properties": {"stream_type": {"type": "integer"}, "available": {"type": "boolean"}, "complete": {"type": "boolean"}}}}},
-    {"properties": {"event": {"const": "session_closed"}, "data": {"type": "object", "additionalProperties": false, "required": ["reason"], "properties": {"reason": {"type": "string", "minLength": 1}}}}},
-    {"properties": {"event": {"const": "window_closed"}, "data": {"type": "object", "additionalProperties": false, "required": ["setup_observation_complete"], "properties": {"setup_observation_complete": {"type": "boolean"}}}}}
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "info_response"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "complete",
+            "http_status",
+            "body_base64",
+            "payload"
+          ],
+          "properties": {
+            "complete": {
+              "type": "boolean"
+            },
+            "body_base64": {
+              "type": "string"
+            },
+            "payload": {
+              "type": "object"
+            },
+            "http_status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "setup_request"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "complete",
+            "body_base64",
+            "payload"
+          ],
+          "properties": {
+            "complete": {
+              "type": "boolean"
+            },
+            "body_base64": {
+              "type": "string"
+            },
+            "payload": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "setup_response"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "complete",
+            "http_status",
+            "body_base64",
+            "payload"
+          ],
+          "properties": {
+            "complete": {
+              "type": "boolean"
+            },
+            "body_base64": {
+              "type": "string"
+            },
+            "payload": {
+              "type": "object"
+            },
+            "http_status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "stream_created"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stream_type"
+          ],
+          "properties": {
+            "stream_type": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "stream_closed"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stream_type"
+          ],
+          "properties": {
+            "stream_type": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "media_observation"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stream_type",
+            "available",
+            "complete"
+          ],
+          "properties": {
+            "stream_type": {
+              "type": "integer"
+            },
+            "available": {
+              "type": "boolean"
+            },
+            "complete": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "session_closed"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "required": [
+        "schema",
+        "session_id",
+        "phase",
+        "timestamp",
+        "event",
+        "correlation",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "window_closed"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "setup_observation_complete"
+          ],
+          "properties": {
+            "setup_observation_complete": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
   ],
-  "$defs": {
-    "stream": {"type": "object", "additionalProperties": false, "required": ["stream_type", "stream_id"], "properties": {"stream_type": {"type": "integer"}, "stream_id": {"type": "string", "minLength": 1}}}
-  }
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "info_response"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correlation": {
+            "required": [
+              "request_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "setup_request"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correlation": {
+            "required": [
+              "request_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "setup_response"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correlation": {
+            "required": [
+              "request_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "stream_created"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correlation": {
+            "required": [
+              "request_id",
+              "stream_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "stream_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "stream_closed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correlation": {
+            "required": [
+              "request_id",
+              "stream_id"
+            ],
+            "properties": {
+              "request_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "stream_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "media_observation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "correlation": {
+            "required": [
+              "stream_id"
+            ],
+            "properties": {
+              "stream_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
