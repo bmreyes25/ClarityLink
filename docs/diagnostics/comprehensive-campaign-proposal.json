@@ -292,7 +292,7 @@
         ]
       ],
       "commands_apply_at_each_steady_state": true,
-      "identity_revalidation": "At every steady state, run stat, cmdline, status and exe-link checks as a bracket; require the same PID/start-time, cmdline /system/bin/jmcs, root UID/GID and executable symlink /system/bin/jmcs before and after all display, network, and log reads.",
+      "identity_revalidation": "At each steady state, the listed unprivileged ps command requires exactly one jmcs row and the same PID across the phase. This does not establish process start time, cmdline, UID/GID, or executable identity; those observations require the separately blocked privileged metadata method.",
       "owner_actions": [
         "confirm the disconnected factory baseline",
         "connect once through the normal stock CarPlay flow and wait for the active steady state",

@@ -5,7 +5,7 @@
   "live_execution_enabled": false,
   "profile": {
     "path": "docs/diagnostics/comprehensive-campaign-proposal.json",
-    "sha256": "c0d83a3cef891e262f4ef96136024c694bf9bf14a32a30274138ca9b690c0b08"
+    "sha256": "dfc26fb1b6e29b10042544b738ffb2ab5a0782291284a92e9561037cf2a73f0a"
   },
   "requirements_baseline": "CL-HONDA-RUNTIME-EVIDENCE-20261030",
   "schema": "claritylink-comprehensive-source-lock-v1",
