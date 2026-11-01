@@ -15,6 +15,37 @@ source retains no raw plist, HTTP status/body, UUID, connection ID or media.
 `listener_ready` is an application diagnostic event, not an independently
 validated wire capture of the original Honda receiver's SETUP boundary.
 
+`type111_playport_capture.py` ingests the source's JSONL output or SLF4J
+SimpleLogger lines named `type111-oracle`. It filters other process log lines
+in memory, validates each selected event with the allowlist parser, and writes
+only event JSON plus a manifest to a new owner-only directory outside this
+checkout (`0700` directory, `0600` files). The collector caps input at 32 MiB,
+each log line at 64 KiB, event output at 4 MiB, and events at 2,000. It records
+host ingest times separately from the receiver's `System.nanoTime()` values
+and preserves original event order; the 43P stream contains concurrent-thread
+timestamps that are not strictly ordered. It rejects duplicate event records
+and stops at malformed or unreviewed data. An interrupted or failed ingest
+keeps the valid prefix with `source_stream_complete=false`.
+
+Example for a previously exported PlayPort logger stream (does not start the
+receiver or contact a device):
+
+```sh
+python3 tools/honda-readonly-preflight/type111_playport_capture.py \
+  --input /path/to/playport-log.txt \
+  --output /private/path/new-capture \
+  --receiver-commit f2679a26a593f544ba7822dfbac870544b4af92a \
+  --phase 43p-canonical
+```
+
+The receiver commit is recorded as reported by the caller; it is not
+cryptographically bound to event bytes. The manifest marks fields the current
+source does not observe: RTSP response status, request/response correlation
+IDs, and parent-session termination. Input EOF and a two-stream stop do not
+make the protocol-observation window complete. The classifier refuses to
+combine events if a trace contains zero or multiple session-setup markers,
+because PlayPort's current event schema has no session ID.
+
 The host-only decoder accepts an exported plaintext application-boundary JSONL
 artifact, retains each raw plist body and decoded dictionary, and computes a
 SHA-256 over the actual input bytes. Each parsed event carries an internal byte

@@ -287,3 +287,25 @@ def test_playport_source_rejects_duplicate_keys_that_hide_sensitive_values():
            '"event":"advertised","metadata":{"url":"maps:/private","url":""}}\n')
     with pytest.raises(parser.EventError, match="duplicate JSON object key: url"):
         playport_source.parse_playport_jsonl(row.encode())
+
+
+def test_playport_source_rejects_duplicate_event_rows_and_preserves_logger_order():
+    raw = PLAYPORT_43P.read_bytes()
+    first, second = raw.splitlines(keepends=True)[:2]
+    with pytest.raises(parser.EventError, match="duplicate PlayPort event"):
+        playport_source.parse_playport_jsonl(first + first)
+    rows = [json.loads(first), json.loads(second)]
+    rows[0]["monotonicTimeNs"], rows[1]["monotonicTimeNs"] = 2, 1
+    reordered_times = b"".join((json.dumps(row) + "\n").encode() for row in rows)
+    parsed = playport_source.parse_playport_jsonl(reordered_times)
+    assert [row["monotonicTimeNs"] for row in parsed.events] == [2, 1]
+
+
+def test_playport_classifier_refuses_to_join_events_across_session_markers():
+    rows = [json.loads(line) for line in PLAYPORT_43P.read_text().splitlines()]
+    marker = next(row for row in rows if row["phase"] == "SESSION_SETUP")
+    second = dict(marker, monotonicTimeNs=marker["monotonicTimeNs"] + 1)
+    raw = b"".join((json.dumps(row, separators=(",", ":")) + "\n").encode()
+                   for row in rows + [second])
+    parsed = playport_source.parse_playport_jsonl(raw)
+    assert parser.classify(parsed) == ["playport_session_scope_ambiguous"]

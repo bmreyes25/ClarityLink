@@ -59,6 +59,8 @@ def _validate_metadata(metadata: Any, line_no: int) -> None:
             raise EventError(f"line {line_no}: metadata value is not a bounded string")
         if key in NUMERIC_KEYS and not _DECIMAL.fullmatch(value):
             raise EventError(f"line {line_no}: {key} is not a bounded decimal value")
+        if key == "data_port" and not 1 <= int(value) <= 65535:
+            raise EventError(f"line {line_no}: data_port is outside the TCP port range")
         if key in BOOLEAN_KEYS and value not in {"true", "false"}:
             raise EventError(f"line {line_no}: {key} is not an allowlisted boolean string")
         if key in LIST_KEYS and not _TOKEN_LIST.fullmatch(value):
@@ -105,6 +107,7 @@ def parse_playport_jsonl(raw: bytes, *, method: str = "playport-43p-redacted-lab
         verify_artifact(raw, expected_sha256)
     events: list[dict[str, Any]] = []
     pointers: list[tuple[int, int]] = []
+    seen: set[bytes] = set()
     offset = 0
     for line_no, line in enumerate(text.splitlines(keepends=True), 1):
         encoded = line.encode("utf-8")
@@ -117,17 +120,23 @@ def parse_playport_jsonl(raw: bytes, *, method: str = "playport-43p-redacted-lab
             raise EventError(f"line {line_no}: invalid JSON") from exc
         except EventError as exc:
             raise EventError(f"line {line_no}: {exc}") from exc
+        except (ValueError, RecursionError) as exc:
+            raise EventError(f"line {line_no}: invalid JSON value") from exc
         if (not isinstance(event, dict)
                 or set(event) != {"monotonicTimeNs", "phase", "streamType", "event", "metadata"}
                 or not isinstance(event.get("phase"), str) or not isinstance(event.get("event"), str)
                 or (event.get("phase"), event.get("event")) not in PAIRS
                 or isinstance(event.get("monotonicTimeNs"), bool)
                 or not isinstance(event.get("monotonicTimeNs"), int)
-                or event["monotonicTimeNs"] < 0
+                or not 0 <= event["monotonicTimeNs"] <= (1 << 63) - 1
                 or (event.get("streamType") is not None and type(event.get("streamType")) is not int)
                 or event.get("streamType") not in {None, 110, 111}):
             raise EventError(f"line {line_no}: malformed or unsupported PlayPort event")
         _validate_metadata(event["metadata"], line_no)
+        encoded_event = json.dumps(event, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        if encoded_event in seen:
+            raise EventError(f"line {line_no}: duplicate PlayPort event")
+        seen.add(encoded_event)
         events.append(event)
         pointers.append((offset, len(encoded.rstrip(b"\r\n"))))
         offset += len(encoded)
@@ -140,6 +149,10 @@ def parse_playport_jsonl(raw: bytes, *, method: str = "playport-43p-redacted-lab
 
 def classify_playport(trace: Trace) -> list[str]:
     events = trace.events
+    session_markers = [e for e in events if e["phase"] == "SESSION_SETUP"
+                       and e["event"] == "features_negotiated"]
+    if len(session_markers) != 1:
+        return ["playport_session_scope_ambiguous"]
     outcomes: list[str] = []
     advertised = [e for e in events if e["phase"] == "INFO_RESPONSE" and e["event"] == "advertised"]
     displays = [e for e in events if e["phase"] == "INFO_RESPONSE" and e["event"] == "display"]
