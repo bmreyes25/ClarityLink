@@ -14,6 +14,12 @@ import comprehensive_controller as controller
 import comprehensive_replay as replay
 
 
+def test_session_and_authorization_deadlines_provide_two_times_schedule_buffer():
+    assert controller.MAX_SESSION_DURATION_SECONDS == 6000
+    assert controller.MAX_AUTHORIZATION_DURATION_SECONDS == 6000
+    assert controller.MAX_SESSION_DURATION_SECONDS - 2970 == 3030
+
+
 def _category_permissions(categories):
     return {category: category in set(categories) for category in controller.LIVE_PERMISSION_CATEGORIES}
 
@@ -99,7 +105,8 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
               "authorization_id": "AUTH-22334455", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
               "readiness_answer": "YES", "exact_adb_serial": "owner-private-serial",
-              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True, "owner_question": "Which windows own Display 1?",
               "expected_evidence": "Bounded window/display snapshots", "known_risks": ["display state changes"], "stop_conditions": ["unexpected warning"],
@@ -124,7 +131,8 @@ def test_level_one_baseline_does_not_require_an_external_review():
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
               "readiness_answer": "YES",
-              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True, "owner_question": "What is the baseline?",
               "expected_evidence": "Owner-confirmed baseline state", "known_risks": ["owner observation only"], "stop_conditions": ["unexpected warning"],
@@ -163,7 +171,8 @@ def test_session_authorization_requires_a_private_destination_and_recovery_route
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
               "readiness_answer": "YES",
-              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True,
               "owner_question": "What is the initial state?", "expected_evidence": "Baseline state", "known_risks": ["owner observation only"],
@@ -189,7 +198,8 @@ def _live_test_record(tmp_path, phases, pin_values):
               "pins": pin_values,
             "authorization_id": "AUTH-55667788", "run_id": "f" * 32, "nonce": "e" * 32,
             **controller.new_run_identifiers(), "owner_confirmed": True, "readiness_answer": "YES",
-            "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+            "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
             "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
             "recovery_prerequisites_confirmed": True, "owner_question": "What exact target and jmcs identity are present?",
             "expected_evidence": "Verified API-17 target properties, shell identity, and stable jmcs PID",
@@ -205,6 +215,23 @@ def _live_test_record(tmp_path, phases, pin_values):
             "reviewed_commit_sha": "e" * 40,
             "technical_reviewer_independence_verified": True,
             "qualified_safety_reviewer_credentials_verified": True}
+
+
+def test_adb_transport_independence_is_required_for_adb_authorization(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["readiness_checks"]["adb_transport_independent"] = False
+    with pytest.raises(controller.ControllerError, match="readiness checks are incomplete"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+
+    record["readiness_checks"]["adb_transport_independent"] = True
+    del record["adb_transport_details"]
+    with pytest.raises(controller.ControllerError, match="privately describe the exact transport"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+
+    record["adb_transport_details"] = "\n"
+    with pytest.raises(controller.ControllerError, match="privately describe the exact transport"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
 def test_live_execution_requires_explicit_one_run_owner_enablement(tmp_path):
@@ -696,7 +723,8 @@ def test_authorization_must_match_phase_and_exact_category_set():
                 "run_id": "b" * 32, **controller.new_run_identifiers(),
                 "exact_adb_serial": "owner-private-serial",
                 "risk_level": "LEVEL_2", "owner_confirmed": True, "readiness_answer": "YES",
-                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
                 "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes after reconnect?",
                 "expected_evidence": "Bounded lifecycle comparison", "known_risks": ["stock CarPlay state transition"], "stop_conditions": ["unexpected warning"],
@@ -729,7 +757,8 @@ def test_stale_source_pins_rejected():
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32, "run_id": "b" * 32,
                 **controller.new_run_identifiers(),
                 "risk_level": "LEVEL_1", "owner_confirmed": True, "readiness_answer": "YES",
-                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
                 "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes in the receiver?",
                 "expected_evidence": "Bounded receiver snapshot", "known_risks": ["receiver state change"], "stop_conditions": ["unexpected warning"],
@@ -755,7 +784,8 @@ def test_expired_approval_rejected():
                 "run_id": "b" * 32, "issued_at_utc": old.isoformat(),
                 "expires_at_utc": (old + timedelta(minutes=10)).isoformat(),
                 "risk_level": "LEVEL_1", "owner_confirmed": True, "readiness_answer": "YES",
-                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal")},
+                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+              "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
                 "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes?",
                 "expected_evidence": "Bounded output", "known_risks": ["process state change"], "stop_conditions": ["unexpected warning"],

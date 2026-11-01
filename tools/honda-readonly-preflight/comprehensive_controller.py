@@ -119,8 +119,8 @@ POTENTIAL_OBJECTIVES = {
                                     "factory-navigation-transitions"),
     "phase7_recovery_restoration": ("recovery-prerequisites", "capture-integrity-and-privacy"),
 }
-MAX_SESSION_DURATION_SECONDS = 60 * 60
-MAX_AUTHORIZATION_DURATION_SECONDS = 60 * 60
+MAX_SESSION_DURATION_SECONDS = 100 * 60
+MAX_AUTHORIZATION_DURATION_SECONDS = 100 * 60
 
 
 class ControllerError(RuntimeError):
@@ -541,10 +541,18 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
     if record.get("owner_confirmed") is not True or record.get("readiness_answer") != "YES":
         raise ControllerError("one affirmative owner session decision is required")
     readiness = record.get("readiness_checks")
+    requires_adb = any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases)
     required_readiness = {"stationary_in_park", "parking_brake_set", "owner_present",
                           "approved_power_state", "no_abnormal_warning", "factory_displays_normal"}
+    if requires_adb:
+        required_readiness.add("adb_transport_independent")
     if not isinstance(readiness, dict) or any(readiness.get(k) is not True for k in required_readiness):
         raise ControllerError("session readiness checks are incomplete")
+    if requires_adb:
+        transport_details = record.get("adb_transport_details")
+        if (not isinstance(transport_details, str) or not transport_details.strip()
+                or len(transport_details) > 512 or any(char in transport_details for char in "\r\n\0")):
+            raise ControllerError("ADB session must privately describe the exact transport and its independence from the CarPlay path")
     destination = record.get("evidence_destination_checklist")
     required_destination_checks = {
         "host_local_outside_repository", "directory_owner_only", "files_owner_only",
@@ -587,7 +595,7 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
     if (issued.tzinfo is None or expires.tzinfo is None or issued > now + timedelta(minutes=1)
             or expires <= now or expires <= issued
             or expires - issued > timedelta(seconds=MAX_AUTHORIZATION_DURATION_SECONDS)):
-        raise ControllerError("approval is expired or outside the one-hour authorization window")
+        raise ControllerError("approval is expired or outside the 100-minute authorization window")
     if record.get("exact_vehicle") != "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)":
         raise ControllerError("approval vehicle identity is not the exact reviewed target")
     if any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases):
@@ -948,11 +956,11 @@ def _ask_owner(prompt: Callable[[str], str] | None, message: str) -> str:
 def _owner_checkpoint(prompt: Callable[[str], str] | None, message: str, *,
                       output: Callable[[str], None], deadline: float) -> None:
     if time.monotonic() >= deadline:
-        raise ControllerError("one-hour session bound reached before owner checkpoint")
+        raise ControllerError("100-minute session bound reached before owner checkpoint")
     output(message)
     answer = _ask_owner(prompt, "When the named state is stable and normal, enter READY. Enter STOP to abort: ").strip()
     if time.monotonic() >= deadline:
-        raise ControllerError("one-hour session bound reached during owner checkpoint")
+        raise ControllerError("100-minute session bound reached during owner checkpoint")
     if answer != "READY":
         raise ControllerError("owner stopped or did not confirm the approved stable state")
 
@@ -1012,7 +1020,7 @@ def _execute_batch(*, phase_id: str, state: str, rows: list[list[str]], serial: 
     for row in rows:
         validate_session_authorization(authorization_record, current_pins=current_pins)
         if time.monotonic() >= session_deadline:
-            raise ControllerError("one-hour session bound reached; no next command started")
+            raise ControllerError("100-minute session bound reached; no next command started")
         argv = [item.replace("<private-approved-serial>", serial) for item in row]
         if any("<verified-jmcs-pid>" in item for item in argv):
             if pid is None:
@@ -1284,7 +1292,9 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
         execute_command = lambda _command: (0, b"", b"")
     readiness_prompt = (
         "Confirm the physical Honda matches your private vehicle reference, the recorded ADB serial names the intended already-authorized endpoint, "
-        "the car is stationary in Park with parking brake set and the approved power state, you are present, and warnings/displays/audio are normal. "
+        "the recorded ADB transport is already authorized and independent of the iPhone/CarPlay data path and shared hub, "
+        "the car is stationary in Park with parking brake set and power mode ON with READY absent and engine not running, "
+        "the manual 100-minute power-on timer is running, you are present, and warnings/displays/audio are normal. "
         "Is the Honda ready? Type YES, NOT YET, or CANCEL: "
     )
     session_started_utc = datetime.now(timezone.utc).isoformat()
@@ -1293,7 +1303,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     if _ask_owner(prompt, readiness_prompt).strip() != "YES":
         raise ControllerError("owner did not confirm session readiness")
     if time.monotonic() >= deadline:
-        raise ControllerError("one-hour session bound reached during readiness confirmation")
+        raise ControllerError("100-minute session bound reached during readiness confirmation")
     # The private authorization may expire while the owner is reading prompts.
     validate_session_authorization(record, current_pins=current_pins)
     run_dir = _create_run_directory(base, record["run_id"])
@@ -1372,7 +1382,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                         output_budget=output_budget, output=output,
                     )
                     if time.monotonic() >= deadline:
-                        raise ControllerError("one-hour session bound reached after stable-state capture")
+                        raise ControllerError("100-minute session bound reached after stable-state capture")
                 phase_results.append({"phase": phase_id,
                                       "status": "OBSERVATIONS_COLLECTED_PENDING_EVIDENCE_REVIEW",
                                       "state_count": len(states),
@@ -1403,7 +1413,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                         "Confirm the fixed reads caused no abnormal warning, display, cluster, Navigation, or audio behavior. Type READY or STOP: ").strip() != "READY":
                     raise ControllerError("owner reported or did not exclude abnormal behavior")
                 if phase_id == "phase1_ordinary_adb_capability" and time.monotonic() >= deadline:
-                    raise ControllerError("one-hour session bound reached after Phase 1")
+                    raise ControllerError("100-minute session bound reached after Phase 1")
                 if phase_id == "phase7_recovery_restoration" and _ask_owner(prompt,
                         "Confirm the owner-defined factory baseline remains restored and no abnormal warning is present. Type READY or STOP: ").strip() != "READY":
                     raise ControllerError("owner did not confirm final restoration")
@@ -1413,12 +1423,12 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                                         "confirmed_at_utc": datetime.now(timezone.utc).isoformat(),
                                         "monotonic_ns": time.monotonic_ns()})
                 if phase_id == "phase7_recovery_restoration" and time.monotonic() >= deadline:
-                    raise ControllerError("one-hour session bound reached after restoration")
+                    raise ControllerError("100-minute session bound reached after restoration")
         if _ask_owner(prompt,
                       "All captures and approved restoration are complete. Confirm normal vehicle power-off was completed with factory controls. Type POWERED_OFF to finish; otherwise type STOP: ").strip() != "POWERED_OFF":
             raise ControllerError("normal vehicle power-off was not confirmed")
         if time.monotonic() >= deadline:
-            raise ControllerError("one-hour session bound reached before terminal completion")
+            raise ControllerError("100-minute session bound reached before terminal completion")
         owner_notes.append({"phase": "terminal", "status": "NORMAL_POWER_OFF_CONFIRMED",
                             "confirmed_at_utc": datetime.now(timezone.utc).isoformat(),
                             "monotonic_ns": time.monotonic_ns()})
@@ -1433,6 +1443,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "authorization_issued_at_utc": record["issued_at_utc"],
                    "authorization_expires_at_utc": record["expires_at_utc"],
                    "readiness_checks": record["readiness_checks"],
+                   "adb_transport_details": record.get("adb_transport_details"),
                    "evidence_destination_checklist": record["evidence_destination_checklist"],
                    "owner_state_confirmations": owner_notes, "command_count": len(command_records),
                    "session_output_budget": output_budget.report(),
@@ -1485,6 +1496,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "authorization_issued_at_utc": record["issued_at_utc"],
                    "authorization_expires_at_utc": record["expires_at_utc"],
                    "readiness_checks": record["readiness_checks"],
+                   "adb_transport_details": record.get("adb_transport_details"),
                    "evidence_destination_checklist": record["evidence_destination_checklist"],
                    "owner_state_confirmations": owner_notes, "command_count": len(command_records),
                    "session_output_budget": output_budget.report(),

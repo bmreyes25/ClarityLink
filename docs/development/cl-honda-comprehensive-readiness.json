@@ -25,14 +25,14 @@
     "live_execution": "NOT_AUTHORIZED_FOR_ANY_CURRENT_SESSION",
     "privileged_maps_and_fd": "EXCLUDED_FROM_THIS_SESSION",
     "hondahack_display1": "EXCLUDED_FROM_THIS_SESSION",
-    "owner_session_authorization": "NOT_REQUESTED_OWNER_AWAY",
+    "owner_session_authorization": "NOT_GRANTED_TRANSPORT_ATTESTATION_REQUIRED",
     "live_backend": "AUTHORIZATION_GATED_AND_DISABLED",
     "campaign_command_count": 162,
     "lifecycle_states": 10,
     "session_output_limit_bytes": 158400512,
     "max_single_command_output_bytes": 900000,
     "max_single_command_timeout_seconds": 10,
-    "ordinary_adb": "FIXED_SCOPE_TECHNICAL_REVIEW_COMPLETE_QUALIFIED_SAFETY_REVIEW_PENDING"
+    "ordinary_adb": "FIXED_SCOPE_TRANSPORT_ATTESTATION_REQUIRED_NEW_EXACT_SOURCE_REVIEW_PENDING"
   },
   "run_experiment": {
     "enabled": false,
@@ -41,7 +41,7 @@
       "offline-simulation",
       "private-owner-authorized-fixed-session"
     ],
-    "reason": "Two independent AI technical/security reviews of the source are complete. Qualified vehicle-safety review and exact one-session owner authorization are outstanding; owner is away. No vehicle or ADB access is authorized."
+    "reason": "Transport independence is now a required owner readiness attestation. The updated exact source requires new technical and qualified vehicle-safety review artifacts and one-session owner authorization. No vehicle or ADB access is authorized."
   },
   "results": {
     "coverage": "NOT_COLLECTED",
