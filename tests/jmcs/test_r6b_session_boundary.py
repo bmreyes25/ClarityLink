@@ -16,6 +16,7 @@ from claritylink_jmcs.identity import IdentityError, load_or_create_identity
 from claritylink_jmcs.info import InfoError, InfoProfile, build_info, validate_info_shape
 from claritylink_jmcs.receiver import Receiver
 from claritylink_jmcs.session import ReceiverSession, SessionError
+from claritylink_jmcs.synthetic_boundary import SyntheticBoundaryRecorder
 from claritylink_jmcs.session_transport import (ControlRequest, ControlResponse, LabSessionTransport,
     ReplaySessionTransport, TransportError)
 from claritylink_jmcs.trace import SanitizedTrace, TraceError, TraceEvent
@@ -149,6 +150,86 @@ def test_replay_session_info_type110_type111_and_teardown(tmp_path: Path):
     trace_payload = [{key: value for key, value in event.items() if key != "timestamp"}
                      for event in session.trace.events]
     assert "1111" not in json.dumps(trace_payload)
+
+
+def test_synthetic_boundary_source_replays_exact_lab_info_and_setup(tmp_path: Path):
+    import base64
+    sys.path.insert(0, str(ROOT / "tools" / "honda-readonly-preflight"))
+    import type111_boundary_source
+    import type111_observation_events
+
+    session_id = "synthetic-bench-session"
+    handoff = replay_handoff(1, session_id)
+    transport = ReplaySessionTransport(handoff, [
+        ControlRequest("GET", "/info", {}, 1),
+        ControlRequest("SETUP", "/session", {"streams": [
+            {"type": 110, "streamConnectionID": 1100},
+            {"type": 111, "streamConnectionID": 1110},
+        ]}, 1),
+    ])
+    ticks = iter(range(6))
+    recorder = SyntheticBoundaryRecorder(
+        session_id, "synthetic-bench-navigation",
+        clock=lambda: f"2026-01-01T12:00:0{next(ticks)}Z",
+    )
+    session = ReceiverSession(ReplayAuthenticationProvider(handoff), Receiver(clear_lab=True),
+                              profile(tmp_path), allow_replay=True, boundary_recorder=recorder)
+    session.open(transport)
+    info = session.handle_one()
+    setup = session.handle_one()
+    assert info.status == 200 and setup.status == 200
+    recorder.window_closed(True)
+    session.close()
+    raw = recorder.jsonl_bytes()
+    trace = type111_boundary_source.parse_boundary_jsonl(raw, method="synthetic-replay-bench")
+    assert type111_observation_events.classify(trace) == [
+        "info_display_descriptors:2", "type111_requested", "type111_accepted",
+        "type110_setup_observed", "session_teardown_observed",
+    ]
+    assert base64.b64decode(trace.events[1]["data"]["body_base64"])
+    assert trace.events[2]["data"]["http_status"] == 200
+
+
+def test_synthetic_boundary_source_cannot_attach_to_lab_transport(tmp_path: Path):
+    handoff = replay_handoff(1, "synthetic-bench-session")
+    recorder = SyntheticBoundaryRecorder("synthetic-bench-session", "synthetic-phase")
+    session = ReceiverSession(ReplayAuthenticationProvider(handoff), Receiver(), profile(tmp_path),
+                              allow_replay=True, boundary_recorder=recorder)
+    with pytest.raises(SessionError, match="boundary_recorder_replay_only"):
+        session.open()
+
+
+def test_synthetic_boundary_recording_failure_does_not_change_replay_result(tmp_path: Path):
+    import sys
+    sys.path.insert(0, str(ROOT / "tools" / "honda-readonly-preflight"))
+    import type111_boundary_source
+    import type111_observation_events
+
+    session_id = "synthetic-bench-session"
+    handoff = replay_handoff(1, session_id)
+    transport = ReplaySessionTransport(handoff, [ControlRequest("GET", "/info", {}, 1)])
+    timestamps = iter(("2026-01-01T12:00:00Z", "2026-01-01T12:00:01Z", "2026-01-01T12:00:02Z"))
+    clock_calls = 0
+    def fail_once_clock():
+        nonlocal clock_calls
+        clock_calls += 1
+        if clock_calls == 1:
+            raise RuntimeError("synthetic recorder fault")
+        return next(timestamps)
+    recorder = SyntheticBoundaryRecorder(session_id, "synthetic-fault", clock=fail_once_clock)
+    session = ReceiverSession(ReplayAuthenticationProvider(handoff), Receiver(clear_lab=True),
+                              profile(tmp_path), allow_replay=True, boundary_recorder=recorder)
+    session.open(transport)
+    response = session.handle_one()
+    assert response.status == 200
+    assert transport.responses == [response]
+    recorder.window_closed(True)
+    session.close()
+    trace = type111_boundary_source.parse_boundary_jsonl(
+        recorder.jsonl_bytes(), method="synthetic-replay-fault-test")
+    assert trace.events[-2]["data"]["setup_observation_complete"] is False
+    assert "complete_info_and_setup_window_without_type111_request" not in \
+        type111_observation_events.classify(trace)
 
 
 def test_replay_never_promoted_to_live(tmp_path: Path):
