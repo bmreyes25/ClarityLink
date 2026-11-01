@@ -17,7 +17,7 @@
   "execution_bounds_proposal": {
     "max_command_timeout_seconds": 10,
     "max_command_output_bytes": 900000,
-    "max_total_elapsed_seconds": 3600,
+    "max_total_elapsed_seconds": 6000,
     "max_owner_prompt_idle_seconds": 90,
     "capture_during_owner_ui_transition": false,
     "auto_retry": false,
@@ -38,13 +38,13 @@
     "max_command_time_sum_seconds": 1620,
     "max_owner_prompt_time_sum_seconds": 1350,
     "max_bounded_elapsed_seconds": 2970,
-    "remaining_elapsed_margin_seconds": 630,
+    "remaining_elapsed_margin_seconds": 3030,
     "minimum_private_evidence_free_bytes": 166789120
   },
   "global_stop_conditions": [
     "target or process identity mismatch, PID/start-time change, or authorization mismatch",
     "unexpected vehicle warning including low-voltage/battery or charging-system warning, READY indicator, engine start, abnormal power/battery behavior, unexpected dimming/flicker/reset, or loss of safe Park/outdoor conditions",
-    "manual 50-minute power-on limit expires",
+    "manual 100-minute power-on limit expires",
     "center display, cluster, Navigation, CarPlay, HondaHack, or audio behavior outside the specifically approved expected state",
     "ADB transport error, permission denial from a required operation, unsupported required command, timeout, output limit, or controller exception; optional fixed graphics/network reads reported absent or denied, and fixed OEM packages reported absent, are recorded once without retry",
     "source/profile/manifest hash mismatch, incomplete command ledger, or evidence integrity/privacy failure",
@@ -53,7 +53,7 @@
   "required_conditions_for_any_future_run": [
     "separate exact owner authorization for the selected ordinary ADB and owner-operated stock CarPlay phases",
     "current exact candidate source/profile/source-lock review packet bound to the candidate commit",
-    "before ON, finish host preflight, private storage checks, controller launch, and authorization validation without target ADB commands; then use power mode ON, READY absent, engine not running, and start a manual 50-minute timer that includes all work through normal power-off",
+    "before ON, finish host preflight and private storage checks and prepare the exact one-use authorization record without issuing it or starting the controller; enter power mode ON with READY absent and engine not running, start the manual 100-minute timer, finalize authorization timestamps, and launch the controller immediately; the timer includes all work through normal power-off",
     "owner records the exact already-authorized ADB transport privately and attests it is independent of the iPhone/CarPlay data path and shared hub",
     "owner physically present; factory display, cluster, Navigation, warning behavior, and audio normal",
     "one already-authorized ADB endpoint; no scan, endpoint fallback, setting change, or escalation",
@@ -67,7 +67,7 @@
       "authorization_status": "NOT_AUTHORIZED",
       "commands": [],
       "owner_actions": [
-        "confirm stationary outdoors, Park, parking brake engaged, power mode ON, READY absent, engine not running; start the manual 50-minute timer now and include all work through normal power-off",
+        "confirm stationary outdoors, Park, parking brake engaged, power mode ON, READY absent, engine not running; start the manual 100-minute timer now and include all work through normal power-off",
         "confirm the existing authorized ADB transport is independent of the iPhone/CarPlay data path and any shared hub; attest and describe it in the private authorization",
         "confirm owner present and normal factory warning/display/cluster/Navigation/audio state",
         "record iPhone and existing debugging state without changing either",

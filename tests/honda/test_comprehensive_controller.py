@@ -14,6 +14,12 @@ import comprehensive_controller as controller
 import comprehensive_replay as replay
 
 
+def test_session_and_authorization_deadlines_provide_two_times_schedule_buffer():
+    assert controller.MAX_SESSION_DURATION_SECONDS == 6000
+    assert controller.MAX_AUTHORIZATION_DURATION_SECONDS == 6000
+    assert controller.MAX_SESSION_DURATION_SECONDS - 2970 == 3030
+
+
 def _category_permissions(categories):
     return {category: category in set(categories) for category in controller.LIVE_PERMISSION_CATEGORIES}
 

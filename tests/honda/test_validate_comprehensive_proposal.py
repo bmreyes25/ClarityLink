@@ -24,6 +24,9 @@ def test_proposal_offline_validation_has_no_vehicle_or_adb_side_effect():
     assert result["max_campaign_command_count"] == 162
     assert result["max_campaign_command_output_bytes"] == 145800000
     assert result["max_session_output_bytes"] == 158400512
+    assert result["max_bounded_elapsed_seconds"] == 2970
+    assert result["remaining_elapsed_margin_seconds"] == 3030
+    assert load_proposal()["execution_bounds_proposal"]["max_total_elapsed_seconds"] == 6000
     assert result["privileged_phases_live_argv"] == 0
     assert result["live_execution_enabled"] is False
     assert "comprehensive_controller.py" in load_proposal()["controller"]
@@ -57,7 +60,7 @@ def test_proposal_offline_validation_has_no_vehicle_or_adb_side_effect():
         "session/command bound"),
     (lambda p: p["execution_bounds_proposal"].update(max_campaign_command_output_bytes=1),
         "aggregate time/storage calculations"),
-    (lambda p: p["execution_bounds_proposal"].update(max_bounded_elapsed_seconds=3600),
+    (lambda p: p["execution_bounds_proposal"].update(max_bounded_elapsed_seconds=6000),
         "aggregate time/storage calculations"),
 ])
 def test_validator_rejects_scope_or_command_drift(mutate, message):

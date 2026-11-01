@@ -4,7 +4,7 @@
   "run_id": "32-hex-character-random-run-id",
   "nonce": "32-hex-character-random-one-use-nonce",
   "issued_at_utc": "UTC issuance timestamp",
-  "expires_at_utc": "UTC expiry within 60 minutes; session bound is one hour",
+  "expires_at_utc": "UTC expiry within 100 minutes; session bound is 100 minutes (6,000 seconds)",
   "approved_phases": ["only-explicit-reviewed-phase-ids"],
   "approved_categories": ["exact-union-of-these-phases-only"],
   "category_permissions": {

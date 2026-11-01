@@ -219,7 +219,7 @@ def validate_proposal(value: Any) -> dict[str, Any]:
     if (bounds.get("max_command_timeout_seconds") != 10
             or bounds.get("max_command_output_bytes") != 900000
             or bounds.get("max_session_output_bytes") != 158400512
-            or bounds.get("max_total_elapsed_seconds") != 3600
+            or bounds.get("max_total_elapsed_seconds") != 6000
             or bounds.get("max_owner_prompt_idle_seconds") != 90
             or bounds.get("auto_retry") is not False
             or bounds.get("auto_privilege_escalation") is not False
@@ -310,7 +310,7 @@ def validate_proposal(value: Any) -> dict[str, Any]:
         "max_command_time_sum_seconds": command_count * 10,
         "max_owner_prompt_time_sum_seconds": 15 * 90,
         "max_bounded_elapsed_seconds": command_count * 10 + 15 * 90,
-        "remaining_elapsed_margin_seconds": 3600 - (command_count * 10 + 15 * 90),
+        "remaining_elapsed_margin_seconds": 6000 - (command_count * 10 + 15 * 90),
         "minimum_private_evidence_free_bytes": 158400512 + 8 * 1024 * 1024,
     }
     if any(bounds.get(key) != expected for key, expected in exact_bounds.items()):
