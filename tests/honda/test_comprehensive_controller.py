@@ -18,7 +18,7 @@ def _category_permissions(categories):
     return {category: category in set(categories) for category in controller.LIVE_PERMISSION_CATEGORIES}
 
 
-def test_simulated_dry_run_has_eight_phases_and_30_api17_fixed_commands(monkeypatch):
+def test_simulated_dry_run_has_six_profiles_and_45_api17_fixed_command_shapes(monkeypatch):
     def forbidden(*_args, **_kwargs):
         pytest.fail("dry-run attempted process or executable access")
 
@@ -27,28 +27,71 @@ def test_simulated_dry_run_has_eight_phases_and_30_api17_fixed_commands(monkeypa
     assert report["mode"] == "SIMULATED_DRY_RUN_NO_DEVICE_ACCESS"
     assert report["live_execution_enabled"] is False
     assert report["live_backend"] == "AUTHORIZATION_GATED_PRIVATE_SESSION_ONLY"
-    assert (report["phase_count"], report["command_shapes"]) == (8, 30)
+    assert (report["phase_count"], report["command_shapes"]) == (6, 45)
     assert report["adb_executable_lookup"] is False
     assert report["device_enumeration"] is False
     assert report["subprocess_calls"] == 0
-    assert len({row["id"] for row in report["phases"]}) == 8
+    assert len({row["id"] for row in report["phases"]}) == 6
+    assert report["campaign_command_count"] == 162
+    assert report["session_limits"]["session_output_bytes"] == 158400512
+    assert report["session_limits"]["session_output_decimal_mb"] == 158.400512
+    assert report["session_limits"]["session_output_mib"] == 151.0625
     assert all(row["failure_policy"].startswith("abort phase") for row in report["phases"])
     assert report["coverage_required"] == 19
+
+
+def test_replay_does_not_claim_approved_but_uncaptured_phase_as_evidence():
+    summary = {"approved_phases": ["phase1_ordinary_adb_capability",
+        "phase4_three_state_carplay", "phase7_recovery_restoration"],
+        "owner_state_confirmations": [{"phase": "phase7_recovery_restoration",
+            "status": "FACTORY_RESTORATION_CONFIRMED"}]}
+    coverage = replay._session_coverage(summary, [])
+    assert coverage["phase1_identity_complete"] is False
+    assert coverage["phase4_all_states_recorded"] is False
+    assert coverage["phase7_restoration_confirmed"] is False
+
+
+def test_replay_requires_post_read_owner_restoration_and_all_restoration_commands():
+    summary = {"owner_state_confirmations": [
+        {"phase": "phase7_recovery_restoration", "status": "FACTORY_RESTORATION_CONFIRMED"},
+        {"phase": "phase7_recovery_restoration", "status": "FACTORY_RESTORATION_CONFIRMED_AFTER_READS"}]}
+    incomplete = [{"phase": "phase7_recovery_restoration", "state": "factory_restoration",
+        "operation": operation, "arguments": list(args), "result_status": "success"}
+        for operation, args in replay.LIFECYCLE_OPERATIONS[:-1]]
+    assert replay._session_coverage(summary, incomplete)["phase7_restoration_confirmed"] is False
+    complete = incomplete + [{"phase": "phase7_recovery_restoration", "state": "factory_restoration",
+        "operation": operation, "arguments": list(args), "result_status": "success"}
+        for operation, args in replay.LIFECYCLE_OPERATIONS[-1:]]
+    assert replay._session_coverage(summary, complete)["phase7_restoration_confirmed"] is True
+
+
+def test_replay_requires_owner_confirmation_and_successful_commands_for_lifecycle_coverage():
+    summary = {"owner_state_confirmations": [
+        {"phase": "phase4_three_state_carplay", "state": state,
+         "status": "OWNER_CONFIRMED_STABLE"} for state in replay.LIFECYCLE_STATES]}
+    records = [{"phase": "phase4_three_state_carplay", "state": state,
+        "operation": operation, "arguments": list(args), "result_status": "success"}
+        for state in replay.LIFECYCLE_STATES for operation, args in replay.LIFECYCLE_OPERATIONS]
+    coverage = replay._session_coverage(summary, records)
+    assert coverage["phase4_all_states_recorded"] is True
+    records[0]["result_status"] = "permission_denied"
+    coverage = replay._session_coverage(summary, records)
+    assert coverage["phase4_all_states_recorded"] is False
 
 
 def test_all_separate_categories_are_present_and_no_phase_inherits_permission():
     assert controller.PHASE_CATEGORIES["phase1_ordinary_adb_capability"] == ("ordinary_unprivileged_adb",)
     assert set(controller.PHASE_CATEGORIES["phase4_three_state_carplay"]) == {
         "ordinary_unprivileged_adb", "stock_carplay_transition", "factory_navigation_observation"}
-    assert set(controller.PHASE_CATEGORIES["phase5_display1_navigation_lifecycle"]) == {
-        "ordinary_unprivileged_adb", "factory_navigation_observation"}
-    assert "existing_hondahack_observation" in controller.PHASE_CATEGORIES["phase6_existing_hondahack_casting"]
+    assert "phase5_display1_navigation_lifecycle" not in controller.PHASE_CATEGORIES
+    assert "phase6_existing_hondahack_casting" not in controller.PHASE_CATEGORIES
+    assert "existing_hondahack_observation" not in controller.PHASE_CATEGORIES["phase4_three_state_carplay"]
     assert controller.PHASE_CATEGORIES["phase2_existing_root_supersu_review"] == ("privileged_diagnostics",)
 
 
 def test_one_session_approval_covers_only_explicit_compatible_phases():
     phases = ["phase1_ordinary_adb_capability", "phase4_three_state_carplay",
-              "phase5_display1_navigation_lifecycle"]
+              "phase7_recovery_restoration"]
     categories = sorted(set().union(*(set(controller.PHASE_CATEGORIES[p]) for p in phases)))
     record = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
               "approved_categories": categories, "category_permissions": _category_permissions(categories), "risk_level": "LEVEL_2",
@@ -68,8 +111,8 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
     controller.validate_session_authorization(record, current_pins={"pin": "value"})
-    record["approved_phases"].append("phase6_existing_hondahack_casting")
-    with pytest.raises(controller.ControllerError, match="category set"):
+    record["approved_phases"].append("phase2_existing_root_supersu_review")
+    with pytest.raises(controller.ControllerError, match="fixed campaign order"):
         controller.validate_session_authorization(record, current_pins={"pin": "value"})
 
 
@@ -98,7 +141,7 @@ def test_existing_fixed_ordinary_adb_identity_subset_is_level_one(tmp_path):
     record["review_artifact_paths"] = {}
     controller.validate_session_authorization(record, current_pins=controller.pins())
     assert controller.PHASE_RISK_LEVELS["phase1_ordinary_adb_capability"] == 1
-    assert len(controller._phase_rows(controller._proposal()["phases"][1])) == 7
+    assert len(controller._phase_rows(controller._proposal()["phases"][1])) == 19
 
 
 def test_level_two_stock_carplay_requires_technical_review_attestation(tmp_path):
@@ -180,10 +223,8 @@ def test_candidate_review_pin_rejects_dirty_worktree(monkeypatch):
         controller._candidate_commit()
 
 
-def test_hondahack_observation_has_separate_safety_review_gate():
-    assert controller.PHASE_RISK_LEVELS["phase6_existing_hondahack_casting"] == 2
-    assert set(controller.PHASE_REVIEW_REQUIREMENTS["phase6_existing_hondahack_casting"]) == {
-        "technical", "qualified_vehicle_safety"}
+def test_hondahack_observation_is_excluded_from_ordinary_scope():
+    assert not any("hondahack" in key.lower() for key in controller.PHASE_CATEGORIES)
 
 
 def _synthetic_phase1_output(argv, stat_tick="99"):
@@ -193,6 +234,12 @@ def _synthetic_phase1_output(argv, stat_tick="99"):
                   "ro.product.device": "vcm30t30a", "ro.product.board": "Andromeda",
                   "ro.hardware": "vcm30t30", "ro.secure": "1", "ro.debuggable": "0"}
         return values[remote[1]].encode()
+    if remote == ("service", "list"):
+        return b"Found 2 services:\n0 navigation: [com.mitsubishielectric.ada.appservice.navigation]\n"
+    if len(remote) == 3 and remote[:2] == ("dumpsys", "package"):
+        return f"Package [{remote[2]}] (synthetic)\n".encode()
+    if remote[:2] == ("pm", "path"):
+        return f"package:/system/app/{remote[2]}.apk\n".encode()
     if remote == ("id",):
         return b"uid=2000(shell) gid=2000(shell) groups=1003,1004\n"
     if remote == ("ps",):
@@ -227,7 +274,7 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
     )
     assert result["status"] == "SESSION_COMPLETE_PENDING_OFFLINE_ANALYSIS"
     assert result["campaign_success"] is False
-    assert result["command_count"] == 7
+    assert result["command_count"] == 19
     assert result["normal_power_off_confirmed"] is True
     phase1 = next(row for row in result["phase_results"]
                   if row["phase"] == "phase1_ordinary_adb_capability")
@@ -237,7 +284,7 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
     run_dir = Path(record["evidence_directory"]) / record["run_id"]
     assert run_dir.stat().st_mode & 0o777 == 0o700
     assert (run_dir / "session-summary.json").stat().st_mode & 0o777 == 0o600
-    assert len(list(run_dir.glob("*.stdout.bin"))) == 7
+    assert len(list(run_dir.glob("*.stdout.bin"))) == 19
     archive_summary = json.loads((run_dir / "session-summary.json").read_text())
     assert archive_summary["approved_categories"] == ["ordinary_unprivileged_adb", "owner_baseline_observation"]
     assert archive_summary["category_permissions"]["ordinary_unprivileged_adb"] is True
@@ -279,7 +326,7 @@ def test_session_uses_the_single_pinned_proposal_snapshot_after_file_changes(tmp
         review_verifier=lambda _record, _pins: None, notify=lambda _status: "DELIVERED",
     )
     assert result["status"] == "SESSION_COMPLETE_PENDING_OFFLINE_ANALYSIS"
-    assert len(calls) == 7
+    assert len(calls) == 19
     archive = Path(record["evidence_directory"]) / record["run_id"]
     assert hashlib.sha256((archive / "campaign-proposal.json").read_bytes()).hexdigest() == pin_values["profile_sha256"]
 
@@ -354,6 +401,35 @@ def test_replay_uses_existing_display_parsers_for_state_deltas(tmp_path):
     assert transition["surfaceflinger"]["named_layers"] == {
         "added": ["CarPlayActivity"], "removed": ["FactoryLauncher"], "persisting": []}
     assert "physical scanout" in result["interpretation"]
+
+
+def test_replay_compares_factory_restoration_to_initial_disconnected_state(tmp_path):
+    snapshots = {
+        ("phase4_three_state_carplay", "disconnected_baseline", "display"):
+            'DisplayDeviceInfo{"Built-in": 800 x 480, type BUILT_IN}\n',
+        ("phase4_three_state_carplay", "disconnected_baseline", "window"):
+            "WINDOW MANAGER WINDOWS (dumpsys window windows)\nWindow #0 Window{aaaa u0 FactoryNavigation}:\n  mDisplayId=1\n",
+        ("phase4_three_state_carplay", "disconnected_baseline", "SurfaceFlinger"):
+            "+ Layer 0xaaaa (FactoryNavigation)\n",
+        ("phase7_recovery_restoration", "factory_restoration", "display"):
+            'DisplayDeviceInfo{"Built-in": 800 x 480, type BUILT_IN}\n',
+        ("phase7_recovery_restoration", "factory_restoration", "window"):
+            "WINDOW MANAGER WINDOWS (dumpsys window windows)\nWindow #0 Window{bbbb u0 FactoryNavigation}:\n  mDisplayId=1\n",
+        ("phase7_recovery_restoration", "factory_restoration", "SurfaceFlinger"):
+            "+ Layer 0xbbbb (FactoryNavigation)\n",
+    }
+    records = []
+    for index, ((phase, state, source), output) in enumerate(snapshots.items()):
+        filename = f"restore-{index}.bin"
+        (tmp_path / filename).write_text(output)
+        records.append({"phase": phase, "state": state, "exit_code": 0,
+                        "operation": "dumpsys", "arguments": [source],
+                        "stdout_file": filename})
+    result = replay._compare_states(records, tmp_path)["phase7_recovery_restoration"]
+    assert result["baseline_state"] == "disconnected_baseline"
+    assert result["state_order"] == ["disconnected_baseline", "factory_restoration"]
+    assert result["deltas"][1]["source_deltas"]["display"]["inventory_unchanged"] is True
+    assert result["deltas"][1]["source_deltas"]["window"]["all_named_windows"]["persisting"] == ["FactoryNavigation"]
 
 
 def test_archive_inventory_rejects_symlink_directories(tmp_path):
@@ -519,11 +595,90 @@ def test_fixed_adb_executor_replans_and_passes_bounds_without_enumeration():
     reader._run_planned = run_planned
     command = controller.Command("phase1_ordinary_adb_capability",
                                  ("adb", "-s", "private-serial", "shell", "getprop", "ro.secure"),
-                                 20, 4096)
+                                 10, 900000)
     result = controller._fixed_adb_executor(reader, "private-serial")(command)
     assert result == (0, b"1\n", b"")
     assert reader.calls == [((reader.adb, "-s", "private-serial", "shell", "getprop", "ro.secure"),
-                             "property", ("ro.secure",), 20, 4096)]
+                             "property", ("ro.secure",), 10, 900000)]
+
+
+def test_session_output_budget_accepts_exact_limit_once_then_fails_closed():
+    budget = controller.SessionOutputBudget(limit_bytes=4)
+    assert budget.reserve(4) is True
+    assert budget.used_bytes == 4
+    assert budget.remaining_bytes == 0
+    assert budget.reserve(0) is False
+    assert budget.exhausted is True
+    assert budget.report()["limit_decimal_mb"] == 0.000004
+
+
+def test_session_output_budget_is_shared_across_batches_and_blocks_next_adb(tmp_path, monkeypatch):
+    proposal = controller._proposal()
+    record = {"authorization_id": "AUTH-11223344", "run_id": "a" * 32,
+              "nonce": "b" * 32}
+    monkeypatch.setattr(controller, "validate_session_authorization", lambda *_a, **_k: None)
+    budget = controller.SessionOutputBudget(limit_bytes=132)
+    records = []
+    calls = []
+    execute = lambda command: calls.append(command) or (0, b"4.2.2", b"")
+    kwargs = dict(phase_id="phase1_ordinary_adb_capability", serial="SERIAL-1",
+        proposal_snapshot=proposal, execute_command=execute, run_dir=tmp_path, records=records,
+        prior_identity=None, authorization_record=record, current_pins={},
+        session_deadline=controller.time.monotonic() + 30, output_budget=budget, output=lambda _s: None)
+    first = [proposal["phases"][1]["commands"][0]]
+    next_command = [proposal["phases"][1]["commands"][1]]
+    index, _ = controller._execute_batch(state="baseline_a", rows=first, index=0, **kwargs)
+    assert index == 1 and budget.used_bytes == 5 and len(calls) == 1
+    with pytest.raises(controller.ControllerError, match="output budget exhausted"):
+        controller._execute_batch(state="baseline_b", rows=next_command, index=index, **kwargs)
+    assert len(calls) == 1
+    assert records[-1]["result_status"] == "SESSION_OUTPUT_BUDGET_EXHAUSTED_BEFORE_COMMAND"
+    assert records[-1]["stdout_file"] is None and records[-1]["stderr_file"] is None
+    assert budget.used_bytes == 5
+
+
+def test_private_output_write_failure_removes_partial_command_artifacts(tmp_path, monkeypatch):
+    command = controller.Command("phase1_ordinary_adb_capability", ("adb",), 1, 100)
+    original = controller._write_private_file
+    calls = 0
+    def fail_second(path, data):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated short storage")
+        original(path, data)
+    monkeypatch.setattr(controller, "_write_private_file", fail_second)
+    with pytest.raises(OSError, match="short storage"):
+        controller._save_command_result(tmp_path, command, 0, 0, b"stdout", b"stderr",
+            state="baseline", operation="property", arguments=("ro.build.version.release",),
+            started_at_utc="start", started_monotonic_ns=1, finished_at_utc="end",
+            finished_monotonic_ns=2, result_status="success")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_incomplete_low_level_write_is_removed_and_never_reported_complete(tmp_path, monkeypatch):
+    original_fdopen = controller.os.fdopen
+    class ShortWriter:
+        def __init__(self, fd):
+            self.inner = original_fdopen(fd, "wb", buffering=0)
+            self.calls = 0
+        def __enter__(self):
+            return self
+        def __exit__(self, *_exc):
+            self.inner.close()
+        def fileno(self):
+            return self.inner.fileno()
+        def write(self, data):
+            self.calls += 1
+            if self.calls == 1:
+                count = max(1, len(data) // 2)
+                return self.inner.write(data[:count])
+            return 0
+    monkeypatch.setattr(controller.os, "fdopen", lambda fd, *_a, **_k: ShortWriter(fd))
+    target = tmp_path / "short.bin"
+    with pytest.raises(OSError, match="no progress"):
+        controller._write_private_file(target, b"incomplete evidence")
+    assert not target.exists()
 
 
 def test_live_route_requires_a_private_owner_authorization_file():
@@ -739,7 +894,7 @@ def test_studio_readiness_does_not_turn_simulator_success_into_experiment_succes
     assert studio["current_objective"]["question"]
     assert studio["latest_evidence"]["conclusion"].startswith("Zero-persistent-write is not proven")
     assert studio["experiment_ready"]["live_execution"] == "NOT_AUTHORIZED_FOR_ANY_CURRENT_SESSION"
-    assert studio["experiment_ready"]["live_backend"] == "IMPLEMENTED_AUTHORIZATION_GATED_NOT_CURRENTLY_AUTHORIZED"
+    assert studio["experiment_ready"]["live_backend"] == "AUTHORIZATION_GATED_AND_DISABLED"
     assert studio["run_experiment"]["enabled"] is False
     assert studio["results"]["campaign_success"] is False
-    assert studio["next_iteration"]["live_action"] == "NONE"
+    assert studio["next_iteration"]["live_action"] == "NONE_UNTIL_REVIEW_AND_OWNER_AUTHORIZATION"

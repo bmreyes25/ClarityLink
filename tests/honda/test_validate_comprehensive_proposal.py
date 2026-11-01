@@ -19,8 +19,11 @@ def load_proposal():
 def test_proposal_offline_validation_has_no_vehicle_or_adb_side_effect():
     result = validator.validate_proposal(load_proposal())
     assert result["mode"] == "OFFLINE_PROPOSAL_VALIDATION_NO_ADB"
-    assert result["phase_count"] == 8
-    assert result["fixed_command_count"] > 0
+    assert result["phase_count"] == 6
+    assert result["fixed_command_shape_count"] == 45
+    assert result["max_campaign_command_count"] == 162
+    assert result["max_campaign_command_output_bytes"] == 145800000
+    assert result["max_session_output_bytes"] == 158400512
     assert result["privileged_phases_live_argv"] == 0
     assert result["live_execution_enabled"] is False
     assert "comprehensive_controller.py" in load_proposal()["controller"]
@@ -31,7 +34,7 @@ def test_proposal_offline_validation_has_no_vehicle_or_adb_side_effect():
 @pytest.mark.parametrize("mutate, message", [
     (lambda p: p.update(live_execution_enabled=True), "non-executable and unauthorized"),
     (lambda p: p.update(controller="unrestricted ADB"), "fixed authorization-gated controller"),
-    (lambda p: p["phases"].pop(), "exact ordered eight-phase"),
+    (lambda p: p["phases"].pop(), "exact ordered six-phase"),
     (lambda p: p["phases"][2].update(live_argv=[["adb", "shell", "su"]]), "privileged phases"),
     (lambda p: p["phases"][1]["commands"].append(
         ["adb", "-s", "<private-approved-serial>", "shell", "cat", "/proc/42/mem"]),
@@ -39,19 +42,23 @@ def test_proposal_offline_validation_has_no_vehicle_or_adb_side_effect():
     (lambda p: p["phases"][1]["commands"].append(
         ["adb", "-s", "<private-approved-serial>", "shell", "id; su -c id"]),
         "forbidden operation token"),
-    (lambda p: p["execution_bounds_proposal"].update(max_command_timeout_seconds=21),
+    (lambda p: p["execution_bounds_proposal"].update(max_command_timeout_seconds=11),
         "session/command bound"),
-    (lambda p: p["phases"][4].update(per_command_timeout_seconds=21),
+    (lambda p: p["phases"][4].update(per_command_timeout_seconds=11),
         "per-command limits"),
     (lambda p: p["phases"][4].update(capture_during_transition=True),
         "capture during UI transitions"),
     (lambda p: p["phases"][4]["states"].pop(), "required observation state sequence"),
     (lambda p: p["phases"][4].update(commands_apply_at_each_steady_state=False),
         "every CarPlay steady state"),
-    (lambda p: p["phases"][6].update(authorization_status="NOT_REQUIRED"),
-        "authorization gate changed"),
-    (lambda p: p["phases"][6].pop("qualified_vehicle_safety_review"),
-        "qualified vehicle-safety review"),
+    (lambda p: p["phases"][4]["states"].remove("navigation_selected_after_reconnect"),
+        "required observation state sequence"),
+    (lambda p: p["execution_bounds_proposal"].update(max_session_output_bytes=1),
+        "session/command bound"),
+    (lambda p: p["execution_bounds_proposal"].update(max_campaign_command_output_bytes=1),
+        "aggregate time/storage calculations"),
+    (lambda p: p["execution_bounds_proposal"].update(max_bounded_elapsed_seconds=3600),
+        "aggregate time/storage calculations"),
 ])
 def test_validator_rejects_scope_or_command_drift(mutate, message):
     proposal = copy.deepcopy(load_proposal())
@@ -114,7 +121,7 @@ def test_phase1_identity_validation_precedes_every_diagnostic():
     proposal = load_proposal()
     commands = proposal["phases"][1]["commands"]
     commands[0], commands[1] = commands[1], commands[0]
-    with pytest.raises(ValueError, match="exact target properties"):
+    with pytest.raises(ValueError, match="fixed identity and baseline factory package/service inventory"):
         validator.validate_proposal(proposal)
 
 
@@ -129,5 +136,5 @@ def test_validator_rejects_network_reads_outside_carplay_phase():
 def test_validator_handles_malformed_phase_without_traceback():
     proposal = load_proposal()
     proposal["phases"][0] = None
-    with pytest.raises(ValueError, match="exact ordered eight-phase"):
+    with pytest.raises(ValueError, match="exact ordered six-phase"):
         validator.validate_proposal(proposal)

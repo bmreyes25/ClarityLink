@@ -33,6 +33,9 @@ from parsers import (MAX_DIAGNOSTIC_LOG_BYTES, count_diagnostic_log_lines,
 
 COMMAND_TIMEOUT = 20
 MAX_COMMAND_OUTPUT = 32 * 1024 * 1024
+COMMAND_TIMEOUT_MARKER = b"\ncollector: command timed out\n"
+COMMAND_OUTPUT_LIMIT_MARKER = b"\ncollector: combined output limit reached; process stopped\n"
+COMMAND_MARKER_RESERVE = max(len(COMMAND_TIMEOUT_MARKER), len(COMMAND_OUTPUT_LIMIT_MARKER))
 THREAD_SNAPSHOTS = 5
 THREAD_INTERVAL_SECONDS = 2.0
 JMCS_STATIC_PATH = "/system/bin/jmcs"
@@ -44,6 +47,21 @@ SAFE_PROPERTIES = (
     "ro.secure", "ro.debuggable",
 )
 SAFE_DUMPSYS = ("display", "SurfaceFlinger", "window")
+SAFE_ACTIVITY_DUMPSYS = frozenset({("activity", "activities"), ("activity", "services")})
+OPTIONAL_READ_PATHS = frozenset({
+    "/proc/net/tcp", "/proc/net/tcp6", "/proc/net/udp", "/proc/net/udp6", "/proc/net/unix",
+    "/sys/class/graphics",
+})
+PACKAGE_NOT_INSTALLED = re.compile(
+    r"(?i)(?:unable to find package|unknown package|package(?:\s+[^\r\n]*)?\s+not found|no package)"
+)
+FACTORY_PACKAGES = frozenset({
+    "com.mitsubishielectric.ada.appservice.navigation",
+    "com.mitsubishielectric.ada.app.carplay",
+    "com.mitsubishielectric.ada.appservice.carplayapservice",
+    "com.mitsubishielectric.ada.appservice.externaldisplay",
+    "com.mitsubishielectric.ada.app.externaldisplay",
+})
 EXPECTED_PRODUCT_DEVICE = "vcm30t30a"
 EXPECTED_ANDROID_RELEASE = "4.2.2"
 EXPECTED_ANDROID_SDK = "17"
@@ -112,8 +130,6 @@ def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
     check supplements (and never replaces) operation-specific parsing.
     """
     combined = (stderr + b"\n" + stdout).decode("utf-8", "replace")
-    if exit_code != 0:
-        raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
     # Transport diagnostics belong to the host adb client's stderr stream. Do
     # not scan target stdout, where dumpsys/logcat may legitimately contain
     # similar words, and do not accept partial target output after disconnect.
@@ -122,9 +138,31 @@ def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
             "error: closed", "device offline", "device unauthorized", "unauthorized",
             "no devices/emulators found", "device not found", "failed to read from device")):
         raise SafetyStop(f"legacy ADB transport failure during required operation: {operation}")
+    optional_target = (operation in {"read", "list"} and args
+                       and args[0] in OPTIONAL_READ_PATHS)
+    package_lookup = operation == "package-path" or (
+        operation == "dumpsys" and len(args) == 2 and args[0] == "package")
+    if package_lookup and PACKAGE_NOT_INSTALLED.search(combined):
+        # A missing fixed OEM package is useful inventory evidence, not a
+        # reason to abandon the independent lifecycle observations.
+        return
+    if optional_target and re.search(r"(?i)(permission denied|operation not permitted|no such file|not found)", combined):
+        # Capture the denial/absence once; never retry, escalate, or infer an
+        # available endpoint. Other command and transport failures still stop.
+        return
+    if exit_code != 0:
+        raise SafetyStop(f"required fixed diagnostic operation failed: {operation}")
     if operation in {"read", "property", "id", "ps"} and re.search(
             r"(?im)^\s*(?:/system/bin/)?(?:sh|mksh):.*(?:not found|permission denied|can't execute)", combined):
         raise SafetyStop(f"legacy ADB returned output indicating remote failure: {operation}")
+    if operation == "service-list" and not re.search(rb"(?im)^Found [0-9]+ services?:\s*$", stdout):
+        raise SafetyStop("service list did not return the expected Android service inventory header")
+    if operation == "package-path":
+        if PACKAGE_NOT_INSTALLED.search(combined):
+            return
+        lines = [line.strip() for line in stdout.decode("utf-8", "replace").splitlines() if line.strip()]
+        if len(lines) != 1 or not re.fullmatch(r"package:/(?:system|data|vendor|product)/[^\s:]+\.apk", lines[0]):
+            raise SafetyStop("pm path did not return exactly one installed APK path")
     if operation in {"read", "property", "id", "ps"} and re.search(
             r"(?im)^\s*(?:[^\r\n]*:\s*)?(?:permission denied|operation not permitted|no such file or directory)\s*$",
             combined):
@@ -135,6 +173,11 @@ def validate_legacy_shell_output(operation: str, args: tuple[str, ...],
     if operation == "dumpsys":
         if not stdout.strip() or re.search(r"(?im)^\s*(?:unknown|can't find|service .* not found)\b", combined):
             raise SafetyStop(f"dumpsys did not return a usable {args[0]} snapshot")
+        if (len(args) == 2 and args[0] == "package" and args[1].encode() not in stdout
+                and PACKAGE_NOT_INSTALLED.search(combined)):
+            return
+        if len(args) == 2 and args[0] == "package" and args[1].encode() not in stdout:
+            raise SafetyStop("dumpsys package output did not identify the requested factory package")
     if operation == "logcat" and stderr.strip() and not stdout.strip():
         raise SafetyStop("legacy ADB logcat wrote stderr; result is ambiguous")
     if operation == "logcat" and stdout.strip():
@@ -221,7 +264,8 @@ class FixedAdb:
             path = args[0]
             if path not in ("/proc", "/sys/devices/system/cpu", "/proc/net") and not re.fullmatch(
                     r"/proc/[0-9]+/(?:task|fd)|/sys/devices/system/cpu/cpu[0-9]+/cache", path):
-                raise SafetyStop(f"directory outside fixed allowlist: {path}")
+                if path != "/sys/class/graphics":
+                    raise SafetyStop(f"directory outside fixed allowlist: {path}")
             # API-17 toolbox `ls` rejects the newer `-1` option; whitespace
             # tokenization in the host parsers handles its default columns.
             remote = ("ls", path)
@@ -238,9 +282,19 @@ class FixedAdb:
                 raise SafetyStop("property outside fixed allowlist")
             remote = ("getprop", args[0])
         elif operation == "dumpsys":
-            if len(args) != 1 or args[0] not in SAFE_DUMPSYS:
+            if len(args) == 1 and args[0] in SAFE_DUMPSYS:
+                remote = ("dumpsys", args[0])
+            elif args in SAFE_ACTIVITY_DUMPSYS:
+                remote = ("dumpsys", *args)
+            elif (len(args) == 2 and args[0] == "package"
+                  and args[1] in FACTORY_PACKAGES):
+                remote = ("dumpsys", *args)
+            else:
                 raise SafetyStop("dumpsys service outside fixed allowlist")
-            remote = ("dumpsys", args[0])
+        elif operation == "package-path":
+            if len(args) != 1 or args[0] not in FACTORY_PACKAGES:
+                raise SafetyStop("package path outside verified factory-package allowlist")
+            remote = ("pm", "path", args[0])
         elif operation == "logcat":
             if args:
                 raise SafetyStop("logcat is fixed to the bounded read-only form")
@@ -272,6 +326,8 @@ class FixedAdb:
                      args: tuple[str, ...], *, timeout: int = COMMAND_TIMEOUT,
                      max_bytes: int = MAX_COMMAND_OUTPUT) -> tuple[int, bytes, bytes]:
         """Execute a command built by a reviewed fixed-operation planner."""
+        if not isinstance(max_bytes, int) or max_bytes < COMMAND_MARKER_RESERVE:
+            raise SafetyStop("fixed command output ceiling is too small for a truthful failure marker")
         started = datetime.now(timezone.utc).isoformat()
         record: dict[str, Any] = {
             "operation": operation, "arguments": list(args),
@@ -306,7 +362,7 @@ class FixedAdb:
                         selector.unregister(key.fileobj)
                         continue
                     total = len(chunks["stdout"]) + len(chunks["stderr"])
-                    allowance = max(0, max_bytes - total)
+                    allowance = max(0, max_bytes - COMMAND_MARKER_RESERVE - total)
                     chunks[key.data].extend(data[:allowance])
                     if len(data) > allowance:
                         truncated = True
@@ -324,10 +380,10 @@ class FixedAdb:
             proc.stdout.close()
             proc.stderr.close()
             if timed_out:
-                err += b"\ncollector: command timed out\n"
+                err += COMMAND_TIMEOUT_MARKER
                 code = 124
             elif truncated:
-                err += b"\ncollector: combined output limit reached; process stopped\n"
+                err += COMMAND_OUTPUT_LIMIT_MARKER
                 code = 125
             record["truncated"] = truncated
         except KeyboardInterrupt:

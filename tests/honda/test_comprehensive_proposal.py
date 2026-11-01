@@ -46,16 +46,15 @@ def commands_are_safe(commands):
     return True
 
 
-def test_proposal_retains_all_phases_and_is_not_executable():
+def test_proposal_retains_fixed_ordinary_scope_and_is_not_executable():
     proposal = load_proposal()
     assert proposal["live_execution_enabled"] is False
     assert "comprehensive_controller.py" in proposal["controller"]
-    assert "one-use authorization" in proposal["controller"]
+    assert "one-use" in proposal["controller"]
     assert [phase["id"] for phase in proposal["phases"]] == [
         "phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
         "phase2_existing_root_supersu_review", "phase3_jmcs_maps_libraries_fd_socket_ownership",
-        "phase4_three_state_carplay", "phase5_display1_navigation_lifecycle",
-        "phase6_existing_hondahack_casting", "phase7_recovery_restoration",
+        "phase4_three_state_carplay", "phase7_recovery_restoration",
     ]
     assert proposal["historical_campaign"]["reuse_allowed"] is False
     assert proposal["phases"][2]["authorization_status"] == "BLOCKED_NO_JUSTIFIABLE_ACCESS_METHOD"
@@ -69,11 +68,12 @@ def test_command_argv_has_no_privilege_injection_or_unlisted_network_probe():
     commands = collect_commands(proposal["phases"])
     assert commands_are_safe(commands)
     bounds = proposal["execution_bounds_proposal"]
-    assert bounds["per_command_bounds"]["timeout_seconds"] == 20
-    assert bounds["per_command_bounds"]["combined_stdout_stderr_bytes"] == 4194304
+    assert bounds["per_command_bounds"]["timeout_seconds"] == 10
+    assert bounds["per_command_bounds"]["combined_stdout_stderr_bytes"] == 900000
+    assert bounds["max_session_output_bytes"] == 158400512
     assert "one argv element" in bounds["process_placeholder_binding"]
-    assert all(phase["per_command_timeout_seconds"] == 20
-               and phase["per_command_output_limit_bytes"] == 4194304
+    assert all(phase["per_command_timeout_seconds"] == 10
+               and phase["per_command_output_limit_bytes"] == 900000
                and phase["failure_policy"] == "stop immediately; do not retry"
                for phase in proposal["phases"])
 
@@ -84,17 +84,17 @@ def test_reconnect_hondahack_and_abort_boundaries_remain_explicit():
     assert phase4["states"] == ["disconnected_baseline", "stock_carplay_connected",
                                 "navigation_selected", "navigation_deselected",
                                 "navigation_reselected", "disconnected_again",
-                                "stock_carplay_reconnected", "final_disconnected"]
+                                "stock_carplay_reconnected", "navigation_selected_after_reconnect",
+                                "navigation_deselected_after_reconnect", "final_disconnected"]
     assert phase4["capture_during_transition"] is False
-    phase6 = proposal["phases"][6]
-    assert {"ordinary_unprivileged_adb", "factory_navigation_observation",
-            "existing_hondahack_observation"} == set(phase6["required_categories"])
-    assert proposal["phases"][7]["abort_path"].startswith("Host-only")
+    assert proposal["phases"][5]["abort_path"].startswith("Host-only")
     assert proposal["global_stop_conditions"]
-    assert "REQUIRED" in proposal["phases"][6]["qualified_vehicle_safety_review"]
     assert "logcat" not in str(proposal["phases"][1]["commands"])
-    assert "logcat" not in str(proposal["phases"][7]["commands"])
-    assert "not a repeated search" in proposal["phases"][4]["log_collection_purpose"]
+    assert "logcat" in str(proposal["phases"][5]["commands"])
+    assert proposal["execution_bounds_proposal"]["max_campaign_command_count"] == 162
+    assert proposal["execution_bounds_proposal"]["max_campaign_command_output_bytes"] == 145800000
+    assert "absence" in proposal["phases"][4]["log_collection_purpose"].lower()
+    assert "HondaHack" in proposal["post_session_instrumentation"]["authorization"]
 
 
 def test_command_safety_scans_strings_and_nested_command_fields():
