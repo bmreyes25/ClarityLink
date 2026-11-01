@@ -700,15 +700,17 @@ def consume_once(record: dict, *, ledger: Path | None = None) -> Path:
     # Reuse the directory-descriptor validator: existing paths must already be
     # owner-owned/private, and only a missing final leaf may be created.
     ledger = _private_directory(requested, create=True)
+    ledger_fd = _open_private_directory_descriptor(ledger)
     nonce_digest = hashlib.sha256(nonce.encode()).hexdigest()
-    targets = (ledger / f"authorization-{approval_id}.json", ledger / f"nonce-{nonce_digest}.json")
+    target_names = (f"authorization-{approval_id}.json", f"nonce-{nonce_digest}.json")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     payload = json.dumps({"authorization_id": approval_id, "run_id": run_id,
                           "nonce_sha256": nonce_digest}, sort_keys=True).encode() + b"\n"
     try:
-        for target in targets:
+        for target_name in target_names:
             try:
-                fd = os.open(target, flags, 0o600)
+                fd = os.open(target_name, flags | getattr(os, "O_NOFOLLOW", 0),
+                             0o600, dir_fd=ledger_fd)
             except FileExistsError as exc:
                 raise ControllerError("authorization ID or nonce has already been consumed") from exc
             os.fchmod(fd, 0o600)
@@ -716,33 +718,16 @@ def consume_once(record: dict, *, ledger: Path | None = None) -> Path:
                 output.write(payload)
                 output.flush()
                 os.fsync(output.fileno())
-    except Exception:
-        # Any created marker remains consumed after partial failure.
-        raise
-    directory_fd = os.open(ledger, os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
+        os.fsync(ledger_fd)
     finally:
-        os.close(directory_fd)
-    return targets[0]
+        os.close(ledger_fd)
+    return ledger / target_names[0]
 
 
 def _load_private_authorization(path: Path) -> dict:
-    if (path.is_symlink() or not path.is_file() or path.stat().st_size > 128 * 1024
-            or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o077):
-        raise ControllerError("authorization must be a bounded owner-only private file")
-    resolved = path.resolve(strict=True)
-    if ROOT.resolve() == resolved or ROOT.resolve() in resolved.parents:
-        raise ControllerError("authorization file must stay outside the repository")
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(resolved, flags)
-        with os.fdopen(fd, "rb") as handle:
-            metadata = os.fstat(handle.fileno())
-            if (metadata.st_uid != os.getuid() or metadata.st_size > 128 * 1024
-                    or stat.S_IMODE(metadata.st_mode) & 0o077):
-                raise ControllerError("authorization changed or is no longer owner-only")
-            value = json.loads(handle.read().decode("utf-8"))
+        raw = _read_owner_private_file(path, max_bytes=128 * 1024, label="authorization")
+        value = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ControllerError("authorization file could not be parsed") from exc
     if not isinstance(value, dict):
@@ -755,20 +740,8 @@ def _load_private_authorization(path: Path) -> dict:
 
 def _private_evidence_directory(record: dict) -> Path:
     requested = Path(record["evidence_directory"]).expanduser()
-    if requested.is_symlink() or not requested.exists() or not requested.is_dir():
-        raise ControllerError("owner must prepare the private evidence directory before the session")
-    resolved = requested.resolve(strict=True)
-    if ROOT.resolve() == resolved or ROOT.resolve() in resolved.parents:
-        raise ControllerError("private evidence directory must be outside the repository")
     try:
-        fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-                     | getattr(os, "O_NOFOLLOW", 0))
-        try:
-            metadata = os.fstat(fd)
-        finally:
-            os.close(fd)
-        if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
-            raise ControllerError("private evidence directory must be owner-owned with mode 0700")
+        resolved = _private_directory(requested)
         if shutil.disk_usage(resolved).free < MIN_EVIDENCE_FREE_BYTES:
             raise ControllerError(
                 f"private evidence volume needs at least {MIN_EVIDENCE_FREE_BYTES} free bytes "
@@ -780,12 +753,15 @@ def _private_evidence_directory(record: dict) -> Path:
 
 
 def _write_private_file(path: Path, payload: bytes) -> None:
+    requested = Path(os.path.abspath(path.expanduser()))
+    parent_fd = _open_private_directory_descriptor(requested.parent)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
         flags |= os.O_NOFOLLOW
     try:
-        fd = os.open(path, flags, 0o600)
+        fd = os.open(requested.name, flags, 0o600, dir_fd=parent_fd)
     except OSError as exc:
+        os.close(parent_fd)
         raise ControllerError("private evidence file could not be created without overwrite") from exc
     written = 0
     try:
@@ -801,25 +777,38 @@ def _write_private_file(path: Path, payload: bytes) -> None:
     except BaseException:
         # A partial command artifact must never look complete in the archive.
         try:
-            path.unlink(missing_ok=True)
+            os.unlink(requested.name, dir_fd=parent_fd)
         except OSError:
             pass
         raise
+    finally:
+        os.close(parent_fd)
 
 
 def _replace_private_file(path: Path, payload: bytes) -> None:
-    if path.is_symlink() or not path.is_file():
-        raise ControllerError("private summary replacement target is missing or symbolic")
-    metadata = path.stat()
-    if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o600:
-        raise ControllerError("private summary replacement target is not owner-only")
-    flags = os.O_WRONLY | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(path, flags)
-    with os.fdopen(fd, "wb") as output:
-        os.fchmod(output.fileno(), 0o600)
-        output.write(payload)
-        output.flush()
-        os.fsync(output.fileno())
+    requested = Path(os.path.abspath(path.expanduser()))
+    parent_fd = _open_private_directory_descriptor(requested.parent)
+    try:
+        flags = os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(requested.name, flags, dir_fd=parent_fd)
+        try:
+            metadata = os.fstat(fd)
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                    or stat.S_IMODE(metadata.st_mode) != 0o600):
+                raise ControllerError("private summary replacement target is not owner-only")
+            os.ftruncate(fd, 0)
+            with os.fdopen(fd, "wb") as output:
+                output.write(payload)
+                output.flush()
+                os.fsync(output.fileno())
+                fd = -1
+        finally:
+            if fd >= 0:
+                os.close(fd)
+    except OSError as exc:
+        raise ControllerError("private summary replacement target is missing or unsafe") from exc
+    finally:
+        os.close(parent_fd)
 
 
 def _write_sha256_inventory(directory: Path) -> str:
@@ -834,13 +823,107 @@ def _write_sha256_inventory(directory: Path) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _repository_identity() -> tuple[int, int]:
+    """Return the repository directory's filesystem identity without following aliases."""
+    repository = ROOT.resolve(strict=True)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = -1
+    try:
+        descriptor = os.open(os.sep, flags)
+        for component in repository.parts[1:]:
+            next_descriptor = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        metadata = os.fstat(descriptor)
+        return metadata.st_dev, metadata.st_ino
+    except OSError as exc:
+        raise ControllerError("repository identity cannot be verified safely") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _open_directory_chain_outside_repository(directory: Path,
+                                            repository_identity: tuple[int, int]) -> int:
+    """Open a directory chain with O_NOFOLLOW, rejecting the repo by inode identity."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(os.sep, flags)
+    try:
+        for component in directory.parts[1:]:
+            next_descriptor = os.open(component, flags, dir_fd=descriptor)
+            try:
+                metadata = os.fstat(next_descriptor)
+                if (metadata.st_dev, metadata.st_ino) == repository_identity:
+                    raise ControllerError("private data must stay outside the repository")
+                os.close(descriptor)
+                descriptor = next_descriptor
+                next_descriptor = -1
+            finally:
+                if next_descriptor >= 0:
+                    os.close(next_descriptor)
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _open_private_directory_descriptor(directory: Path) -> int:
+    """Open one owner-only directory after checking its full path against the repository."""
+    requested = Path(os.path.abspath(directory.expanduser()))
+    descriptor = _open_directory_chain_outside_repository(requested, _repository_identity())
+    try:
+        metadata = os.fstat(descriptor)
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o700):
+            raise ControllerError("private directory must be owner-owned with mode 0700")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _read_owner_private_file(path: Path, *, max_bytes: int, label: str) -> bytes:
+    """Read one bounded owner-only file through a checked parent descriptor."""
+    requested = Path(os.path.abspath(path.expanduser()))
+    repository_identity = _repository_identity()
+    try:
+        parent_fd = _open_directory_chain_outside_repository(requested.parent, repository_identity)
+        try:
+            flags = (os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                     | getattr(os, "O_NONBLOCK", 0))
+            file_fd = os.open(requested.name, flags, dir_fd=parent_fd)
+            try:
+                metadata = os.fstat(file_fd)
+                if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                        or stat.S_IMODE(metadata.st_mode) & 0o077):
+                    raise ControllerError(f"{label} must be a bounded owner-only private file")
+                if metadata.st_size > max_bytes:
+                    raise ControllerError(f"{label} exceeds its private file size bound")
+                chunks = []
+                total = 0
+                while total <= max_bytes:
+                    chunk = os.read(file_fd, min(64 * 1024, max_bytes + 1 - total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total += len(chunk)
+                raw = b"".join(chunks)
+                if len(raw) > max_bytes:
+                    raise ControllerError(f"{label} exceeds its private file size bound")
+                return raw
+            finally:
+                os.close(file_fd)
+        finally:
+            os.close(parent_fd)
+    except OSError as exc:
+        raise ControllerError(f"{label} is unavailable or not safely contained") from exc
+
+
 def _private_directory(path: Path, *, create: bool = False,
                        allow_missing: bool = False) -> Path:
     """Validate or create one private leaf without mutating any pre-existing path."""
     requested = Path(os.path.abspath(path.expanduser()))
-    repository = ROOT.resolve(strict=True)
-    if requested == repository or repository in requested.parents:
-        raise ControllerError("private preparation data must stay outside the repository")
+    repository_identity = _repository_identity()
 
     # Reject aliases before resolving or mutating anything. The parent is later
     # opened with O_NOFOLLOW and the leaf is created relative to that descriptor.
@@ -858,29 +941,14 @@ def _private_directory(path: Path, *, create: bool = False,
                        | getattr(os, "O_NOFOLLOW", 0))
 
     def open_directory_chain(directory: Path) -> int:
-        descriptor = os.open(os.sep, directory_flags)
-        try:
-            for component in directory.parts[1:]:
-                next_descriptor = os.open(component, directory_flags, dir_fd=descriptor)
-                os.close(descriptor)
-                descriptor = next_descriptor
-            return descriptor
-        except BaseException:
-            os.close(descriptor)
-            raise
+        return _open_directory_chain_outside_repository(directory, repository_identity)
 
     def validate_existing(directory: Path) -> Path:
         try:
-            descriptor = open_directory_chain(directory)
-            try:
-                metadata = os.fstat(descriptor)
-            finally:
-                os.close(descriptor)
+            descriptor = _open_private_directory_descriptor(directory)
+            os.close(descriptor)
         except OSError as exc:
             raise ControllerError("private preparation directory is unavailable") from exc
-        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid()
-                or stat.S_IMODE(metadata.st_mode) != 0o700):
-            raise ControllerError("private preparation directory must be owner-owned with mode 0700")
         return directory
 
     try:
@@ -892,7 +960,7 @@ def _private_directory(path: Path, *, create: bool = False,
         if allow_missing and not create:
             return requested
         try:
-            parent_fd = open_directory_chain(parent)
+            parent_fd = _open_private_directory_descriptor(parent)
         except OSError as exc:
             raise ControllerError("private preparation parent changed or cannot be opened safely") from exc
         created = False
@@ -926,20 +994,10 @@ def _private_directory(path: Path, *, create: bool = False,
 
 
 def _read_private_json(path: Path) -> dict:
-    if (path.is_symlink() or not path.is_file() or path.stat().st_uid != os.getuid()
-            or path.stat().st_size > 2 * 1024 * 1024 or path.stat().st_mode & 0o077):
-        raise ControllerError("private authorization draft or review is not a bounded owner-only file")
     try:
-        resolved = path.resolve(strict=True)
-        if ROOT.resolve() == resolved or ROOT.resolve() in resolved.parents:
-            raise ControllerError("private authorization draft or review must stay outside the repository")
-        fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-        with os.fdopen(fd, "rb") as handle:
-            metadata = os.fstat(handle.fileno())
-            if (metadata.st_uid != os.getuid() or metadata.st_size > 2 * 1024 * 1024
-                    or stat.S_IMODE(metadata.st_mode) & 0o077):
-                raise ControllerError("private authorization draft or review changed during access")
-            value = json.loads(handle.read().decode("utf-8"))
+        raw = _read_owner_private_file(path, max_bytes=2 * 1024 * 1024,
+                                       label="private authorization draft or review")
+        value = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ControllerError("private authorization draft or review could not be read safely") from exc
     if not isinstance(value, dict):
@@ -968,19 +1026,21 @@ def _review_inventory(pins_value: dict[str, str], phases: list[str]) -> tuple[di
     candidates: dict[str, list[tuple[Path, str]]] = {review_type: [] for review_type in required}
     sys.path.insert(0, str(HERE))
     try:
-        from validate_review_artifacts import validate_review_artifact
+        from validate_review_artifacts import validate_review_artifact_bytes
     finally:
         if sys.path and sys.path[0] == str(HERE):
             sys.path.pop(0)
     for path in sorted(review_dir.glob("*.json")):
         try:
-            artifact = _read_private_json(path)
+            raw_artifact = _read_owner_private_file(path, max_bytes=2 * 1024 * 1024,
+                                                    label="review artifact")
+            artifact = json.loads(raw_artifact.decode("utf-8"))
             review_type = artifact.get("review_type")
             if review_type not in {"technical", "qualified_vehicle_safety"}:
                 report.append({"review_type": "unknown", "status": "INVALID"})
                 continue
-            validated = validate_review_artifact(
-                path.resolve(strict=True), review_type=review_type, pins=pins,
+            validated = validate_review_artifact_bytes(
+                raw_artifact, review_type=review_type, pins=pins,
                 commit_sha=commit_sha, approved_phases=phases, risk_level=risk_level)
             approved = validated["decision"] == "APPROVE_ENGINEERING"
             report.append({"review_type": review_type, "status": "VALID_APPROVAL" if approved
@@ -989,7 +1049,7 @@ def _review_inventory(pins_value: dict[str, str], phases: list[str]) -> tuple[di
                            "phase_scope_matches": True,
                            "authenticity_limit": validated["authenticity_limit"]})
             if review_type in required and approved:
-                candidates[review_type].append((path.resolve(strict=True), validated["artifact_sha256"]))
+                candidates[review_type].append((path, validated["artifact_sha256"]))
         except (OSError, ValueError, TypeError, json.JSONDecodeError, ControllerError):
             report.append({"review_type": "unknown", "structurally_valid": False,
                            "exact_current_commit": False, "current_pins": False,
@@ -1062,7 +1122,15 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
     available = shutil.disk_usage(evidence_dir if evidence_exists else evidence_dir.parent).free
     if available < MIN_EVIDENCE_FREE_BYTES:
         raise ControllerError(f"private evidence storage needs {MIN_EVIDENCE_FREE_BYTES} free bytes")
-    source = _read_private_json(draft_path) if draft_path.exists() else {}
+    try:
+        draft_path = Path(os.path.abspath(draft_path.expanduser()))
+        os.lstat(draft_path)
+        draft_present = True
+    except FileNotFoundError:
+        draft_present = False
+    except OSError as exc:
+        raise ControllerError("legacy authorization draft cannot be checked safely") from exc
+    source = _read_private_json(draft_path) if draft_present else {}
     schema = source.get("schema") or source.get("schema_version") or (
         "legacy-comprehensive-draft" if source else "no-existing-draft")
     review_paths, review_digests, review_report = _review_inventory(current_pins, phases)
@@ -1329,15 +1397,18 @@ def _validate_live_reviews(record: dict, current_pins: dict[str, str]) -> dict:
         return {"reviewed_commit_sha": candidate_commit, "review_artifact_sha256": {}}
     try:
         sys.path.insert(0, str(HERE))
-        from validate_review_artifacts import validate_review_artifact
+        from validate_review_artifacts import validate_review_artifact_bytes
     finally:
         if sys.path and sys.path[0] == str(HERE):
             sys.path.pop(0)
     artifact_digests = {}
     for review in sorted(required):
         try:
-            validated = validate_review_artifact(
-                Path(record["review_artifacts"][review]), review_type=review,
+            review_path = Path(record["review_artifacts"][review])
+            raw_artifact = _read_owner_private_file(
+                review_path, max_bytes=2 * 1024 * 1024, label=f"{review} review artifact")
+            validated = validate_review_artifact_bytes(
+                raw_artifact, review_type=review,
                 pins={"profile_sha256": current_pins["profile_sha256"],
                       "source_lock_sha256": current_pins["source_lock_sha256"],
                       "manifest_sha256": current_pins["command_manifest_sha256"]},
@@ -1716,13 +1787,36 @@ def _execute_batch(*, phase_id: str, state: str, rows: list[list[str]], serial: 
 
 def _create_run_directory(base: Path, run_id: str) -> Path:
     path = base / run_id
+    base_fd = _open_private_directory_descriptor(base)
+    created = False
     try:
-        path.mkdir(mode=0o700, exist_ok=False)
+        os.mkdir(run_id, mode=0o700, dir_fd=base_fd)
+        created = True
+        run_fd = os.open(run_id, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+                         | getattr(os, "O_NOFOLLOW", 0), dir_fd=base_fd)
+        try:
+            os.fchmod(run_fd, 0o700)
+            metadata = os.fstat(run_fd)
+            if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+                raise ControllerError("one-run evidence directory permissions are not private")
+        finally:
+            os.close(run_fd)
     except OSError as exc:
+        if created:
+            try:
+                os.rmdir(run_id, dir_fd=base_fd)
+            except OSError:
+                pass
         raise ControllerError("one-run private evidence directory could not be created") from exc
-    os.chmod(path, 0o700)
-    if path.stat().st_uid != os.getuid() or stat.S_IMODE(path.stat().st_mode) != 0o700:
-        raise ControllerError("one-run evidence directory permissions are not private")
+    except BaseException:
+        if created:
+            try:
+                os.rmdir(run_id, dir_fd=base_fd)
+            except OSError:
+                pass
+        raise
+    finally:
+        os.close(base_fd)
     return path
 
 

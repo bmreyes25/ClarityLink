@@ -28,7 +28,7 @@ def validate_review_artifact(path: Path, *, review_type: str, pins: dict[str, st
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise ValueError("review artifact must be an absolute regular private file")
     resolved = path.resolve(strict=True)
-    if REPOSITORY_ROOT.resolve() == resolved or REPOSITORY_ROOT.resolve() in resolved.parents:
+    if _is_inside_repository(resolved):
         raise ValueError("review artifact must be a bounded regular private file")
     fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
     with os.fdopen(fd, "rb") as handle:
@@ -37,7 +37,32 @@ def validate_review_artifact(path: Path, *, review_type: str, pins: dict[str, st
                 or metadata.st_mode & 0o077):
             raise ValueError("review artifact must be a bounded regular private file")
         raw_bytes = handle.read()
-        value = json.loads(raw_bytes.decode("utf-8"))
+    return validate_review_artifact_bytes(raw_bytes, review_type=review_type, pins=pins,
+                                          commit_sha=commit_sha, approved_phases=approved_phases,
+                                          risk_level=risk_level)
+
+
+def _is_inside_repository(path: Path) -> bool:
+    """Compare resolved filesystem identities, including case-folded aliases."""
+    repository = REPOSITORY_ROOT.resolve(strict=True)
+    candidate = path.resolve(strict=True)
+    for ancestor in (candidate, *candidate.parents):
+        try:
+            if ancestor.exists() and os.path.samefile(ancestor, repository):
+                return True
+        except OSError as exc:
+            raise ValueError("review artifact containment cannot be verified") from exc
+    return False
+
+
+def validate_review_artifact_bytes(raw_bytes: bytes, *, review_type: str, pins: dict[str, str],
+                                   commit_sha: str, approved_phases: list[str], risk_level: str) -> dict:
+    """Validate the exact already-opened artifact bytes without reopening a path."""
+    if review_type not in REQUIRED_REVIEWERS:
+        raise ValueError("unknown review type")
+    if not isinstance(raw_bytes, bytes) or len(raw_bytes) > 2 * 1024 * 1024:
+        raise ValueError("review artifact must be a bounded regular private file")
+    value = json.loads(raw_bytes.decode("utf-8"))
     if not isinstance(value, dict) or not REQUIRED.issubset(value):
         raise ValueError("review artifact is missing required fields")
     if value["review_type"] != review_type or value.get("campaign_id") != "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031":

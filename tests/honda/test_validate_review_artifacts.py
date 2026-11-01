@@ -46,6 +46,24 @@ def test_exact_claude_technical_review_is_structurally_valid(tmp_path):
     assert "does not prove reviewer identity" in result["authenticity_limit"]
 
 
+def test_bytes_validator_validates_the_exact_already_opened_review(tmp_path):
+    path = tmp_path / "claude-review.json"
+    value = make_artifact(path)
+    pins = {"profile_sha256": value["profile_sha256"],
+            "source_lock_sha256": value["source_lock_sha256"],
+            "manifest_sha256": value["manifest_sha256"]}
+    raw = path.read_bytes()
+    result = review_validator.validate_review_artifact_bytes(
+        raw, review_type="technical", pins=pins, commit_sha="c" * 40,
+        approved_phases=value["reviewed_phases"], risk_level="LEVEL_2")
+    path.unlink()
+    assert result["artifact_sha256"] == hashlib.sha256(raw).hexdigest()
+    replaced = review_validator.validate_review_artifact_bytes(
+        raw + b" ", review_type="technical", pins=pins, commit_sha="c" * 40,
+        approved_phases=value["reviewed_phases"], risk_level="LEVEL_2")
+    assert replaced["artifact_sha256"] != result["artifact_sha256"]
+
+
 def test_review_digest_binds_exact_bytes_not_only_canonical_review_content(tmp_path):
     path = tmp_path / "review.json"
     value = make_artifact(path)

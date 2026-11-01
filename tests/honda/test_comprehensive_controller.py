@@ -143,6 +143,22 @@ def test_prepare_refuses_to_overwrite_candidate(tmp_path, monkeypatch):
     assert existing.read_text() == "preserve"
 
 
+def test_prepare_rejects_dangling_private_draft_symlink_without_creating_outputs(tmp_path, monkeypatch):
+    runtime = tmp_path / "private-runtime"
+    runtime.mkdir(mode=0o700)
+    draft = runtime / "authorization-draft.json"
+    draft.symlink_to(runtime / "missing-target.json")
+    evidence = runtime / "evidence"
+    output = runtime / "candidate.json"
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    with pytest.raises(controller.ControllerError):
+        controller.prepare_candidate(draft_path=draft, evidence_path=evidence,
+                                     output_path=output)
+    assert draft.is_symlink()
+    assert not evidence.exists()
+    assert not output.exists()
+
+
 def test_private_draft_must_be_outside_the_repository(tmp_path, monkeypatch):
     repository = tmp_path / "repository with spaces"
     repository.mkdir()
@@ -193,6 +209,310 @@ def test_private_directory_rejects_repository_docs_before_mutation(tmp_path, mon
     after = docs.stat()
     assert after.st_mode == before.st_mode
     assert after.st_mtime_ns == before.st_mtime_ns
+
+
+def _case_variant_or_skip(path: Path) -> Path:
+    variant = Path(str(path).swapcase())
+    try:
+        aliases_same_directory = os.path.samefile(path, variant)
+    except OSError:
+        aliases_same_directory = False
+    if not aliases_same_directory:
+        pytest.skip("case-variant alias requires a case-insensitive filesystem")
+    return variant
+
+
+def test_private_directory_rejects_exact_repository_root(tmp_path, monkeypatch):
+    repository = tmp_path / "Repository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    before = repository.stat()
+    monkeypatch.setattr(controller, "ROOT", repository)
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller._private_directory(repository, create=True)
+    after = repository.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+
+
+def test_private_directory_rejects_existing_owner_only_directory_inside_repository(tmp_path, monkeypatch):
+    repository = tmp_path / "Repository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    private = repository / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    before = private.stat()
+    monkeypatch.setattr(controller, "ROOT", repository)
+
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller._private_directory(private, create=True)
+
+    after = private.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert list(private.iterdir()) == []
+
+
+def test_private_directory_rejects_case_variant_existing_private_repository_path(tmp_path, monkeypatch):
+    repository = tmp_path / "SyntheticRepository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    private = repository / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    sentinel = private / "keep.json"
+    sentinel.write_text("preserve")
+    sentinel.chmod(0o600)
+    before_repository = repository.stat()
+    before_private = private.stat()
+    before_sentinel = sentinel.stat()
+    monkeypatch.setattr(controller, "ROOT", repository)
+    alias = _case_variant_or_skip(repository) / "private"
+
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller._private_directory(alias, create=True)
+
+    assert private.stat().st_mode == before_private.st_mode
+    assert private.stat().st_mtime_ns == before_private.st_mtime_ns
+    assert repository.stat().st_mtime_ns == before_repository.st_mtime_ns
+    assert sentinel.stat().st_mode == before_sentinel.st_mode
+    assert sentinel.stat().st_mtime_ns == before_sentinel.st_mtime_ns
+    assert sentinel.read_text() == "preserve"
+
+
+def test_private_directory_rejects_case_variant_missing_repository_leaf_without_creation(
+        tmp_path, monkeypatch):
+    repository = tmp_path / "SyntheticRepository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    monkeypatch.setattr(controller, "ROOT", repository)
+    alias = _case_variant_or_skip(repository)
+    missing = alias / "new-private-leaf"
+
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller._private_directory(missing, create=True)
+
+    assert not (repository / "new-private-leaf").exists()
+
+
+@pytest.mark.parametrize("guard", ["draft_or_review", "authorization", "evidence"])
+def test_case_variant_repository_path_rejected_by_every_private_read_guard(
+        tmp_path, monkeypatch, guard):
+    repository = tmp_path / "SyntheticRepository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    private = repository / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    file_path = private / "record.json"
+    file_path.write_text(json.dumps({"schema": controller.SESSION_AUTHORIZATION_SCHEMA,
+                                     "preparation_only": False}))
+    file_path.chmod(0o600)
+    monkeypatch.setattr(controller, "ROOT", repository)
+    alias_path = _case_variant_or_skip(repository) / "private" / "record.json"
+
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        if guard == "draft_or_review":
+            controller._read_private_json(alias_path)
+        elif guard == "authorization":
+            controller._load_private_authorization(alias_path)
+        else:
+            controller._private_evidence_directory({"evidence_directory": str(alias_path.parent)})
+
+
+def test_live_review_validation_rejects_case_variant_repository_artifact(tmp_path, monkeypatch):
+    current_pins = controller.pins()
+    candidate_commit = controller._candidate_commit()
+    repository = tmp_path / "SyntheticRepository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    private = repository / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    artifact = private / "technical-review.json"
+    artifact.write_text("{}")
+    artifact.chmod(0o600)
+    monkeypatch.setattr(controller, "ROOT", repository)
+    monkeypatch.setattr(controller, "_candidate_commit", lambda: candidate_commit)
+    alias = _case_variant_or_skip(repository) / "private" / artifact.name
+    phases = ["phase4_three_state_carplay"]
+    required = set(controller.PHASE_REVIEW_REQUIREMENTS[phases[0]])
+    record = {
+        "approved_phases": phases,
+        "risk_level": "LEVEL_2",
+        "reviewed_commit_sha": candidate_commit,
+        "review_artifacts": {review: str(alias) for review in required},
+        "review_artifact_sha256": {review: "a" * 64 for review in required},
+    }
+
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller._validate_live_reviews(record, current_pins)
+
+
+def test_private_directory_rejects_symlinked_repository_alias(tmp_path, monkeypatch):
+    repository = tmp_path / "repository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    alias = tmp_path / "repository-alias"
+    alias.symlink_to(repository, target_is_directory=True)
+    monkeypatch.setattr(controller, "ROOT", repository)
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller._private_directory(alias / "private", create=True)
+    assert not (repository / "private").exists()
+
+
+def test_private_directory_rejects_symlinked_private_parent_without_mutation(tmp_path):
+    actual = tmp_path / "actual"
+    actual.mkdir(mode=0o700)
+    sentinel = actual / "keep.json"
+    sentinel.write_text("preserve")
+    sentinel.chmod(0o600)
+    before = actual.stat()
+    alias = tmp_path / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller._private_directory(alias / "new-leaf", create=True)
+    assert actual.stat().st_mtime_ns == before.st_mtime_ns
+    assert list(actual.iterdir()) == [sentinel]
+    assert sentinel.read_text() == "preserve"
+
+
+def test_private_directory_accepts_existing_owner_only_directory_outside_repository(tmp_path, monkeypatch):
+    repository = tmp_path / "repository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    private_root = tmp_path / "private-root"
+    private_root.mkdir(mode=0o700)
+    private_root.chmod(0o700)
+    evidence = private_root / "evidence"
+    evidence.mkdir(mode=0o700)
+    evidence.chmod(0o700)
+    monkeypatch.setattr(controller, "ROOT", repository)
+
+    assert controller._private_directory(evidence) == evidence
+
+
+def test_owner_private_file_rejects_symlinked_leaf_without_mutation(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("preserve")
+    target.chmod(0o600)
+    alias = tmp_path / "alias.json"
+    alias.symlink_to(target)
+
+    with pytest.raises(controller.ControllerError, match="not safely contained"):
+        controller._read_owner_private_file(alias, max_bytes=1024, label="test file")
+
+    assert alias.is_symlink()
+    assert target.read_text() == "preserve"
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_owner_private_file_rejects_non_private_mode_without_chmod(tmp_path):
+    path = tmp_path / "public.json"
+    path.write_text("{}")
+    path.chmod(0o644)
+    before = path.stat()
+
+    with pytest.raises(controller.ControllerError, match="owner-only private file"):
+        controller._read_owner_private_file(path, max_bytes=1024, label="test file")
+
+    after = path.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+
+
+def test_owner_private_file_rejects_oversize_without_mutation(tmp_path):
+    path = tmp_path / "large.json"
+    path.write_text("x" * 16)
+    path.chmod(0o600)
+    before = path.stat()
+
+    with pytest.raises(controller.ControllerError, match="size bound"):
+        controller._read_owner_private_file(path, max_bytes=8, label="test file")
+
+    after = path.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+    assert path.read_text() == "x" * 16
+
+
+def test_owner_private_file_rejects_non_regular_file(tmp_path):
+    directory = tmp_path / "not-a-file"
+    directory.mkdir(mode=0o700)
+
+    with pytest.raises(controller.ControllerError, match="owner-only private file"):
+        controller._read_owner_private_file(directory, max_bytes=1024, label="test file")
+
+
+def test_owner_private_file_rejects_fifo_without_blocking(tmp_path):
+    if not hasattr(os, "mkfifo") or not hasattr(os, "O_NONBLOCK"):
+        pytest.skip("FIFO nonblocking open is unavailable on this platform")
+    fifo = tmp_path / "review.json"
+    os.mkfifo(fifo, 0o600)
+
+    with pytest.raises(controller.ControllerError, match="owner-only private file"):
+        controller._read_owner_private_file(fifo, max_bytes=1024, label="test file")
+
+
+def test_owner_private_file_rejects_wrong_owner_without_mutation(tmp_path, monkeypatch):
+    path = tmp_path / "owner.json"
+    path.write_text("{}")
+    path.chmod(0o600)
+    before = path.stat()
+    actual_uid = os.getuid()
+    monkeypatch.setattr(controller.os, "getuid", lambda: actual_uid + 1)
+
+    with pytest.raises(controller.ControllerError, match="owner-only private file"):
+        controller._read_owner_private_file(path, max_bytes=1024, label="test file")
+
+    after = path.stat()
+    assert after.st_mode == before.st_mode
+    assert after.st_mtime_ns == before.st_mtime_ns
+
+
+def test_private_directory_revalidation_and_all_output_callers_share_containment(
+        tmp_path, monkeypatch):
+    repository = tmp_path / "SyntheticRepository"
+    repository.mkdir(mode=0o700)
+    repository.chmod(0o700)
+    private = repository / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    before = private.stat()
+    monkeypatch.setattr(controller, "ROOT", repository)
+    alias = _case_variant_or_skip(repository) / "private"
+
+    # Rechecking a valid outside directory is idempotent and does not chmod it.
+    outside = tmp_path / "outside"
+    outside.mkdir(mode=0o700)
+    outside.chmod(0o700)
+    outside_before = outside.stat()
+    controller._private_directory(outside)
+    controller._private_directory(outside)
+    assert outside.stat().st_mode == outside_before.st_mode
+    assert outside.stat().st_mtime_ns == outside_before.st_mtime_ns
+
+    # Ledger creation, candidate output, and evidence validation use the same guard.
+    record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
+              "authorization_id": "AUTH-12345678", "run_id": "b" * 32, "nonce": "a" * 32}
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller.consume_once(record, ledger=alias / "consumed")
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller.prepare_candidate(draft_path=outside / "missing-draft.json",
+                                     evidence_path=outside / "missing-evidence",
+                                     output_path=alias / "candidate.json")
+    candidate = outside / "candidate.json"
+    with pytest.raises(controller.ControllerError, match="outside the repository"):
+        controller.prepare_candidate(draft_path=outside / "missing-draft.json",
+                                     evidence_path=alias,
+                                     output_path=candidate)
+
+    assert not (private / "consumed").exists()
+    assert not (private / "candidate.json").exists()
+    assert not candidate.exists()
+    assert private.stat().st_mode == before.st_mode
+    assert private.stat().st_mtime_ns == before.st_mtime_ns
 
 
 def test_private_directory_creates_only_one_new_owner_only_leaf(tmp_path):
@@ -460,14 +780,15 @@ def test_controller_checks_artifact_digest_and_commit_against_owner_attestation(
                                         "qualified_vehicle_safety": "b" * 64}
     seen = []
 
-    def fake_validate(path, **kwargs):
-        seen.append((path, kwargs["commit_sha"]))
+    def fake_validate(raw, **kwargs):
+        seen.append((raw, kwargs["commit_sha"]))
         return {"decision": "APPROVE_ENGINEERING",
-                "artifact_sha256": "a" * 64 if "technical" in str(path) else "b" * 64}
+                "artifact_sha256": "a" * 64 if kwargs["review_type"] == "technical" else "b" * 64}
 
     monkeypatch.setattr(controller, "_candidate_commit", lambda: "c" * 40)
     monkeypatch.setitem(sys.modules, "validate_review_artifacts",
-                        SimpleNamespace(validate_review_artifact=fake_validate))
+                        SimpleNamespace(validate_review_artifact_bytes=fake_validate))
+    monkeypatch.setattr(controller, "_read_owner_private_file", lambda *_args, **_kwargs: b"{}")
     bindings = controller._validate_live_reviews(record, controller.pins())
     assert bindings == {"reviewed_commit_sha": "c" * 40,
                         "review_artifact_sha256": {"qualified_vehicle_safety": "b" * 64,
