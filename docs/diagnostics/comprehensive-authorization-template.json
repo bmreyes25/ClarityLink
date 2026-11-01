@@ -23,12 +23,14 @@
     "owner_present": true,
     "approved_power_state": true,
     "no_abnormal_warning": true,
-    "factory_displays_normal": true
+    "factory_displays_normal": true,
+    "adb_transport_independent": false
   },
   "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
   "exact_vehicle_identity_confirmed": false,
   "owner_verified_vehicle_reference": "PRIVATE-OWNER-RECORD-REFERENCE",
   "exact_adb_serial": "PRIVATE-OWNER-VERIFIED-SERIAL-OR-NOT-APPLICABLE",
+  "adb_transport_details": "PRIVATE: identify the existing authorized ADB path and attest it is independent of the iPhone/CarPlay data path and shared hub",
   "evidence_directory": "PRIVATE-OWNER-ONLY-LOCAL-DIRECTORY-OUTSIDE-REPOSITORY",
   "factory_restoration_reference": "OWNER-DEFINED-BASELINE-AND-NORMAL-RESTORE-OBSERVATIONS",
   "live_execution_enabled": false,

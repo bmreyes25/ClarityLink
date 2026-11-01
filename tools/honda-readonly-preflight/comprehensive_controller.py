@@ -541,10 +541,18 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
     if record.get("owner_confirmed") is not True or record.get("readiness_answer") != "YES":
         raise ControllerError("one affirmative owner session decision is required")
     readiness = record.get("readiness_checks")
+    requires_adb = any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases)
     required_readiness = {"stationary_in_park", "parking_brake_set", "owner_present",
                           "approved_power_state", "no_abnormal_warning", "factory_displays_normal"}
+    if requires_adb:
+        required_readiness.add("adb_transport_independent")
     if not isinstance(readiness, dict) or any(readiness.get(k) is not True for k in required_readiness):
         raise ControllerError("session readiness checks are incomplete")
+    if requires_adb:
+        transport_details = record.get("adb_transport_details")
+        if (not isinstance(transport_details, str) or not transport_details.strip()
+                or len(transport_details) > 512 or any(char in transport_details for char in "\r\n\0")):
+            raise ControllerError("ADB session must privately describe the exact transport and its independence from the CarPlay path")
     destination = record.get("evidence_destination_checklist")
     required_destination_checks = {
         "host_local_outside_repository", "directory_owner_only", "files_owner_only",
@@ -1284,7 +1292,9 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
         execute_command = lambda _command: (0, b"", b"")
     readiness_prompt = (
         "Confirm the physical Honda matches your private vehicle reference, the recorded ADB serial names the intended already-authorized endpoint, "
-        "the car is stationary in Park with parking brake set and the approved power state, you are present, and warnings/displays/audio are normal. "
+        "the recorded ADB transport is already authorized and independent of the iPhone/CarPlay data path and shared hub, "
+        "the car is stationary in Park with parking brake set and power mode ON with READY absent and engine not running, "
+        "the manual 50-minute power-on timer is running, you are present, and warnings/displays/audio are normal. "
         "Is the Honda ready? Type YES, NOT YET, or CANCEL: "
     )
     session_started_utc = datetime.now(timezone.utc).isoformat()
@@ -1433,6 +1443,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "authorization_issued_at_utc": record["issued_at_utc"],
                    "authorization_expires_at_utc": record["expires_at_utc"],
                    "readiness_checks": record["readiness_checks"],
+                   "adb_transport_details": record.get("adb_transport_details"),
                    "evidence_destination_checklist": record["evidence_destination_checklist"],
                    "owner_state_confirmations": owner_notes, "command_count": len(command_records),
                    "session_output_budget": output_budget.report(),
@@ -1485,6 +1496,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "authorization_issued_at_utc": record["issued_at_utc"],
                    "authorization_expires_at_utc": record["expires_at_utc"],
                    "readiness_checks": record["readiness_checks"],
+                   "adb_transport_details": record.get("adb_transport_details"),
                    "evidence_destination_checklist": record["evidence_destination_checklist"],
                    "owner_state_confirmations": owner_notes, "command_count": len(command_records),
                    "session_output_budget": output_budget.report(),
