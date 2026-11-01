@@ -43,6 +43,10 @@ MAX_SESSION_COMMANDS = 162
 MIN_COMMAND_OUTPUT_BUDGET_BYTES = 128
 MAX_OWNER_PROMPT_SECONDS = 90
 PRIVATE_LEDGER = Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library/Application Support/ClarityLink/comprehensive-runtime/consumed"
+PRIVATE_RUNTIME_ROOT = Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library/Application Support/ClarityLink/comprehensive-runtime"
+DEFAULT_EVIDENCE_ROOT = PRIVATE_RUNTIME_ROOT / "evidence"
+AUTHORIZATION_DRAFT = PRIVATE_RUNTIME_ROOT / "authorization-draft.json"
+PREPARATION_SCHEMA = "claritylink-comprehensive-authorization-candidate-v1"
 
 COMMAND_FIELDS = {
     "phase0_baseline_safety_identity": "commands",
@@ -441,7 +445,7 @@ def dry_run_report(*, serial: str = "EXACT_APPROVED_SERIAL") -> dict:
 
 
 def simulate(*, notify: Callable[[str], None] | None = None) -> dict:
-    """Run phase gates and outcome handling entirely in memory."""
+    """Walk the complete ten-state, 162-command plan entirely in memory."""
     report = dry_run_report()
     events = []
     for phase in report["phases"]:
@@ -455,6 +459,14 @@ def simulate(*, notify: Callable[[str], None] | None = None) -> dict:
         except Exception:
             notification = "FAILED; terminal output remains authoritative"
     return {"events": events, "terminal": terminal, "notification": notification,
+            "simulated_state_count": sum(1 for item in report["capture_schedule"]
+                                         if item["phase"] == "phase4_three_state_carplay"),
+            "simulated_command_count": report["campaign_command_count"],
+            "command_shapes": report["command_shapes"],
+            "capture_schedule": [{"phase": item["phase"], "state": item["state"],
+                                  "command_count": len(item["commands"]),
+                                  "owner_confirmation_required": item["owner_confirmation_required"]}
+                                 for item in report["capture_schedule"]],
             "live_evidence": False, "campaign_success": False}
 
 
@@ -795,6 +807,322 @@ def _write_sha256_inventory(directory: Path) -> str:
     payload = ("\n".join(rows) + "\n").encode()
     _write_private_file(directory / "sha256.txt", payload)
     return hashlib.sha256(payload).hexdigest()
+
+
+def _private_directory(path: Path, *, create: bool = False) -> Path:
+    """Create/verify an owner-only directory outside the checkout without following links."""
+    requested = path.expanduser()
+    if any(part.is_symlink() for part in (requested, *requested.parents)):
+        raise ControllerError("private preparation directory cannot be a symbolic link")
+    if create:
+        requested.mkdir(parents=True, mode=0o700, exist_ok=True)
+        os.chmod(requested, 0o700)
+    if not requested.exists() or not requested.is_dir():
+        raise ControllerError("private preparation directory is unavailable")
+    resolved = requested.resolve(strict=True)
+    if ROOT.resolve() == resolved or ROOT.resolve() in resolved.parents:
+        raise ControllerError("private preparation data must stay outside the repository")
+    if resolved.stat().st_uid != os.getuid() or stat.S_IMODE(resolved.stat().st_mode) != 0o700:
+        raise ControllerError("private preparation directory must be owner-owned with mode 0700")
+    return resolved
+
+
+def _read_private_json(path: Path) -> dict:
+    if (path.is_symlink() or not path.is_file() or path.stat().st_uid != os.getuid()
+            or path.stat().st_size > 2 * 1024 * 1024 or path.stat().st_mode & 0o077):
+        raise ControllerError("private authorization draft or review is not a bounded owner-only file")
+    try:
+        resolved = path.resolve(strict=True)
+        if ROOT.resolve() == resolved or ROOT.resolve() in resolved.parents:
+            raise ControllerError("private authorization draft or review must stay outside the repository")
+        fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(fd, "rb") as handle:
+            metadata = os.fstat(handle.fileno())
+            if (metadata.st_uid != os.getuid() or metadata.st_size > 2 * 1024 * 1024
+                    or stat.S_IMODE(metadata.st_mode) & 0o077):
+                raise ControllerError("private authorization draft or review changed during access")
+            value = json.loads(handle.read().decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ControllerError("private authorization draft or review could not be read safely") from exc
+    if not isinstance(value, dict):
+        raise ControllerError("private authorization draft or review must contain one object")
+    return value
+
+
+def _review_inventory(pins_value: dict[str, str], phases: list[str]) -> tuple[dict[str, str], list[dict]]:
+    """Find structurally genuine private review artifacts; never infer reviewer qualifications."""
+    review_dir = PRIVATE_RUNTIME_ROOT / "reviews"
+    found: dict[str, str] = {}
+    report: list[dict] = []
+    required = set().union(*(set(PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases))
+    if not review_dir.exists():
+        return found, report
+    for path in sorted(review_dir.glob("*.json")):
+        try:
+            artifact = _read_private_json(path)
+            review_type = artifact.get("review_type")
+            if review_type not in {"technical", "qualified_vehicle_safety"}:
+                continue
+            valid_digest = artifact.get("artifact_sha256")
+            content = dict(artifact)
+            content.pop("artifact_sha256", None)
+            actual_digest = hashlib.sha256((json.dumps(content, sort_keys=True, indent=2) + "\n").encode()).hexdigest()
+            structurally_genuine = valid_digest == actual_digest and artifact.get("campaign_id") == CAMPAIGN_ID
+            exact_commit = artifact.get("reviewed_commit_sha") == _head_sha()
+            current_pins = all(artifact.get(field) == expected for field, expected in (
+                ("profile_sha256", pins_value["profile_sha256"]),
+                ("source_lock_sha256", pins_value["source_lock_sha256"]),
+                ("manifest_sha256", pins_value["command_manifest_sha256"])))
+            phase_binding = artifact.get("reviewed_phases") == phases
+            report.append({"review_type": review_type,
+                           "structurally_valid": structurally_genuine,
+                           "exact_current_commit": exact_commit,
+                           "current_pins": current_pins,
+                           "phase_scope_matches": phase_binding,
+                           "decision": artifact.get("decision") if structurally_genuine else "INVALID"})
+            if review_type in required and structurally_genuine and exact_commit and current_pins and phase_binding:
+                found[review_type] = str(path.resolve(strict=True))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError, ControllerError):
+            report.append({"review_type": "unknown", "structurally_valid": False,
+                           "exact_current_commit": False, "current_pins": False,
+                           "phase_scope_matches": False, "decision": "INVALID"})
+    return found, report
+
+
+def _head_sha() -> str:
+    try:
+        result = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+                                 capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ControllerError("cannot identify exact source revision") from exc
+    value = result.stdout.strip()
+    if result.returncode or not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise ControllerError("cannot identify exact source revision")
+    return value
+
+
+def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
+                      evidence_path: Path = DEFAULT_EVIDENCE_ROOT,
+                      output_path: Path | None = None) -> dict:
+    """Prepare a private, explicitly non-executable candidate; never grant authorization."""
+    current_pins = pins()
+    proposal = _proposal()
+    try:
+        sys.path.insert(0, str(HERE))
+        from verify_comprehensive_source_lock import verify_lock
+        lock_result = verify_lock(ROOT, SOURCE_LOCK)
+    except (ValueError, OSError) as exc:
+        raise ControllerError("comprehensive source-lock verification failed") from exc
+    finally:
+        if sys.path and sys.path[0] == str(HERE):
+            sys.path.pop(0)
+    phases = [p["id"] for p in proposal["phases"] if p["id"] in {
+        "phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+        "phase4_three_state_carplay", "phase7_recovery_restoration"}]
+    categories = sorted(set().union(*(set(PHASE_CATEGORIES[p]) for p in phases)))
+    evidence_dir = _private_directory(evidence_path, create=True)
+    available = shutil.disk_usage(evidence_dir).free
+    if available < MIN_EVIDENCE_FREE_BYTES:
+        raise ControllerError(f"private evidence storage needs {MIN_EVIDENCE_FREE_BYTES} free bytes")
+    source = _read_private_json(draft_path) if draft_path.exists() else {}
+    schema = source.get("schema") or source.get("schema_version") or (
+        "legacy-comprehensive-draft" if source else "no-existing-draft")
+    review_paths, review_report = _review_inventory(current_pins, phases)
+    # Migrate compatible owner-authored content, but clear all readiness, identity,
+    # review attestations, one-use values, and executable authorization fields.
+    candidate = dict(source)
+    for obsolete in ("schema_version", "required_review_types", "review_artifact_paths",
+                     "reviewed_commit_sha", "readiness_answer", "run_id", "nonce",
+                     "issued_at_utc", "expires_at_utc", "authorization_id"):
+        candidate.pop(obsolete, None)
+    candidate.update({
+        "schema": PREPARATION_SCHEMA,
+        "campaign_id": CAMPAIGN_ID,
+        "source_revision": _head_sha(),
+        "approved_phases": phases,
+        "approved_categories": categories,
+        "category_permissions": {key: False for key in LIVE_PERMISSION_CATEGORIES},
+        "risk_level": f"LEVEL_{max(PHASE_RISK_LEVELS[p] for p in phases)}",
+        "owner_confirmed": False,
+        "live_execution_enabled": False,
+        "exact_vehicle_identity_confirmed": False,
+        "exact_adb_serial": "",
+        "technical_reviewer_independence_verified": False,
+        "qualified_safety_reviewer_credentials_verified": False,
+        "recovery_prerequisites_confirmed": False,
+        "readiness_checks": {key: False for key in (
+            "stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state",
+            "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+        "evidence_destination_checklist": {key: False for key in (
+            "host_local_outside_repository", "directory_owner_only", "files_owner_only",
+            "cloud_sync_disabled", "hash_inventory_ready")},
+        "evidence_directory": str(evidence_dir),
+        "pins": current_pins,
+        "source_hashes": lock_result["source_hashes"],
+        "review_artifacts": review_paths,
+        "owner_verified_vehicle_reference": "",
+        "factory_restoration_reference": "",
+        "adb_transport_details": "",
+        "preparation_only": True,
+        "preparation_schema": PREPARATION_SCHEMA,
+    })
+    unresolved = [
+        "owner verifies exact vehicle identity and private reference",
+        "owner verifies approved power state and all physical readiness observations",
+        "owner confirms the established ADB serial and that its network route is independent of iPhone USB/any shared hub",
+        "owner defines the exact factory restoration baseline and confirms recovery prerequisites",
+        "genuine exact-source independent technical review for this commit and campaign phase scope",
+        "genuinely qualified human automotive safety assessment for Phase 4; AI review cannot satisfy this gate",
+        "owner makes an explicit one-session experiment decision and supplies fresh one-use values immediately before an authorized run",
+    ]
+    if output_path is None:
+        output_path = PRIVATE_RUNTIME_ROOT / f"authorization-candidate-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+    output_path = output_path.expanduser()
+    _private_directory(output_path.parent, create=True)
+    encoded = (json.dumps(candidate, indent=2, sort_keys=True) + "\n").encode()
+    _write_private_file(output_path, encoded)
+    return {"candidate_path": str(output_path), "candidate_schema": PREPARATION_SCHEMA,
+            "candidate_is_executable": False, "source_revision": candidate["source_revision"],
+            "pins": current_pins, "verified_source_count": lock_result["verified_source_count"],
+            "source_hashes": lock_result["source_hashes"],
+            "campaign_command_count": MAX_SESSION_COMMANDS,
+            "command_shapes": len(_command_shapes(proposal, "EXACT_APPROVED_SERIAL")),
+            "required_reviews": sorted(set().union(*(set(PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases))),
+            "review_artifacts": review_report, "unresolved_owner_fields": unresolved,
+            "evidence_directory": str(evidence_dir), "evidence_free_bytes": available,
+            "next_action": "Run the offline preflight, then obtain the missing exact-source reviews and owner-only physical attestations."}
+
+
+def host_preflight() -> dict:
+    """Check all host-only prerequisites without device discovery or authorization use."""
+    checks: dict[str, dict] = {}
+    try:
+        current_pins = pins()
+        checks["collector_source_lock"] = {"ok": True, "pins": current_pins}
+    except (ControllerError, OSError, ValueError, KeyError) as exc:
+        checks["collector_source_lock"] = {"ok": False, "detail": str(exc)}
+    try:
+        sys.path.insert(0, str(HERE))
+        from verify_comprehensive_source_lock import verify_lock
+        lock = verify_lock(ROOT, SOURCE_LOCK)
+        checks["comprehensive_proposal"] = {"ok": True, "verified_source_count": lock["verified_source_count"],
+                                             "command_count": MAX_SESSION_COMMANDS,
+                                             "command_shapes": len(_command_shapes(_proposal(), "EXACT_APPROVED_SERIAL")),
+                                             "phase_count": len(_proposal()["phases"])}
+    except Exception as exc:
+        checks["comprehensive_proposal"] = {"ok": False, "detail": str(exc)}
+    finally:
+        if sys.path and sys.path[0] == str(HERE):
+            sys.path.pop(0)
+    adb = shutil.which("adb")
+    adb_version = None
+    if adb:
+        try:
+            result = subprocess.run([adb, "version"], capture_output=True, text=True, timeout=5, check=False)
+            adb_version = (result.stdout or result.stderr).splitlines()[0]
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    checks["adb_tooling"] = {"ok": bool(adb and adb_version and "Android Debug Bridge version" in adb_version),
+                             "executable_found": bool(adb), "version": adb_version,
+                             "device_discovery_performed": False}
+    try:
+        evidence_dir = _private_directory(DEFAULT_EVIDENCE_ROOT, create=True)
+        free = shutil.disk_usage(evidence_dir).free
+        checks["private_evidence_storage"] = {"ok": free >= MIN_EVIDENCE_FREE_BYTES,
+                                               "directory_owner_only": True,
+                                               "free_bytes": free,
+                                               "required_free_bytes": MIN_EVIDENCE_FREE_BYTES,
+                                               "outside_repository": True}
+    except (OSError, ControllerError) as exc:
+        checks["private_evidence_storage"] = {"ok": False, "detail": str(exc)}
+    pytest_python = None
+    pytest_version = None
+    missing_dependencies: list[str] = []
+    dependency_probe = """\
+import importlib.metadata as metadata
+import json
+from pathlib import Path
+import sys
+from packaging.requirements import Requirement
+from packaging.version import Version
+
+missing = []
+for line in Path(sys.argv[1]).read_text().splitlines():
+    if not line.strip() or line.lstrip().startswith('#'):
+        continue
+    requirement = Requirement(line)
+    try:
+        version = Version(metadata.version(requirement.name))
+    except metadata.PackageNotFoundError:
+        missing.append(requirement.name)
+        continue
+    if requirement.specifier and not requirement.specifier.contains(version):
+        missing.append(requirement.name)
+print(json.dumps(missing))
+"""
+    python_candidates = (Path(sys.executable), ROOT / ".venv/bin/python3", ROOT / ".venv/bin/python")
+    for candidate in dict.fromkeys(p for p in python_candidates if p.is_file()):
+        try:
+            pytest_result = subprocess.run([str(candidate), "-m", "pytest", "--version"],
+                                           capture_output=True, text=True, timeout=10, check=False)
+            dep_result = subprocess.run([str(candidate), "-c", dependency_probe,
+                                         str(ROOT / "requirements-test.txt")],
+                                        capture_output=True, text=True, timeout=10, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if pytest_result.returncode == 0:
+            pytest_python = str(candidate)
+            pytest_version = (pytest_result.stdout or pytest_result.stderr).strip()
+            if dep_result.returncode == 0:
+                try:
+                    missing_dependencies = json.loads(dep_result.stdout)
+                except json.JSONDecodeError:
+                    missing_dependencies = ["dependency-check-error"]
+            else:
+                missing_dependencies = ["dependency-check-error"]
+            break
+    checks["python_environment"] = {"ok": pytest_python is not None and not missing_dependencies,
+                                    "python": sys.version.split()[0],
+                                    "test_runner_python": pytest_python,
+                                    "pytest": pytest_version,
+                                    "missing_or_incompatible_dependencies": missing_dependencies}
+    utilities = ["collector.py", "comprehensive_replay.py", "display_compare.py", "evidence_coverage.py",
+                 "verify_comprehensive_source_lock.py", "validate_comprehensive_proposal.py"]
+    checks["offline_utilities"] = {"ok": all((HERE / name).is_file() for name in utilities),
+                                    "available": [name for name in utilities if (HERE / name).is_file()]}
+    checks["authorization_draft"] = {"ok": True, "schema": "missing"}
+    if AUTHORIZATION_DRAFT.exists():
+        try:
+            draft = _read_private_json(AUTHORIZATION_DRAFT)
+            schema = draft.get("schema") or draft.get("schema_version") or "legacy-comprehensive-draft"
+            checks["authorization_draft"] = {"ok": True, "schema": schema,
+                "compatible": schema == PREPARATION_SCHEMA
+                    and isinstance(draft.get("review_artifacts"), dict)
+                    and "review_artifact_paths" not in draft
+                    and "readiness_answer" not in draft}
+        except (ControllerError, OSError, ValueError, json.JSONDecodeError) as exc:
+            checks["authorization_draft"] = {"ok": False, "detail": str(exc)}
+    try:
+        repo_status = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain"],
+                                     capture_output=True, text=True, timeout=5, check=False)
+        repo_clean = repo_status.returncode == 0 and not repo_status.stdout.strip()
+        revision = _head_sha()
+        checks["repository"] = {"ok": repo_clean, "worktree_clean": repo_clean,
+                                "source_revision": revision}
+    except (ControllerError, OSError, subprocess.TimeoutExpired) as exc:
+        checks["repository"] = {"ok": False, "worktree_clean": False,
+                                "detail": f"repository identity check failed: {type(exc).__name__}"}
+    host_ok = all(value.get("ok", False) for value in checks.values())
+    owner_items = ["verify exact vehicle identity and ADB transport beside the vehicle",
+                   "confirm the safe power/readiness state and factory restoration plan",
+                   "obtain the missing qualified human safety review and exact-source technical review",
+                   "make the explicit one-session experiment decision"]
+    return {"status": "HOST READY" if host_ok else "ENGINEERING FIX REQUIRED",
+            "owner_status": "OWNER CHECK REQUIRED",
+            "checks": checks, "owner_check_required": owner_items,
+            "safeForHonda": False,
+            "live_adb_launched": False, "device_discovery_performed": False,
+            "authorization_consumed": False}
 
 
 def _candidate_commit() -> str:
@@ -1577,14 +1905,28 @@ def _safe_notify(notify: Callable[[str], str], status: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("dry-run", "simulate", "run", "analyze"))
+    parser.add_argument("mode", choices=("prepare", "preflight", "dry-run", "simulate", "run", "analyze"))
     parser.add_argument("--authorization", type=Path,
                         help="private owner-approved session record; required for run")
     parser.add_argument("--archive", type=Path,
                         help="private completed/partial session archive; required for analyze")
+    parser.add_argument("--draft", type=Path, default=AUTHORIZATION_DRAFT,
+                        help="existing private owner draft to migrate during offline preparation")
+    parser.add_argument("--evidence", type=Path, default=DEFAULT_EVIDENCE_ROOT,
+                        help="owner-only private evidence storage directory")
+    parser.add_argument("--output", type=Path,
+                        help="optional absent destination for a non-executable private candidate")
     args = parser.parse_args(argv)
     try:
-        if args.mode == "analyze":
+        if args.mode == "prepare":
+            result = prepare_candidate(draft_path=args.draft, evidence_path=args.evidence,
+                                       output_path=args.output)
+            print(json.dumps(result, indent=2, sort_keys=True))
+        elif args.mode == "preflight":
+            result = host_preflight()
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0 if result["status"] == "HOST READY" else 2
+        elif args.mode == "analyze":
             if args.archive is None:
                 parser.error("analyze requires --archive with one owner-only evidence directory")
             sys.path.insert(0, str(HERE))

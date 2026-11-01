@@ -22,14 +22,23 @@ python3 tools/honda-readonly-preflight/validate_comprehensive_proposal.py \
   docs/diagnostics/comprehensive-campaign-proposal.json
 ```
 
-The comprehensive controller supports offline dry-run/simulation and a fixed
-live backend gated by a private one-use session record, current source pins,
-required exact-source reviews, and interactive readiness prompts. The offline
-modes validate all eight phases and 30 fixed command shapes without ADB lookup
-or target access. The live mode never discovers devices, invokes `su`, or
-accepts arbitrary commands; no campaign scope is currently authorized:
+The comprehensive controller supports offline preparation/preflight,
+dry-run/simulation, and a fixed live backend gated by a private one-use session
+record, current source pins, required exact-source reviews, and interactive
+readiness prompts. `prepare` migrates the existing owner-only draft into a new
+mode-0600 non-executable candidate without overwriting either file or setting
+readiness and approval fields. `preflight` checks the source lock, proposal,
+Python/pytest, ADB executable/version, private storage, and offline tools; it
+does not enumerate devices, launch live ADB, or consume authorization. Its
+owner check status remains separate from host readiness. The complete offline
+simulation walks all ten owner-confirmed states and the fixed 162-command plan
+(45 command shapes), without contacting a device. The live mode never discovers
+devices, invokes `su`, or accepts arbitrary commands; no campaign scope is
+currently authorized:
 
 ```sh
+python3 tools/honda-readonly-preflight/comprehensive_controller.py prepare
+python3 tools/honda-readonly-preflight/comprehensive_controller.py preflight
 python3 tools/honda-readonly-preflight/comprehensive_controller.py dry-run
 python3 tools/honda-readonly-preflight/comprehensive_controller.py simulate
 python3 tools/honda-readonly-preflight/comprehensive_controller.py run --authorization /private/path/session.json

@@ -46,6 +46,149 @@ def test_simulated_dry_run_has_six_profiles_and_45_api17_fixed_command_shapes(mo
     assert report["coverage_required"] == 19
 
 
+def test_full_offline_simulation_walks_all_ten_states_and_162_commands():
+    report = controller.simulate()
+    assert report["simulated_state_count"] == 10
+    assert report["simulated_command_count"] == 162
+    assert report["command_shapes"] == 45
+    assert len([item for item in report["capture_schedule"]
+                if item["phase"] == "phase4_three_state_carplay"]) == 10
+    assert all(item["owner_confirmation_required"] for item in report["capture_schedule"])
+    assert report["live_evidence"] is False
+    assert report["campaign_success"] is False
+
+
+def test_prepare_migrates_without_overwriting_and_never_sets_readiness_true(tmp_path, monkeypatch):
+    runtime = tmp_path / "private runtime with spaces"
+    runtime.mkdir(mode=0o700)
+    evidence = runtime / "evidence"
+    draft = runtime / "authorization-draft.json"
+    draft.write_text(json.dumps({
+        "campaign_id": controller.CAMPAIGN_ID,
+        "review_artifact_paths": {"technical": "/old/review.json"},
+        "required_review_types": ["technical", "qualified_vehicle_safety"],
+        "reviewed_commit_sha": "d" * 40,
+        "readiness_answer": "stale owner answer",
+        "live_execution_enabled": False,
+        "readiness_checks": {"owner_present": True},
+        "evidence_destination_checklist": {"cloud_sync_disabled": True},
+        "owner_verified_vehicle_reference": "stale-private-reference",
+        "factory_restoration_reference": "stale baseline",
+    }))
+    draft.chmod(0o600)
+    original = draft.read_bytes()
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "_review_inventory",
+                        lambda *_: ({}, [{"review_type": "technical", "structurally_valid": True,
+                                          "exact_current_commit": False}]))
+    candidate_path = runtime / "candidate.json"
+    result = controller.prepare_candidate(draft_path=draft, evidence_path=evidence,
+                                          output_path=candidate_path)
+    candidate = json.loads(candidate_path.read_text())
+    assert draft.read_bytes() == original
+    assert candidate_path.stat().st_mode & 0o777 == 0o600
+    assert candidate["preparation_only"] is True
+    assert candidate["live_execution_enabled"] is False
+    assert candidate["owner_confirmed"] is False
+    assert candidate["exact_vehicle_identity_confirmed"] is False
+    assert candidate["technical_reviewer_independence_verified"] is False
+    assert candidate["qualified_safety_reviewer_credentials_verified"] is False
+    assert all(value is False for value in candidate["readiness_checks"].values())
+    assert all(value is False for value in candidate["evidence_destination_checklist"].values())
+    assert "review_artifact_paths" not in candidate
+    assert "required_review_types" not in candidate
+    assert "reviewed_commit_sha" not in candidate
+    assert "readiness_answer" not in candidate
+    assert result["campaign_command_count"] == 162
+    assert result["command_shapes"] == 45
+    assert result["verified_source_count"] == len(result["source_hashes"]) == 33
+    assert evidence.stat().st_mode & 0o777 == 0o700
+
+
+def test_prepare_refuses_to_overwrite_candidate(tmp_path, monkeypatch):
+    runtime = tmp_path / "private-runtime"
+    runtime.mkdir(mode=0o700)
+    existing = runtime / "candidate.json"
+    existing.write_text("preserve")
+    existing.chmod(0o600)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, []))
+    with pytest.raises(controller.ControllerError, match="could not be created without overwrite"):
+        controller.prepare_candidate(draft_path=runtime / "absent.json",
+                                     evidence_path=runtime / "evidence", output_path=existing)
+    assert existing.read_text() == "preserve"
+
+
+def test_private_draft_must_be_outside_the_repository(tmp_path, monkeypatch):
+    repository = tmp_path / "repository with spaces"
+    repository.mkdir()
+    draft = repository / "draft.json"
+    draft.write_text("{}")
+    draft.chmod(0o600)
+    monkeypatch.setattr(controller, "ROOT", repository)
+    with pytest.raises(controller.ControllerError, match="must stay outside the repository"):
+        controller._read_private_json(draft)
+
+
+def test_prepare_rejects_symlinked_evidence_path(tmp_path, monkeypatch):
+    runtime = tmp_path / "private-runtime"
+    runtime.mkdir(mode=0o700)
+    actual = runtime / "actual"
+    actual.mkdir(mode=0o700)
+    alias = runtime / "alias"
+    alias.symlink_to(actual, target_is_directory=True)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, []))
+    with pytest.raises(controller.ControllerError, match="symbolic link"):
+        controller.prepare_candidate(draft_path=runtime / "absent.json", evidence_path=alias,
+                                     output_path=runtime / "candidate.json")
+
+
+def test_prepare_stops_on_source_lock_failure_before_writing_candidate(tmp_path, monkeypatch):
+    runtime = tmp_path / "private-runtime"
+    runtime.mkdir(mode=0o700)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "pins", lambda: (_ for _ in ()).throw(
+        controller.ControllerError("synthetic source pin failure")))
+    with pytest.raises(controller.ControllerError, match="synthetic source pin failure"):
+        controller.prepare_candidate(draft_path=runtime / "absent.json",
+                                     evidence_path=runtime / "evidence",
+                                     output_path=runtime / "candidate.json")
+    assert not (runtime / "candidate.json").exists()
+
+
+def test_prepare_stops_when_private_storage_has_insufficient_space(tmp_path, monkeypatch):
+    runtime = tmp_path / "private-runtime"
+    runtime.mkdir(mode=0o700)
+    monkeypatch.setattr(controller, "PRIVATE_RUNTIME_ROOT", runtime)
+    monkeypatch.setattr(controller, "_review_inventory", lambda *_: ({}, []))
+    usage = controller.shutil.disk_usage(tmp_path)
+    monkeypatch.setattr(controller.shutil, "disk_usage",
+                        lambda _path: type(usage)(usage.total, usage.used, 1))
+    with pytest.raises(controller.ControllerError, match="private evidence storage needs"):
+        controller.prepare_candidate(draft_path=runtime / "absent.json",
+                                     evidence_path=runtime / "evidence",
+                                     output_path=runtime / "candidate.json")
+    assert not (runtime / "candidate.json").exists()
+
+
+def test_cli_preflight_and_prepare_are_offline_and_parseable(tmp_path, monkeypatch, capsys):
+    evidence = tmp_path / "offline evidence"
+    evidence.mkdir(mode=0o700)
+    monkeypatch.setattr(controller, "DEFAULT_EVIDENCE_ROOT", evidence)
+    monkeypatch.setattr(controller, "AUTHORIZATION_DRAFT", tmp_path / "missing-draft.json")
+    monkeypatch.setattr(controller, "host_preflight", lambda: {
+        "status": "HOST READY", "owner_status": "OWNER CHECK REQUIRED",
+        "checks": {"fake": {"ok": True}}, "live_adb_launched": False,
+        "device_discovery_performed": False, "authorization_consumed": False})
+    assert controller.main(["preflight"]) == 0
+    preflight = json.loads(capsys.readouterr().out)
+    assert preflight["status"] == "HOST READY"
+    assert preflight["owner_status"] == "OWNER CHECK REQUIRED"
+    assert preflight["device_discovery_performed"] is False
+    assert preflight["authorization_consumed"] is False
+
+
 def test_replay_does_not_claim_approved_but_uncaptured_phase_as_evidence():
     summary = {"approved_phases": ["phase1_ordinary_adb_capability",
         "phase4_three_state_carplay", "phase7_recovery_restoration"],
