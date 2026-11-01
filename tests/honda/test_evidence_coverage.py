@@ -50,6 +50,15 @@ def test_matrix_classifies_all_requirements_without_claiming_campaign_success():
     assert result["all_required_observations_confirmed"] is False
     assert result["campaign_success"] is False
     assert set(evidence_coverage.REQUIRED_OBJECTIVE_CATEGORIES) == evidence_coverage.REQUIRED_OBJECTIVE_IDS
+    assert all(set(row["evidence_readiness"]) == evidence_coverage.READINESS_FIELDS
+               for row in load_matrix()["objectives"])
+
+
+def test_evidence_readiness_requires_an_explicit_usable_source_and_method():
+    matrix = load_matrix()
+    matrix["objectives"][0]["evidence_readiness"]["usability_criterion"] = ""
+    with pytest.raises(ValueError, match="invalid evidence-readiness assessment"):
+        evidence_coverage.evaluate_matrix(matrix)
 
 
 def test_not_collected_requires_a_bounded_blocker_and_next_action():

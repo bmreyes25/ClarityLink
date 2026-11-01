@@ -25,10 +25,11 @@ def make_lock(tmp_path: Path) -> tuple[Path, Path]:
     lock.write_text(json.dumps({
         "schema": "claritylink-comprehensive-source-lock-v1",
         "campaign_id": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031",
-        "base_main_commit": "563d3a9896b33f653282be97b083ef93c42c2f1a",
+        "base_main_commit": "0136ac241d94e1ebb1cc4403c07fd480728b47d6",
         "requirements_baseline": verifier.REQUIREMENTS_BASELINE,
         "live_execution_enabled": False,
         "profile": {"path": verifier.PROFILE_PATH, "sha256": hashlib.sha256(profile.read_bytes()).hexdigest()},
+        "command_manifest_sha256": verifier.command_manifest_sha256(json.loads(profile.read_text())),
         "sources": sources,
     }))
     return lock, tmp_path / "AGENTS.md"

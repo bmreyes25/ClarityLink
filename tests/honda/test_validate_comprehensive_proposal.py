@@ -23,12 +23,14 @@ def test_proposal_offline_validation_has_no_vehicle_or_adb_side_effect():
     assert result["fixed_command_count"] > 0
     assert result["privileged_phases_live_argv"] == 0
     assert result["live_execution_enabled"] is False
+    assert "comprehensive_controller.py" in load_proposal()["controller"]
     assert result["safeForHonda"] is False
     assert result["vehicle_deployment"] == "VEHICLE_DEPLOYMENT_NOT_AUTHORIZED"
 
 
 @pytest.mark.parametrize("mutate, message", [
     (lambda p: p.update(live_execution_enabled=True), "non-executable and unauthorized"),
+    (lambda p: p.update(controller="unrestricted ADB"), "fixed authorization-gated controller"),
     (lambda p: p["phases"].pop(), "exact ordered eight-phase"),
     (lambda p: p["phases"][2].update(live_argv=[["adb", "shell", "su"]]), "privileged phases"),
     (lambda p: p["phases"][1]["commands"].append(
@@ -112,7 +114,7 @@ def test_phase1_identity_validation_precedes_every_diagnostic():
     proposal = load_proposal()
     commands = proposal["phases"][1]["commands"]
     commands[0], commands[1] = commands[1], commands[0]
-    with pytest.raises(ValueError, match="resolve one PID, verify identity"):
+    with pytest.raises(ValueError, match="exact target properties"):
         validator.validate_proposal(proposal)
 
 

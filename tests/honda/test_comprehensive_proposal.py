@@ -49,7 +49,8 @@ def commands_are_safe(commands):
 def test_proposal_retains_all_phases_and_is_not_executable():
     proposal = load_proposal()
     assert proposal["live_execution_enabled"] is False
-    assert proposal["controller"].startswith("NONE: proposal only")
+    assert "comprehensive_controller.py" in proposal["controller"]
+    assert "one-use authorization" in proposal["controller"]
     assert [phase["id"] for phase in proposal["phases"]] == [
         "phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
         "phase2_existing_root_supersu_review", "phase3_jmcs_maps_libraries_fd_socket_ownership",
@@ -70,7 +71,7 @@ def test_command_argv_has_no_privilege_injection_or_unlisted_network_probe():
     bounds = proposal["execution_bounds_proposal"]
     assert bounds["per_command_bounds"]["timeout_seconds"] == 20
     assert bounds["per_command_bounds"]["combined_stdout_stderr_bytes"] == 4194304
-    assert "single argv element" in bounds["process_placeholder_binding"]
+    assert "one argv element" in bounds["process_placeholder_binding"]
     assert all(phase["per_command_timeout_seconds"] == 20
                and phase["per_command_output_limit_bytes"] == 4194304
                and phase["failure_policy"] == "stop immediately; do not retry"
@@ -81,8 +82,9 @@ def test_reconnect_hondahack_and_abort_boundaries_remain_explicit():
     proposal = load_proposal()
     phase4 = proposal["phases"][4]
     assert phase4["states"] == ["disconnected_baseline", "stock_carplay_connected",
-                                "disconnected_again", "stock_carplay_reconnected",
-                                "final_disconnected"]
+                                "navigation_selected", "navigation_deselected",
+                                "navigation_reselected", "disconnected_again",
+                                "stock_carplay_reconnected", "final_disconnected"]
     assert phase4["capture_during_transition"] is False
     phase6 = proposal["phases"][6]
     assert {"ordinary_unprivileged_adb", "factory_navigation_observation",

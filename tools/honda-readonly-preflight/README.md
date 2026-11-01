@@ -22,6 +22,38 @@ python3 tools/honda-readonly-preflight/validate_comprehensive_proposal.py \
   docs/diagnostics/comprehensive-campaign-proposal.json
 ```
 
+The comprehensive controller supports offline dry-run/simulation and a fixed
+live backend gated by a private one-use session record, current source pins,
+required exact-source reviews, and interactive readiness prompts. The offline
+modes validate all eight phases and 30 fixed command shapes without ADB lookup
+or target access. The live mode never discovers devices, invokes `su`, or
+accepts arbitrary commands; no campaign scope is currently authorized:
+
+```sh
+python3 tools/honda-readonly-preflight/comprehensive_controller.py dry-run
+python3 tools/honda-readonly-preflight/comprehensive_controller.py simulate
+python3 tools/honda-readonly-preflight/comprehensive_controller.py run --authorization /private/path/session.json
+python3 tools/honda-readonly-preflight/comprehensive_controller.py analyze --archive /private/path/evidence/RUN_ID
+```
+
+The owner-only archive retains pinned proposal/source metadata, every bounded
+stdout/stderr result, phase/state and monotonic command timestamps, the exact
+argv/result ledger, and a SHA-256 inventory. `analyze` verifies the complete
+inventory and source/command pins before reporting sanitized state deltas and
+objective-specific limitations. Raw text is not printed. Execution or a
+verified archive never sets campaign success; Type111, `/info` values, View
+lifetime, physical scanout, and privileged receiver metadata need their own
+usable evidence sources.
+
+Review artifacts can be structurally checked with
+`validate_review_artifacts.py`. That validator checks exact campaign, commit,
+profile, source-lock and manifest pins, exact approved phases, risk level, file
+privacy, and required fields; it cannot authenticate the reviewer, establish
+independence or competence, or certify vehicle safety. The owner must
+independently verify reviewer identity/qualification before setting the exact
+session attestations. Phase 2/3 privileged execution remains blocked and has
+no live argv.
+
 `display_compare.py` requires a private capture directory, a SHA-256
 manifest for all compared snapshots, and a caller-supplied candidate Android
 logical display ID. The comparator reports only whether that ID appears in the

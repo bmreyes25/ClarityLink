@@ -13,22 +13,32 @@ from typing import Any
 from validate_comprehensive_proposal import validate_proposal
 
 CAMPAIGN_ID = "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031"
-BASE_MAIN_COMMIT = "563d3a9896b33f653282be97b083ef93c42c2f1a"
+BASE_MAIN_COMMIT = "0136ac241d94e1ebb1cc4403c07fd480728b47d6"
 REQUIREMENTS_BASELINE = "CL-HONDA-RUNTIME-EVIDENCE-20261030"
 PROFILE_PATH = "docs/diagnostics/comprehensive-campaign-proposal.json"
 REQUIRED_SOURCE_PATHS = frozenset({
     "AGENTS.md", "docs/safety/vehicle-testing.md",
+    "docs/safety/experiment-risk-levels.md",
+    "docs/security/vehicle-safety-gates.md", "docs/security/single-owner-cp-review-policy.md",
+    "docs/development/cl-honda-comprehensive-readiness.json",
+    "docs/development/cl-honda-comprehensive-runbook.md",
     "tools/honda-readonly-preflight/README.md",
     "docs/diagnostics/comprehensive-runtime-campaign.md",
     "docs/diagnostics/evidence-coverage.json",
     "tools/honda-readonly-preflight/display_compare.py",
     "tools/honda-readonly-preflight/evidence_coverage.py",
     "tools/honda-readonly-preflight/verify_comprehensive_source_lock.py",
+    "tools/honda-readonly-preflight/comprehensive_controller.py",
+    "tools/honda-readonly-preflight/comprehensive_replay.py",
+    "tools/honda-readonly-preflight/validate_review_artifacts.py",
+    "docs/diagnostics/comprehensive-authorization-template.json",
     "tools/honda-readonly-preflight/validate_comprehensive_proposal.py",
     "tests/honda/test_campaign_runner.py", "tests/honda/test_display_compare.py",
     "tests/honda/test_evidence_coverage.py", "tests/honda/test_comprehensive_source_lock.py",
     "tests/honda/test_comprehensive_proposal.py",
     "tests/honda/test_validate_comprehensive_proposal.py",
+    "tests/honda/test_comprehensive_controller.py",
+    "tests/honda/test_validate_review_artifacts.py",
     "tools/honda-readonly-preflight/campaign_runner.py",
     "tools/honda-readonly-preflight/collector.py", "tools/honda-readonly-preflight/parsers.py",
     "tools/honda-readonly-preflight/analyze.py", "tools/honda-readonly-preflight/session.py",
@@ -72,6 +82,9 @@ def verify_lock(root: Path, lock_path: Path, *, verify_git_ancestry: bool = True
         validate_proposal(profile_data)
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         raise ValueError("profile content does not match the validated non-executable campaign scope") from error
+    manifest_hash = command_manifest_sha256(profile_data)
+    if lock.get("command_manifest_sha256") != manifest_hash:
+        raise ValueError("fixed command manifest digest does not match the reviewed proposal")
     sources = lock.get("sources")
     if not isinstance(sources, dict) or not sources:
         raise ValueError("source pins must be a non-empty object")
@@ -85,10 +98,24 @@ def verify_lock(root: Path, lock_path: Path, *, verify_git_ancestry: bool = True
     return {
         "campaign_id": lock.get("campaign_id"),
         "profile_sha256": profile_hash,
+        "command_manifest_sha256": manifest_hash,
         "verified_source_count": len(verified),
         "source_hashes": verified,
         "live_execution_enabled": False,
     }
+
+
+def command_manifest_sha256(profile: dict[str, Any]) -> str:
+    fields = ("commands", "commands", "live_argv", "live_argv", "commands",
+              "commands_after_each_owner_confirmation", "commands_after_each_allowed_state", "commands")
+    rows = []
+    for phase, field in zip(profile.get("phases", []), fields):
+        for command in phase.get(field, []):
+            argv = [str(item).replace("<private-approved-serial>", "EXACT_APPROVED_SERIAL")
+                    .replace("<verified-jmcs-pid>", "1234") for item in command]
+            rows.append([phase.get("id"), argv, phase.get("per_command_timeout_seconds"),
+                         phase.get("per_command_output_limit_bytes")])
+    return hashlib.sha256(json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _safe_file(root: Path, relative: Any) -> Path:
