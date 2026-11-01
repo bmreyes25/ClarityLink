@@ -22,14 +22,23 @@ python3 tools/honda-readonly-preflight/validate_comprehensive_proposal.py \
   docs/diagnostics/comprehensive-campaign-proposal.json
 ```
 
-The comprehensive controller supports offline dry-run/simulation and a fixed
-live backend gated by a private one-use session record, current source pins,
-required exact-source reviews, and interactive readiness prompts. The offline
-modes validate all eight phases and 30 fixed command shapes without ADB lookup
-or target access. The live mode never discovers devices, invokes `su`, or
-accepts arbitrary commands; no campaign scope is currently authorized:
+The comprehensive controller supports offline preparation/preflight,
+dry-run/simulation, and a fixed live backend gated by a private one-use session
+record, current source pins, required exact-source reviews, and interactive
+readiness prompts. `prepare` migrates the existing owner-only draft into a new
+mode-0600 non-executable candidate without overwriting either file or setting
+readiness and approval fields. `preflight` checks the source lock, proposal,
+Python/pytest, ADB executable/version, private storage, and offline tools; it
+does not enumerate devices, launch live ADB, or consume authorization. Its
+owner check status remains separate from host readiness. The complete offline
+simulation walks all ten owner-confirmed states and the fixed 162-command plan
+(45 command shapes), without contacting a device. The live mode never discovers
+devices, invokes `su`, or accepts arbitrary commands; no campaign scope is
+currently authorized:
 
 ```sh
+python3 tools/honda-readonly-preflight/comprehensive_controller.py prepare
+python3 tools/honda-readonly-preflight/comprehensive_controller.py preflight
 python3 tools/honda-readonly-preflight/comprehensive_controller.py dry-run
 python3 tools/honda-readonly-preflight/comprehensive_controller.py simulate
 python3 tools/honda-readonly-preflight/comprehensive_controller.py run --authorization /private/path/session.json
@@ -53,6 +62,38 @@ independence or competence, or certify vehicle safety. The owner must
 independently verify reviewer identity/qualification before setting the exact
 session attestations. Phase 2/3 privileged execution remains blocked and has
 no live argv.
+
+The final session record must use schema
+`claritylink-comprehensive-session-authorization-v1`, include the exact
+`reviewed_commit_sha`, and bind each required review type to the SHA-256 of the
+exact private artifact bytes in `review_artifact_sha256`. Required review types
+are derived from approved phases. The controller rejects missing or malformed
+bindings, changed artifacts, non-approving decisions, and candidate-schema
+records before readiness prompts or one-use consumption. A review inventory
+selects only one valid approval per type; multiple approvals are reported as
+ambiguous and must be resolved by the owner/reviewer.
+
+`prepare` prints `HEAD`, the locally fetched `origin/main`, and their match
+status. An unmerged branch may produce a non-executable review candidate, but
+the live path accepts only a clean checkout whose HEAD matches fetched
+`origin/main`. After merge, fetch origin, obtain explicit reviewer confirmation
+bound to the resulting main commit, and prepare against that commit. Existing
+approval commit or artifact digests are never rewritten automatically.
+
+Preparation may carry forward the private vehicle reference, restoration
+reference, and ADB transport description for owner reconfirmation. It clears
+old approval, readiness, timestamp, nonce, and one-use fields. Wi-Fi ADB socket
+observations can expose SSIDs, local addresses, and other network identifiers;
+keep transport notes and raw captures outside Git and cloud-synced storage.
+
+In a private authorization record, `review_artifacts` maps each required review
+type directly to its absolute private artifact path. The controller computes
+the artifact digest and checks its exact commit and source pins before the
+owner's session YES, repeats the check before consuming the one-use approval,
+and records the binding in the private archive. Do not copy a second digest map
+or reviewed-commit field into the owner record. This removes duplicate
+transcription only. It does not relax review gates or prove reviewer identity,
+independence, competence, or safety qualification.
 
 `display_compare.py` requires a private capture directory, a SHA-256
 manifest for all compared snapshots, and a caller-supplied candidate Android

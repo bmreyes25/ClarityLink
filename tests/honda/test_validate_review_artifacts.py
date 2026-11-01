@@ -42,7 +42,26 @@ def test_exact_claude_technical_review_is_structurally_valid(tmp_path):
                                       commit_sha="c" * 40,
                                       approved_phases=["phase4_three_state_carplay"], risk_level="LEVEL_2")
     assert result["decision"] == "APPROVE_ENGINEERING"
+    assert result["artifact_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert "does not prove reviewer identity" in result["authenticity_limit"]
+
+
+def test_review_digest_binds_exact_bytes_not_only_canonical_review_content(tmp_path):
+    path = tmp_path / "review.json"
+    value = make_artifact(path)
+    pins = {"profile_sha256": value["profile_sha256"],
+            "source_lock_sha256": value["source_lock_sha256"],
+            "manifest_sha256": value["manifest_sha256"]}
+    first = validate_review_artifact(path, review_type="technical", pins=pins,
+                                    commit_sha="c" * 40,
+                                    approved_phases=value["reviewed_phases"], risk_level="LEVEL_2")
+    path.write_text(json.dumps(value, separators=(",", ":")) + "\n")
+    path.chmod(0o600)
+    second = validate_review_artifact(path, review_type="technical", pins=pins,
+                                     commit_sha="c" * 40,
+                                     approved_phases=value["reviewed_phases"], risk_level="LEVEL_2")
+    assert first["artifact_self_digest_sha256"] == second["artifact_self_digest_sha256"]
+    assert first["artifact_sha256"] != second["artifact_sha256"]
 
 
 def test_safety_review_is_separately_typed(tmp_path):
@@ -108,3 +127,27 @@ def test_review_artifact_rejects_same_source_but_different_phase_scope(tmp_path)
     with pytest.raises(ValueError, match="exact approved phases"):
         validate_review_artifact(path, review_type="technical", pins=pins, commit_sha="c" * 40,
                                  approved_phases=["phase6_existing_hondahack_casting"], risk_level="LEVEL_2")
+
+
+def test_review_artifact_rejects_changed_source_lock_hash(tmp_path):
+    path = tmp_path / "review.json"
+    make_artifact(path)
+    with pytest.raises(ValueError, match="source_lock_sha256"):
+        validate_review_artifact(path, review_type="technical",
+                                 pins={"profile_sha256": "a" * 64,
+                                       "source_lock_sha256": "f" * 64,
+                                       "manifest_sha256": "d" * 64},
+                                 commit_sha="c" * 40,
+                                 approved_phases=["phase4_three_state_carplay"], risk_level="LEVEL_2")
+
+
+def test_review_artifact_rejects_changed_risk_level(tmp_path):
+    path = tmp_path / "review.json"
+    make_artifact(path, risk_level="LEVEL_1")
+    with pytest.raises(ValueError, match="risk level"):
+        validate_review_artifact(path, review_type="technical",
+                                 pins={"profile_sha256": "a" * 64,
+                                       "source_lock_sha256": "b" * 64,
+                                       "manifest_sha256": "d" * 64},
+                                 commit_sha="c" * 40,
+                                 approved_phases=["phase4_three_state_carplay"], risk_level="LEVEL_2")
