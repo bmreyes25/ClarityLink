@@ -694,17 +694,12 @@ def consume_once(record: dict, *, ledger: Path | None = None) -> Path:
         user_home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve(strict=True)
     except (KeyError, OSError) as exc:
         raise ControllerError("cannot resolve owner home for private authorization ledger") from exc
-    requested = (PRIVATE_LEDGER if ledger is None else ledger).expanduser()
-    chain = [requested, *requested.parents]
-    if any(part.is_symlink() for part in chain if part.exists()):
-        raise ControllerError("authorization ledger path cannot contain symlinks")
+    requested = Path(os.path.abspath((PRIVATE_LEDGER if ledger is None else ledger).expanduser()))
     if ledger is None and not requested.resolve(strict=False).is_relative_to(user_home):
         raise ControllerError("authorization ledger must stay under the owner home")
-    ledger = requested
-    ledger.mkdir(parents=True, mode=0o700, exist_ok=True)
-    if ledger.stat().st_mode & 0o077:
-        raise ControllerError("authorization ledger directory is not private")
-    os.chmod(ledger, 0o700)
+    # Reuse the directory-descriptor validator: existing paths must already be
+    # owner-owned/private, and only a missing final leaf may be created.
+    ledger = _private_directory(requested, create=True)
     nonce_digest = hashlib.sha256(nonce.encode()).hexdigest()
     targets = (ledger / f"authorization-{approval_id}.json", ledger / f"nonce-{nonce_digest}.json")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
