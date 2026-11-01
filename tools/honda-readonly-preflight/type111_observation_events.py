@@ -193,8 +193,15 @@ def classify(trace: Trace) -> list[str]:
     elif trace.source_format == "events":
         verified = parse_jsonl(trace.raw_artifact, method=trace.method,
                                expected_sha256=trace.artifact_sha256)
+    elif trace.source_format == "playport-oracle":
+        from type111_playport_source import parse_playport_jsonl
+        verified = parse_playport_jsonl(trace.raw_artifact, method=trace.method,
+                                        expected_sha256=trace.artifact_sha256)
     else:
         raise EventError("unsupported trace source format")
+    if verified.source_format == "playport-oracle":
+        from type111_playport_source import classify_playport
+        return classify_playport(verified)
     events = list(verified.events)
     phases = {event["phase"] for event in events}
     if len(phases) != 1:

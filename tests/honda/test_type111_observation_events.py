@@ -13,8 +13,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/honda-readonly-preflight"))
 import type111_boundary_source as source
 import type111_observation_events as parser
+import type111_playport_source as playport_source
 
 FIXTURE = Path(__file__).parent / "fixtures/type111-events/accepted.jsonl"
+PLAYPORT_43P = ROOT / "research/lab/captures/43p/oracle-events.redacted.jsonl"
+PLAYPORT_43P_SHA256 = "d57d08e17354d868a08712595d1a05526497534243930a492aa36131c7ab9913"
 
 
 def body(value):
@@ -219,3 +222,68 @@ def test_published_json_schema_tracks_runtime_event_and_correlation_shapes():
         "setup_response": ["request_id"], "stream_created": ["request_id", "stream_id"],
         "stream_closed": ["request_id", "stream_id"], "media_observation": ["stream_id"],
     }
+
+
+def test_verified_playport_43p_source_replays_through_type111_parser():
+    raw = PLAYPORT_43P.read_bytes()
+    parsed = playport_source.parse_playport_jsonl(raw, expected_sha256=PLAYPORT_43P_SHA256)
+    assert parsed.source_format == "playport-oracle"
+    assert parsed.artifact_sha256 == PLAYPORT_43P_SHA256
+    assert len(parsed.events) == 945
+    assert len(parsed.source_records) == len(parsed.events)
+    assert parser.classify(parsed) == [
+        "playport_info_display_descriptors:2",
+        "playport_info_display_type_observed:110",
+        "playport_info_display_type_observed:111",
+        "playport_alt_screen_urls_key_observed",
+        "playport_alt_screen_urls_value_empty",
+        "playport_receiver_setup_listener_ready:110",
+        "playport_receiver_setup_listener_ready:111",
+        "playport_stream_socket_connected:110",
+        "playport_video_config_received:110",
+        "playport_first_frame_received:110",
+        "playport_stream_socket_connected:111",
+        "playport_video_config_received:111",
+        "playport_first_frame_received:111",
+        "playport_type110_and_type111_media_observed",
+        "playport_type110_and_type111_teardown_observed",
+    ]
+
+
+def test_playport_source_rejects_digest_drift_and_unreviewed_metadata():
+    raw = PLAYPORT_43P.read_bytes()
+    with pytest.raises(parser.EventError, match="SHA-256 mismatch"):
+        playport_source.parse_playport_jsonl(raw, expected_sha256="0" * 64)
+    row = json.loads(raw.splitlines()[0])
+    row["metadata"]["raw_uuid"] = "must-not-enter"
+    unsafe = (json.dumps(row) + "\n").encode()
+    with pytest.raises(parser.EventError, match="metadata.*allowlist"):
+        playport_source.parse_playport_jsonl(unsafe)
+
+
+def test_playport_source_refuses_unredacted_url_metadata():
+    row = {"monotonicTimeNs": 1, "phase": "INFO_RESPONSE", "streamType": None,
+           "event": "advertised", "metadata": {"alt_screen_urls": "maps:/sensitive"}}
+    with pytest.raises(parser.EventError, match="URL metadata must remain redacted"):
+        playport_source.parse_playport_jsonl((json.dumps(row) + "\n").encode())
+
+
+def test_playport_classifier_does_not_infer_missing_type111_events():
+    rows = [json.loads(line) for line in PLAYPORT_43P.read_text().splitlines()]
+    reduced = [row for row in rows if not (
+        row["phase"] == "VIDEO_FRAME" and row["event"] == "first_frame"
+        and row["streamType"] == 111)]
+    raw = b"".join((json.dumps(row, separators=(",", ":")) + "\n").encode()
+                   for row in reduced)
+    outcomes = parser.classify(playport_source.parse_playport_jsonl(raw))
+    assert "playport_first_frame_received:111" not in outcomes
+    assert "playport_type110_and_type111_media_observed" not in outcomes
+    assert "playport_receiver_setup_listener_ready:111" in outcomes
+    assert "playport_type110_and_type111_teardown_observed" in outcomes
+
+
+def test_playport_source_rejects_duplicate_keys_that_hide_sensitive_values():
+    row = ('{"monotonicTimeNs":1,"phase":"INFO_RESPONSE","streamType":null,'
+           '"event":"advertised","metadata":{"url":"maps:/private","url":""}}\n')
+    with pytest.raises(parser.EventError, match="duplicate JSON object key: url"):
+        playport_source.parse_playport_jsonl(row.encode())

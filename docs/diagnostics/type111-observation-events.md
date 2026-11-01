@@ -1,5 +1,20 @@
 # Type111 receiver-boundary event replay
 
+The parser also accepts the verified, redacted Step 43P PlayPort laboratory
+event stream through `type111_playport_source.py`. This source preserves the
+original JSONL bytes and line offsets, checks a reviewed field/value allowlist,
+and can pin ingestion to the canonical 43P SHA-256
+`d57d08e17354d868a08712595d1a05526497534243930a492aa36131c7ab9913`. Its
+findings are explicitly named `playport_*`: the trace reports PlayPort's
+diagnostic events, not the Honda receiver's wire behavior. The 945-event source
+observes two advertised display types (110 and 111), PlayPort's typed
+`listener_ready` request/response summaries, connected sockets, VideoConfig,
+first frames and server-shutdown teardown for both streams. Type110 and Type111
+media were concurrently observed in this PlayPort/iPhone lab session. The event
+source retains no raw plist, HTTP status/body, UUID, connection ID or media.
+`listener_ready` is an application diagnostic event, not an independently
+validated wire capture of the original Honda receiver's SETUP boundary.
+
 The host-only decoder accepts an exported plaintext application-boundary JSONL
 artifact, retains each raw plist body and decoded dictionary, and computes a
 SHA-256 over the actual input bytes. Each parsed event carries an internal byte
@@ -28,9 +43,11 @@ the replayed receiver result. Callers must still treat any generated trace as
 potentially sensitive: plist fields and base64 bodies are not redacted. Keep
 trace bytes in private host-only storage and do not log or publish them.
 
-The source adapter is `tools/honda-readonly-preflight/type111_boundary_source.py`;
+The synthetic receiver-boundary source adapter is `tools/honda-readonly-preflight/type111_boundary_source.py`;
 the correlated classifier is
 [tools/honda-readonly-preflight/type111_observation_events.py](../../tools/honda-readonly-preflight/type111_observation_events.py).
+The distinct PlayPort source adapter is
+`tools/honda-readonly-preflight/type111_playport_source.py`.
 The event schema is [type111-observation-events.schema.json](type111-observation-events.schema.json).
 The checked-in fixture and bench producer are synthetic. Tests need no vehicle,
 ADB, live iPhone, Honda binary execution, or privileged access. Archived Honda
@@ -67,8 +84,9 @@ the archived binary is not executed or embedded by this prototype.
 
 ## Source boundary and limits
 
-This adapter plus synthetic producer is a bench replay path, not a live Honda
-receiver hook, packet sniffer, or Honda-compatible event producer. A Honda trace
+The synthetic adapter plus producer is a bench replay path; the PlayPort
+adapter ingests an existing external iPhone/PlayPort bench trace. Neither is a
+live Honda receiver hook, packet sniffer, or Honda-compatible event producer. A Honda trace
 still requires an upstream exporter to have
 observed decoded receiver boundaries and retained those plaintext records.
 Request and stream IDs are supplied by that exporter; the adapter does not
