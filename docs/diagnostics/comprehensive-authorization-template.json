@@ -16,7 +16,6 @@
   },
   "risk_level": "LEVEL_1-or-LEVEL_2-or-LEVEL_3",
   "owner_confirmed": true,
-  "readiness_answer": "YES",
   "readiness_checks": {
     "stationary_in_park": true,
     "parking_brake_set": true,
@@ -34,18 +33,18 @@
   "evidence_directory": "PRIVATE-OWNER-ONLY-LOCAL-DIRECTORY-OUTSIDE-REPOSITORY",
   "factory_restoration_reference": "OWNER-DEFINED-BASELINE-AND-NORMAL-RESTORE-OBSERVATIONS",
   "live_execution_enabled": false,
-  "required_review_types": [],
   "pins": {
     "profile_sha256": "64-lowercase-hex",
     "source_lock_sha256": "64-lowercase-hex",
     "command_manifest_sha256": "64-lowercase-hex",
     "source_file_count": "decimal-source-count-from-the-controller"
   },
-  "review_artifacts": {},
-  "review_artifact_paths": {},
+  "review_artifacts": {
+    "technical": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW",
+    "qualified_vehicle_safety": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW"
+  },
   "technical_reviewer_independence_verified": false,
   "qualified_safety_reviewer_credentials_verified": false,
-  "reviewed_commit_sha": "40-hex-reviewed-candidate-commit",
   "recovery_prerequisites_confirmed": false,
   "evidence_destination_checklist": {
     "host_local_outside_repository": false,

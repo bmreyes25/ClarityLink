@@ -101,18 +101,17 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
     categories = sorted(set().union(*(set(controller.PHASE_CATEGORIES[p]) for p in phases)))
     record = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
               "approved_categories": categories, "category_permissions": _category_permissions(categories), "risk_level": "LEVEL_2",
-              "live_execution_enabled": True, "required_review_types": ["qualified_vehicle_safety", "technical"], "pins": {"pin": "value"},
+              "live_execution_enabled": True, "pins": {"pin": "value"},
               "authorization_id": "AUTH-22334455", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
-              "readiness_answer": "YES", "exact_adb_serial": "owner-private-serial",
+              "exact_adb_serial": "owner-private-serial",
               "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True, "owner_question": "Which windows own Display 1?",
               "expected_evidence": "Bounded window/display snapshots", "known_risks": ["display state changes"], "stop_conditions": ["unexpected warning"],
-              "review_artifacts": {"technical": "c" * 64, "qualified_vehicle_safety": "d" * 64},
-              "review_artifact_paths": {"technical": "/tmp/technical-review.json", "qualified_vehicle_safety": "/tmp/safety-review.json"},
-              "reviewed_commit_sha": "e" * 40, "technical_reviewer_independence_verified": True,
+              "review_artifacts": {"technical": "/tmp/technical-review.json", "qualified_vehicle_safety": "/tmp/safety-review.json"},
+              "technical_reviewer_independence_verified": True,
               "qualified_safety_reviewer_credentials_verified": True,
               "factory_restoration_reference": "initial factory display and Navigation state",
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
@@ -127,11 +126,10 @@ def test_level_one_baseline_does_not_require_an_external_review():
     record = {"campaign_id": controller.CAMPAIGN_ID,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
-              "live_execution_enabled": True, "required_review_types": [], "pins": {"pin": "value"},
+              "live_execution_enabled": True, "pins": {"pin": "value"},
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
-              "readiness_answer": "YES",
-              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+                            "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True, "owner_question": "What is the baseline?",
@@ -146,7 +144,6 @@ def test_existing_fixed_ordinary_adb_identity_subset_is_level_one(tmp_path):
     record = _live_test_record(tmp_path, ["phase0_baseline_safety_identity",
                                          "phase1_ordinary_adb_capability"], controller.pins())
     record["review_artifacts"] = {}
-    record["review_artifact_paths"] = {}
     controller.validate_session_authorization(record, current_pins=controller.pins())
     assert controller.PHASE_RISK_LEVELS["phase1_ordinary_adb_capability"] == 1
     assert len(controller._phase_rows(controller._proposal()["phases"][1])) == 19
@@ -157,21 +154,85 @@ def test_level_two_stock_carplay_requires_technical_review_attestation(tmp_path)
               "phase4_three_state_carplay", "phase7_recovery_restoration"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["review_artifacts"] = {}
-    record["review_artifact_paths"] = {}
     record["factory_restoration_reference"] = "owner-defined factory baseline"
-    with pytest.raises(controller.ControllerError, match="independent review artifacts"):
+    with pytest.raises(controller.ControllerError, match="review artifact paths"):
         controller.validate_session_authorization(record, current_pins=controller.pins())
+
+
+def test_review_record_has_one_path_per_artifact_and_no_copied_commit_or_digest(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    assert set(record["review_artifacts"]) == {"technical", "qualified_vehicle_safety"}
+    assert all(Path(path).is_absolute() for path in record["review_artifacts"].values())
+    assert "review_artifact_paths" not in record
+    assert "reviewed_commit_sha" not in record
+    assert record["owner_confirmed"] is True
+    assert "readiness_answer" not in record
+    controller.validate_session_authorization(record, current_pins=controller.pins())
+
+
+def test_controller_derives_review_digest_and_commit_from_artifact_and_clean_source(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import sys
+
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    seen = []
+
+    def fake_validate(path, **kwargs):
+        seen.append((path, kwargs["commit_sha"]))
+        return {"decision": "APPROVE_ENGINEERING",
+                "artifact_sha256": "a" * 64 if "technical" in str(path) else "b" * 64}
+
+    monkeypatch.setattr(controller, "_candidate_commit", lambda: "c" * 40)
+    monkeypatch.setitem(sys.modules, "validate_review_artifacts",
+                        SimpleNamespace(validate_review_artifact=fake_validate))
+    bindings = controller._validate_live_reviews(record, controller.pins())
+    assert bindings == {"reviewed_commit_sha": "c" * 40,
+                        "review_artifact_sha256": {"qualified_vehicle_safety": "b" * 64,
+                                                    "technical": "a" * 64}}
+    assert len(seen) == 2
+    assert all(commit == "c" * 40 for _, commit in seen)
+
+
+def test_review_artifact_change_after_owner_yes_stops_before_one_use_consumption(tmp_path, monkeypatch):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    first = {"reviewed_commit_sha": "c" * 40,
+             "review_artifact_sha256": {"technical": "a" * 64,
+                                        "qualified_vehicle_safety": "b" * 64}}
+    changed = {"reviewed_commit_sha": "c" * 40,
+               "review_artifact_sha256": {"technical": "d" * 64,
+                                          "qualified_vehicle_safety": "b" * 64}}
+    bindings = iter((first, changed))
+    monkeypatch.setattr(controller, "_validate_live_reviews", lambda *_args: next(bindings))
+    calls = []
+    with pytest.raises(controller.ControllerError, match="changed before one-use authorization"):
+        controller._execute_authorized_session(
+            record, ledger=tmp_path / "ledger", prompt=lambda _message: "YES",
+            output=lambda _message: None,
+            executor_factory=lambda _serial: lambda command: calls.append(command),
+        )
+    assert calls == []
+    assert not (tmp_path / "ledger").exists()
+    failed_run = Path(record["evidence_directory"]) / record["run_id"]
+    assert failed_run.is_dir()
+    assert not (failed_run / "authorization-binding.json").exists()
 
 
 def test_session_authorization_requires_a_private_destination_and_recovery_route():
     record = {"campaign_id": controller.CAMPAIGN_ID,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
-              "live_execution_enabled": True, "required_review_types": [], "pins": {"pin": "value"},
+              "live_execution_enabled": True, "pins": {"pin": "value"},
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
-              "readiness_answer": "YES",
-              "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+                            "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True,
@@ -194,11 +255,9 @@ def _live_test_record(tmp_path, phases, pin_values):
             "approved_categories": categories, "category_permissions": _category_permissions(categories),
             "risk_level": f"LEVEL_{max(controller.PHASE_RISK_LEVELS[p] for p in phases)}",
               "live_execution_enabled": True,
-              "required_review_types": sorted(set().union(*(set(controller.PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases))),
               "pins": pin_values,
             "authorization_id": "AUTH-55667788", "run_id": "f" * 32, "nonce": "e" * 32,
-            **controller.new_run_identifiers(), "owner_confirmed": True, "readiness_answer": "YES",
-            "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+            **controller.new_run_identifiers(), "owner_confirmed": True,             "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
             "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
             "recovery_prerequisites_confirmed": True, "owner_question": "What exact target and jmcs identity are present?",
@@ -208,11 +267,8 @@ def _live_test_record(tmp_path, phases, pin_values):
             "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
             "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference",
             "exact_adb_serial": "private-owner-serial", "evidence_directory": str(evidence_dir),
-            "review_artifacts": {review: ("c" if review == "technical" else "d") * 64
+            "review_artifacts": {review: str(tmp_path / f"{review}.json")
                                  for review in sorted(set().union(*(set(controller.PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases)))},
-            "review_artifact_paths": {review: str(tmp_path / f"{review}.json")
-                                      for review in sorted(set().union(*(set(controller.PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases)))},
-            "reviewed_commit_sha": "e" * 40,
             "technical_reviewer_independence_verified": True,
             "qualified_safety_reviewer_credentials_verified": True}
 
@@ -313,6 +369,11 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
     assert (run_dir / "session-summary.json").stat().st_mode & 0o777 == 0o600
     assert len(list(run_dir.glob("*.stdout.bin"))) == 19
     archive_summary = json.loads((run_dir / "session-summary.json").read_text())
+    binding = json.loads((run_dir / "authorization-binding.json").read_text())
+    assert binding == {"review_bindings": {"reviewed_commit_sha": None,
+                                            "review_artifact_sha256": {}},
+                       "source_pins": controller.pins()}
+    assert (run_dir / "authorization-binding.json").stat().st_mode & 0o777 == 0o600
     assert archive_summary["approved_categories"] == ["ordinary_unprivileged_adb", "owner_baseline_observation"]
     assert archive_summary["category_permissions"]["ordinary_unprivileged_adb"] is True
     assert archive_summary["category_permissions"]["privileged_diagnostics"] is False
@@ -538,8 +599,7 @@ def test_transition_requires_restoration_phase_before_any_owner_prompt(tmp_path)
               "phase4_three_state_carplay"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["factory_restoration_reference"] = "initial factory state"
-    record["review_artifacts"]["qualified_vehicle_safety"] = "d" * 64
-    record["review_artifact_paths"]["qualified_vehicle_safety"] = "/tmp/safety-review.json"
+    record["review_artifacts"]["qualified_vehicle_safety"] = "/tmp/safety-review.json"
     record["technical_reviewer_independence_verified"] = True
     record["qualified_safety_reviewer_credentials_verified"] = True
     prompts = []
@@ -718,20 +778,18 @@ def test_authorization_must_match_phase_and_exact_category_set():
     approval = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
-                "live_execution_enabled": True, "required_review_types": ["qualified_vehicle_safety", "technical"], "pins": {"pin": "value"},
+                "live_execution_enabled": True, "pins": {"pin": "value"},
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32,
                 "run_id": "b" * 32, **controller.new_run_identifiers(),
                 "exact_adb_serial": "owner-private-serial",
-                "risk_level": "LEVEL_2", "owner_confirmed": True, "readiness_answer": "YES",
-                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+                "risk_level": "LEVEL_2", "owner_confirmed": True,                 "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
                 "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes after reconnect?",
                 "expected_evidence": "Bounded lifecycle comparison", "known_risks": ["stock CarPlay state transition"], "stop_conditions": ["unexpected warning"],
                 "factory_restoration_reference": "initial factory display and Navigation state",
-                "review_artifacts": {"technical": "c" * 64, "qualified_vehicle_safety": "d" * 64},
-                "review_artifact_paths": {"technical": "/tmp/technical-review.json", "qualified_vehicle_safety": "/tmp/safety-review.json"},
-                "reviewed_commit_sha": "e" * 40, "technical_reviewer_independence_verified": True,
+                "review_artifacts": {"technical": "/tmp/technical-review.json", "qualified_vehicle_safety": "/tmp/safety-review.json"},
+                "technical_reviewer_independence_verified": True,
                 "qualified_safety_reviewer_credentials_verified": True,
                 "factory_restoration_reference": "factory baseline",
                 "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
@@ -753,19 +811,17 @@ def test_stale_source_pins_rejected():
     approval = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
-                "live_execution_enabled": True, "required_review_types": [], "pins": {},
+                "live_execution_enabled": True, "pins": {},
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32, "run_id": "b" * 32,
                 **controller.new_run_identifiers(),
-                "risk_level": "LEVEL_1", "owner_confirmed": True, "readiness_answer": "YES",
-                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+                "risk_level": "LEVEL_1", "owner_confirmed": True,                 "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
                 "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes in the receiver?",
                 "expected_evidence": "Bounded receiver snapshot", "known_risks": ["receiver state change"], "stop_conditions": ["unexpected warning"],
                 "exact_adb_serial": "owner-private-serial",
-                "review_artifacts": {"technical": "c" * 64},
-                "review_artifact_paths": {"technical": "/tmp/technical-review.json"},
-                "reviewed_commit_sha": "e" * 40, "factory_restoration_reference": "factory baseline",
+                "review_artifacts": {"technical": "/tmp/technical-review.json"},
+                "factory_restoration_reference": "factory baseline",
                 "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
     with pytest.raises(controller.ControllerError, match="stale"):
@@ -779,20 +835,18 @@ def test_expired_approval_rejected():
     approval = {"campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
-                "live_execution_enabled": True, "required_review_types": [], "pins": {"pin": "value"},
+                "live_execution_enabled": True, "pins": {"pin": "value"},
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32,
                 "run_id": "b" * 32, "issued_at_utc": old.isoformat(),
                 "expires_at_utc": (old + timedelta(minutes=10)).isoformat(),
-                "risk_level": "LEVEL_1", "owner_confirmed": True, "readiness_answer": "YES",
-                "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
+                "risk_level": "LEVEL_1", "owner_confirmed": True,                 "readiness_checks": {key: True for key in ("stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state", "no_abnormal_warning", "factory_displays_normal", "adb_transport_independent")},
               "adb_transport_details": "synthetic dedicated ADB route independent of CarPlay path and shared hub",
                 "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes?",
                 "expected_evidence": "Bounded output", "known_risks": ["process state change"], "stop_conditions": ["unexpected warning"],
                 "exact_adb_serial": "owner-private-serial",
-                "review_artifacts": {"technical": "c" * 64},
-                "review_artifact_paths": {"technical": "/tmp/technical-review.json"},
-                "reviewed_commit_sha": "e" * 40, "factory_restoration_reference": "factory baseline",
+                "review_artifacts": {"technical": "/tmp/technical-review.json"},
+                "factory_restoration_reference": "factory baseline",
                 "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
     with pytest.raises(controller.ControllerError, match="expired"):

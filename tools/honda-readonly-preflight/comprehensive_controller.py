@@ -538,7 +538,7 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
     if any(category_permissions[key] != (key in expected_live_permissions)
            for key in LIVE_PERMISSION_CATEGORIES):
         raise ControllerError("live-category permissions must match only the selected approved phases")
-    if record.get("owner_confirmed") is not True or record.get("readiness_answer") != "YES":
+    if record.get("owner_confirmed") is not True:
         raise ControllerError("one affirmative owner session decision is required")
     readiness = record.get("readiness_checks")
     requires_adb = any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases)
@@ -603,26 +603,15 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
         if not isinstance(serial, str) or serial == "auto" or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", serial):
             raise ControllerError("ADB phase approval must bind one exact private serial")
     required_reviews = set().union(*(set(PHASE_REVIEW_REQUIREMENTS.get(p, ())) for p in phases))
-    declared_reviews = record.get("required_review_types")
-    if declared_reviews != sorted(required_reviews):
-        raise ControllerError("session review requirements differ from the fixed phase risk policy")
-    reviews = record.get("review_artifacts")
-    if not isinstance(reviews, dict) or not required_reviews.issubset(reviews):
-        raise ControllerError("required exact-source independent review artifacts are missing")
-    review_paths = record.get("review_artifact_paths", {})
-    if not isinstance(review_paths, dict) or not required_reviews.issubset(review_paths):
-        raise ControllerError("required private review artifact paths are missing")
-    if required_reviews and not re.fullmatch(r"[0-9a-f]{40}", str(record.get("reviewed_commit_sha", ""))):
-        raise ControllerError("reviewed candidate commit pin is missing")
+    review_paths = record.get("review_artifacts")
+    if not isinstance(review_paths, dict) or set(review_paths) != required_reviews:
+        raise ControllerError("required exact-source review artifact paths are missing")
     if "technical" in required_reviews and record.get("technical_reviewer_independence_verified") is not True:
         raise ControllerError("owner has not verified the external technical reviewer and exact-source review")
     if ("qualified_vehicle_safety" in required_reviews
             and record.get("qualified_safety_reviewer_credentials_verified") is not True):
         raise ControllerError("qualified safety reviewer credentials are not independently verified")
     for review in required_reviews:
-        digest = reviews[review]
-        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise ControllerError("required review artifact digest is invalid")
         path = review_paths[review]
         if not isinstance(path, str) or not Path(path).is_absolute():
             raise ControllerError("required private review artifact path is invalid")
@@ -824,33 +813,36 @@ def _candidate_commit() -> str:
     return commit
 
 
-def _validate_live_reviews(record: dict, current_pins: dict[str, str]) -> None:
+def _validate_live_reviews(record: dict, current_pins: dict[str, str]) -> dict:
     required = set().union(*(set(PHASE_REVIEW_REQUIREMENTS.get(p, ()))
                              for p in record["approved_phases"]))
     if not required:
-        return
-    if record.get("reviewed_commit_sha") != _candidate_commit():
-        raise ControllerError("independent review does not bind the exact candidate commit")
+        return {"reviewed_commit_sha": None, "review_artifact_sha256": {}}
+    candidate_commit = _candidate_commit()
     try:
         sys.path.insert(0, str(HERE))
         from validate_review_artifacts import validate_review_artifact
     finally:
         if sys.path and sys.path[0] == str(HERE):
             sys.path.pop(0)
-    for review in required:
+    artifact_digests = {}
+    for review in sorted(required):
         try:
             validated = validate_review_artifact(
-                Path(record["review_artifact_paths"][review]), review_type=review,
+                Path(record["review_artifacts"][review]), review_type=review,
                 pins={"profile_sha256": current_pins["profile_sha256"],
                       "source_lock_sha256": current_pins["source_lock_sha256"],
                       "manifest_sha256": current_pins["command_manifest_sha256"]},
-                commit_sha=record["reviewed_commit_sha"],
+                commit_sha=candidate_commit,
                 approved_phases=record["approved_phases"], risk_level=record["risk_level"],
             )
         except (OSError, ValueError, KeyError) as exc:
             raise ControllerError(f"required {review} review artifact is invalid") from exc
-        if validated["decision"] != "APPROVE_ENGINEERING" or validated["artifact_sha256"] != record["review_artifacts"][review]:
+        if validated["decision"] != "APPROVE_ENGINEERING":
             raise ControllerError(f"required {review} review did not approve this exact source")
+        artifact_digests[review] = validated["artifact_sha256"]
+    return {"reviewed_commit_sha": candidate_commit,
+            "review_artifact_sha256": artifact_digests}
 
 
 def _operation_for(argv: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
@@ -1251,9 +1243,10 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     if transition_phases.intersection(phases) and "phase7_recovery_restoration" not in phases:
         raise ControllerError("execution requires the approved restoration observation phase")
     if review_verifier is None:
-        _validate_live_reviews(record, current_pins)
+        review_bindings = _validate_live_reviews(record, current_pins)
     else:
-        review_verifier(record, current_pins)
+        review_bindings = review_verifier(record, current_pins) or {
+            "reviewed_commit_sha": None, "review_artifact_sha256": {}}
     base = _private_evidence_directory(record)
     output(f"Experiment: {CAMPAIGN_ID}")
     output(f"Question: {record['owner_question']}")
@@ -1265,7 +1258,10 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
         f"{key}={'YES' if record['category_permissions'][key] else 'NO'}"
         for key in LIVE_PERMISSION_CATEGORIES))
     output("Known limits: commands may complete without answering the question; raw evidence stays private for offline analysis.")
-    output("Review artifacts are checked for structure and exact pins only; independently verify reviewer identity and any safety qualifications before owner authorization.")
+    if review_bindings["review_artifact_sha256"]:
+        output("Exact review-source bindings (commit and artifact SHA-256): "
+               + json.dumps(review_bindings, sort_keys=True))
+    output("Review artifact checks validate structure and exact pins only; the owner must verify reviewer identity, independence, and any safety qualifications.")
     output("Phase 1 process evidence is PID-only; start-time, executable and full process identity require the separately blocked Phase 3 access method.")
     proposal_phases = {item["id"]: item for item in proposal_snapshot["phases"]}
     for phase_id in phases:
@@ -1295,7 +1291,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
         "the recorded ADB transport is already authorized and independent of the iPhone/CarPlay data path and shared hub, "
         "the car is stationary in Park with parking brake set and power mode ON with READY absent and engine not running, "
         "the manual 100-minute power-on timer is running, you are present, and warnings/displays/audio are normal. "
-        "Is the Honda ready? Type YES, NOT YET, or CANCEL: "
+        "Confirm that these physical readiness conditions are true now. Type YES, NOT YET, or CANCEL: "
     )
     session_started_utc = datetime.now(timezone.utc).isoformat()
     session_started_monotonic_ns = time.monotonic_ns()
@@ -1310,6 +1306,18 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     _write_private_file(run_dir / "campaign-proposal.json", proposal_raw)
     _write_private_file(run_dir / "source-lock.json", source_lock_raw)
     _write_private_file(run_dir / "evidence-objectives.json", evidence_raw)
+    if review_verifier is None:
+        latest_review_bindings = _validate_live_reviews(record, current_pins)
+    else:
+        latest_review_bindings = review_verifier(record, current_pins) or {
+            "reviewed_commit_sha": None, "review_artifact_sha256": {}}
+    if latest_review_bindings != review_bindings:
+        raise ControllerError("review artifacts or source binding changed before one-use authorization")
+    review_bindings = latest_review_bindings
+    _write_private_file(run_dir / "authorization-binding.json",
+                        (json.dumps({"source_pins": current_pins,
+                                     "review_bindings": review_bindings},
+                                    sort_keys=True, indent=2) + "\n").encode())
     marker = authorize_one_run(record, current_pins=current_pins, ledger=ledger)
     owner_notes = []
     command_records: list[dict] = []
@@ -1455,7 +1463,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                    "session_finished_monotonic_ns": time.monotonic_ns(),
                    "exact_vehicle": record["exact_vehicle"],
                    "exact_adb_serial": serial or None,
-                   "reviewed_commit_sha": record.get("reviewed_commit_sha"),
+                   "review_bindings": review_bindings,
                    "owner_question": record["owner_question"],
                    "expected_evidence": record["expected_evidence"],
                    "known_risks": record["known_risks"],

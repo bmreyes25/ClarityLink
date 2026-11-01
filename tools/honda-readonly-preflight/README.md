@@ -54,6 +54,15 @@ independently verify reviewer identity/qualification before setting the exact
 session attestations. Phase 2/3 privileged execution remains blocked and has
 no live argv.
 
+In a private authorization record, `review_artifacts` maps each required review
+type directly to its absolute private artifact path. The controller computes
+the artifact digest and checks its exact commit and source pins before the
+owner's session YES, repeats the check before consuming the one-use approval,
+and records the binding in the private archive. Do not copy a second digest map
+or reviewed-commit field into the owner record. This removes duplicate
+transcription only. It does not relax review gates or prove reviewer identity,
+independence, competence, or safety qualification.
+
 `display_compare.py` requires a private capture directory, a SHA-256
 manifest for all compared snapshots, and a caller-supplied candidate Android
 logical display ID. The comparator reports only whether that ID appears in the
