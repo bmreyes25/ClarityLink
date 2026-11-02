@@ -29,6 +29,51 @@ def test_session_and_authorization_deadlines_provide_two_times_schedule_buffer()
     assert controller.MAX_SESSION_DURATION_SECONDS - 2970 == 3030
 
 
+def _phase7_restoration_fixture():
+    summary = {"owner_state_confirmations": [
+        {"phase": "phase7_recovery_restoration", "status": "FACTORY_RESTORATION_CONFIRMED"},
+        {"phase": "phase7_recovery_restoration", "status": "FACTORY_RESTORATION_CONFIRMED_AFTER_READS"},
+    ]}
+    records = [{"phase": "phase7_recovery_restoration", "state": "single_phase_capture",
+                "operation": operation, "arguments": list(arguments), "result_status": "success"}
+               for operation, arguments in replay.LIFECYCLE_OPERATIONS]
+    return summary, records
+
+
+def test_phase7_restoration_requires_both_confirmations_and_all_13_successful_reads():
+    summary, records = _phase7_restoration_fixture()
+    coverage = replay._session_coverage(summary, records)
+    assert len(records) == 13
+    assert coverage["phase7_restoration_confirmed"] is True
+
+
+@pytest.mark.parametrize("status", [
+    "FACTORY_RESTORATION_CONFIRMED", "FACTORY_RESTORATION_CONFIRMED_AFTER_READS",
+])
+def test_phase7_restoration_requires_each_owner_confirmation(status):
+    summary, records = _phase7_restoration_fixture()
+    summary["owner_state_confirmations"] = [
+        row for row in summary["owner_state_confirmations"] if row["status"] != status
+    ]
+    assert replay._session_coverage(summary, records)["phase7_restoration_confirmed"] is False
+
+
+def test_phase7_restoration_requires_all_13_reads_successful():
+    summary, records = _phase7_restoration_fixture()
+    records.pop()
+    assert replay._session_coverage(summary, records)["phase7_restoration_confirmed"] is False
+
+    summary, records = _phase7_restoration_fixture()
+    records[-1]["result_status"] = "failed"
+    assert replay._session_coverage(summary, records)["phase7_restoration_confirmed"] is False
+
+
+def test_phase7_restoration_rejects_duplicate_instead_of_missing_fixed_read():
+    summary, records = _phase7_restoration_fixture()
+    records[-1] = dict(records[0])
+    assert replay._session_coverage(summary, records)["phase7_restoration_confirmed"] is False
+
+
 def _category_permissions(categories):
     return {category: category in set(categories) for category in controller.LIVE_PERMISSION_CATEGORIES}
 
@@ -653,8 +698,9 @@ def test_replay_requires_post_read_owner_restoration_and_all_restoration_command
     incomplete = [{"phase": "phase7_recovery_restoration", "state": "factory_restoration",
         "operation": operation, "arguments": list(args), "result_status": "success"}
         for operation, args in replay.LIFECYCLE_OPERATIONS[:-1]]
+    incomplete = [{**row, "state": "single_phase_capture"} for row in incomplete]
     assert replay._session_coverage(summary, incomplete)["phase7_restoration_confirmed"] is False
-    complete = incomplete + [{"phase": "phase7_recovery_restoration", "state": "factory_restoration",
+    complete = incomplete + [{"phase": "phase7_recovery_restoration", "state": "single_phase_capture",
         "operation": operation, "arguments": list(args), "result_status": "success"}
         for operation, args in replay.LIFECYCLE_OPERATIONS[-1:]]
     assert replay._session_coverage(summary, complete)["phase7_restoration_confirmed"] is True
@@ -1194,7 +1240,7 @@ def _synthetic_phase1_output(argv, stat_tick="99"):
     return b"synthetic bounded snapshot\n"
 
 
-def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_device_access(tmp_path):
+def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_device_access(tmp_path, monkeypatch):
     phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     calls = []
@@ -1239,8 +1285,17 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
     assert archive_summary["risk_level"] == "LEVEL_1"
     assert all("started_monotonic_ns" in command and "state" in command
                for command in archive_summary["command_artifacts"])
+    # This synthetic archive's source-lock snapshot is generated from the
+    # uncommitted test tree; source-revision binding is covered by live archive
+    # analysis after the branch commit and separate source-lock tests.
+    monkeypatch.setattr(replay, "_verify_source_revision", lambda *_args: None)
     assessment = replay.analyze_archive(run_dir)
     assert assessment["verified_artifact_count"] > 0
+    assert assessment["capture_source_commit"] == controller._head_sha()
+    assert assessment["analysis_tool_commit"] == controller._head_sha()
+    assert assessment["analysis_tool_sha256"] == hashlib.sha256(
+        (ROOT / "tools/honda-readonly-preflight/comprehensive_replay.py").read_bytes()
+    ).hexdigest()
     assert assessment["confirmed_objective_count"] == 0
     assert assessment["unresolved_objective_count"] == 19
     assert assessment["campaign_success"] is False
