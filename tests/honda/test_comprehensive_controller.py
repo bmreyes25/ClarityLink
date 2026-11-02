@@ -100,6 +100,7 @@ def test_prepare_migrates_without_overwriting_and_never_sets_readiness_true(tmp_
     assert candidate["preparation_only"] is True
     assert candidate["live_execution_enabled"] is False
     assert candidate["owner_confirmed"] is False
+    assert candidate["approved_power_mode"] == controller.APPROVED_POWER_MODE
     assert candidate["exact_vehicle_identity_confirmed"] is False
     assert candidate["technical_reviewer_independence_verified"] is False
     assert candidate["qualified_safety_reviewer_credentials_verified"] is False
@@ -688,7 +689,8 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
               "phase7_recovery_restoration"]
     categories = sorted(set().union(*(set(controller.PHASE_CATEGORIES[p]) for p in phases)))
     record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
-              "campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
+              "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
+              "approved_phases": phases,
               "approved_categories": categories, "category_permissions": _category_permissions(categories), "risk_level": "LEVEL_2",
               "live_execution_enabled": True, "pins": {"pin": "value"},
               "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {
@@ -708,14 +710,28 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
     controller.validate_session_authorization(record, current_pins={"pin": "value"})
+    record["approved_power_mode"] = "ON_READY_ABSENT"
+    with pytest.raises(controller.ControllerError, match="READY-active power mode"):
+        controller.validate_session_authorization(record, current_pins={"pin": "value"})
+    record["approved_power_mode"] = controller.APPROVED_POWER_MODE
     record["approved_phases"].append("phase2_existing_root_supersu_review")
     with pytest.raises(controller.ControllerError, match="fixed campaign order"):
         controller.validate_session_authorization(record, current_pins={"pin": "value"})
 
 
+def test_stale_inactive_power_mode_cannot_consume_one_use_authorization(tmp_path):
+    record = _live_test_record(tmp_path, ["phase0_baseline_safety_identity"], controller.pins())
+    record["approved_power_mode"] = "ON_READY_ABSENT"
+    ledger = tmp_path / "private-ledger"
+    with pytest.raises(controller.ControllerError, match="READY-active power mode"):
+        controller.authorize_one_run(record, current_pins=controller.pins(), ledger=ledger)
+    assert not ledger.exists()
+
+
 def test_level_one_baseline_does_not_require_an_external_review():
     record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
               "campaign_id": controller.CAMPAIGN_ID,
+              "approved_power_mode": controller.APPROVED_POWER_MODE,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
               "live_execution_enabled": True, "pins": {"pin": "value"},
@@ -830,6 +846,7 @@ def test_review_artifact_change_after_owner_yes_stops_before_one_use_consumption
 def test_session_authorization_requires_a_private_destination_and_recovery_route():
     record = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
               "campaign_id": controller.CAMPAIGN_ID,
+              "approved_power_mode": controller.APPROVED_POWER_MODE,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
               "live_execution_enabled": True, "pins": {"pin": "value"},
@@ -863,7 +880,8 @@ def _live_test_record(tmp_path, phases, pin_values):
         review_digests[review] = _write_review_artifact(artifact, review)
         review_paths[review] = str(artifact)
     return {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
-            "campaign_id": controller.CAMPAIGN_ID, "approved_phases": phases,
+            "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
+            "approved_phases": phases,
             "approved_categories": categories, "category_permissions": _category_permissions(categories),
             "risk_level": f"LEVEL_{max(controller.PHASE_RISK_LEVELS[p] for p in phases)}",
               "live_execution_enabled": True,
@@ -1089,6 +1107,8 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
     phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     calls = []
+    prompts = []
+    messages = []
     def factory(_serial):
         def execute(command):
             calls.append(command)
@@ -1096,14 +1116,17 @@ def test_authorized_low_risk_session_executes_only_exact_fixed_commands_without_
         return execute
     answers = iter(("YES", "READY", "POWERED_OFF"))
     result = controller._execute_authorized_session(
-        record, ledger=tmp_path / "ledger", prompt=lambda _message: next(answers),
-        output=lambda _message: None, executor_factory=factory,
+        record, ledger=tmp_path / "ledger", prompt=lambda message: prompts.append(message) or next(answers),
+        output=lambda message: messages.append(message), executor_factory=factory,
         review_verifier=lambda _record, _pins: None, notify=lambda _status: "DELIVERED",
     )
     assert result["status"] == "SESSION_COMPLETE_PENDING_OFFLINE_ANALYSIS"
     assert result["campaign_success"] is False
     assert result["command_count"] == 19
     assert result["normal_power_off_confirmed"] is True
+    assert "power system is ON with READY active" in prompts[0]
+    assert "READY absent" not in prompts[0]
+    assert "Confirm READY remains active" in prompts[1]
     phase1 = next(row for row in result["phase_results"]
                   if row["phase"] == "phase1_ordinary_adb_capability")
     assert phase1["process_identity_confidence"] == "PID_ONLY_NO_START_TIME_OR_EXECUTABLE"
@@ -1540,7 +1563,8 @@ def test_preparation_candidate_cannot_run_consume_or_issue_adb_even_if_flags_are
 def test_authorization_must_match_phase_and_exact_category_set():
     phase = "phase4_three_state_carplay"
     approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
-                "campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
+                "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
+                "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {"pin": "value"},
@@ -1576,7 +1600,8 @@ def test_privileged_phase_authorization_remains_blocked(phase):
 def test_stale_source_pins_rejected():
     phase = "phase1_ordinary_adb_capability"
     approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
-                "campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
+                "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
+                "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {},
@@ -1601,7 +1626,8 @@ def test_expired_approval_rejected():
     phase = "phase1_ordinary_adb_capability"
     old = datetime.now(timezone.utc) - timedelta(hours=1)
     approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
-                "campaign_id": controller.CAMPAIGN_ID, "approved_phases": [phase],
+                "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
+                "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {"pin": "value"},

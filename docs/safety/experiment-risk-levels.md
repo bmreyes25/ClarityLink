@@ -48,9 +48,16 @@ report.
   or vehicle-control changes.
 - No arbitrary shell or privilege escalation. No unreviewed attachment,
   injection, receiver/display change, or persistent installation.
-- Stop immediately on an abnormal warning, engine/READY change, unexpected
-  process or factory display/audio behavior, identity mismatch, or uncertain
-  restoration.
+- Stop immediately on an abnormal warning, loss of the exact power state bound
+  to the session, unexpected engine/exhaust behavior, unexpected process or
+  factory display/audio behavior, identity mismatch, or uncertain restoration.
+- For the comprehensive Honda capture, the approved state is stationary in
+  Park with the parking brake set and power system ON with READY active. READY
+  means the vehicle is capable of movement; do not shift or release the
+  parking brake. Keep the vehicle outdoors. A qualified human safety review
+  remains required for this actual operating procedure, including normal
+  engine operation/exhaust conditions; it is not an assessment of the obsolete
+  ON/READY-absent 12 V depletion scenario.
 - High-risk changes require independent recovery evidence. Owner acceptance
   does not create recovery capability or establish technical feasibility.
 - Maintain `safeForHonda() == false` until separate deployment requirements
