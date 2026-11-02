@@ -41,7 +41,7 @@
       "offline-simulation",
       "private-owner-authorized-fixed-session"
     ],
-    "reason": "Transport independence is now a required owner readiness attestation. The updated exact source requires new technical and qualified vehicle-safety review artifacts and one-session owner authorization. No vehicle or ADB access is authorized."
+    "reason": "Transport independence is now a required owner readiness attestation. The exact source requires a current technical review, owner self-assessment with explicit one-session responsibility acknowledgment, and one-session authorization. No vehicle or ADB access is authorized."
   },
   "results": {
     "coverage": "NOT_COLLECTED",

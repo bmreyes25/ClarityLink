@@ -1,5 +1,5 @@
 {
-  "schema": "claritylink-comprehensive-session-authorization-v1",
+  "schema": "claritylink-comprehensive-session-authorization-v2",
   "preparation_only": false,
   "campaign_id": "CL-HONDA-RUNTIME-EVIDENCE-FOLLOWUP-20261031",
   "authorization_id": "OWNER-ASSIGNED-UNIQUE-ID",
@@ -7,8 +7,12 @@
   "nonce": "32-hex-character-random-one-use-nonce",
   "issued_at_utc": "UTC issuance timestamp",
   "expires_at_utc": "UTC expiry within 100 minutes; session bound is 100 minutes (6,000 seconds)",
-  "approved_phases": ["only-explicit-reviewed-phase-ids"],
-  "approved_categories": ["exact-union-of-these-phases-only"],
+  "approved_phases": [
+    "only-explicit-reviewed-phase-ids"
+  ],
+  "approved_categories": [
+    "exact-union-of-these-phases-only"
+  ],
   "category_permissions": {
     "ordinary_unprivileged_adb": false,
     "stock_carplay_transition": false,
@@ -43,16 +47,13 @@
     "source_file_count": "decimal-source-count-from-the-controller"
   },
   "review_artifacts": {
-    "technical": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW",
-    "qualified_vehicle_safety": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW"
+    "technical": "ABSOLUTE_PRIVATE_PATH_TO_EXACT_SOURCE_REVIEW"
   },
   "reviewed_commit_sha": "EXACT_REVIEWED_COMMIT_SHA",
   "review_artifact_sha256": {
-    "technical": "SHA256_OF_EXACT_PRIVATE_ARTIFACT_BYTES",
-    "qualified_vehicle_safety": "SHA256_OF_EXACT_PRIVATE_ARTIFACT_BYTES"
+    "technical": "SHA256_OF_EXACT_PRIVATE_ARTIFACT_BYTES"
   },
   "technical_reviewer_independence_verified": false,
-  "qualified_safety_reviewer_credentials_verified": false,
   "recovery_prerequisites_confirmed": false,
   "evidence_destination_checklist": {
     "host_local_outside_repository": false,
@@ -63,6 +64,17 @@
   },
   "owner_question": "The exact engineering question being investigated",
   "expected_evidence": "The specific observation expected",
-  "known_risks": ["disclose method-specific process, display, logging, privilege, and persistence risks"],
-  "stop_conditions": ["identity mismatch", "unexpected side effect", "abnormal vehicle behavior"]
+  "known_risks": [
+    "disclose method-specific process, display, logging, privilege, and persistence risks"
+  ],
+  "stop_conditions": [
+    "identity mismatch",
+    "unexpected side effect",
+    "abnormal vehicle behavior"
+  ],
+  "owner_self_assessment_path": "ABSOLUTE_PRIVATE_PATH_TO_OWNER_SELF_ASSESSMENT",
+  "owner_self_assessment_owner": "OWNER NAME AS WRITTEN IN PRIVATE ASSESSMENT",
+  "owner_self_assessment_sha256": "SHA256_OF_EXACT_PRIVATE_ASSESSMENT_BYTES",
+  "owner_safety_assessment_acknowledged": false,
+  "owner_safety_assessment_policy": "Owner self-assessment and risk acceptance for this exact campaign; not an independent qualified review."
 }

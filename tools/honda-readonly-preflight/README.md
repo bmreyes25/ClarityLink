@@ -64,7 +64,7 @@ session attestations. Phase 2/3 privileged execution remains blocked and has
 no live argv.
 
 The final session record must use schema
-`claritylink-comprehensive-session-authorization-v1`, include the exact
+`claritylink-comprehensive-session-authorization-v2`, include the exact
 `reviewed_commit_sha`, and bind each required review type to the SHA-256 of the
 exact private artifact bytes in `review_artifact_sha256`. Required review types
 are derived from approved phases. The controller rejects missing or malformed
