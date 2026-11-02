@@ -48,6 +48,7 @@ DEFAULT_EVIDENCE_ROOT = PRIVATE_RUNTIME_ROOT / "evidence"
 AUTHORIZATION_DRAFT = PRIVATE_RUNTIME_ROOT / "authorization-draft.json"
 PREPARATION_SCHEMA = "claritylink-comprehensive-authorization-candidate-v1"
 SESSION_AUTHORIZATION_SCHEMA = "claritylink-comprehensive-session-authorization-v1"
+APPROVED_POWER_MODE = "PARKED_POWER_SYSTEM_READY_ACTIVE"
 
 COMMAND_FIELDS = {
     "phase0_baseline_safety_identity": "commands",
@@ -537,6 +538,8 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
         raise ControllerError("session authorization must use the final session schema")
     if record.get("campaign_id") != CAMPAIGN_ID:
         raise ControllerError("approval does not bind this campaign")
+    if record.get("approved_power_mode") != APPROVED_POWER_MODE:
+        raise ControllerError("session must bind the approved parked READY-active power mode")
     if record.get("live_execution_enabled") is not True:
         raise ControllerError("this one-run owner record does not authorize live execution")
     if record.get("pins") != current_pins:
@@ -1162,6 +1165,7 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
         "approved_categories": categories,
         "category_permissions": {key: False for key in LIVE_PERMISSION_CATEGORIES},
         "risk_level": f"LEVEL_{max(PHASE_RISK_LEVELS[p] for p in phases)}",
+        "approved_power_mode": APPROVED_POWER_MODE,
         "owner_confirmed": False,
         "live_execution_enabled": False,
         "exact_vehicle_identity_confirmed": False,
@@ -1895,8 +1899,10 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     readiness_prompt = (
         "Confirm the physical Honda matches your private vehicle reference, the recorded ADB serial names the intended already-authorized endpoint, "
         "the recorded ADB transport is already authorized and independent of the iPhone/CarPlay data path and shared hub, "
-        "the car is stationary in Park with parking brake set and power mode ON with READY absent and engine not running, "
-        "the manual 100-minute power-on timer is running, you are present, and warnings/displays/audio are normal. "
+        "the car is outdoors, stationary in Park with parking brake set, and the power system is ON with READY active, "
+        "the manual 100-minute timer is running, you are present, and warnings/displays/audio are normal. "
+        "READY means the vehicle is capable of movement; do not shift or release the parking brake. "
+        "The engine may be silent or operate normally under hybrid control; stop on an unexpected engine or exhaust condition. "
         "Confirm that these physical readiness conditions are true now. Type YES, NOT YET, or CANCEL: "
     )
     session_started_utc = datetime.now(timezone.utc).isoformat()
@@ -1973,7 +1979,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                         if state != "factory_baseline_restored":
                             restoration_confirmed = False
                     _owner_checkpoint(prompt,
-                                      f"{phase_id} / {state}: {state_action} Check for unexpected warnings or abnormal display, cluster, Navigation, and audio behavior.",
+                                      f"{phase_id} / {state}: {state_action} Confirm Park, parking brake set, READY active, and normal engine/exhaust behavior; check for warnings or abnormal display, cluster, Navigation, and audio behavior.",
                                       output=output, deadline=deadline)
                     validate_session_authorization(record, current_pins=current_pins)
                     owner_notes.append({"phase": phase_id, "state": state,
@@ -2025,12 +2031,12 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
                                       "started_monotonic_ns": phase_started_monotonic_ns,
                                       "finished_monotonic_ns": time.monotonic_ns()})
                 if phase_id == "phase1_ordinary_adb_capability" and _ask_owner(prompt,
-                        "Confirm the fixed reads caused no abnormal warning, display, cluster, Navigation, or audio behavior. Type READY or STOP: ").strip() != "READY":
+                        "Confirm READY remains active, the vehicle remains in Park with parking brake set, and the fixed reads caused no abnormal warning or abnormal vehicle/display/audio behavior. Type READY or STOP: ").strip() != "READY":
                     raise ControllerError("owner reported or did not exclude abnormal behavior")
                 if phase_id == "phase1_ordinary_adb_capability" and time.monotonic() >= deadline:
                     raise ControllerError("100-minute session bound reached after Phase 1")
                 if phase_id == "phase7_recovery_restoration" and _ask_owner(prompt,
-                        "Confirm the owner-defined factory baseline remains restored and no abnormal warning is present. Type READY or STOP: ").strip() != "READY":
+                        "Confirm the owner-defined factory baseline remains restored, READY remains active, Park and parking brake remain set, and no abnormal warning is present. Type READY or STOP: ").strip() != "READY":
                     raise ControllerError("owner did not confirm final restoration")
                 if phase_id == "phase7_recovery_restoration":
                     restoration_confirmed = True

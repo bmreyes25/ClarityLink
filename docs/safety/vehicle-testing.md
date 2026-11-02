@@ -40,10 +40,12 @@ already authorized ADB endpoint and exact target identity. No scanning,
 fallback endpoint, retry, `adb root`, arbitrary shell, unapproved `su`, target
 setting change, installation, signal, or process attachment.
 
-Stop the affected experiment immediately on identity mismatch, permission or
-privilege surprise, unexpected persistence, command failure, timeout, engine
-start/READY change, warning, connectivity/power anomaly, or abnormal factory
-display/audio behavior. Do not retry, substitute, escalate, or proceed to
+For the comprehensive Honda campaign, stop immediately on identity mismatch,
+permission or privilege surprise, unexpected persistence, command failure,
+timeout, loss of the approved READY-active state, loss of Park or parking
+brake, abnormal warning, unexpected engine/exhaust behavior, connectivity/power
+anomaly, or abnormal factory display/audio behavior. READY active is expected;
+loss of READY is the stop condition. Do not retry, substitute, escalate, or proceed to
 another phase. Preserve private evidence and use only the reviewed restoration
 route. An abort permits host cleanup only; further vehicle commands require a
 new reviewed decision. No tool powers off the vehicle or starts a second

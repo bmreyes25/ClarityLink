@@ -17,6 +17,7 @@
     "existing_hondahack_observation": false
   },
   "risk_level": "LEVEL_1-or-LEVEL_2-or-LEVEL_3",
+  "approved_power_mode": "PARKED_POWER_SYSTEM_READY_ACTIVE",
   "owner_confirmed": true,
   "readiness_checks": {
     "stationary_in_park": true,

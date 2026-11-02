@@ -43,7 +43,7 @@
   },
   "global_stop_conditions": [
     "target or process identity mismatch, PID/start-time change, or authorization mismatch",
-    "unexpected vehicle warning including low-voltage/battery or charging-system warning, READY indicator, engine start, abnormal power/battery behavior, unexpected dimming/flicker/reset, or loss of safe Park/outdoor conditions",
+    "unexpected vehicle warning including low-voltage/battery or charging-system warning; loss of READY-active state; unexpected engine/exhaust behavior; abnormal power/battery behavior; unexpected dimming/flicker/reset; or loss of Park, parking brake, or outdoor conditions",
     "manual 100-minute power-on limit expires",
     "center display, cluster, Navigation, CarPlay, HondaHack, or audio behavior outside the specifically approved expected state",
     "ADB transport error, permission denial from a required operation, unsupported required command, timeout, output limit, or controller exception; optional fixed graphics/network reads reported absent or denied, and fixed OEM packages reported absent, are recorded once without retry",
@@ -53,12 +53,12 @@
   "required_conditions_for_any_future_run": [
     "separate exact owner authorization for the selected ordinary ADB and owner-operated stock CarPlay phases",
     "current exact candidate source/profile/source-lock review packet bound to the candidate commit",
-    "before ON, finish host preflight and private storage checks and prepare the exact one-use authorization record without issuing it or starting the controller; enter power mode ON with READY absent and engine not running, start the manual 100-minute timer, finalize authorization timestamps, and launch the controller immediately; the timer includes all work through normal power-off",
+    "before the session, finish host preflight and private storage checks and prepare the exact one-use authorization record without issuing it or starting the controller; use the reviewed parked READY-active power state, start the manual 100-minute timer when READY becomes active, finalize authorization timestamps, and launch the controller immediately; the timer includes all work through normal power-off",
     "owner records the exact already-authorized ADB transport privately and attests it is independent of the iPhone/CarPlay data path and shared hub",
     "owner physically present; factory display, cluster, Navigation, warning behavior, and audio normal",
     "one already-authorized ADB endpoint; no scan, endpoint fallback, setting change, or escalation",
     "independent review of fixed ADB commands, API-17 compatibility assumptions, resource accounting, failure handling, privacy, and restoration",
-    "qualified vehicle-safety review before any operation affecting factory display or warnings"
+    "qualified human vehicle-safety review of the exact parked READY-active procedure, including ready-to-drive restraint, outdoor engine/exhaust conditions, warnings, normal factory transitions, and restoration; the former ON/READY-absent 12 V depletion assessment is not required solely because of that obsolete state, though the reviewer may request evidence for a specific identified risk"
   ],
   "phases": [
     {
@@ -67,7 +67,7 @@
       "authorization_status": "NOT_AUTHORIZED",
       "commands": [],
       "owner_actions": [
-        "confirm stationary outdoors, Park, parking brake engaged, power mode ON, READY absent, engine not running; start the manual 100-minute timer now and include all work through normal power-off",
+        "confirm outdoors, stationary in Park, parking brake engaged, power system ON with READY active, owner present, and normal warnings/displays/audio; READY means the vehicle is capable of movement, so do not shift or release the parking brake; start the manual 100-minute timer now and include all work through normal power-off",
         "confirm the existing authorized ADB transport is independent of the iPhone/CarPlay data path and any shared hub; attest and describe it in the private authorization",
         "confirm owner present and normal factory warning/display/cluster/Navigation/audio state",
         "record iPhone and existing debugging state without changing either",
@@ -584,7 +584,7 @@
         "center display and cluster normal",
         "audio normal",
         "no abnormal warning",
-        "vehicle remains stationary in Park and READY absent"
+        "vehicle remains stationary in Park with parking brake set and READY active"
       ],
       "host_checks": [
         "campaign process exited",
