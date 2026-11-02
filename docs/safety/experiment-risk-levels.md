@@ -54,10 +54,16 @@ report.
 - For the comprehensive Honda capture, the approved state is stationary in
   Park with the parking brake set and power system ON with READY active. READY
   means the vehicle is capable of movement; do not shift or release the
-  parking brake. Keep the vehicle outdoors. A qualified human safety review
-  remains required for this actual operating procedure, including normal
-  engine operation/exhaust conditions; it is not an assessment of the obsolete
-  ON/READY-absent 12 V depletion scenario.
+  parking brake. Keep the vehicle outdoors. For this narrowly scoped,
+  owner-operated, ordinary-read READY-active campaign, the owner's documented
+  self-assessment and explicit one-session responsibility acknowledgment
+  replace a separate qualified human vehicle-safety review. This is not
+  independent certification and does not remove physical readiness checks,
+  abnormal-warning/engine/exhaust stop conditions, normal-control restoration,
+  or the qualified-review requirements that apply to other campaigns and
+  privileged or higher-risk testing. Historical assessment dates do not expire
+  solely because of age, but the assessment must still bind to the exact current
+  source commit and source pins; future dates are rejected.
 - High-risk changes require independent recovery evidence. Owner acceptance
   does not create recovery capability or establish technical feasibility.
 - Maintain `safeForHonda() == false` until separate deployment requirements

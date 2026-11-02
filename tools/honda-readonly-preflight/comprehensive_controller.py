@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -565,8 +565,6 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
         raise ControllerError("live-category permissions must match only the selected approved phases")
     if record.get("owner_confirmed") is not True:
         raise ControllerError("one affirmative owner session decision is required")
-    if "phase4_three_state_carplay" in phases:
-        _validate_owner_self_assessment(record)
     readiness = record.get("readiness_checks")
     requires_adb = any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases)
     required_readiness = {"stationary_in_park", "parking_brake_set", "owner_present",
@@ -644,6 +642,8 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
             or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
                    for value in digests.values())):
         raise ControllerError("exact review artifact digest bindings are missing or malformed")
+    if "phase4_three_state_carplay" in phases:
+        _validate_owner_self_assessment(record, current_pins)
     if "technical" in required_reviews and record.get("technical_reviewer_independence_verified") is not True:
         raise ControllerError("owner has not verified the external technical reviewer and exact-source review")
     if ({"qualified_vehicle_safety_reviewer_credentials_verified",
@@ -655,7 +655,7 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
             raise ControllerError("required private review artifact path is invalid")
 
 
-def _validate_owner_self_assessment(record: dict) -> str:
+def _validate_owner_self_assessment(record: dict, current_pins: dict[str, str] | None = None) -> str:
     """Bind the session to an unchanged owner attestation; never call it independent review."""
     path_value = record.get("owner_self_assessment_path")
     expected_digest = record.get("owner_self_assessment_sha256")
@@ -706,6 +706,25 @@ def _validate_owner_self_assessment(record: dict) -> str:
         raise ControllerError("owner self-assessment provenance pins are missing or malformed")
     if record.get("owner_self_assessment_owner") != assessment["owner_name"]:
         raise ControllerError("owner self-assessment identity does not match the session record")
+    # Bind the attestation to the exact source this session will run.
+    if (assessment["source_commit"] != record.get("reviewed_commit_sha")
+            or assessment["source_commit"] != _head_sha()):
+        raise ControllerError("owner self-assessment is bound to a different source commit")
+    actual_pins = pins()
+    if current_pins is not None and current_pins != actual_pins:
+        raise ControllerError("provided source pins do not match the actual current source")
+    if provenance_pins != {"profile_sha256": actual_pins["profile_sha256"],
+                           "source_lock_sha256": actual_pins["source_lock_sha256"],
+                           "manifest_sha256": actual_pins["command_manifest_sha256"]}:
+        raise ControllerError("owner self-assessment is bound to different source pins")
+    try:
+        attested_on = date.fromisoformat(assessment["attestation_date"])
+    except ValueError as exc:
+        raise ControllerError("owner self-assessment date is invalid") from exc
+    # Historical dates are allowed without an age limit; source bindings, not
+    # an arbitrary expiration window, determine whether the attestation applies.
+    if attested_on > date.today():
+        raise ControllerError("owner self-assessment date is in the future")
     return digest
 
 
@@ -1206,11 +1225,12 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
         assessment_digest = hashlib.sha256(raw_assessment).hexdigest()
         assessment_owner = assessment.get("owner_name", "")
         _validate_owner_self_assessment({
+            "reviewed_commit_sha": _head_sha(),
             "owner_self_assessment_path": str(OWNER_SELF_ASSESSMENT_PATH),
             "owner_self_assessment_owner": assessment_owner,
             "owner_self_assessment_sha256": assessment_digest,
             "owner_safety_assessment_acknowledged": True,
-        })
+        }, current_pins)
     except (ControllerError, OSError, UnicodeError, ValueError, AttributeError, json.JSONDecodeError):
         # Preparation remains non-executable; absence/malformed owner material
         # is reported as a gate, not silently upgraded to an approval.
@@ -2011,7 +2031,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     if latest_review_bindings != review_bindings:
         raise ControllerError("review artifacts or source binding changed before one-use authorization")
     review_bindings = latest_review_bindings
-    owner_assessment_digest = (_validate_owner_self_assessment(record)
+    owner_assessment_digest = (_validate_owner_self_assessment(record, current_pins)
                                if "phase4_three_state_carplay" in phases else None)
     authorization_binding = {"source_pins": current_pins, "review_bindings": review_bindings}
     if owner_assessment_digest:

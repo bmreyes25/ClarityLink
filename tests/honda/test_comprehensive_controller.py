@@ -692,7 +692,7 @@ def test_one_session_approval_covers_only_explicit_compatible_phases(tmp_path):
               "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
               "approved_phases": phases,
               "approved_categories": categories, "category_permissions": _category_permissions(categories), "risk_level": "LEVEL_2",
-              "live_execution_enabled": True, "pins": {"pin": "value"},
+              "live_execution_enabled": True, "pins": controller.pins(),
               "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {"technical": "a" * 64},
               "authorization_id": "AUTH-22334455", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
@@ -708,14 +708,14 @@ def test_one_session_approval_covers_only_explicit_compatible_phases(tmp_path):
               "factory_restoration_reference": "initial factory display and Navigation state",
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
-    controller.validate_session_authorization(record, current_pins={"pin": "value"})
+    controller.validate_session_authorization(record, current_pins=controller.pins())
     record["approved_power_mode"] = "ON_READY_ABSENT"
     with pytest.raises(controller.ControllerError, match="READY-active power mode"):
-        controller.validate_session_authorization(record, current_pins={"pin": "value"})
+        controller.validate_session_authorization(record, current_pins=controller.pins())
     record["approved_power_mode"] = controller.APPROVED_POWER_MODE
     record["approved_phases"].append("phase2_existing_root_supersu_review")
     with pytest.raises(controller.ControllerError, match="fixed campaign order"):
-        controller.validate_session_authorization(record, current_pins={"pin": "value"})
+        controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
 def test_stale_inactive_power_mode_cannot_consume_one_use_authorization(tmp_path):
@@ -733,7 +733,7 @@ def test_level_one_baseline_does_not_require_an_external_review():
               "approved_power_mode": controller.APPROVED_POWER_MODE,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
-              "live_execution_enabled": True, "pins": {"pin": "value"},
+              "live_execution_enabled": True, "pins": controller.pins(),
               "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {},
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
@@ -745,7 +745,7 @@ def test_level_one_baseline_does_not_require_an_external_review():
               "review_artifacts": {},
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
-    controller.validate_session_authorization(record, current_pins={"pin": "value"})
+    controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
 def test_existing_fixed_ordinary_adb_identity_subset_is_level_one(tmp_path):
@@ -843,7 +843,7 @@ def test_session_authorization_requires_a_private_destination_and_recovery_route
               "approved_power_mode": controller.APPROVED_POWER_MODE,
               "approved_phases": ["phase0_baseline_safety_identity"],
               "approved_categories": ["owner_baseline_observation"], "category_permissions": _category_permissions([]), "risk_level": "LEVEL_1",
-              "live_execution_enabled": True, "pins": {"pin": "value"},
+              "live_execution_enabled": True, "pins": controller.pins(),
               "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {},
               "authorization_id": "AUTH-11223344", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
@@ -855,10 +855,10 @@ def test_session_authorization_requires_a_private_destination_and_recovery_route
               "stop_conditions": ["abnormal warning"], "review_artifacts": {},
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
-    controller.validate_session_authorization(record, current_pins={"pin": "value"})
+    controller.validate_session_authorization(record, current_pins=controller.pins())
     record["evidence_destination_checklist"]["cloud_sync_disabled"] = False
     with pytest.raises(controller.ControllerError, match="evidence destination"):
-        controller.validate_session_authorization(record, current_pins={"pin": "value"})
+        controller.validate_session_authorization(record, current_pins=controller.pins())
 
 
 def _live_test_record(tmp_path, phases, pin_values):
@@ -914,8 +914,9 @@ def _owner_assessment_binding(directory):
         "owner_name": "Test Owner",
         "attestation_date": "2026-11-01",
         "source_commit": controller._head_sha(),
-        "pins": {"profile_sha256": "a" * 64, "source_lock_sha256": "b" * 64,
-                 "manifest_sha256": "c" * 64},
+        "pins": {"profile_sha256": controller.pins()["profile_sha256"],
+                 "source_lock_sha256": controller.pins()["source_lock_sha256"],
+                 "manifest_sha256": controller.pins()["command_manifest_sha256"]},
         "approved_power_mode": controller.APPROVED_POWER_MODE,
         "approved_phases": ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
                             "phase4_three_state_carplay", "phase7_recovery_restoration"],
@@ -1655,7 +1656,7 @@ def test_authorization_must_match_phase_and_exact_category_set(tmp_path):
                 "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
-                "live_execution_enabled": True, "pins": {"pin": "value"},
+                "live_execution_enabled": True, "pins": controller.pins(),
                 "reviewed_commit_sha": controller._head_sha(),
                 "review_artifact_sha256": {"technical": "a" * 64},
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32,
@@ -1673,10 +1674,10 @@ def test_authorization_must_match_phase_and_exact_category_set(tmp_path):
                   "factory_restoration_reference": "factory baseline",
                 "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
-    controller.validate_authorization(approval, requested_phase=phase, current_pins={"pin": "value"})
+    controller.validate_authorization(approval, requested_phase=phase, current_pins=controller.pins())
     approval["approved_categories"] = ["ordinary_unprivileged_adb"]
     with pytest.raises(controller.ControllerError, match="exactly its phase category set"):
-        controller.validate_authorization(approval, requested_phase=phase, current_pins={"pin": "value"})
+        controller.validate_authorization(approval, requested_phase=phase, current_pins=controller.pins())
 
 
 @pytest.mark.parametrize("phase", sorted(controller.BLOCKED_PHASES))
@@ -1718,7 +1719,7 @@ def test_expired_approval_rejected():
                 "approved_phases": [phase],
                 "approved_categories": list(controller.PHASE_CATEGORIES[phase]),
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
-                "live_execution_enabled": True, "pins": {"pin": "value"},
+                "live_execution_enabled": True, "pins": controller.pins(),
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32,
                 "run_id": "b" * 32, "issued_at_utc": old.isoformat(),
                 "expires_at_utc": (old + timedelta(minutes=10)).isoformat(),
@@ -1733,7 +1734,7 @@ def test_expired_approval_rejected():
                 "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
     with pytest.raises(controller.ControllerError, match="expired"):
-        controller.validate_authorization(approval, requested_phase=phase, current_pins={"pin": "value"})
+        controller.validate_authorization(approval, requested_phase=phase, current_pins=controller.pins())
 
 
 def test_invalid_authorization_does_not_consume_a_ledger_marker(tmp_path):
@@ -1969,3 +1970,68 @@ def test_studio_readiness_does_not_turn_simulator_success_into_experiment_succes
     assert studio["run_experiment"]["enabled"] is False
     assert studio["results"]["campaign_success"] is False
     assert studio["next_iteration"]["live_action"] == "NONE_UNTIL_REVIEW_AND_OWNER_AUTHORIZATION"
+
+
+@pytest.mark.parametrize("mutation", ["commit", "reviewed_commit", "profile", "source_lock", "manifest", "future_date"])
+def test_owner_self_assessment_is_bound_to_exact_source_and_pins(tmp_path, mutation):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    path = Path(record["owner_self_assessment_path"])
+    assessment = json.loads(path.read_text())
+    if mutation == "commit":
+        assessment["source_commit"] = "0" * 40
+    elif mutation == "reviewed_commit":
+        record["reviewed_commit_sha"] = "0" * 40
+    elif mutation == "future_date":
+        assessment["attestation_date"] = "2099-01-01"
+    else:
+        assessment["pins"][{"profile": "profile_sha256", "source_lock": "source_lock_sha256",
+                            "manifest": "manifest_sha256"}[mutation]] = "f" * 64
+    path.write_text(json.dumps(assessment))
+    path.chmod(0o600)
+    record["owner_self_assessment_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    ledger = tmp_path / "ledger"
+    with pytest.raises(controller.ControllerError, match="different source|in the future|reviewed source commit"):
+        controller.authorize_one_run(record, current_pins=controller.pins(), ledger=ledger)
+    assert not ledger.exists()
+
+
+def test_historical_owner_assessment_date_is_accepted_without_expiration(tmp_path):
+    record = _live_test_record(tmp_path, ["phase0_baseline_safety_identity",
+                                         "phase1_ordinary_adb_capability",
+                                         "phase4_three_state_carplay",
+                                         "phase7_recovery_restoration"], controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    path = Path(record["owner_self_assessment_path"])
+    assessment = json.loads(path.read_text())
+    assessment["attestation_date"] = "2000-01-01"
+    path.write_text(json.dumps(assessment))
+    path.chmod(0o600)
+    record["owner_self_assessment_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert controller._validate_owner_self_assessment(record) == record["owner_self_assessment_sha256"]
+
+
+def test_final_interactive_owner_acknowledgment_is_required_before_session(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    prompts = []
+    commands = []
+    with pytest.raises(controller.ControllerError, match="owner did not confirm session readiness"):
+        controller._execute_authorized_session(
+            record, ledger=tmp_path / "ledger",
+            prompt=lambda message: prompts.append(message) or "NOT YET",
+            output=lambda _message: None,
+            executor_factory=lambda _serial: lambda command: commands.append(command),
+            review_verifier=lambda _record, _pins: {
+                "reviewed_commit_sha": record["reviewed_commit_sha"],
+                "review_artifact_sha256": record["review_artifact_sha256"]},
+            notify=lambda _status: "NOT_SENT",
+        )
+    assert prompts and "own self-assessment" in prompts[0]
+    assert "accept responsibility" in prompts[0]
+    assert commands == []
+    assert not (tmp_path / "ledger").exists()
