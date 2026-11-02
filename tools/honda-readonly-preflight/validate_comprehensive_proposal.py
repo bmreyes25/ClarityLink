@@ -54,7 +54,7 @@ PHASE_FIELDS = frozenset({
     "required_evidence_to_reconsider", "required_observations_if_reconsidered", "known_side_effect",
     "abort_path", "shared_adb_server", "capture_during_transition", "required_categories",
     "comparative_purpose",
-    "offline_actions", "qualified_vehicle_safety_review",
+    "offline_actions", "owner_safety_self_assessment",
     "baseline_inventory", "activity_manager_scope", "owner_confirmation_rule",
 })
 NESTED_FIELDS = {

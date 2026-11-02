@@ -46,8 +46,10 @@ PRIVATE_LEDGER = Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library/Application S
 PRIVATE_RUNTIME_ROOT = Path(pwd.getpwuid(os.getuid()).pw_dir) / "Library/Application Support/ClarityLink/comprehensive-runtime"
 DEFAULT_EVIDENCE_ROOT = PRIVATE_RUNTIME_ROOT / "evidence"
 AUTHORIZATION_DRAFT = PRIVATE_RUNTIME_ROOT / "authorization-draft.json"
-PREPARATION_SCHEMA = "claritylink-comprehensive-authorization-candidate-v1"
-SESSION_AUTHORIZATION_SCHEMA = "claritylink-comprehensive-session-authorization-v1"
+PREPARATION_SCHEMA = "claritylink-comprehensive-authorization-candidate-v2"
+SESSION_AUTHORIZATION_SCHEMA = "claritylink-comprehensive-session-authorization-v2"
+OWNER_SELF_ASSESSMENT_SCHEMA = "claritylink-owner-ready-active-self-assessment-v1"
+OWNER_SELF_ASSESSMENT_PATH = PRIVATE_RUNTIME_ROOT / "owner-ready-active-self-assessment-58758ca-20261101.json"
 APPROVED_POWER_MODE = "PARKED_POWER_SYSTEM_READY_ACTIVE"
 
 COMMAND_FIELDS = {
@@ -84,7 +86,9 @@ PHASE_RISK_LEVELS = {
 PHASE_REVIEW_REQUIREMENTS = {
     "phase2_existing_root_supersu_review": ("technical",),
     "phase3_jmcs_maps_libraries_fd_socket_ownership": ("technical",),
-    "phase4_three_state_carplay": ("technical", "qualified_vehicle_safety"),
+    # This owner-operated, ordinary-read campaign uses documented owner risk
+    # acceptance. Other campaigns and privileged scopes retain their own gates.
+    "phase4_three_state_carplay": ("technical",),
 }
 BLOCKED_PHASES = {
     "phase2_existing_root_supersu_review",
@@ -561,6 +565,8 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
         raise ControllerError("live-category permissions must match only the selected approved phases")
     if record.get("owner_confirmed") is not True:
         raise ControllerError("one affirmative owner session decision is required")
+    if "phase4_three_state_carplay" in phases:
+        _validate_owner_self_assessment(record)
     readiness = record.get("readiness_checks")
     requires_adb = any("ordinary_unprivileged_adb" in PHASE_CATEGORIES[p] for p in phases)
     required_readiness = {"stationary_in_park", "parking_brake_set", "owner_present",
@@ -640,13 +646,67 @@ def validate_session_authorization(record: dict, *, current_pins: dict[str, str]
         raise ControllerError("exact review artifact digest bindings are missing or malformed")
     if "technical" in required_reviews and record.get("technical_reviewer_independence_verified") is not True:
         raise ControllerError("owner has not verified the external technical reviewer and exact-source review")
-    if ("qualified_vehicle_safety" in required_reviews
-            and record.get("qualified_safety_reviewer_credentials_verified") is not True):
-        raise ControllerError("qualified safety reviewer credentials are not independently verified")
+    if ({"qualified_vehicle_safety_reviewer_credentials_verified",
+         "qualified_safety_reviewer_credentials_verified"} & set(record)):
+        raise ControllerError("this campaign uses owner self-assessment, not qualified-review credentials")
     for review in required_reviews:
         path = review_paths[review]
         if not isinstance(path, str) or not Path(path).is_absolute():
             raise ControllerError("required private review artifact path is invalid")
+
+
+def _validate_owner_self_assessment(record: dict) -> str:
+    """Bind the session to an unchanged owner attestation; never call it independent review."""
+    path_value = record.get("owner_self_assessment_path")
+    expected_digest = record.get("owner_self_assessment_sha256")
+    if (record.get("owner_safety_assessment_acknowledged") is not True
+            or not isinstance(path_value, str) or not Path(path_value).is_absolute()
+            or not isinstance(expected_digest, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", expected_digest)):
+        raise ControllerError("owner self-assessment and explicit responsibility acknowledgment are required")
+    raw = _read_owner_private_file(Path(path_value), max_bytes=64 * 1024,
+                                   label="owner self-assessment")
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != expected_digest:
+        raise ControllerError("owner self-assessment bytes changed after acknowledgment")
+    try:
+        assessment = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ControllerError("owner self-assessment is malformed") from exc
+    required_phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+                       "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    if (not isinstance(assessment, dict)
+            or assessment.get("schema") != OWNER_SELF_ASSESSMENT_SCHEMA
+            or assessment.get("record_type") != "owner_self_assessment_not_qualified_review"
+            or assessment.get("campaign_id") != CAMPAIGN_ID
+            or assessment.get("approved_power_mode") != APPROVED_POWER_MODE
+            or assessment.get("approved_phases") != required_phases
+            or not isinstance(assessment.get("owner_name"), str)
+            or not assessment["owner_name"].strip()
+            or not isinstance(assessment.get("attestation_date"), str)
+            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", assessment["attestation_date"])
+            or not isinstance(assessment.get("source_commit"), str)
+            or not re.fullmatch(r"[0-9a-f]{40}", assessment["source_commit"])
+            or not isinstance(assessment.get("findings_as_reported"), list)
+            or not assessment["findings_as_reported"]
+            or not isinstance(assessment.get("qualification_basis_as_reported"), str)
+            or not assessment["qualification_basis_as_reported"].strip()
+            or not isinstance(assessment.get("measurement_status"), str)
+            or not assessment["measurement_status"].strip()
+            or assessment.get("assessment_type") !=
+               "Owner self-assessment; no separate qualified independent human review was performed."):
+        raise ControllerError("owner self-assessment does not match this campaign, phase scope, and READY-active procedure")
+    if not str(assessment.get("independent_qualified_review_status", "")).startswith("NOT_SATISFIED"):
+        raise ControllerError("owner self-assessment cannot claim independent qualified review")
+    provenance_pins = assessment.get("pins")
+    if (not isinstance(provenance_pins, dict)
+            or set(provenance_pins) != {"profile_sha256", "source_lock_sha256", "manifest_sha256"}
+            or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+                   for value in provenance_pins.values())):
+        raise ControllerError("owner self-assessment provenance pins are missing or malformed")
+    if record.get("owner_self_assessment_owner") != assessment["owner_name"]:
+        raise ControllerError("owner self-assessment identity does not match the session record")
+    return digest
 
 
 def validate_authorization(record: dict, *, requested_phase: str, current_pins: dict[str, str]) -> None:
@@ -1137,6 +1197,25 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
     schema = source.get("schema") or source.get("schema_version") or (
         "legacy-comprehensive-draft" if source else "no-existing-draft")
     review_paths, review_digests, review_report = _review_inventory(current_pins, phases)
+    assessment_digest = ""
+    assessment_owner = ""
+    try:
+        raw_assessment = _read_owner_private_file(
+            OWNER_SELF_ASSESSMENT_PATH, max_bytes=64 * 1024, label="owner self-assessment")
+        assessment = json.loads(raw_assessment.decode("utf-8"))
+        assessment_digest = hashlib.sha256(raw_assessment).hexdigest()
+        assessment_owner = assessment.get("owner_name", "")
+        _validate_owner_self_assessment({
+            "owner_self_assessment_path": str(OWNER_SELF_ASSESSMENT_PATH),
+            "owner_self_assessment_owner": assessment_owner,
+            "owner_self_assessment_sha256": assessment_digest,
+            "owner_safety_assessment_acknowledged": True,
+        })
+    except (ControllerError, OSError, UnicodeError, ValueError, AttributeError, json.JSONDecodeError):
+        # Preparation remains non-executable; absence/malformed owner material
+        # is reported as a gate, not silently upgraded to an approval.
+        assessment_digest = ""
+        assessment_owner = ""
     carried_owner_fields = {}
     for field in ("owner_verified_vehicle_reference", "factory_restoration_reference",
                   "adb_transport_details"):
@@ -1150,7 +1229,8 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
     for obsolete in ("schema_version", "required_review_types", "review_artifact_paths",
                      "reviewed_commit_sha", "review_artifact_sha256", "readiness_answer",
                      "preparation_only", "run_id", "nonce",
-                     "issued_at_utc", "expires_at_utc", "authorization_id"):
+                     "issued_at_utc", "expires_at_utc", "authorization_id",
+                     "qualified_safety_reviewer_credentials_verified"):
         candidate.pop(obsolete, None)
     source_revision = _head_sha()
     origin_main_revision = _origin_main_sha()
@@ -1171,7 +1251,10 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
         "exact_vehicle_identity_confirmed": False,
         "exact_adb_serial": "",
         "technical_reviewer_independence_verified": False,
-        "qualified_safety_reviewer_credentials_verified": False,
+        "owner_self_assessment_path": str(OWNER_SELF_ASSESSMENT_PATH),
+        "owner_self_assessment_owner": assessment_owner,
+        "owner_self_assessment_sha256": assessment_digest,
+        "owner_safety_assessment_acknowledged": False,
         "recovery_prerequisites_confirmed": False,
         "readiness_checks": {key: False for key in (
             "stationary_in_park", "parking_brake_set", "owner_present", "approved_power_state",
@@ -1196,7 +1279,8 @@ def prepare_candidate(*, draft_path: Path = AUTHORIZATION_DRAFT,
         "owner confirms the established ADB serial and that its network route is independent of iPhone USB/any shared hub",
         "owner defines the exact factory restoration baseline and confirms recovery prerequisites",
         "genuine exact-source independent technical review for this commit and campaign phase scope",
-        "genuinely qualified human automotive safety assessment for Phase 4; AI review cannot satisfy this gate",
+        *( [] if assessment_digest else ["owner READY-active self-assessment is unavailable or does not match this campaign"]),
+        "owner reviews and explicitly accepts the existing READY-active self-assessment for this one-session decision",
         "owner makes an explicit one-session experiment decision and supplies fresh one-use values immediately before an authorized run",
     ]
     if not candidate["head_matches_origin_main"]:
@@ -1357,7 +1441,7 @@ print(json.dumps(missing))
     host_ok = all(value.get("ok", False) for value in checks.values())
     owner_items = ["verify exact vehicle identity and ADB transport beside the vehicle",
                    "confirm the safe power/readiness state and factory restoration plan",
-                   "obtain the missing qualified human safety review and exact-source technical review",
+                   "review the owner self-assessment and obtain exact-source technical review",
                    "make the explicit one-session experiment decision"]
     return {"status": "HOST READY" if host_ok else "ENGINEERING FIX REQUIRED",
             "owner_status": "OWNER CHECK REQUIRED",
@@ -1903,7 +1987,7 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
         "the manual 100-minute timer is running, you are present, and warnings/displays/audio are normal. "
         "READY means the vehicle is capable of movement; do not shift or release the parking brake. "
         "The engine may be silent or operate normally under hybrid control; stop on an unexpected engine or exhaust condition. "
-        "Confirm that these physical readiness conditions are true now. Type YES, NOT YET, or CANCEL: "
+        "The authorization identifies the safety basis as your own self-assessment, not independent certification. Confirm you accept responsibility for this owner-operated parked READY-active procedure and that these physical readiness conditions are true now. Type YES, NOT YET, or CANCEL: "
     )
     session_started_utc = datetime.now(timezone.utc).isoformat()
     session_started_monotonic_ns = time.monotonic_ns()
@@ -1927,10 +2011,17 @@ def _execute_authorized_session(record: dict, *, current_pins: dict[str, str] | 
     if latest_review_bindings != review_bindings:
         raise ControllerError("review artifacts or source binding changed before one-use authorization")
     review_bindings = latest_review_bindings
+    owner_assessment_digest = (_validate_owner_self_assessment(record)
+                               if "phase4_three_state_carplay" in phases else None)
+    authorization_binding = {"source_pins": current_pins, "review_bindings": review_bindings}
+    if owner_assessment_digest:
+        authorization_binding["owner_self_assessment"] = {
+            "record_type": "owner_self_assessment_not_qualified_review",
+            "owner": record["owner_self_assessment_owner"],
+            "sha256": owner_assessment_digest,
+        }
     _write_private_file(run_dir / "authorization-binding.json",
-                        (json.dumps({"source_pins": current_pins,
-                                     "review_bindings": review_bindings},
-                                    sort_keys=True, indent=2) + "\n").encode())
+                        (json.dumps(authorization_binding, sort_keys=True, indent=2) + "\n").encode())
     marker = authorize_one_run(record, current_pins=current_pins, ledger=ledger)
     owner_notes = []
     command_records: list[dict] = []

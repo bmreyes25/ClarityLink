@@ -103,7 +103,7 @@ def test_prepare_migrates_without_overwriting_and_never_sets_readiness_true(tmp_
     assert candidate["approved_power_mode"] == controller.APPROVED_POWER_MODE
     assert candidate["exact_vehicle_identity_confirmed"] is False
     assert candidate["technical_reviewer_independence_verified"] is False
-    assert candidate["qualified_safety_reviewer_credentials_verified"] is False
+    assert candidate["owner_safety_assessment_acknowledged"] is False
     assert all(value is False for value in candidate["readiness_checks"].values())
     assert all(value is False for value in candidate["evidence_destination_checklist"].values())
     assert "review_artifact_paths" not in candidate
@@ -684,7 +684,7 @@ def test_all_separate_categories_are_present_and_no_phase_inherits_permission():
     assert controller.PHASE_CATEGORIES["phase2_existing_root_supersu_review"] == ("privileged_diagnostics",)
 
 
-def test_one_session_approval_covers_only_explicit_compatible_phases():
+def test_one_session_approval_covers_only_explicit_compatible_phases(tmp_path):
     phases = ["phase1_ordinary_adb_capability", "phase4_three_state_carplay",
               "phase7_recovery_restoration"]
     categories = sorted(set().union(*(set(controller.PHASE_CATEGORIES[p]) for p in phases)))
@@ -693,8 +693,7 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
               "approved_phases": phases,
               "approved_categories": categories, "category_permissions": _category_permissions(categories), "risk_level": "LEVEL_2",
               "live_execution_enabled": True, "pins": {"pin": "value"},
-              "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {
-                  "technical": "a" * 64, "qualified_vehicle_safety": "b" * 64},
+              "reviewed_commit_sha": controller._head_sha(), "review_artifact_sha256": {"technical": "a" * 64},
               "authorization_id": "AUTH-22334455", "run_id": "a" * 32, "nonce": "b" * 32,
               **controller.new_run_identifiers(), "owner_confirmed": True,
               "exact_adb_serial": "owner-private-serial",
@@ -703,9 +702,9 @@ def test_one_session_approval_covers_only_explicit_compatible_phases():
               "evidence_destination_checklist": {key: True for key in ("host_local_outside_repository", "directory_owner_only", "files_owner_only", "cloud_sync_disabled", "hash_inventory_ready")},
               "recovery_prerequisites_confirmed": True, "owner_question": "Which windows own Display 1?",
               "expected_evidence": "Bounded window/display snapshots", "known_risks": ["display state changes"], "stop_conditions": ["unexpected warning"],
-              "review_artifacts": {"technical": "/tmp/technical-review.json", "qualified_vehicle_safety": "/tmp/safety-review.json"},
+              "review_artifacts": {"technical": "/tmp/technical-review.json"},
               "technical_reviewer_independence_verified": True,
-              "qualified_safety_reviewer_credentials_verified": True,
+              **_owner_assessment_binding(tmp_path),
               "factory_restoration_reference": "initial factory display and Navigation state",
               "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
@@ -773,11 +772,11 @@ def test_review_record_binds_exact_commit_and_digest_for_each_required_artifact(
               "phase4_three_state_carplay", "phase7_recovery_restoration"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["factory_restoration_reference"] = "owner-defined factory baseline"
-    assert set(record["review_artifacts"]) == {"technical", "qualified_vehicle_safety"}
+    assert set(record["review_artifacts"]) == {"technical"}
     assert all(Path(path).is_absolute() for path in record["review_artifacts"].values())
     assert "review_artifact_paths" not in record
     assert record["reviewed_commit_sha"] == controller._head_sha()
-    assert set(record["review_artifact_sha256"]) == {"technical", "qualified_vehicle_safety"}
+    assert set(record["review_artifact_sha256"]) == {"technical"}
     assert all(len(value) == 64 for value in record["review_artifact_sha256"].values())
     assert record["owner_confirmed"] is True
     assert "readiness_answer" not in record
@@ -792,14 +791,13 @@ def test_controller_checks_artifact_digest_and_commit_against_owner_attestation(
               "phase4_three_state_carplay", "phase7_recovery_restoration"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["reviewed_commit_sha"] = "c" * 40
-    record["review_artifact_sha256"] = {"technical": "a" * 64,
-                                        "qualified_vehicle_safety": "b" * 64}
+    record["review_artifact_sha256"] = {"technical": "a" * 64}
     seen = []
 
     def fake_validate(raw, **kwargs):
         seen.append((raw, kwargs["commit_sha"]))
         return {"decision": "APPROVE_ENGINEERING",
-                "artifact_sha256": "a" * 64 if kwargs["review_type"] == "technical" else "b" * 64}
+                "artifact_sha256": "a" * 64}
 
     monkeypatch.setattr(controller, "_candidate_commit", lambda: "c" * 40)
     monkeypatch.setitem(sys.modules, "validate_review_artifacts",
@@ -807,9 +805,8 @@ def test_controller_checks_artifact_digest_and_commit_against_owner_attestation(
     monkeypatch.setattr(controller, "_read_owner_private_file", lambda *_args, **_kwargs: b"{}")
     bindings = controller._validate_live_reviews(record, controller.pins())
     assert bindings == {"reviewed_commit_sha": "c" * 40,
-                        "review_artifact_sha256": {"qualified_vehicle_safety": "b" * 64,
-                                                    "technical": "a" * 64}}
-    assert len(seen) == 2
+                        "review_artifact_sha256": {"technical": "a" * 64}}
+    assert len(seen) == 1
     assert all(commit == "c" * 40 for _, commit in seen)
 
 
@@ -819,14 +816,11 @@ def test_review_artifact_change_after_owner_yes_stops_before_one_use_consumption
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["factory_restoration_reference"] = "owner-defined factory baseline"
     record["reviewed_commit_sha"] = controller._head_sha()
-    record["review_artifact_sha256"] = {"technical": "a" * 64,
-                                        "qualified_vehicle_safety": "b" * 64}
+    record["review_artifact_sha256"] = {"technical": "a" * 64}
     first = {"reviewed_commit_sha": controller._head_sha(),
-             "review_artifact_sha256": {"technical": "a" * 64,
-                                        "qualified_vehicle_safety": "b" * 64}}
+             "review_artifact_sha256": {"technical": "a" * 64}}
     changed = {"reviewed_commit_sha": controller._head_sha(),
-               "review_artifact_sha256": {"technical": "d" * 64,
-                                          "qualified_vehicle_safety": "b" * 64}}
+               "review_artifact_sha256": {"technical": "d" * 64}}
     bindings = iter((first, changed))
     monkeypatch.setattr(controller, "_validate_live_reviews", lambda *_args: next(bindings))
     calls = []
@@ -879,6 +873,7 @@ def _live_test_record(tmp_path, phases, pin_values):
         artifact = tmp_path / f"{review}.json"
         review_digests[review] = _write_review_artifact(artifact, review)
         review_paths[review] = str(artifact)
+    owner_binding = _owner_assessment_binding(tmp_path)
     return {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
             "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
             "approved_phases": phases,
@@ -901,7 +896,109 @@ def _live_test_record(tmp_path, phases, pin_values):
             "exact_adb_serial": "private-owner-serial", "evidence_directory": str(evidence_dir),
             "review_artifacts": review_paths,
             "technical_reviewer_independence_verified": True,
-            "qualified_safety_reviewer_credentials_verified": True}
+            **owner_binding}
+
+
+def _owner_assessment_binding(directory):
+    directory = Path(directory)
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        directory.chmod(0o700)
+    except OSError:
+        pass
+    path = directory / "owner-assessment.json"
+    assessment = {
+        "schema": controller.OWNER_SELF_ASSESSMENT_SCHEMA,
+        "record_type": "owner_self_assessment_not_qualified_review",
+        "campaign_id": controller.CAMPAIGN_ID,
+        "owner_name": "Test Owner",
+        "attestation_date": "2026-11-01",
+        "source_commit": controller._head_sha(),
+        "pins": {"profile_sha256": "a" * 64, "source_lock_sha256": "b" * 64,
+                 "manifest_sha256": "c" * 64},
+        "approved_power_mode": controller.APPROVED_POWER_MODE,
+        "approved_phases": ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+                            "phase4_three_state_carplay", "phase7_recovery_restoration"],
+        "assessment_type": "Owner self-assessment; no separate qualified independent human review was performed.",
+        "independent_qualified_review_status": "NOT_SATISFIED",
+        "findings_as_reported": ["Owner considers the documented parked READY-active procedure suitable."],
+        "qualification_basis_as_reported": "Owner self-assessment; not a professional qualification claim.",
+        "measurement_status": "No independent physical measurements are represented.",
+    }
+    path.write_text(json.dumps(assessment))
+    path.chmod(0o600)
+    return {"owner_self_assessment_path": str(path),
+            "owner_self_assessment_owner": "Test Owner",
+            "owner_self_assessment_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "owner_safety_assessment_acknowledged": True}
+
+
+def test_ready_active_owner_self_assessment_is_bound_and_explicit_not_independent(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    assert controller._validate_owner_self_assessment(record) == record["owner_self_assessment_sha256"]
+    record["owner_safety_assessment_acknowledged"] = False
+    with pytest.raises(controller.ControllerError, match="explicit responsibility acknowledgment"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+
+
+def test_phase_four_keeps_exact_source_technical_review_but_drops_qualified_human_gate():
+    assert controller.PHASE_REVIEW_REQUIREMENTS["phase4_three_state_carplay"] == ("technical",)
+
+
+def test_old_session_schema_and_qualified_credential_claim_are_rejected(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    record["schema"] = "claritylink-comprehensive-session-authorization-v1"
+    with pytest.raises(controller.ControllerError, match="final session schema"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+    record["schema"] = controller.SESSION_AUTHORIZATION_SCHEMA
+    record["qualified_safety_reviewer_credentials_verified"] = True
+    with pytest.raises(controller.ControllerError, match="not qualified-review credentials"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+
+
+@pytest.mark.parametrize("mutation", ["owner", "schema", "campaign", "power", "phases", "review_claim"])
+def test_owner_self_assessment_rejects_wrong_identity_or_scope(tmp_path, mutation):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    path = Path(record["owner_self_assessment_path"])
+    assessment = json.loads(path.read_text())
+    field_value = {
+        "owner": ("different owner", "owner_name"),
+        "schema": ("qualified_vehicle_safety", "record_type"),
+        "campaign": ("other campaign", "campaign_id"),
+        "power": ("READY_ABSENT", "approved_power_mode"),
+        "phases": (["phase4_three_state_carplay"], "approved_phases"),
+        "review_claim": ("SATISFIED: independent qualified review", "independent_qualified_review_status"),
+    }
+    value, key = field_value[mutation]
+    assessment[key] = value
+    path.write_text(json.dumps(assessment))
+    path.chmod(0o600)
+    record["owner_self_assessment_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    with pytest.raises(controller.ControllerError, match="does not match|cannot claim"):
+        controller.validate_session_authorization(record, current_pins=controller.pins())
+
+
+def test_changed_owner_self_assessment_after_ack_fails_before_one_use_ledger(tmp_path):
+    phases = ["phase0_baseline_safety_identity", "phase1_ordinary_adb_capability",
+              "phase4_three_state_carplay", "phase7_recovery_restoration"]
+    record = _live_test_record(tmp_path, phases, controller.pins())
+    record["factory_restoration_reference"] = "owner-defined factory baseline"
+    path = Path(record["owner_self_assessment_path"])
+    path.write_text(path.read_text() + " ")
+    path.chmod(0o600)
+    ledger = tmp_path / "ledger"
+    with pytest.raises(controller.ControllerError, match="bytes changed"):
+        controller.authorize_one_run(record, current_pins=controller.pins(), ledger=ledger)
+    assert not ledger.exists()
 
 
 def _write_review_artifact(path, review_type, *, decision="APPROVE_ENGINEERING", phases=None,
@@ -943,9 +1040,7 @@ def test_review_inventory_rejects_request_changes_and_malformed_artifact(tmp_pat
     (review_dir / "malformed.json").chmod(0o600)
     paths, digests, report = controller._review_inventory(controller.pins(), phases)
     assert "technical" not in paths and "technical" not in digests
-    assert "qualified_vehicle_safety" in paths
-    assert digests["qualified_vehicle_safety"] == hashlib.sha256(
-        Path(paths["qualified_vehicle_safety"]).read_bytes()).hexdigest()
+    assert "qualified_vehicle_safety" not in paths
     assert any(item.get("status") == "VALID_NON_APPROVAL"
                and item.get("decision") == "REQUEST_CHANGES" for item in report)
     assert any(item.get("decision") == "INVALID" for item in report)
@@ -966,7 +1061,7 @@ def test_review_inventory_reports_ambiguity_instead_of_selecting(tmp_path, monke
     _write_review_artifact(review_dir / "safety.json", "qualified_vehicle_safety")
     paths, digests, report = controller._review_inventory(controller.pins(), phases)
     assert "technical" not in paths and "technical" not in digests
-    assert "qualified_vehicle_safety" in paths
+    assert "qualified_vehicle_safety" not in paths
     assert {item.get("status") for item in report if item.get("review_type") == "technical"} == {
         "VALID_APPROVAL", "AMBIGUOUS"}
 
@@ -977,17 +1072,12 @@ def test_review_artifact_replacement_with_another_valid_review_fails_digest_bind
     review_dir = tmp_path / "reviews"
     review_dir.mkdir(mode=0o700)
     technical = review_dir / "technical.json"
-    safety = review_dir / "safety.json"
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["reviewed_commit_sha"] = controller._head_sha()
-    record["review_artifacts"] = {"technical": str(technical), "qualified_vehicle_safety": str(safety)}
-    record["review_artifact_sha256"] = {
-        "technical": _write_review_artifact(technical, "technical"),
-        "qualified_vehicle_safety": _write_review_artifact(safety, "qualified_vehicle_safety"),
-    }
+    record["review_artifacts"] = {"technical": str(technical)}
+    record["review_artifact_sha256"] = {"technical": _write_review_artifact(technical, "technical")}
     first = controller._validate_live_reviews(record, controller.pins())
     assert first["review_artifact_sha256"] == record["review_artifact_sha256"]
-
     _write_review_artifact(technical, "technical", reviewer_name="independent-reviewer-2")
     with pytest.raises(controller.ControllerError, match="artifact bytes changed"):
         controller._validate_live_reviews(record, controller.pins())
@@ -1016,7 +1106,7 @@ def test_authorization_rejects_review_commit_change_and_extra_manual_review_type
     with pytest.raises(controller.ControllerError, match="reviewed source commit"):
         controller.validate_session_authorization(record, current_pins=controller.pins())
     record["reviewed_commit_sha"] = controller._head_sha()
-    record["required_review_types"] = ["technical", "qualified_vehicle_safety"]
+    record["required_review_types"] = ["technical"]
     with pytest.raises(controller.ControllerError, match="derived from the approved phases"):
         controller.validate_session_authorization(record, current_pins=controller.pins())
 
@@ -1367,9 +1457,7 @@ def test_transition_requires_restoration_phase_before_any_owner_prompt(tmp_path)
               "phase4_three_state_carplay"]
     record = _live_test_record(tmp_path, phases, controller.pins())
     record["factory_restoration_reference"] = "initial factory state"
-    record["review_artifacts"]["qualified_vehicle_safety"] = "/tmp/safety-review.json"
     record["technical_reviewer_independence_verified"] = True
-    record["qualified_safety_reviewer_credentials_verified"] = True
     prompts = []
     with pytest.raises(controller.ControllerError, match="restoration observation"):
         controller._execute_authorized_session(
@@ -1560,7 +1648,7 @@ def test_preparation_candidate_cannot_run_consume_or_issue_adb_even_if_flags_are
     assert not (tmp_path / "ledger").exists()
 
 
-def test_authorization_must_match_phase_and_exact_category_set():
+def test_authorization_must_match_phase_and_exact_category_set(tmp_path):
     phase = "phase4_three_state_carplay"
     approval = {"schema": controller.SESSION_AUTHORIZATION_SCHEMA, "preparation_only": False,
                 "campaign_id": controller.CAMPAIGN_ID, "approved_power_mode": controller.APPROVED_POWER_MODE,
@@ -1569,7 +1657,7 @@ def test_authorization_must_match_phase_and_exact_category_set():
                 "category_permissions": _category_permissions(controller.PHASE_CATEGORIES[phase]),
                 "live_execution_enabled": True, "pins": {"pin": "value"},
                 "reviewed_commit_sha": controller._head_sha(),
-                "review_artifact_sha256": {"technical": "a" * 64, "qualified_vehicle_safety": "b" * 64},
+                "review_artifact_sha256": {"technical": "a" * 64},
                 "authorization_id": "AUTH-12345678", "nonce": "a" * 32,
                 "run_id": "b" * 32, **controller.new_run_identifiers(),
                 "exact_adb_serial": "owner-private-serial",
@@ -1579,10 +1667,10 @@ def test_authorization_must_match_phase_and_exact_category_set():
                 "recovery_prerequisites_confirmed": True, "owner_question": "What changes after reconnect?",
                 "expected_evidence": "Bounded lifecycle comparison", "known_risks": ["stock CarPlay state transition"], "stop_conditions": ["unexpected warning"],
                 "factory_restoration_reference": "initial factory display and Navigation state",
-                "review_artifacts": {"technical": "/tmp/technical-review.json", "qualified_vehicle_safety": "/tmp/safety-review.json"},
+                "review_artifacts": {"technical": "/tmp/technical-review.json"},
                 "technical_reviewer_independence_verified": True,
-                "qualified_safety_reviewer_credentials_verified": True,
-                "factory_restoration_reference": "factory baseline",
+                **_owner_assessment_binding(tmp_path),
+                  "factory_restoration_reference": "factory baseline",
                 "exact_vehicle": "2018 Honda Clarity PHEV Touring (MY16ADA; exact unit identity must be owner-verified)",
               "exact_vehicle_identity_confirmed": True, "owner_verified_vehicle_reference": "private-reference", "evidence_directory": "/tmp/cl-private-evidence"}
     controller.validate_authorization(approval, requested_phase=phase, current_pins={"pin": "value"})

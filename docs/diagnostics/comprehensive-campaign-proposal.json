@@ -58,7 +58,7 @@
     "owner physically present; factory display, cluster, Navigation, warning behavior, and audio normal",
     "one already-authorized ADB endpoint; no scan, endpoint fallback, setting change, or escalation",
     "independent review of fixed ADB commands, API-17 compatibility assumptions, resource accounting, failure handling, privacy, and restoration",
-    "qualified human vehicle-safety review of the exact parked READY-active procedure, including ready-to-drive restraint, outdoor engine/exhaust conditions, warnings, normal factory transitions, and restoration; the former ON/READY-absent 12 V depletion assessment is not required solely because of that obsolete state, though the reviewer may request evidence for a specific identified risk"
+    "owner READY-active self-assessment and explicit acceptance of vehicle-side responsibility for this exact owner-operated ordinary-read campaign; this is not independent certification and does not apply to privileged or unrelated campaigns"
   ],
   "phases": [
     {
@@ -463,7 +463,7 @@
       "comparative_purpose": "Compare process PID, ActivityManager activity/service records, logical display, WindowManager, SurfaceFlinger layers, global network tables, usb0 operstate and bounded recent log records across all ten owner-confirmed states. These are process/window/layer lifetime proxies only; they do not expose ViewRoot ownership, physical pixels, warning precedence, or decoded Type111 events. Global socket rows are not jmcs-owned without same-snapshot FD-to-inode correlation.",
       "activity_manager_scope": "dumpsys activity activities/services may identify resumed activities, service records and component/process relationships; they do not expose the full View hierarchy or Surface producer ownership.",
       "owner_confirmation_rule": "Every listed stable state requires one explicit READY confirmation before any state commands. The owner watches for abnormal factory behavior during the snapshot and interrupts to STOP if observed; after STOP no further vehicle command is issued.",
-      "qualified_vehicle_safety_review": "Required before the ordinary Type110/Navigation transition campaign; review the exact fixed command set and stationary owner operation."
+      "owner_safety_self_assessment": "The owner documents their READY-active risk assessment and accepts vehicle-side responsibility for this exact ordinary-read campaign; this is explicitly an owner self-assessment, not independent certification."
     },
     {
       "id": "phase7_recovery_restoration",
