@@ -238,8 +238,12 @@ class FixedAdb:
         self.serial = serial
 
     def plan(self, operation: str, args: tuple[str, ...]) -> tuple[str, ...]:
+        if operation == "host-devices":
+            if args:
+                raise SafetyStop("host device listing does not accept arguments")
+            return (self.adb, "devices", "-l")
         if operation in {"id", "uname", "ps", "service-list", "hash-jmcs", "ls-jmcs",
-                         "hash-su", "ls-su"}:
+                         "hash-su", "ls-su", "ls-su-n"}:
             if args:
                 raise SafetyStop("fixed command does not accept extra arguments")
             remote = {"id": ("id",), "uname": ("uname", "-a"), "ps": ("ps",),
@@ -247,7 +251,8 @@ class FixedAdb:
                       "hash-jmcs": ("sha256sum", JMCS_STATIC_PATH),
                       "ls-jmcs": ("ls", "-l", JMCS_STATIC_PATH),
                       "hash-su": ("sha256sum", "/system/xbin/su"),
-                      "ls-su": ("ls", "-l", "/system/xbin/su")}[operation]
+                      "ls-su": ("ls", "-l", "/system/xbin/su"),
+                      "ls-su-n": ("ls", "-n", "/system/xbin/su")}[operation]
         elif operation == "read":
             if len(args) != 1:
                 raise SafetyStop("read requires exactly one allowlisted path")
