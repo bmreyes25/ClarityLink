@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
@@ -96,12 +97,16 @@ def _load_archive(root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str,
         proposal = json.loads((root / "campaign-proposal.json").read_text(encoding="utf-8"))
         source_lock = json.loads((root / "source-lock.json").read_text(encoding="utf-8"))
         coverage = json.loads((root / "evidence-objectives.json").read_text(encoding="utf-8"))
+        binding = json.loads((root / "authorization-binding.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ArchiveError("archive is missing its pinned source or session metadata") from exc
     if (summary.get("campaign_id") != CAMPAIGN_ID
             or summary.get("run_id") != root.name
             or summary.get("campaign_success") is not False):
         raise ArchiveError("archive campaign/run binding is invalid or claims execution success")
+    if (binding.get("review_bindings") != summary.get("review_bindings")
+            or binding.get("source_pins") != summary.get("source_pins")):
+        raise ArchiveError("archive authorization binding differs from the session summary")
     pins = summary.get("source_pins")
     if (not isinstance(pins, dict)
             or hashlib.sha256((root / "campaign-proposal.json").read_bytes()).hexdigest()
@@ -133,16 +138,53 @@ def _command_rows(proposal: dict[str, Any], serial: str) -> dict[str, set[tuple[
     return result
 
 
-def _verify_source_revision(root: Path, source_lock: dict[str, Any], pins: dict[str, Any]) -> None:
+def _verify_source_revision(root: Path, source_lock: dict[str, Any], pins: dict[str, Any],
+                            capture_commit: str) -> None:
     if (not isinstance(source_lock.get("sources"), dict)
             or source_lock.get("campaign_id") != CAMPAIGN_ID):
         raise ArchiveError("captured source lock is malformed")
+    if not re.fullmatch(r"[0-9a-f]{40}", capture_commit):
+        raise ArchiveError("capture source commit is missing or malformed")
+    try:
+        from verify_comprehensive_source_lock import REQUIRED_SOURCE_PATHS
+    except ImportError as exc:
+        raise ArchiveError("fixed capture source scope is unavailable") from exc
+    if set(source_lock["sources"]) != REQUIRED_SOURCE_PATHS:
+        raise ArchiveError("captured source lock path set differs from the fixed reviewed scope")
+    try:
+        ancestry = subprocess.run(
+            ["git", "-C", str(ROOT), "merge-base", "--is-ancestor", capture_commit, "HEAD"],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ArchiveError("cannot verify capture source commit in local Git history") from exc
+    if ancestry.returncode != 0:
+        raise ArchiveError("capture source commit is not in the local analysis checkout history")
     for relative, expected in source_lock["sources"].items():
-        path = ROOT / relative
-        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+        try:
+            captured = subprocess.run(
+                ["git", "-C", str(ROOT), "show", f"{capture_commit}:{relative}"],
+                capture_output=True, timeout=5, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ArchiveError(f"cannot read captured source revision: {relative}") from exc
+        if (captured.returncode != 0
+                or hashlib.sha256(captured.stdout).hexdigest() != expected):
             raise ArchiveError(f"replay requires the exact pinned public source revision: {relative}")
     if source_lock.get("command_manifest_sha256") != pins.get("command_manifest_sha256"):
         raise ArchiveError("archive manifest pin differs from the executed session")
+
+
+def _analysis_tool_revision() -> str:
+    try:
+        result = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+                                capture_output=True, text=True, timeout=5, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ArchiveError("analysis tool commit cannot be identified locally") from exc
+    revision = result.stdout.strip()
+    if result.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ArchiveError("analysis tool commit cannot be identified locally")
+    return revision
 
 
 def _summarize_baseline_inventory(records: list[dict[str, Any]], root: Path) -> dict[str, Any]:
@@ -266,10 +308,14 @@ def _session_coverage(summary: dict[str, Any], records: list[dict[str, Any]]) ->
     phase7_final_confirmed = any(isinstance(row, dict) and row.get("phase") == "phase7_recovery_restoration"
         and row.get("status") == "FACTORY_RESTORATION_CONFIRMED_AFTER_READS" for row in confirmations)
     phase7_records = [row for row in records if row.get("phase") == "phase7_recovery_restoration"
-                      and row.get("state") == "factory_restoration"]
+                      and row.get("state") == "single_phase_capture"]
+    phase7_by_operation = {(row.get("operation"), tuple(row.get("arguments", []))): row
+                           for row in phase7_records}
     phase7_complete = (phase7_confirmed and phase7_final_confirmed
         and len(phase7_records) == len(LIFECYCLE_OPERATIONS)
-        and all(row.get("result_status") == "success" for row in phase7_records))
+        and all((row := phase7_by_operation.get((operation, args))) is not None
+                and row.get("result_status") == "success"
+                for operation, args in LIFECYCLE_OPERATIONS))
     phase1_identity_ops = [
         ("property", (name,)) for name in ("ro.build.version.release", "ro.build.version.sdk",
             "ro.product.device", "ro.product.board", "ro.hardware")
@@ -510,7 +556,11 @@ def analyze_archive(path: Path) -> dict[str, Any]:
     root = _private_archive(path)
     summary, proposal, source_lock, inventory = _load_archive(root)
     pins = summary["source_pins"]
-    _verify_source_revision(root, source_lock, pins)
+    review_bindings = summary.get("review_bindings")
+    if not isinstance(review_bindings, dict):
+        raise ArchiveError("capture source review binding is missing")
+    capture_commit = review_bindings.get("reviewed_commit_sha")
+    _verify_source_revision(root, source_lock, pins, capture_commit)
     serial = summary.get("exact_adb_serial")
     if not isinstance(serial, str) or not serial:
         raise ArchiveError("archive has no exact target serial binding")
@@ -642,6 +692,9 @@ def analyze_archive(path: Path) -> dict[str, Any]:
     return {
         "campaign_id": CAMPAIGN_ID,
         "run_id": summary["run_id"],
+        "capture_source_commit": capture_commit,
+        "analysis_tool_commit": _analysis_tool_revision(),
+        "analysis_tool_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "archive_inventory_sha256": hashlib.sha256((root / "sha256.txt").read_bytes()).hexdigest(),
         "verified_artifact_count": len(inventory),
         "command_count": len(records),
