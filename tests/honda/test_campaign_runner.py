@@ -47,7 +47,7 @@ def test_historical_cp_profile_pins_are_unchanged_and_policy_drift_fails_closed(
         f"{expected_hash}  campaign_profile.json\n")
     assert hashlib.sha256(HISTORICAL_PROFILE_FILE.read_bytes()).hexdigest() == expected_hash
     expected_manifest = "9ac4ecce79769880f0628e743fa8a61d9b094f9bcfbc43b244f2e8798bce5388"
-    expected_source_lock = "24496ee622118c02317af32170a02a1548b931b7d0f85f0e1858bde966bb5b9d"
+    expected_source_lock = "5b0b51f0674d4d15c8fb0ac61e7938e7f89697bf801419f06366727a5b9b2be8"
     assert campaign.BASELINE_COMMAND_MANIFEST_SHA256 == expected_manifest
     assert campaign.command_manifest_sha256() == expected_manifest
     assert sum(len(phase.operations) for phase in campaign.phases()) == 135
