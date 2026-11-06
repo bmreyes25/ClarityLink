@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Owner-gated, fixed-operation CL-STAGEB-JMCS-CONNECTED-DELTA reader.
+"""Owner-gated fixed-operation CL-STAGEB-JMCS-CONNECTED-DELTA reader.
 
-Live use is intentionally disabled until the exact source has completed the
-required independent review and publication gates. Offline tests use a scripted
-transport and never access ADB or a vehicle.
+Live collection is available only through the named experiment-specific CLI
+activation and an interactive owner YES decision. Offline tests use a scripted
+transport and never access ADB or a vehicle. Python module internals are not an
+OS sandbox; only the reviewed CLI path is supported for collection.
 """
 from __future__ import annotations
 
@@ -27,8 +28,9 @@ from privileged import PrivilegedOperation, PrivilegedRead
 import root_identity_stage_a as stage_a
 
 
-LIVE_COLLECTION_ENABLED = False
+LIVE_COLLECTION_ENABLED = True
 EXPERIMENT = "CL-STAGEB-JMCS-CONNECTED-DELTA"
+LIVE_STAGE_B_ACTIVATION = "--live-stage-b-connected-delta"
 EXPECTED_JMCS_SHA256 = "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232"
 JMCS_STATIC_PATH = "/system/bin/jmcs"
 STATIC_CALLSITES = {
@@ -57,6 +59,15 @@ NETWORK_HEADERS = {
              "tr", "tm->when", "retrnsmt", "uid", "timeout", "inode"),
     "unix": ("Num", "RefCount", "Protocol", "Flags", "Type", "St", "Inode", "Path"),
 }
+
+
+def owner_disclosure(serial: str) -> str:
+    return (f"CLARITYLINK — STAGE B READ-ONLY RECEIVER DELTA\n\nExact ADB endpoint: {serial}. Is the Honda ready for this experiment? Confirm it is stationary outdoors, in Park, the parking brake is engaged, you are present, factory displays and warnings are normal, and CarPlay is disconnected. This fixed reader verifies MY16ADA / Android 4.2.2 and this exact disconnectable TCP/IP endpoint, rechecks target identity, su fingerprint and the read-only mounts covering both su and jmcs before preflight and each collection phase, then performs one final eligibility check after the post-disconnect snapshot. It binds jmcs by ps/stat/status plus transient cmdline and reads bounded FD links, fixed proc network tables and connected-state maps. The private capture includes complete `ps` output and system-wide `/proc/net` tables, which can contain unrelated process names and network endpoints. Important: the su binary is mode 06777 and group/world writable. A complete successful run performs 35 sequential fixed `/system/xbin/su -c` reads, plus five bounded temporary su binary pulls for eligibility. Stage A only authorized one `id` invocation; this new Stage B authorization separately covers those repeated root reads. The helper hash and metadata are checked at eligibility boundaries, but legacy ADB cannot atomically bind the copied bytes to the executable used by each `su` invocation; the read-only mount check is a separate condition and does not prove that binding. This residual integrity race is part of the authorization. Generic su integrity is not a normal PASS. SuperSU may show a prompt or create authorization/log/daemon state. Never approve a late SuperSU prompt after a timeout; a timed-out remote read may still be running. Stop on identity or eligibility mismatch, timeout, permission surprise, process change, unexpected vehicle behavior, or unclear prompt. Factory controls are the restoration route; if behavior is abnormal, stop and use your safety judgment. Type YES to authorize; NOT YET defers without target access; CANCEL declines this session.")
+
+
+def is_disconnectable_tcp_endpoint(serial: str) -> bool:
+    match = re.fullmatch(r"[A-Za-z0-9.-]+:([1-9][0-9]{0,4})", serial)
+    return bool(match and 1 <= int(match.group(1)) <= 65535)
 
 
 @dataclass(frozen=True)
@@ -328,58 +339,118 @@ def calculate_runtime_callsites(maps_raw: bytes) -> dict[str, object]:
 
 class AdbTransport:
     """Fixed ADB transport; only the operation table below reaches the target."""
-    def __init__(self) -> None:
-        self._require_live()
-        self.adb_path = shutil.which("adb")
-        if not self.adb_path:
+    def __init__(self, *, activation: str | None = None) -> None:
+        if (not LIVE_COLLECTION_ENABLED or activation != LIVE_STAGE_B_ACTIVATION
+                or not (sys.stdin.isatty() and sys.stdout.isatty())):
+            raise SafetyStop("fixed live transport requires the named interactive Stage B activation")
+        self._activation_enabled = True
+        self._adb_path = shutil.which("adb")
+        if not self._adb_path:
             raise SafetyStop("adb executable was not found")
-        self.serial = ""
-        self.fixed: FixedAdb | None = None
-        self.stage_a_transport = stage_a.AdbTransport()
+        self._serial = ""
+        self._fixed: FixedAdb | None = None
+        self._stage_a_transport = stage_a.AdbTransport()
+        self._owner_authorized = False
+        self._authorization_attempted = False
+        self.interrupted_operation_kind: str | None = None
 
-    @staticmethod
-    def _require_live() -> None:
-        if not LIVE_COLLECTION_ENABLED:
-            raise SafetyStop("live Stage B collection is disabled in this source revision")
+    @property
+    def owner_authorized(self) -> bool:
+        return self._owner_authorized
+
+    @property
+    def activation_enabled(self) -> bool:
+        return self._activation_enabled
+
+    @property
+    def serial(self) -> str:
+        return self._serial
+
+    def _revoke_owner_authorization(self) -> None:
+        self._owner_authorized = False
+
+    def _require_enabled(self) -> None:
+        if not LIVE_COLLECTION_ENABLED or not self.activation_enabled:
+            raise SafetyStop("live Stage B transport is not activated for this fixed experiment")
+
+    def _require_live(self) -> None:
+        self._require_enabled()
+        if not self.owner_authorized:
+            raise SafetyStop("live transport operations require the Stage B owner YES authorization")
+
+    def authorize_owner(self) -> str:
+        self._require_enabled()
+        if self._authorization_attempted:
+            raise SafetyStop("owner authorization is single-use for this Stage B invocation")
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            raise SafetyStop("live owner authorization requires an interactive terminal")
+        if not is_disconnectable_tcp_endpoint(self.serial):
+            raise SafetyStop("the exact TCP/IP ADB endpoint must be bound before owner authorization")
+        self._authorization_attempted = True
+        print(owner_disclosure(self.serial))
+        try:
+            answer = input("Do you authorize CL-STAGEB-JMCS-CONNECTED-DELTA? Type YES, NOT YET, or CANCEL: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            answer = "CANCEL"
+        if answer not in {"YES", "NOT YET", "CANCEL"}:
+            answer = "CANCEL"
+        self._owner_authorized = answer == "YES"
+        return answer
 
     def enumerate_devices(self) -> ReadResult:
         self._require_live()
         host_reader = FixedAdb("stage-b-host-operations", resolve_auto=False)
         command = host_reader.plan("host-devices", ())
-        code, stdout, stderr = host_reader._run_planned(
-            command, "stage_b_adb_devices", (), timeout=MAX_TIMEOUT_SECONDS,
-            max_bytes=MAX_SMALL_OPERATION_BYTES)
+        try:
+            code, stdout, stderr = host_reader._run_planned(
+                command, "stage_b_adb_devices", (), timeout=MAX_TIMEOUT_SECONDS,
+                max_bytes=MAX_SMALL_OPERATION_BYTES)
+        except KeyboardInterrupt:
+            self.interrupted_operation_kind = "host"
+            raise
         record = host_reader.records[-1] if host_reader.records else {}
         return ReadResult(code, stdout, stderr, record.get("result") == "timeout",
                           bool(record.get("truncated")) or record.get("result") == "output_limit")
 
     def set_serial(self, serial: str) -> None:
-        self._require_live()
+        # Binding the checked serial only builds local fixed plans; it makes no ADB call.
+        self._require_enabled()
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", serial) or serial.lower() == "auto":
             raise SafetyStop("exact ADB serial syntax is invalid")
-        self.serial = serial
-        self.fixed = FixedAdb(serial, resolve_auto=False)
-        self.stage_a_transport.set_serial(serial)
+        if self.owner_authorized and serial != self.serial:
+            raise SafetyStop("the ADB endpoint cannot change after owner authorization")
+        self._serial = serial
+        self._fixed = FixedAdb(serial, resolve_auto=False)
+        self._stage_a_transport.set_serial(serial)
 
     def _reader(self) -> FixedAdb:
-        if self.fixed is None:
+        if self._fixed is None:
             raise SafetyStop("exact ADB serial has not been selected")
-        return self.fixed
+        return self._fixed
 
     def observe(self, operation: str, argument: str = "", *, timeout: int = 5,
                 max_bytes: int = MAX_SMALL_OPERATION_BYTES) -> stage_a.Result:
         self._require_live()
-        result = self.stage_a_transport.observe(operation, argument,
-                                                timeout=min(max(timeout, 1), MAX_TIMEOUT_SECONDS),
-                                                max_bytes=min(max(max_bytes, 1), MAX_SMALL_OPERATION_BYTES))
+        try:
+            result = self._stage_a_transport.observe(operation, argument,
+                                                     timeout=min(max(timeout, 1), MAX_TIMEOUT_SECONDS),
+                                                     max_bytes=min(max(max_bytes, 1), MAX_SMALL_OPERATION_BYTES))
+        except KeyboardInterrupt:
+            self.interrupted_operation_kind = "target_metadata"
+            raise
         return result
 
     def _read(self, label: str, plan: tuple[str, ...], *, timeout: int = MAX_TIMEOUT_SECONDS,
               limit: int = MAX_OPERATION_BYTES, params: tuple[str, ...] = ()) -> ReadResult:
         self._require_live()
         reader = self._reader()
-        code, stdout, stderr = reader._run_planned(plan, f"stage_b_{label}", params,
-                                                   timeout=timeout, max_bytes=limit)
+        try:
+            code, stdout, stderr = reader._run_planned(plan, f"stage_b_{label}", params,
+                                                       timeout=timeout, max_bytes=limit)
+        except KeyboardInterrupt:
+            self.interrupted_operation_kind = (
+                "privileged" if "/system/xbin/su" in plan else "target")
+            raise
         record = reader.records[-1] if reader.records else {}
         return ReadResult(code, stdout, stderr,
                           record.get("result") == "timeout",
@@ -387,7 +458,11 @@ class AdbTransport:
 
     def root_identity_once(self) -> ReadResult:
         self._require_live()
-        result = self.stage_a_transport.root_identity_once()
+        try:
+            result = self._stage_a_transport.root_identity_once()
+        except KeyboardInterrupt:
+            self.interrupted_operation_kind = "privileged"
+            raise
         return ReadResult(result.code, result.stdout, result.stderr, result.timed_out,
                           result.output_limited)
 
@@ -431,10 +506,10 @@ class AdbTransport:
         self._require_live()
         # `adb disconnect` only detaches TCP/IP endpoints. Refuse USB and
         # ambiguous serial forms rather than claiming host-side cleanup.
-        if not re.fullmatch(r"[A-Za-z0-9.-]+:[0-9]{1,5}", self.serial):
+        if not is_disconnectable_tcp_endpoint(self.serial):
             return False
         reader = self._reader()
-        result = self._read("adb_disconnect", (self.adb_path, "disconnect", self.serial),
+        result = self._read("adb_disconnect", (self._adb_path, "disconnect", self.serial),
                             limit=MAX_SMALL_OPERATION_BYTES)
         return (result.code == 0 and not result.timed_out and not result.output_limited
                 and not result.stderr.strip()
@@ -563,6 +638,8 @@ class StageB:
             raise SafetyStop("non-ADB transports are permitted only for explicit offline simulation")
         if isinstance(transport, AdbTransport) and offline_simulation:
             raise SafetyStop("live ADB transports cannot use the offline-simulation path")
+        if isinstance(transport, AdbTransport) and not transport.activation_enabled:
+            raise SafetyStop("live Stage B controller requires the explicit fixed-experiment activation")
         self.transport = transport
         self.offline_simulation = offline_simulation
         self.input = input_fn
@@ -649,7 +726,7 @@ class StageB:
             "copied su bytes are fingerprinted at each eligibility pass, but legacy ADB cannot atomically bind those bytes to every later executable invocation; the covering read-only mount is separately verified")
         self.capture.analysis["root_eligibility"] = eligibility
         self.capture.analysis["stage_b_scope"] = (
-            "separate owner-authorized Stage B controlled diagnostic: multiple fixed read-only su invocations across three phases; Stage A's id-only scope is not reused; generic su integrity is not PASS")
+            "separate owner-authorized Stage B controlled diagnostic: 35 fixed read-only /system/xbin/su -c reads in a complete run across the three collection phases and preflight; five bounded temporary su binary pulls support eligibility, including one final post-snapshot check; Stage A's id-only scope is not reused; generic su integrity is not PASS")
 
     def _read_one(self, phase: str, operation: str, pid: int) -> bytes:
         result = self.transport.read_process(operation, pid)
@@ -768,19 +845,32 @@ class StageB:
     def _owner_gate(self) -> str:
         if not self.offline_simulation and not (sys.stdin.isatty() and sys.stdout.isatty()):
             raise SafetyStop("live owner authorization requires an interactive terminal")
-        self._emit(f"CLARITYLINK — STAGE B READ-ONLY RECEIVER DELTA\n\nExact ADB endpoint: {self.transport.serial}. Is the Honda ready for this experiment? Confirm it is stationary outdoors, in Park, the parking brake is engaged, you are present, factory displays and warnings are normal, and CarPlay is disconnected. This fixed reader verifies MY16ADA / Android 4.2.2 and this exact disconnectable TCP/IP endpoint, rechecks target identity, su fingerprint and the read-only mounts covering both su and jmcs before preflight and each collection phase, binds jmcs by ps/stat/status plus transient cmdline, and reads bounded FD links, fixed proc network tables and connected-state maps. The private capture includes complete `ps` output and system-wide `/proc/net` tables, which can contain unrelated process names and network endpoints. Important: the su binary is mode 06777 and group/world writable. Stage A only authorized one `id` invocation; this new Stage B authorization separately covers multiple fixed read-only su invocations, including four bounded temporary su binary pulls for eligibility. The helper hash and metadata are checked before each phase, but legacy ADB cannot atomically bind the copied bytes to the executable used by every later `su` invocation; the read-only mount check is a separate condition and does not prove that binding. This residual integrity race is part of the authorization. Generic su integrity is not a normal PASS. SuperSU may show a prompt or create authorization/log/daemon state. Never approve a late SuperSU prompt after a timeout; a timed-out remote read may still be running. Stop on identity or eligibility mismatch, timeout, permission surprise, process change, unexpected vehicle behavior, or unclear prompt. Factory controls are the restoration route; if behavior is abnormal, stop and use your safety judgment. Type YES to authorize; NOT YET defers without target access; CANCEL declines this session.")
+        if isinstance(self.transport, AdbTransport):
+            return self.transport.authorize_owner()
+        disclosure = owner_disclosure(self.transport.serial)
+        self._emit(disclosure)
         try:
-            answer = self.input("Do you authorize CL-STAGEB-JMCS-CONNECTED-DELTA? Type YES, NOT YET, or CANCEL: ").strip().upper()
+            answer = self.input("Do you authorize CL-STAGEB-JMCS-CONNECTED-DELTA? Type YES, NOT YET, or CANCEL: ").strip()
             return answer if answer in {"YES", "NOT YET", "CANCEL"} else "CANCEL"
         except (EOFError, KeyboardInterrupt):
             return "CANCEL"
 
     def _shutdown(self, endpoint_selected: bool, *, after_abort: bool = False) -> bool:
-        timed_out = bool(self.capture and any(row.get("timed_out") for row in self.capture.commands))
-        if timed_out:
+        privileged_operations = {
+            "root_identity", "process_stat", "process_status", "process_cmdline",
+            "process_maps", "fd_links", *(f"network_{table}" for table in NETWORK_TABLES),
+        }
+        timed_out = bool(self.capture and any(
+            row.get("timed_out") and row.get("operation") in privileged_operations
+            for row in self.capture.commands))
+        interrupted = getattr(self.transport, "interrupted_operation_kind", None) == "privileged"
+        if timed_out or interrupted:
             assert self.capture is not None
             self.capture.analysis["remote_operation_may_still_be_running"] = True
-            self._emit("A privileged read timed out; the remote operation may still be running. Do not approve any late SuperSU prompt. No retry will run.")
+            if timed_out:
+                self._emit("A privileged read timed out; the remote operation may still be running. Do not approve any late SuperSU prompt. No retry will run.")
+            else:
+                self._emit("A read was interrupted; the remote operation may still be running. Do not approve any late SuperSU prompt. No retry will run.")
         self._emit("No more target reads will run. Check factory displays, audio, warnings, and vehicle behavior.")
         if after_abort:
             try:
@@ -817,14 +907,15 @@ class StageB:
     def _emit(self, message: str) -> None:
         try:
             self.output(message)
-        except OSError:
+        except (OSError, KeyboardInterrupt):
             pass
 
     def run(self, serial: str) -> str:
         status = "INCOMPLETE"
         endpoint_selected = False
         if not self.offline_simulation and (not isinstance(self.transport, AdbTransport)
-                                            or not LIVE_COLLECTION_ENABLED):
+                                            or not LIVE_COLLECTION_ENABLED
+                                            or not getattr(self.transport, "activation_enabled", False)):
             raise SafetyStop("live Stage B collection is disabled in this source revision")
         if self.offline_simulation and isinstance(self.transport, AdbTransport):
             raise SafetyStop("live ADB transports cannot use the offline-simulation path")
@@ -835,7 +926,7 @@ class StageB:
         output.mkdir(mode=0o700)
         self.capture = StageBCapture(None, output, serial)
         try:
-            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", serial) or serial.lower() == "auto" or not re.fullmatch(r"[A-Za-z0-9.-]+:[0-9]{1,5}", serial):
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", serial) or serial.lower() == "auto" or not is_disconnectable_tcp_endpoint(serial):
                 raise SafetyStop("an exact serial naming a disconnectable IPv4/hostname TCP/IP ADB endpoint is required; USB/IPv6/ambiguous endpoints are unsupported")
             self.transport.set_serial(serial)
             decision = self._owner_gate()
@@ -845,6 +936,8 @@ class StageB:
                 self.capture.stop_reason = f"owner selected {decision} before target access"
                 return status
             self.capture.owner_authorized = True
+            if not self.offline_simulation and not self.transport.owner_authorized:
+                raise SafetyStop("live transport did not record interactive Stage B owner authorization")
             self._enumerate_and_bind(serial)
             endpoint_selected = True
             self.target_ops_started = True
@@ -873,6 +966,9 @@ class StageB:
                 raise SafetyStop("owner did not confirm normal CarPlay disconnect")
             self._check_stage_a_eligibility()
             self._post_disconnect()
+            # Close the final interval in which the writable helper could
+            # have changed after the preceding phase eligibility checks.
+            self._check_stage_a_eligibility()
             self.capture.analysis["differential"] = {
                 "baseline_to_connected": compare_socket_snapshots(
                     self.capture.analysis["socket_snapshots"]["baseline"],
@@ -917,7 +1013,11 @@ class StageB:
             return status
         finally:
             assert self.capture is not None
-            self.capture.finalize(status)
+            try:
+                self.capture.finalize(status)
+            finally:
+                if isinstance(self.transport, AdbTransport):
+                    self.transport._revoke_owner_authorization()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -925,7 +1025,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--serial", required=True, help="exact current ADB serial supplied by the owner")
     parser.add_argument("--output-root", type=Path,
                         default=Path.home() / "Library/Application Support/ClarityLink/comprehensive-runtime/evidence")
-    parser.add_argument("--dry-run", action="store_true", help="print fixed operation templates without ADB")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--dry-run", action="store_true", help="print fixed operation templates without ADB")
+    modes.add_argument(LIVE_STAGE_B_ACTIVATION, dest="live_stage_b", action="store_true",
+                       help="run only CL-STAGEB-JMCS-CONNECTED-DELTA after interactive owner authorization")
     args = parser.parse_args(argv)
     if args.dry_run:
         print("Offline only; no ADB enumeration or target command was sent. Fixed host and target operation plan:")
@@ -939,13 +1042,21 @@ def main(argv: list[str] | None = None) -> int:
                 ("post-disconnect", "repeat process identity plus transient cmdline validation and jmcs hash, then bounded FD/socket snapshot"),
                 ("host shutdown", "adb disconnect <exact TCP/IP serial> only after owner confirms CAR POWERED OFF")):
             print(f"{operation}: {tail}")
-        print("Live execution disabled pending exact-source independent review and publication gates.")
+        print("successful full-session totals: exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls")
+        print(f"Live execution requires {LIVE_STAGE_B_ACTIVATION} and interactive owner authorization.")
         return 0
+    if not args.live_stage_b:
+        print(f"No live experiment selected. Use --dry-run, or explicitly select {LIVE_STAGE_B_ACTIVATION}.", file=sys.stderr)
+        return 2
     if not LIVE_COLLECTION_ENABLED:
-        print("Live Stage B collection is disabled pending exact-source review and explicit owner authorization.", file=sys.stderr)
+        print("Live Stage B collection is disabled in this source revision.", file=sys.stderr)
+        return 2
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        print("Live Stage B collection requires an interactive terminal for owner authorization.", file=sys.stderr)
         return 2
     try:
-        status = StageB(AdbTransport(), evidence_root=args.output_root).run(args.serial)
+        transport = AdbTransport(activation=(LIVE_STAGE_B_ACTIVATION if args.live_stage_b else None))
+        status = StageB(transport, evidence_root=args.output_root).run(args.serial)
     except (SafetyStop, OSError, ValueError) as exc:
         print(f"Stage B could not start: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

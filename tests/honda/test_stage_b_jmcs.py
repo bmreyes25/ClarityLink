@@ -200,6 +200,19 @@ class FakeTransport:
         return self.bad != "disconnect-fail"
 
 
+def activated_transport(monkeypatch, *, owner_authorized=True):
+    """Construct the live adapter only in a mocked CLI/terminal test context."""
+    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
+    monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
+    transport = stage_b.AdbTransport(activation=stage_b.LIVE_STAGE_B_ACTIVATION)
+    transport.set_serial(SERIAL)
+    if owner_authorized:
+        monkeypatch.setattr("builtins.input", lambda _: "YES")
+        assert transport.authorize_owner() == "YES"
+    return transport
+
+
 def run_fake(*, bad: str | None = None, answers: list[str] | None = None,
              start_times: list[int] | None = None, pid_sequence: list[int] | None = None,
              serial: str = SERIAL):
@@ -254,8 +267,12 @@ def test_stage_b_successful_three_state_capture_is_bounded_private_and_same_epoc
     eligibility = manifest["analysis"]["root_eligibility"]
     assert "Stage B-specific multi-read" in eligibility["exception"]
     assert "cannot atomically bind" in eligibility["fingerprint_binding"]
-    assert transport.mount_checks == 4
-    assert sum(operation == "su-binary" for operation, _ in transport.ops) == 4
+    assert transport.mount_checks == 5
+    assert sum(operation == "su-binary" for operation, _ in transport.ops) == 5
+    su_read_operations = {"stat", "status", "cmdline", "maps", "fd_links"}
+    su_reads = sum(operation in su_read_operations or operation == "network"
+                   for operation, _ in transport.ops) + transport.root_calls
+    assert su_reads == 35
     assert manifest["analysis"]["connected_runtime_callsites"]["load_bias"] == "0x4008f000"
     assert manifest["analysis"]["connected_runtime_callsites"]["callsites"]["setup_dispatch_call"]["runtime_instruction_address_even"] == "0x40319f72"
     assert manifest["analysis"]["connected_runtime_callsites"]["callsites"]["setup_dispatch_call"]["runtime_thumb_function_pointer_odd"] == "0x40319f73"
@@ -401,30 +418,42 @@ def test_usb_adb_endpoint_is_rejected_before_privileged_access():
     assert "TCP/IP" in manifest["stop_reason"]
 
 
+@pytest.mark.parametrize("serial", ["192.0.2.10:0", "192.0.2.10:65536", "192.0.2.10:99999"])
+def test_out_of_range_tcp_port_is_rejected_before_target_access(serial):
+    status, transport, manifest, _, _ = run_fake(serial=serial)
+    assert status == "SAFE_ABORT"
+    assert transport.root_calls == 0
+    assert transport.ops == []
+    assert "TCP/IP" in manifest["stop_reason"]
+
+
+def test_zero_padded_tcp_port_is_rejected_before_target_access():
+    status, transport, manifest, _, _ = run_fake(serial="192.0.2.10:05555")
+    assert status == "SAFE_ABORT"
+    assert transport.root_calls == 0
+    assert transport.ops == []
+    assert "TCP/IP" in manifest["stop_reason"]
+
+
 def test_stagea_observe_bounds_and_root_identity_does_not_use_stale_records(monkeypatch):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
+    transport = activated_transport(monkeypatch)
     observed = []
     def observe(operation, argument="", *, timeout=5, max_bytes=stage_a.MAX_OUTPUT):
         observed.append((operation, argument, timeout, max_bytes))
         return stage_a.Result(0, b"device\n", b"")
-    monkeypatch.setattr(transport.stage_a_transport, "observe", observe)
+    monkeypatch.setattr(transport._stage_a_transport, "observe", observe)
     transport.observe("state", timeout=100, max_bytes=10**7)
     assert observed == [("state", "", stage_b.MAX_TIMEOUT_SECONDS, stage_b.MAX_SMALL_OPERATION_BYTES)]
-    monkeypatch.setattr(transport.stage_a_transport, "root_identity_once",
+    monkeypatch.setattr(transport._stage_a_transport, "root_identity_once",
                         lambda: stage_a.Result(0, b"uid=0(root) gid=0(root)\n", b"", False, False))
-    transport.serial = SERIAL
-    transport.fixed = stage_b.FixedAdb(SERIAL, resolve_auto=False)
-    transport.fixed.records.append({"result": "timeout", "truncated": True})
+    transport.set_serial(SERIAL)
+    transport._fixed.records.append({"result": "timeout", "truncated": True})
     result = transport.root_identity_once()
     assert result.code == 0 and not result.timed_out and not result.output_limited
 
 
 def test_stagea_mount_su_metadata_binary_pull_and_root_id_use_fixed_plans(monkeypatch):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
+    transport = activated_transport(monkeypatch)
     transport.set_serial(SERIAL)
     calls = []
 
@@ -490,7 +519,7 @@ def test_owner_consent_prompt_discloses_exact_bound_endpoint(tmp_path):
     prompt = "\n".join(outputs)
     assert f"Exact ADB endpoint: {SERIAL}" in prompt
     assert "cannot atomically bind" in prompt
-    assert "four bounded temporary su binary pulls" in prompt
+    assert "five bounded temporary su binary pulls" in prompt
     assert "NOT YET defers" in prompt and "CANCEL declines" in prompt
 
 
@@ -504,15 +533,22 @@ def test_owner_deferral_and_cancellation_are_distinct_and_precede_target_access(
     assert transport.root_calls == 0
 
 
+def test_offline_owner_simulation_requires_exact_yes():
+    status, transport, manifest, _, _ = run_fake(answers=["yes"])
+    assert status == "CANCELLED"
+    assert manifest["owner_decision"] == "CANCEL"
+    assert not manifest["owner_authorization_accepted"]
+    assert transport.ops == []
+    assert transport.root_calls == 0
+
+
 def test_socket_delta_fails_closed_on_incomplete_snapshot():
     with pytest.raises(stage_b.SafetyStop, match="incomplete"):
         stage_b.compare_socket_snapshots({}, {"owned_socket_matches": []})
 
 
 def test_real_transport_uses_bounded_fixed_host_and_privileged_plans(monkeypatch):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
+    transport = activated_transport(monkeypatch)
     transport.set_serial(SERIAL)
     calls = []
     responses = iter([
@@ -531,7 +567,7 @@ def test_real_transport_uses_bounded_fixed_host_and_privileged_plans(monkeypatch
     assert calls[-1][3:] == (stage_b.MAX_TIMEOUT_SECONDS, stage_b.MAX_SMALL_OPERATION_BYTES)
     assert transport.disconnect()
     assert calls[-1][0][-2:] == ("disconnect", SERIAL)
-    assert calls[-1][0] == (transport.adb_path, "disconnect", SERIAL)
+    assert calls[-1][0] == (transport._adb_path, "disconnect", SERIAL)
     assert calls[-1][3:] == (stage_b.MAX_TIMEOUT_SECONDS, stage_b.MAX_SMALL_OPERATION_BYTES)
 
 
@@ -543,10 +579,7 @@ def test_real_transport_uses_bounded_fixed_host_and_privileged_plans(monkeypatch
 ])
 def test_disconnect_failure_shapes_are_not_reported_as_success(
         monkeypatch, code, stdout, stderr, result, truncated):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
-    transport.set_serial(SERIAL)
+    transport = activated_transport(monkeypatch)
     calls = []
 
     def fake_run(self, command, operation, args, *, timeout, max_bytes):
@@ -557,16 +590,13 @@ def test_disconnect_failure_shapes_are_not_reported_as_success(
     monkeypatch.setattr(stage_b.FixedAdb, "_run_planned", fake_run)
     assert transport.disconnect() is False
     assert len(calls) == 1
-    assert calls[0][0] == (transport.adb_path, "disconnect", SERIAL)
+    assert calls[0][0] == (transport._adb_path, "disconnect", SERIAL)
     assert calls[0][1:] == ("stage_b_adb_disconnect", stage_b.MAX_TIMEOUT_SECONDS,
                             stage_b.MAX_SMALL_OPERATION_BYTES)
 
 
 def test_real_transport_privileged_plans_and_bounds_are_fixed(monkeypatch):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
-    transport.set_serial(SERIAL)
+    transport = activated_transport(monkeypatch)
     calls = []
 
     def fake_run(self, command, operation, args, *, timeout, max_bytes):
@@ -607,10 +637,7 @@ def test_real_transport_privileged_plans_and_bounds_are_fixed(monkeypatch):
 
 
 def test_real_transport_privileged_timeout_is_reported_without_retry(monkeypatch):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
-    transport.set_serial(SERIAL)
+    transport = activated_transport(monkeypatch)
     calls = []
 
     def timeout_run(self, command, operation, args, *, timeout, max_bytes):
@@ -624,6 +651,39 @@ def test_real_transport_privileged_timeout_is_reported_without_retry(monkeypatch
     assert calls == ["stage_b_network_tcp"]
 
 
+def test_privileged_interrupt_is_classified_without_retry(monkeypatch):
+    transport = activated_transport(monkeypatch)
+    calls = []
+
+    def interrupt_run(self, command, operation, args, *, timeout, max_bytes):
+        calls.append(operation)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(stage_b.FixedAdb, "_run_planned", interrupt_run)
+    with pytest.raises(KeyboardInterrupt):
+        transport.read_network("tcp")
+    assert calls == ["stage_b_network_tcp"]
+    assert transport.interrupted_operation_kind == "privileged"
+
+
+def test_interrupted_target_operation_warns_against_late_supersu_prompt(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    transport.interrupted_operation_kind = "privileged"
+    outputs = []
+    answers = iter(["NORMAL", "CAR POWERED OFF"])
+    controller = stage_b.StageB(transport, input_fn=lambda _: next(answers),
+                                output_fn=outputs.append, evidence_root=root,
+                                repo_root=ROOT, offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+    assert controller._shutdown(endpoint_selected=False, after_abort=True)
+    assert controller.capture.analysis["remote_operation_may_still_be_running"] is True
+    assert any("interrupted" in message and "late SuperSU" in message for message in outputs)
+
+
 def test_private_evidence_root_rejects_checkout_and_symlink(tmp_path):
     with pytest.raises(stage_b.SafetyStop):
         stage_b.verify_private_root(ROOT / "private-evidence-test", ROOT)
@@ -635,32 +695,99 @@ def test_private_evidence_root_rejects_checkout_and_symlink(tmp_path):
         stage_b.verify_private_root(link, ROOT)
 
 
-def test_live_transport_direct_invocation_stays_disabled(tmp_path):
+def test_live_transport_requires_experiment_activation_and_canonical_owner_yes(tmp_path, monkeypatch, capsys):
     with pytest.raises(stage_b.SafetyStop):
         stage_b.AdbTransport()
-    transport = object.__new__(stage_b.AdbTransport)
-    outputs = []
-    controller = stage_b.StageB(transport, input_fn=lambda _: "YES", output_fn=outputs.append,
-                                evidence_root=tmp_path, repo_root=ROOT)
-    with mock.patch.object(stage_b, "LIVE_COLLECTION_ENABLED", False):
-        with pytest.raises(stage_b.SafetyStop, match="disabled"):
-            controller.run(SERIAL)
+    transport = activated_transport(monkeypatch, owner_authorized=False)
+    with pytest.raises(stage_b.SafetyStop, match="owner YES"):
+        transport.enumerate_devices()
+    with pytest.raises(stage_b.SafetyStop, match="owner YES"):
+        transport.read_ps()
+    assert not hasattr(transport, "stage_a_transport")
+    assert not hasattr(transport, "fixed")
+    with pytest.raises(AttributeError):
+        transport.serial = "other-host:5555"
     assert list(tmp_path.iterdir()) == []
+    monkeypatch.setattr("builtins.input", lambda _: "CANCEL")
+    assert transport.authorize_owner() == "CANCEL"
+    assert not transport.owner_authorized
+    shown = capsys.readouterr().out
+    assert "mode 06777 and group/world writable" in shown
+    assert "35 sequential fixed `/system/xbin/su -c` reads" in shown
+    assert "cannot atomically bind" in shown
+    assert f"Exact ADB endpoint: {SERIAL}" in shown
+    with pytest.raises(stage_b.SafetyStop, match="single-use"):
+        transport.authorize_owner()
+    with pytest.raises(AttributeError):
+        transport.owner_authorized = True
+    with pytest.raises(TypeError):
+        transport.authorize_owner("")
+    authorized = activated_transport(monkeypatch)
+    with pytest.raises(stage_b.SafetyStop, match="cannot change"):
+        authorized.set_serial("other-host:5555")
+    exactness = activated_transport(monkeypatch, owner_authorized=False)
+    monkeypatch.setattr("builtins.input", lambda _: "yes")
+    assert exactness.authorize_owner() == "CANCEL"
+    assert not exactness.owner_authorized
+    with mock.patch.object(stage_b, "LIVE_COLLECTION_ENABLED", False):
+        with pytest.raises(stage_b.SafetyStop, match="not activated"):
+            transport.enumerate_devices()
     with mock.patch.object(stage_b, "LIVE_COLLECTION_ENABLED", False), mock.patch.object(
             stage_b, "AdbTransport", side_effect=AssertionError("must not construct live transport")):
+        assert stage_b.main(["--serial", SERIAL, stage_b.LIVE_STAGE_B_ACTIVATION]) == 2
         assert stage_b.main(["--serial", SERIAL]) == 2
+
+
+def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
+    monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: False)
+    with mock.patch.object(stage_b, "AdbTransport", side_effect=AssertionError("must not construct without TTY")):
+        assert stage_b.main(["--serial", SERIAL, stage_b.LIVE_STAGE_B_ACTIVATION]) == 2
+    assert "interactive terminal" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        stage_b.main(["--serial", SERIAL, "--dry-run", stage_b.LIVE_STAGE_B_ACTIVATION])
+
+
+def test_live_controller_authorizes_only_after_interactive_yes(tmp_path, monkeypatch):
+    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
+    monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda _: "CANCEL")
+
+    class MockedLiveTransport(stage_b.AdbTransport):
+        def __init__(self):
+            super().__init__(activation=stage_b.LIVE_STAGE_B_ACTIVATION)
+            self.remote_calls = []
+
+        def enumerate_devices(self):
+            assert self.owner_authorized
+            self.remote_calls.append("devices")
+            return stage_b.ReadResult(0, b"List of devices attached\n", b"")
+
+    cancel_transport = MockedLiveTransport()
+    cancel = stage_b.StageB(cancel_transport, input_fn=lambda _: "CANCEL", output_fn=lambda _: None,
+                            evidence_root=tmp_path, repo_root=ROOT)
+    assert cancel.run(SERIAL) == "CANCELLED"
+    assert cancel_transport.remote_calls == []
+
+    yes_transport = MockedLiveTransport()
+    monkeypatch.setattr("builtins.input", lambda _: "YES")
+    yes = stage_b.StageB(yes_transport, input_fn=lambda _: "YES", output_fn=lambda _: None,
+                         evidence_root=tmp_path, repo_root=ROOT)
+    assert yes.run(SERIAL) == "SAFE_ABORT"
+    assert yes_transport.remote_calls == ["devices"]
+    assert not yes_transport.owner_authorized
 
 
 def test_dry_run_mentions_postdisconnect_hash_and_cmdline_validation(capsys):
     assert stage_b.main(["--serial", SERIAL, "--dry-run"]) == 0
     output = capsys.readouterr().out
     assert "post-disconnect: repeat process identity plus transient cmdline validation and jmcs hash" in output
+    assert "exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls" in output
 
 
 def test_adb_transport_cannot_enter_offline_simulation(monkeypatch, tmp_path):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
-    monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
-    transport = stage_b.AdbTransport()
+    transport = activated_transport(monkeypatch)
     with pytest.raises(stage_b.SafetyStop, match="cannot use the offline-simulation path"):
         stage_b.StageB(transport, evidence_root=tmp_path, repo_root=ROOT, offline_simulation=True)
 
@@ -761,7 +888,7 @@ def test_cmdline_and_fd_links_reject_malformed_identity():
 
 def test_controller_exposes_no_arbitrary_process_or_network_reads():
     transport = object.__new__(stage_b.AdbTransport)
-    transport.fixed = None
+    transport._fixed = None
     with pytest.raises(stage_b.SafetyStop):
         transport.read_process("environ", PID)
     with pytest.raises(stage_b.SafetyStop):
