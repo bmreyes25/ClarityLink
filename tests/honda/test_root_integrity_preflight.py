@@ -101,6 +101,17 @@ def test_candidate_requires_exact_hash_and_ro_but_never_calls_it_integrity_pass(
         False, "INELIGIBLE_MOUNT_LAYERING_UNRESOLVED")
 
 
+def test_aborted_preflight_never_reports_controlled_candidate():
+    metadata = {"file_type": "regular", "uid": 0, "gid": 0,
+                "mode_octal": "0o6777", "size_bytes": preflight.EXPECTED_SU_SIZE, "setuid": True}
+    mount = {"complete": True, "read_only": True, "read_write": False}
+    summary = preflight._summary("TEST-ENDPOINT", mount, metadata, preflight.EXPECTED_SU_SHA256,
+                                 preflight.EXPECTED_SU_SIZE, "ABORTED", True,
+                                 dict(preflight.EXPECTED_TARGET_PROPERTIES))
+    assert summary["controlled_root_identity_candidate"] is False
+    assert summary["root_execution_eligibility"] == "INCOMPLETE_PREFLIGHT_ABORTED"
+
+
 class FakeAdb:
     def __init__(self, serial, binary, mounts, metadata):
         self.serial = serial
@@ -110,10 +121,12 @@ class FakeAdb:
         self.metadata = metadata
         self.records = []
         self.operations = []
+        self.properties = dict(preflight.EXPECTED_TARGET_PROPERTIES)
 
     def run(self, operation, *args, **kwargs):
         self.operations.append((operation, args))
-        output = {"read": self.mounts, "ls-su-n": self.metadata}[operation]
+        output = ({"read": self.mounts, "ls-su-n": self.metadata}.get(operation)
+                  if operation != "property" else (self.properties[args[0]] + "\n").encode())
         self.records.append({"operation": operation, "result": "success", "exit_code": 0})
         return 0, output, b""
 
@@ -138,10 +151,12 @@ def test_one_shot_run_collects_only_three_target_operations_and_hashes_host_copy
     root = tmp_path / "private"
     output = preflight.run("TEST-ENDPOINT", root)
     summary = json.loads((output / "summary.json").read_text())
-    assert [name for name, _args in fake.operations] == ["read", "ls-su-n", "pull-su"]
+    assert [name for name, _args in fake.operations] == [
+        "property", "property", "property", "read", "ls-su-n", "pull-su"]
     assert summary["observed_sha256"] == digest
     assert summary["pulled_size_bytes"] == len(binary)
     assert summary["controlled_root_identity_candidate"] is True
+    assert summary["target_identity_properties"] == preflight.EXPECTED_TARGET_PROPERTIES
     assert summary["conventional_integrity_status"].startswith("NOT_A_CONVENTIONAL")
     assert summary["stage_a"].startswith("NOT_EXECUTED")
     assert summary["root_or_target_writes_performed"] is False
@@ -164,31 +179,150 @@ def test_non_readonly_or_incomplete_mount_stops_before_metadata_and_pull(
     monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
     output = preflight.run("TEST-ENDPOINT", tmp_path / "private")
     summary = json.loads((output / "summary.json").read_text())
-    assert [name for name, _args in fake.operations] == ["read"]
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read"]
     assert summary["root_execution_eligibility"] == expected_status
     assert summary["observed_sha256"] is None
     assert summary["controlled_root_identity_candidate"] is False
     assert (output / "manifest.json").is_file()
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["target_identity"].startswith("verified MY16ADA")
 
 
-def test_implausibly_large_reported_file_stops_before_pull(monkeypatch, tmp_path):
+def test_wrong_target_identity_stops_before_mount_or_binary_read(monkeypatch, tmp_path):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", b"/dev/system /system ext4 ro 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    fake.properties["ro.product.model"] = "OTHER-MODEL"
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(collector.SafetyStop, match="target identity mismatch"):
+        preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    output = next((tmp_path / "private").iterdir())
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == ["property"]
+    assert summary["controlled_root_identity_candidate"] is False
+    assert summary["target_identity_properties"] == {}
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert any(artifact.get("operation") == "property"
+               and artifact.get("arguments") == ["ro.product.model"]
+               for artifact in manifest["artifacts"])
+
+
+@pytest.mark.parametrize("reported_size", [75349, 1048577])
+def test_nonmatching_reported_file_size_stops_before_pull(monkeypatch, tmp_path, reported_size):
     mounts = b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 ro,seclabel 0 0\n"
-    metadata = b"-rwsrwsrwx 0 0 1048577 2026-09-25 12:00 su\n"
+    metadata = f"-rwsrwsrwx 0 0 {reported_size} 2026-09-25 12:00 su\n".encode()
     fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts, metadata)
     monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
     output = preflight.run("TEST-ENDPOINT", tmp_path / "private")
     summary = json.loads((output / "summary.json").read_text())
-    assert [name for name, _args in fake.operations] == ["read", "ls-su-n"]
-    assert summary["execution_status"] == "STOPPED_IMPLAUSIBLE_FILE_SIZE"
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read", "ls-su-n"]
+    assert summary["execution_status"] == "STOPPED_SIZE_MISMATCH"
     assert summary["observed_sha256"] is None
     assert not (output / "system_xbin_su.bin").exists()
+
+
+def test_partial_target_identity_transport_failure_never_marks_candidate(monkeypatch, tmp_path):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", b"/dev/system /system ext4 ro 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    original_run = fake.run
+    def fail_sdk(operation, *args, **kwargs):
+        if operation == "property" and args == ("ro.build.version.sdk",):
+            fake.operations.append((operation, args))
+            fake.records.append({"operation": operation, "result": "transport_failure", "exit_code": 1})
+            return 1, b"", b"device offline"
+        return original_run(operation, *args, **kwargs)
+    fake.run = fail_sdk
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(collector.SafetyStop, match="target identity property did not complete"):
+        preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    output = next((tmp_path / "private").iterdir())
+    summary = json.loads((output / "summary.json").read_text())
+    assert [args for operation, args in fake.operations if operation == "property"] == [
+        ("ro.product.model",), ("ro.build.version.release",), ("ro.build.version.sdk",)]
+    assert summary["controlled_root_identity_candidate"] is False
+    assert summary["root_execution_eligibility"] == "TARGET_IDENTITY_NOT_VERIFIED"
+
+
+def test_cli_reports_a_safe_stop_with_nonzero_status(monkeypatch, tmp_path, capsys):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused",
+                   b"/dev/system /system ext4 rw,seclabel 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    code = preflight.main([
+        "--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private"),
+        "--owner-confirmed", "--vehicle-outdoors-confirmed", "--vehicle-parked-confirmed",
+        "--parking-brake-confirmed", "--factory-behavior-normal-confirmed", "--power-state-confirmed",
+    ])
+    assert code == 1
+    assert "Preflight stopped safely: STOPPED_MOUNT_READ_WRITE" in capsys.readouterr().err
+
+
+def test_cli_reports_host_hash_mismatch_with_nonzero_status(monkeypatch, tmp_path, capsys):
+    fake = FakeAdb("TEST-ENDPOINT", b"wrong host copy",
+                   b"/dev/system /system ext4 ro,seclabel 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    code = preflight.main([
+        "--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private"),
+        "--owner-confirmed", "--vehicle-outdoors-confirmed", "--vehicle-parked-confirmed",
+        "--parking-brake-confirmed", "--factory-behavior-normal-confirmed", "--power-state-confirmed",
+    ])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "Preflight stopped safely: INELIGIBLE_BINARY_HASH_MISMATCH" in captured.err
+
+
+def test_cli_valid_candidate_exits_zero_and_reports_private_capture(monkeypatch, tmp_path, capsys):
+    binary = b"synthetic archived su"
+    monkeypatch.setattr(preflight, "EXPECTED_SU_SIZE", len(binary))
+    monkeypatch.setattr(preflight, "EXPECTED_SU_SHA256", hashlib.sha256(binary).hexdigest())
+    fake = FakeAdb("TEST-ENDPOINT", binary,
+                   b"/dev/system /system ext4 ro,seclabel 0 0\n",
+                   f"-rwsrwsrwx 0 0 {len(binary)} 2026-09-25 12:00 su\n".encode())
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    code = preflight.main([
+        "--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private"),
+        "--owner-confirmed", "--vehicle-outdoors-confirmed", "--vehicle-parked-confirmed",
+        "--parking-brake-confirmed", "--factory-behavior-normal-confirmed", "--power-state-confirmed",
+    ])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "Private evidence captured:" in captured.out
+    assert not captured.err
+
+
+def test_overlay_or_bind_mount_stops_before_metadata_and_pull(monkeypatch, tmp_path):
+    mounts = (b"/dev/system /system ext4 ro,seclabel 0 0\n"
+              b"/dev/upper /system/xbin ext4 ro,bind 0 0\n")
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts,
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    output = preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read"]
+    assert summary["execution_status"] == "STOPPED_MOUNT_LAYERING_UNRESOLVED"
+    assert summary["controlled_root_identity_candidate"] is False
+
+
+def test_dry_run_uses_placeholder_and_never_requires_or_creates_output_root(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(collector.shutil, "which", lambda _name: "/opt/homebrew/bin/adb")
+    output_root = tmp_path / "not-created"
+    monkeypatch.setattr(preflight, "plan_su_pull",
+                        lambda *_args: pytest.fail("dry-run must not inspect/create a destination"))
+    assert preflight.main(["--serial", "TEST-ENDPOINT", "--output-root", str(output_root), "--dry-run"]) == 0
+    stdout = capsys.readouterr().out
+    assert "getprop ro.product.model" in stdout
+    assert "<private-output>/system_xbin_su.bin" in stdout
+    assert not output_root.exists()
 
 
 def test_mount_transport_failure_stops_once_and_preserves_partial_capture(monkeypatch, tmp_path):
     mounts = b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 ro 0 0\n"
     fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts,
                    b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    original_run = fake.run
     def failed_mount(operation, *args, **kwargs):
+        if operation != "read":
+            return original_run(operation, *args, **kwargs)
         fake.operations.append((operation, args))
         fake.records.append({"operation": operation, "result": "transport_failure", "exit_code": 1})
         return 1, b"", b"device offline"
@@ -197,7 +331,7 @@ def test_mount_transport_failure_stops_once_and_preserves_partial_capture(monkey
     with pytest.raises(collector.SafetyStop, match="partial capture preserved"):
         preflight.run("TEST-ENDPOINT", tmp_path / "private")
     output = next((tmp_path / "private").iterdir())
-    assert [name for name, _args in fake.operations] == ["read"]
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read"]
     assert json.loads((output / "summary.json").read_text())["execution_status"] == "ABORTED"
     assert (output / "manifest.json").is_file()
 
@@ -217,7 +351,8 @@ def test_pull_failure_preserves_mount_and_numeric_metadata_without_retry(monkeyp
         preflight.run("TEST-ENDPOINT", tmp_path / "private")
     output = next((tmp_path / "private").iterdir())
     summary = json.loads((output / "summary.json").read_text())
-    assert [name for name, _args in fake.operations] == ["read", "ls-su-n", "pull-su"]
+    assert [name for name, _args in fake.operations] == [
+        "property", "property", "property", "read", "ls-su-n", "pull-su"]
     assert summary["target_metadata"]["mode_octal"] == "0o6777"
     assert summary["observed_sha256"] is None
     assert (output / "manifest.json").is_file()

@@ -1,7 +1,12 @@
-"""One-shot, unprivileged collection of su bytes, metadata, and mount state.
+"""One-shot, unprivileged root-binary preflight; this tool never invokes su.
 
-Only three target operations are permitted: read /proc/mounts, numeric ls of
-/system/xbin/su, and adb pull of that file. This tool never invokes su.
+The fixed target reads are getprop for model/release/SDK, cat /proc/mounts,
+numeric ls of /system/xbin/su, and adb pull of that file. It verifies the
+MY16ADA / Android 4.2.2 / API 17 target before mount or binary reads. Expected
+evidence is target identity, covering mount state, numeric metadata, and a
+host-side binary hash. It writes no target file; the copied binary and evidence
+are private on the host. Stop on identity, mount, size, transport, or hash
+mismatch. Do not invoke root or continue to Stage A from this preflight.
 """
 
 from __future__ import annotations
@@ -28,6 +33,11 @@ DEFAULT_OUTPUT = Path.home() / "Library/Application Support/ClarityLink/comprehe
 MAX_OUTPUT = 128 * 1024
 EXPECTED_SU_PATH = "/system/xbin/su"
 EXPECTED_SU_SIZE = 75_348
+EXPECTED_TARGET_PROPERTIES = {
+    "ro.product.model": "MY16ADA",
+    "ro.build.version.release": "4.2.2",
+    "ro.build.version.sdk": "17",
+}
 MOUNT_OCTAL_ESCAPE = re.compile(r"\\([0-7]{3})")
 OVERLAY_FILESYSTEMS = frozenset({"overlay", "aufs", "unionfs"})
 
@@ -179,6 +189,22 @@ def _store_metadata(adb: FixedAdb, capture: Capture) -> tuple[int, bytes]:
     return code, stdout
 
 
+def _store_target_identity(adb: FixedAdb, capture: Capture) -> dict[str, str]:
+    """Bind this preflight to the expected Clarity head unit before file reads."""
+    observed: dict[str, str] = {}
+    for prop, expected in EXPECTED_TARGET_PROPERTIES.items():
+        code, stdout, stderr = adb.run("property", prop, timeout=5, max_bytes=4096)
+        capture.record_result("preflight", "root_integrity", "target_" + prop.replace(".", "_"),
+                              "property", (prop,), code, stdout, stderr)
+        if code != 0 or adb.records[-1].get("result") != "success":
+            raise SafetyStop(f"target identity property did not complete: {prop}")
+        value = stdout.decode("utf-8", "replace").strip()
+        if value != expected:
+            raise SafetyStop(f"target identity mismatch for {prop}: expected {expected!r}")
+        observed = {**observed, prop: value}
+    return observed
+
+
 def plan_su_pull(adb: FixedAdb, destination: Path) -> tuple[str, ...]:
     """Plan only adb pull of the fixed su path into a new owner-only file."""
     destination = destination.expanduser().resolve()
@@ -246,35 +272,50 @@ def run(serial: str, output_root: Path) -> Path:
     digest: str | None = None
     pulled_size: int | None = None
     host_file_written = False
+    target_identity: dict[str, str] = {}
     try:
+        target_identity = _store_target_identity(adb, capture)
+        capture.target_identity = "verified MY16ADA / Android 4.2.2 / API 17 at exact owner-approved endpoint"
         mounts_raw = _store_mounts(adb, capture)
         mount = covering_mount(mounts_raw)
-        # A writable or unresolvable mount is a hard stop: do not copy a
+        # A writable or ambiguous mount is a hard stop: do not copy a
         # world-writable setuid binary while its backing mount is uncertain.
-        if not mount.get("complete") or mount.get("read_write") is True:
+        mount_stop = None
+        if not mount.get("complete"):
+            mount_stop = "STOPPED_MOUNT_STATE_UNVERIFIED"
+        elif mount.get("read_write") is True:
+            mount_stop = "STOPPED_MOUNT_READ_WRITE"
+        elif mount.get("read_only") is not True:
+            mount_stop = "STOPPED_MOUNT_STATE_UNVERIFIED"
+        elif mount.get("overlay_uncertainty"):
+            mount_stop = "STOPPED_MOUNT_LAYERING_UNRESOLVED"
+        if mount_stop:
             capture.stop_result = "safe_abort_before_metadata_or_pull"
             _write_summary(output / "summary.json", _summary(serial, mount, None, None, None,
-                                                               "STOPPED_MOUNT_NOT_READ_ONLY"))
+                                                               mount_stop,
+                                                               target_identity=target_identity))
             capture.finalize(["preflight"])
             return output
         code, metadata_raw = _store_metadata(adb, capture)
         metadata = parse_ls_numeric(metadata_raw)
-        if int(metadata["size_bytes"]) <= 0 or int(metadata["size_bytes"]) > 1024 * 1024:
+        if int(metadata["size_bytes"]) != EXPECTED_SU_SIZE:
             capture.stop_result = "safe_abort_before_pull"
             _write_summary(output / "summary.json", _summary(serial, mount, metadata, None, None,
-                                                               "STOPPED_IMPLAUSIBLE_FILE_SIZE"))
+                                                               "STOPPED_SIZE_MISMATCH",
+                                                               target_identity=target_identity))
             capture.finalize(["preflight"])
             return output
         _pull_binary(adb, capture, binary)
         host_file_written = True
         pulled_size = binary.stat().st_size
         digest = _host_sha256(capture, binary)
-        summary = _summary(serial, mount, metadata, digest, pulled_size, "COMPLETE", host_file_written)
-        capture.target_identity = "exact owner-approved endpoint only"
+        summary = _summary(serial, mount, metadata, digest, pulled_size, "COMPLETE", host_file_written,
+                           target_identity)
         _write_summary(output / "summary.json", summary)
     except Exception as exc:
         capture.stop_result = "safe_abort"
-        failure = _summary(serial, mount, metadata, digest, pulled_size, "ABORTED", host_file_written)
+        failure = _summary(serial, mount, metadata, digest, pulled_size, "ABORTED", host_file_written,
+                           target_identity)
         failure["stop_reason"] = type(exc).__name__
         failure["details"] = str(exc)
         try:
@@ -288,16 +329,25 @@ def run(serial: str, output_root: Path) -> Path:
 
 def _summary(serial: str, mount: dict[str, object] | None,
              metadata: dict[str, int | str] | None, digest: str | None,
-             pulled_size: int | None, status: str, host_file_written: bool = False) -> dict[str, object]:
+             pulled_size: int | None, status: str, host_file_written: bool = False,
+             target_identity: dict[str, str] | None = None) -> dict[str, object]:
     archived_match = digest == EXPECTED_SU_SHA256 if digest else None
     size_match = pulled_size == EXPECTED_SU_SIZE if pulled_size is not None else None
     candidate, eligibility = controlled_candidate(metadata, digest, pulled_size, mount or {})
+    identity_verified = target_identity == EXPECTED_TARGET_PROPERTIES
+    if not identity_verified:
+        candidate, eligibility = False, "TARGET_IDENTITY_NOT_VERIFIED"
+    elif status != "COMPLETE":
+        if candidate:
+            eligibility = "INCOMPLETE_PREFLIGHT_" + status
+        candidate = False
     mode = int(str(metadata["mode_octal"]), 8) if metadata else None
     return {
         "schema": "claritylink-su-live-integrity-preflight-v2",
         "execution_status": status,
         "target_serial": serial,
-        "target_identity_basis": "exact owner-approved ADB serial; no target properties queried",
+        "target_identity_basis": "owner-approved ADB serial plus live model, Android release, and SDK property checks",
+        "target_identity_properties": target_identity or {},
         "su_path": EXPECTED_SU_PATH,
         "target_metadata": metadata,
         "archived_size_bytes": EXPECTED_SU_SIZE,
@@ -341,9 +391,12 @@ def main(argv: list[str] | None = None) -> int:
             raise SafetyStop("an exact already-authorized ADB serial is required; auto-selection is disabled")
         if args.dry_run:
             adb = FixedAdb(args.serial, resolve_auto=False)
+            for prop in EXPECTED_TARGET_PROPERTIES:
+                print(adb.dry_run_command("property", prop))
             for operation, parameters in (("read", ("/proc/mounts",)), ("ls-su-n", ())):
                 print(adb.dry_run_command(operation, *parameters))
-            print(shlex.join(plan_su_pull(adb, DEFAULT_OUTPUT / ".dry-run-su.bin")))
+            print(shlex.join((adb.adb, "-s", adb.serial, "pull", EXPECTED_SU_PATH,
+                              "<private-output>/system_xbin_su.bin")))
             print("Host SHA-256: shasum -a 256 <private-copied-file>")
             return 0
         confirmations = (args.owner_confirmed, args.vehicle_outdoors_confirmed,
@@ -351,7 +404,22 @@ def main(argv: list[str] | None = None) -> int:
                          args.factory_behavior_normal_confirmed, args.power_state_confirmed)
         if not all(confirmations):
             raise SafetyStop("all one-shot owner and vehicle readiness confirmations are required")
+        print("CLARITYLINK — ROOT BINARY INTEGRITY PREFLIGHT")
+        print("Question: Does this exact MY16ADA / Android 4.2.2 / API 17 endpoint contain the archived /system/xbin/su binary under the observed mount state?")
+        print("Actions: read model/release/SDK properties, /proc/mounts, numeric su metadata, then pull the fixed file for host-side SHA-256.")
+        print("Effects: no su invocation or target file write; the binary is copied to private host evidence. Stop on identity, mount, size, transport, or hash mismatch.")
+        print("If the vehicle behaves normally, restore with factory power-off; report abnormal behavior instead of assuming ordinary shutdown.")
         output = run(args.serial, args.output_root)
+        summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+        if (summary.get("execution_status") != "COMPLETE"
+                or summary.get("controlled_root_identity_candidate") is not True
+                or summary.get("sha256_matches_archive") is not True):
+            status = (summary.get("execution_status", "UNKNOWN")
+                      if summary.get("execution_status") != "COMPLETE"
+                      else summary.get("root_execution_eligibility", "INELIGIBLE_BINARY"))
+            print(f"Preflight stopped safely: {status}; private evidence preserved at {output}",
+                  file=sys.stderr)
+            return 1
         print(f"Private evidence captured: {output}")
         return 0
     except (SafetyStop, OSError, ValueError) as exc:
