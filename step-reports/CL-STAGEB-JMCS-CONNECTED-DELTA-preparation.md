@@ -1,0 +1,117 @@
+# CL-STAGEB-JMCS-CONNECTED-DELTA — offline preparation
+
+**Status:** Offline preparation only. No Honda/ADB endpoint was contacted, and no target operation was run.
+
+## Acceptance criteria
+
+- Reconcile existing current-main and private evidence before proposing live reads.
+- Limit any new observation to the same-epoch, connected-state `jmcs` maps and FD/socket delta that prior unprivileged access could not provide.
+- Keep the generic `su` integrity validator unchanged; use Stage A's exact-fingerprint, read-only-mount controlled-diagnostic eligibility check.
+- Implement a fixed, owner-gated reader with no target writes, process control, media/key capture, Type111 advertisement, or retry/fallback.
+- Exercise the three-state workflow and fail-closed cases offline. Keep live collection disabled pending independent review and publication gates.
+- Make no integration claim based on a runtime address alone.
+
+## Evidence delta
+
+| QUESTION | EXISTING EVIDENCE | STILL UNKNOWN | PROPOSED NEW OBSERVATION | WHY NEW DATA MATTERS |
+|---|---|---|---|---|
+| Does stock `jmcs` dispatch Type111? | Honda static analysis: known SETUP dispatcher handles Type110 and skips Type111. | Whether another live process/module exposes an independent registration boundary. | No redundant SETUP probe. Bounded connected `jmcs` maps/module-path observation only. | May establish whether a newly mapped module appears in the active process; does not prove an extension ABI. |
+| What listeners/connections belong to `jmcs`? | Step 19 has disconnected root-assisted maps/FD/socket tables; Step 40E global network tables lack root-owned `jmcs` FD links. | Current same-epoch connected FD/socket ownership and resources released at disconnect. | Exact FD symlink inventory joined by inode to fixed `/proc/net/{tcp,tcp6,udp,udp6,unix}` tables at baseline, connected and post-disconnect. | Prior broad unprivileged capture was denied `jmcs` maps/FD access; historical inode/PID/port values are stale. |
+| What is loaded in active `jmcs`? | Step 19 disconnected module inventory and Step 40E unprivileged process evidence. | Whether a module appears only in the connected process epoch. | One connected `/proc/<pid>/maps`, interpreted alongside same-epoch `ps`/`stat`/`status`, transient cmdline `argv[0]`, the read-only mount covering `/system/bin/jmcs`, and a rechecked system ELF hash. Existing API-17 collector evidence says toolbox does not expose `/proc/PID/exe`; the running mapping inode is not independently matched. | Adds connected mapping evidence without memory reads; cannot identify code semantics from pathname alone. |
+| What runtime addresses correspond to static candidate callsites? | Static callsites identified at `0x28a158`, `0x28af72`, `0x28afba`. | Current process load bias. | Derive load bias from the path-correlated offset-zero executable mapping; calculate even instruction and odd Thumb pointer forms. | Useful correlation only; not evidence that executable redirection is safe, supported, or authorized. |
+| Does an additive Honda integration API exist? | R3C static/linkage audit finds local callsites, one-shot/replacement registrations, no paired Setup/cleanup observer, no Honda plugin ABI. | A supported ABI not covered by static inventory. | Stage B is not capable of answering this. | Requires new primary evidence such as vendor-supported API/source or a separately authorized controlled experiment; maps/FD data cannot create an API. |
+| Can Display 1 accept independent video under factory safety priority? | Android Display 1 is 800×480; HondaHack reaches ExternalDisplay window hierarchy through Xposed. | Supported frame handoff, page ownership, warning priority and restoration API. | Stage B does not inspect surfaces or alter display state. | Needs a documented/observed supported host interface and safety ownership contract. |
+| Can ClarityLink receive genuine iPhone Type111? | PlayPort external iPhone Type110+111 simultaneous stream succeeded; ClarityLink synthetic receiver tests exist. | Honda/iPhone Type111 descriptor, SETUP response, dataPort contract and stream authentication. | No Type111 advertisement/request in Stage B. | Requires exact target/iOS contract from a future separately authorized protocol experiment; socket snapshots are insufficient. |
+
+### Repeated work excluded
+
+No new disconnected maps/module inventory, screenshots, interface inventory, Stage A root identity milestone, synthetic Type111 demonstration, ordinary ADB campaign, or Type111 capability request is part of this plan. Existing manifests were integrity-checked privately: Step 19 hash list, all Step 40E manifest-listed artifacts, and the Nov 6 Stage A manifest. Raw evidence remains outside Git.
+
+## Type111 prior-art comparison
+
+All findings below are **external prior art**, not Honda-confirmed behavior. Repositories were inspected at these current revisions on 2026-11-06; implementation-specific semantics do not transfer to Honda.
+
+| Implementation | Relevant observations | Honda applicability limits |
+|---|---|---|
+| [harman-f/mhi2_altscreen_carplay](https://github.com/harman-f/mhi2_altscreen_carplay/tree/f4d4da979627c00c3ed617ac67853adb7f428839) | Targeted Type111 path coexists with stock Type110; owns a separate receiver/data path and cluster conversion/output; target-specific hooks and protocol/UI control are coordinated. | VW MHI2/MOST and its firmware hook map are not Honda APIs. |
+| [joeyQuery/MHI2-altScreen](https://github.com/joeyQuery/MHI2-altScreen/tree/6ff7ca40107fb27126fef7fb0c5023252d610871) | Audi MHI2 reports Type111 display descriptor, `altScreen`, optional UI URL/view areas and a second stream; reports feature value/HID behavior tied to its target. | Audi QNX ScreenB/NvSS, feature-bit interpretation and HID workaround are target-specific. |
+| [luka-dev/mib2q-carplay-rgi](https://github.com/luka-dev/mib2q-carplay-rgi/tree/33607f6f4623591bb8a8f3e3d32fdda7a2b9ac7f) | Audi MIB2Q reports transactional Type111 SETUP response with its own `dataPort`, separate listener, stream state, VideoConfig and H.264 path; documents a legacy AES-CTR screen framing/KDF implementation. | Its receiver generation, encryption, framing and UI handshake are not verified on Honda. Similarity to Honda Type110 KDF is a hypothesis only. |
+| [lipedesign/mib3-moi3-altscreen](https://github.com/lipedesign/mib3-moi3-altscreen/tree/455658b005d1544ab1f6d6e5c42f529c0381235f) | Alpha/bench MIB3 path describes `altScreen`, `dataPort`, different feature bits and a different frame conversion path; it reports `viewAreas` may be unnecessary or harmful on its tested implementation. | Bench/alpha evidence; MIB3 Qualcomm/Yocto and any feature-bit or crypto choices are not Honda facts. |
+| [shilapi/xcertplay](https://github.com/shilapi/xcertplay/tree/1298fb35e29ee30e7bd849cb0e751b52aa22a13f) | Software receiver separates streams by session/type, models display descriptor options and supports a modern authenticated video-frame path distinct from legacy AES framing. | Independent receiver implementation, not Honda wire behavior; modern ChaCha/DataStream keys must not be substituted for Honda's analyzed Type110 mechanism. |
+| [Apple WWDC19 session 252](https://developer.apple.com/videos/play/wwdc2019/252/) | Apple publicly describes multiple independent CarPlay display streams, including instrument-cluster content, with per-display presentation/view and safe-area concepts. | Does not publish Honda's `/info` schema, feature bits, UUIDs, response dictionary or crypto contract. |
+
+Classifications: Honda facts above are **Honda-confirmed** only where the cited local static/runtime evidence directly establishes them. Repo and Apple statements are **external prior art**. ClarityLab synthetic receivers/fixtures are **synthetic/model-only**. Potential Honda use of `altScreen`, particular feature bits, `viewAreas`, initial UI context, shared-vs-separate KDF, or packet framing remains **inferred/unknown** until verified.
+
+## Honda integration contract and boundaries
+
+### Control plane
+
+**Already established:** the Honda `/info` builder emits one display descriptor; static call candidate `0x28a158`. The known factory SETUP dispatcher accepts Type110 and skips Type111; candidate direct local Thumb callsite `0x28af72`, with a local response serialization candidate at `0x28afba`. The stock Type110 response and media path are understood well enough to preserve as the baseline.
+
+**Missing:** a supported additive capability-registration API; Honda Type111 display descriptor/UUID/feature-bit contract; `altScreen`/`viewAreas`/initial navigation UI fields; iPhone-accepted Type111 SETUP response fields and rollback behavior; per-stream state cleanup tied to session teardown.
+
+**Assessment:** the `/info` and Setup candidates are internal `jmcs` call paths, not exported extension APIs. The stock proxy registration is one-shot and replacement-oriented. No additive, session-addressable Setup plus cleanup observer is evidenced. ELF load bias/runtime addresses do not establish an executable hook. `LD_PRELOAD` override is not demonstrated: internal direct calls do not require a dynamic symbol lookup. Code loading is not independently evidenced as a Honda plugin facility. Any current route through these candidates would require changing target code/startup, redirecting executable control flow, attaching to the process, or replacing stock callbacks; none is authorized here.
+
+**Integration gate:** proceed only if a supported additive Honda extension/registration ABI is demonstrated, or a separately reviewed and authorized design explicitly accepts target modification while proving stock Type110 behavior unchanged. No live hook recommendation is made.
+
+### Media plane
+
+**Already established:** Honda Type110 uses the analyzed receiver listener/response and legacy session-derived AES-SHA512 screen state. ClarityLink's Type111 parser/decoder is synthetic/model-only. External implementations show that independent listeners and per-stream state are plausible patterns, with materially different security/framing generations.
+
+**Missing:** genuine Honda/iPhone Type111 SETUP exchange, authoritative `dataPort`, authenticated key/IV derivation and nonce/counter rules, framing/VideoConfig/H.264 packet contract, initialization/keyframe/refresh semantics, failure and teardown lifecycle.
+
+**Integration gate:** do not accept Type111 until a phone-originated stream establishes the exact contract and an independent listener/session cannot consume or mutate Type110 state. Preserve factory Type110 response, listener and crypto state byte-for-byte in acceptance tests and on a separately authorized target validation.
+
+### Cluster output plane
+
+**Already established:** Android external Display 1 exists at 800×480, and HondaHack's Xposed screen-casting path reaches the ExternalDisplay window hierarchy.
+
+**Missing:** supported renderer/surface handoff, correct cluster content region and geometry, factory page ownership, warning/preemption priority, disconnect restoration and crash behavior.
+
+**Integration gate:** no cluster frame delivery until a supported host API and factory ownership/priority contract are established. Framebuffer mirroring, custom maps and iAP2 route guidance do not satisfy genuine Type111 video.
+
+## Stage B collection contract
+
+The reader is `tools/honda-readonly-preflight/stage_b_jmcs.py`. Production transport construction and every live operation are hard-disabled in this source revision; the offline-simulation mode explicitly rejects `AdbTransport`. A separate Stage B authorization explicitly covers multiple fixed read-only `su` invocations because Stage A authorized only one `id`; the 06777 helper remains a controlled diagnostic exception, never a generic integrity PASS. Fresh identity, mount, metadata and helper fingerprint eligibility checks run before preflight and before each baseline, connected and post-disconnect phase. The controller verifies helper hash/metadata and its read-only covering mount at each eligibility pass, but legacy ADB cannot atomically bind copied bytes to the executable used by each subsequent `su` invocation; this residual race is disclosed in the consent prompt and is not represented as eliminated. This build fails closed unless the exact serial is a disconnectable TCP/IP endpoint and the selected `adb devices -l` row has no `usb:` transport marker; USB ADB is unsupported because `adb disconnect` does not provide a verified USB detach. A future USB workflow requires a reviewed exact host-side detach mechanism before collection can be considered. It requires a future separate owner authorization and explicit owner actions; it must not be run in this preparation campaign.
+
+| State | Fixed observations | Boundaries |
+|---|---|---|
+| Preflight | Exact single ADB serial; target identity and Android release/API; fresh Stage A controlled eligibility (exact copied-binary fingerprint, read-only covering mount, one `su -c id`); MY16ADA identity; owner-gated SuperSU side-effect acknowledgment. | Hashing the copied helper does not atomically prove the executable used by each later invocation is the same. The read-only mount check is separate evidence, not per-invocation binary binding. Generic `su` validator is unchanged and still rejects mode 06777. |
+| Baseline, disconnected | One `jmcs` candidate; PID/start-time/status plus transient cmdline validation; hash and read-only mount checks for `/system/bin/jmcs`; bounded FD links; fixed TCP/TCP6/UDP/UDP6/Unix tables; same-epoch end identity. | No redundant maps/modules inventory. |
+| Connected factory CarPlay | Same process epoch; status and transient cmdline validation; current hash of `/system/bin/jmcs`; maps once; same FD/socket tables and inode joins; same-epoch end identity. | Owner connects iPhone with factory flow. No Type111 request/advertisement, ClarityLink launch, memory read, keys/media, process attach/control or write. |
+| Post-disconnect | Same limited identity with transient cmdline check and current `jmcs` hash, plus FD/socket tables and same-epoch end identity. | Owner disconnects normally and verifies factory behavior. |
+| Shutdown | Stop target reads; owner confirms normal factory state and types `CAR POWERED OFF`; only then request exact ADB disconnect and record its result. | No new experiment. A missing power-off or host-disconnect acknowledgment leaves capture incomplete. |
+
+Per-operation timeout is capped at 5 seconds; per-process/network output at 512 KiB and small metadata at 64 KiB; FD listing capped at 256 rows. Failed operations stop with no automatic retry. Every privileged phase rechecks PID plus `/proc/<pid>/stat` start time. FD socket inodes are joined exactly; unowned sockets remain unowned. No endpoint is called a CarPlay stream based only on being open. Runtime callsites use the path-correlated offset-zero executable mapping and previously analyzed ELF layout, distinguish even Thumb instruction addresses from odd callable pointers, and explicitly do not assert running-image inode identity. The `p_offset=0`, `p_vaddr=0` layout assertion comes from prior static analysis and is not independently rederived from a checked-in ELF by this controller; address output is research metadata only and never drives a hook or modification.
+
+The report compares owned FD/inode/network rows at baseline→connected and connected→post-disconnect and lists exact added, removed and unchanged rows. The owner gate discloses that the private raw capture includes `ps` and system-wide `/proc/net` tables, which may contain unrelated process names and endpoints. It offers distinct YES, NOT YET and CANCEL choices. Live execution requires an interactive terminal; serial syntax is checked before requesting owner approval.
+
+Raw outputs and hashes are written only beneath a private owner-owned mode-0700 evidence root, with files mode 0600. Public reports contain sanitized methods/conclusions only. Stage B cannot by itself prove protocol role, supported extension APIs, display ownership, or stream semantics.
+
+## Implementation and offline verification
+
+- Added fixed Stage B controller: `tools/honda-readonly-preflight/stage_b_jmcs.py`.
+- Added offline response simulations: `tests/honda/test_stage_b_jmcs.py`.
+- Existing root identity regression suite remains unchanged.
+- Focused verification after independent review fixes: `93 passed, 19 subtests passed` across Stage B and Stage A tests, including the fixed transport plans, Stage A-backed eligibility operations, timeout and output bounds, consent disclosures, and shutdown shapes. The parser was also exercised against private historical disconnected FD/TCP/TCP6/Unix artifacts (27, 6, 3 and 154 rows parsed, respectively). No raw values were copied into Git.
+- Public safety audit: base audit `PUBLIC_SAFETY_PASS files_checked=1611 scope=all tracked`; staged candidate gate `PUBLIC_SAFETY_PASS files_checked=4 scope=staged` using `origin/main` as trusted base. Repository health passed: 0 broken curated links and 0 forbidden tracked extensions.
+- Live collection disabled (`LIVE_COLLECTION_ENABLED = False`). Offline dry-run prints templates and does not call ADB.
+- Before the independent review fixes, the full repository runner passed: `2666 passed, 29 skipped, 65 subtests passed`; three self-locator smoke checks, simulator checks and whitespace validation passed. The latest scoped controller/Stage A run after those fixes is `93 passed, 19 subtests passed`. The offline dry-run completed without ADB calls. Hosted CI and CodeQL will run on the PR; no local CodeQL CLI is installed.
+
+## Review/publication state and next evidence
+
+The controller remains live-disabled. Initial @ECC reviews verified shutdown behavior, USB classification, `/system/bin/jmcs` covering-mount checks and cmdline redaction. Independent Claude Code v2.1.319 exact-source reviews found two medium and eight low issues across two rounds: insufficient real-transport/Stage A command coverage, incomplete disclosure of non-atomic `su` binary binding, offline-simulation transport mixing, consent-choice ambiguity, a stale inherited Stage A scope string, unqualified ELF provenance, portability of tests without host ADB, and a dry-run description mismatch. The controller, tests and report were corrected; focused verification passes at 93 tests and 19 subtests. Claude’s final review of the exact four staged files found no actionable findings. @ECC confirmed the code findings were closed and identified stale report counts, which were corrected here. The publisher then flagged a synthetic cmdline fixture as token-like; the fixture was renamed to neutral test data and the focused suite reran successfully. The Studio failure was the absence of a task manifest/reservations in the originally dirty attached worktree; the exact diff was migrated to a clean managed worktree, where the task guard preflight passed and task `CL-CYCLE14B-STAGEB` now owns the exact four file paths. At this report snapshot, no commit or PR has yet been published.
+
+The single most consequential next experiment after this offline preparation is the narrowly scoped, owner-authorized Stage B connected-state same-epoch FD/maps delta, because it fills the specific root-access gap left by Step 40E. Its result can identify process-owned resources and active mappings, but will not authorize or prove an integration seam. The next integration-enabling evidence must establish a supported additive Honda control-plane ABI and a genuine iPhone Type111 setup/media contract; a runtime address alone is insufficient.
+
+## Future integration acceptance gates
+
+| Plane | Required evidence before implementation | Observable acceptance criteria | Immediate prohibition |
+|---|---|---|---|
+| Receiver control | A supported additive Honda capability/SETUP/session-lifecycle API; an iPhone-observed Type111 descriptor and response contract; session-addressable cleanup. | On a real iPhone session, both requested types are accepted; factory Type110 response, listener and teardown remain unchanged; Type111 state is independently cleaned on disconnect. | No direct-call hook, callback replacement, target patch or advertisement based only on a runtime address. |
+| Receiver media | Genuine phone-origin Type111 TCP `dataPort`, authentication derivation, framing, VideoConfig, H.264 packet and refresh/teardown contract. | iPhone-origin bytes authenticate and decode through a separate listener/session; no simulated frames; Type110 continues while Type111 starts/stops or fails. | No stream until the exact Honda/iPhone contract is known; no borrowing Type110 state by assumption. |
+| Cluster output | Supported Display 1 rendering/surface handoff, content geometry, page ownership, warning priority and restoration API. | Genuine decoded Type111 video appears in the verified cluster region; factory warnings preempt; disconnect/crash restores factory page and output. | No framebuffer writes, mirroring, custom-map substitute or iAP2-only guidance. |
+
+## Readiness
+
+**NO-GO — SPECIFIC REMAINING BLOCKER.** At this report snapshot, the reviewed public-safe checkpoint and PR have not yet been published, so hosted Offline CI, API 17 navigation regression and CodeQL have not run. Live collection remains disabled. No Honda contact is part of this preparation.

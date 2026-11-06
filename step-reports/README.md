@@ -1,3 +1,7 @@
+## Cycle 14 — Stage B connected-state delta preparation (offline)
+
+- [CL-STAGEB-JMCS-CONNECTED-DELTA preparation](CL-STAGEB-JMCS-CONNECTED-DELTA-preparation.md) — reconciles existing evidence and Type111 prior art; fixed owner-gated reader and offline simulation added; no Honda contact; live collection disabled; NO-GO pending publication and hosted Offline CI, API 17 navigation regression, and CodeQL checks.
+
 ## R7C3 final Android integration closure attempt — incomplete — 2026-10-07
 
 See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI native-socket/exception seams and native builds added; APK/Dalvik, complete races/faults, final 100-cycle run, and exact-head hosted checks remain open.
