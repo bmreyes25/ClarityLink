@@ -17,6 +17,14 @@ publisher = load("publisher", "tools/publish_checkpoint.py")
 verifier = load("verifier", "tools/verify_remote_publication.py")
 
 class PublishScopeTests(unittest.TestCase):
+    def test_canonical_pr_url_produces_integer_for_remote_verifier(self):
+        self.assertEqual(publisher.canonical_pr_number(
+            "https://github.com/bmreyes25/ClarityLink/pull/140"), 140)
+        for url in ("", "https://example.com/pull/140",
+                    "https://github.com/bmreyes25/ClarityLink/pull/0"):
+            with self.subTest(url=url), self.assertRaises(publisher.Failure):
+                publisher.canonical_pr_number(url)
+
     def test_detached_head_branch_preserves_uncommitted_work(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

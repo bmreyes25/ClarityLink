@@ -198,6 +198,13 @@ def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, lab
     raise Failure(f"{label}: PR head did not match published checkpoint after {attempts} reads: {last_error}")
 
 
+def canonical_pr_number(url: str) -> int:
+    match = re.fullmatch(r"https://github\.com/bmreyes25/ClarityLink/pull/([1-9][0-9]*)", url)
+    if not match:
+        raise Failure("PR creation returned a missing or invalid canonical PR URL")
+    return int(match.group(1))
+
+
 def publish(args: argparse.Namespace) -> dict:
     root = Path(git(args.repo, "rev-parse", "--show-toplevel")).resolve()
     if git(root, "remote", "get-url", "origin") not in (REMOTE, "git@github.com:bmreyes25/ClarityLink.git", "ssh://git@github.com/bmreyes25/ClarityLink.git"):
@@ -285,6 +292,7 @@ def publish(args: argparse.Namespace) -> dict:
         if p.returncode:
             raise Failure(f"push verified, but PR creation failed: {p.stderr.strip()}")
         pr_url = p.stdout.strip().splitlines()[-1]
+        pr_number = canonical_pr_number(pr_url)
     if pr_url:
         pr_data = verify_pr_checkpoint(
             ["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
