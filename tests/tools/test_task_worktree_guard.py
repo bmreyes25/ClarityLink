@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 import subprocess
 import threading
+from contextlib import nullcontext
 from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).resolve().parents[2] / "tools" / "task_worktree_guard.py"
@@ -14,6 +15,35 @@ SPEC.loader.exec_module(guard)
 
 
 class ScopeReservationTests(unittest.TestCase):
+    def test_finish_verifies_a_stacked_pr_against_its_exact_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            manifest.write_text("{}\n")
+            data = {"task_id": "stage-a", "branch": "codex/stage-a", "base": "codex/cycle12", "files": []}
+            response = subprocess.CompletedProcess([], 0,
+                json.dumps({"result": "REMOTE_VERIFIED", "head": "abc123", "pr": {"url": "https://github.com/bmreyes25/ClarityLink/pull/140"}}), "")
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, root / "locks", data)), \
+                 patch.object(guard, "classify", return_value={"status": []}), \
+                 patch.object(guard.subprocess, "run", return_value=response) as run, \
+                 patch.object(guard, "release_reservations"):
+                result = guard.finish(root, 140, "codex/cycle12")
+            self.assertEqual(result["result"], "TASK_COMPLETE")
+            self.assertIn("--base", run.call_args.args[0])
+            self.assertEqual(run.call_args.args[0][-1], "codex/cycle12")
+
+    def test_finish_rejects_a_base_that_differs_from_task_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            manifest.write_text("{}\n")
+            data = {"task_id": "stage-a", "branch": "codex/stage-a", "base": "codex/cycle12", "files": []}
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, root / "locks", data)):
+                with self.assertRaisesRegex(guard.GuardError, "differs from task manifest base"):
+                    guard.finish(root, 140, "main")
+
     def test_reservation_blocks_a_second_worktree_from_claiming_same_file(self):
         with tempfile.TemporaryDirectory() as directory:
             locks = Path(directory)
@@ -73,6 +103,22 @@ class ScopeReservationTests(unittest.TestCase):
             self.assertEqual(data["files"], ["src/owned.py"])
             self.assertEqual(json.loads(manifest.read_text())["task_id"], "task-42")
             self.assertEqual(len([path for path in locks.iterdir() if not path.name.startswith(".")]), 1)
+
+    def test_begin_can_bind_a_stacked_task_to_exact_pr_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            locks = root / "locks"
+            with patch.object(guard, "git", side_effect=[str(root), "", "abc123", "abc123"]) as git, \
+                 patch.object(guard, "canonical_origin"), \
+                 patch.object(guard, "branch_and_owner", return_value="codex/task"), \
+                 patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "layout", return_value=(manifest, locks)), \
+                 patch.object(guard, "validate_paths", return_value=["src/owned.py"]):
+                data = guard.begin(root, "task-43", ["src/owned.py"], "codex/cycle12")
+            self.assertEqual(data["base"], "codex/cycle12")
+            self.assertEqual(git.call_args_list[1].args[1:], ("fetch", "--quiet", "origin", "codex/cycle12"))
+            self.assertEqual(git.call_args_list[3].args[1:], ("rev-parse", "refs/remotes/origin/codex/cycle12"))
 
     def test_paths_reject_globs_traversal_and_restricted_roots(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -133,9 +133,9 @@ def live_remote_branch_sha(root: Path, branch: str) -> str:
     return lines[0].split()[0]
 
 
-def ensure_no_unpublished_history(root: Path, branch: str) -> None:
+def ensure_no_unpublished_history(root: Path, branch: str, base: str = "main") -> None:
     """Refuse to push commits other than the scoped checkpoint created below."""
-    git(root, "fetch", "--quiet", "origin", "main", timeout=60)
+    git(root, "fetch", "--quiet", "origin", base, timeout=60)
     remote_sha = live_remote_branch_sha(root, branch)
     head = git(root, "rev-parse", "HEAD")
     if remote_sha:
@@ -145,10 +145,10 @@ def ensure_no_unpublished_history(root: Path, branch: str) -> None:
                 "publish only from a clean checkpoint branch"
             )
         return
-    main = git(root, "rev-parse", "refs/remotes/origin/main", check=False)
-    if not main or head != main:
+    base_sha = git(root, "rev-parse", f"refs/remotes/origin/{base}", check=False)
+    if not base_sha or head != base_sha:
         raise Failure(
-            "new checkpoint branches must start exactly at the fetched origin/main; "
+            f"new checkpoint branches must start exactly at the fetched origin/{base}; "
             "unpublished historical commits are blocked"
         )
 
@@ -160,7 +160,8 @@ def reject_staged_outside_scope(root: Path, scope: list[str]) -> None:
         raise Failure("unrelated files were already staged; preserve them and publish only after resolving the index: " + ", ".join(outside))
 
 
-def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, label: str) -> dict:
+def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, label: str,
+                         base: str = "main") -> dict:
     """Read back a just-pushed PR head, tolerating brief GitHub API propagation delay."""
     attempts = 5
     last_error = ""
@@ -183,8 +184,8 @@ def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, lab
                         last_error = "GitHub CLI returned a non-object PR response"
                     elif data.get("headRefName") != branch:
                         raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
-                    elif data.get("baseRefName") != "main" or data.get("state") != "OPEN":
-                        raise Failure(f"{label}: pull request must be open and target main")
+                    elif data.get("baseRefName") != base or data.get("state") != "OPEN":
+                        raise Failure(f"{label}: pull request must be open and target {base}")
                     elif not isinstance(data.get("url"), str) or not re.fullmatch(
                             r"https://github\.com/bmreyes25/ClarityLink/pull/[1-9][0-9]*", data["url"]):
                         last_error = "GitHub CLI returned a missing or invalid canonical PR URL"
@@ -202,9 +203,12 @@ def publish(args: argparse.Namespace) -> dict:
     if git(root, "remote", "get-url", "origin") not in (REMOTE, "git@github.com:bmreyes25/ClarityLink.git", "ssh://git@github.com/bmreyes25/ClarityLink.git"):
         raise Failure("origin does not identify the canonical GitHub repository")
     branch = ensure_branch(root, args.branch)
+    base = getattr(args, "base", "main")
+    if subprocess.run(["git", "check-ref-format", "--branch", base], capture_output=True).returncode:
+        raise Failure(f"invalid PR base branch: {base}")
     if branch == "main" or branch.startswith("main/"):
         raise Failure("direct publication to protected main is forbidden")
-    ensure_no_unpublished_history(root, branch)
+    ensure_no_unpublished_history(root, branch, base)
     if args.verification == "VERIFIED" and not args.verify_command:
         raise Failure("VERIFIED requires an explicit --verify-command")
     scope = safe_scope(root, args.file)
@@ -271,11 +275,11 @@ def publish(args: argparse.Namespace) -> dict:
     if pr_number:
         data = verify_pr_checkpoint(
             ["gh", "pr", "view", str(pr_number), "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
-            branch, local_sha, label=f"existing PR #{pr_number}",
+            branch, local_sha, label=f"existing PR #{pr_number}", base=base,
         )
         pr_url = data["url"]
     elif args.verification == "VERIFIED":
-        p = subprocess.run(["gh", "pr", "create", "-R", REPO, "--base", "main", "--head", branch,
+        p = subprocess.run(["gh", "pr", "create", "-R", REPO, "--base", base, "--head", branch,
                             "--title", args.message, "--body", f"Task: {args.task}\n\nVerification: VERIFIED.\nRemote SHA verified: {remote_sha}."],
                            text=True, capture_output=True)
         if p.returncode:
@@ -284,10 +288,14 @@ def publish(args: argparse.Namespace) -> dict:
     if pr_url:
         pr_data = verify_pr_checkpoint(
             ["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
-            branch, local_sha, label="published PR",
+            branch, local_sha, label="published PR", base=base,
         )
         pr_url = pr_data["url"]
-    result = subprocess.run([sys.executable, str(root / "tools/verify_remote_publication.py"), "--repo", str(root), "--branch", branch], text=True, capture_output=True)
+    verify_args = [sys.executable, str(root / "tools/verify_remote_publication.py"),
+                   "--repo", str(root), "--branch", branch]
+    if pr_url:
+        verify_args.extend(("--pr", str(pr_number), "--base", base))
+    result = subprocess.run(verify_args, text=True, capture_output=True)
     if result.returncode:
         raise Failure(f"post-publication verification failed: {result.stdout.strip()} {result.stderr.strip()}")
     print(f"REMOTE_VERIFIED task={args.task} branch={branch} local_sha={local_sha} remote_sha={remote_sha}")
@@ -302,6 +310,8 @@ def main() -> int:
     p.add_argument("--repo", type=Path, default=Path.cwd())
     p.add_argument("--task", required=True)
     p.add_argument("--branch", required=True)
+    p.add_argument("--base", default="main",
+                   help="exact origin branch to target; use a reviewed open PR branch for a stacked checkpoint")
     p.add_argument("--file", action="append", default=[], help="explicit file path; repeat per file")
     p.add_argument("--message", required=True)
     p.add_argument("--verification", choices=("VERIFIED", "WIP_UNVERIFIED"), required=True)

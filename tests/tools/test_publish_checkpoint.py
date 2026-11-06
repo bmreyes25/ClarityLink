@@ -92,6 +92,32 @@ class PublishScopeTests(unittest.TestCase):
              patch.object(publisher, "live_remote_branch_sha", return_value=""):
             publisher.ensure_no_unpublished_history(root, "feature/synthetic")
 
+    def test_new_stacked_branch_must_start_at_exact_fetched_pr_base(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "abc123", "abc123"]) as git, \
+             patch.object(publisher, "live_remote_branch_sha", return_value=""):
+            publisher.ensure_no_unpublished_history(root, "feature/stage-a", "codex/cycle12")
+        self.assertEqual(git.call_args_list[0].args[1:], ("fetch", "--quiet", "origin", "codex/cycle12"))
+        self.assertEqual(git.call_args_list[2].args[1:], ("rev-parse", "refs/remotes/origin/codex/cycle12"))
+
+    def test_new_stacked_branch_rejects_wrong_start_sha(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "def456", "abc123"]), \
+             patch.object(publisher, "live_remote_branch_sha", return_value=""):
+            with self.assertRaisesRegex(publisher.Failure, "origin/codex/cycle12"):
+                publisher.ensure_no_unpublished_history(root, "feature/stage-a", "codex/cycle12")
+
+    def test_stacked_pr_checkpoint_must_target_the_explicit_base(self):
+        import json
+        payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7",
+                   "headRefName": "feature/stage-a", "headRefOid": "abc123",
+                   "baseRefName": "codex/cycle12", "state": "OPEN"}
+        response = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+        with patch.object(publisher.subprocess, "run", return_value=response):
+            self.assertEqual(publisher.verify_pr_checkpoint(
+                ["gh", "pr", "view", "7"], "feature/stage-a", "abc123",
+                label="stacked PR", base="codex/cycle12"), payload)
+
     def test_live_remote_lookup_failure_fails_closed(self):
         root = Path("/synthetic/repo")
         failed = subprocess.CompletedProcess([], 128, "", "fatal: Authentication failed")
@@ -104,14 +130,14 @@ class PublishScopeTests(unittest.TestCase):
         args = publisher.argparse.Namespace(
             repo=root, task="synthetic", branch="feature/synthetic", file=["note.md"],
             message="docs: smoke", verification="VERIFIED", verify_command="true",
-            wip_notes=None, pr=None, public_safe_reviewed=True, maintenance_owner=False,
+            wip_notes=None, pr=None, public_safe_reviewed=True, maintenance_owner=False, base="main",
         )
         with patch.object(publisher, "git", side_effect=[str(root), publisher.REMOTE]), \
              patch.object(publisher, "ensure_branch", return_value="feature/synthetic"), \
              patch.object(publisher, "ensure_no_unpublished_history", side_effect=publisher.Failure("unsafe history")) as preflight:
             with self.assertRaisesRegex(publisher.Failure, "unsafe history"):
                 publisher.publish(args)
-            preflight.assert_called_once_with(root.resolve(), "feature/synthetic")
+            preflight.assert_called_once_with(root.resolve(), "feature/synthetic", "main")
 
     def test_pr_checkpoint_retries_stale_head_after_push(self):
         import json
@@ -360,6 +386,16 @@ class VerifyResultTests(unittest.TestCase):
                 self.assertEqual(actual["result"], "REMOTE_VERIFIED")
             else:
                 self.assertEqual(actual["result"], "REMOTE_SHA_MISMATCH")
+
+    def test_pr_can_be_verified_against_an_explicit_stacked_base(self):
+        payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7",
+                   "headRefName": "feature/synthetic", "headRefOid": "abc123",
+                   "baseRefName": "codex/cycle12", "state": "OPEN"}
+        response = subprocess.CompletedProcess([], 0, __import__("json").dumps(payload), "")
+        with patch.object(verifier, "git", side_effect=self.git_result), \
+             patch.object(verifier.subprocess, "run", return_value=response):
+            result = verifier.run(self.root, branch="feature/synthetic", pr=7, base="codex/cycle12")
+        self.assertEqual(result["result"], "REMOTE_VERIFIED")
 
     def test_unpushed_commit_is_detected_even_with_stale_tracking_metadata(self):
         self.remote_out = "def456\trefs/heads/feature/synthetic\n"

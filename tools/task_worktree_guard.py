@@ -251,23 +251,25 @@ def release_reservations(lock_dir: Path, data: dict) -> None:
             lock.unlink()
 
 
-def begin(root: Path, task: str, files: list[str]) -> dict:
+def begin(root: Path, task: str, files: list[str], base: str = "main") -> dict:
     root = Path(git(root, "rev-parse", "--show-toplevel")).resolve()
     canonical_origin(root)
     branch = branch_and_owner(root)
+    if subprocess.run(["git", "check-ref-format", "--branch", base], capture_output=True).returncode:
+        raise GuardError(f"invalid task base branch: {base}")
     dirty = porcelain(root)
     if dirty:
         raise GuardError("task start requires a clean worktree; preserve and reconcile existing changes first")
-    git(root, "fetch", "--quiet", "origin", "main")
+    git(root, "fetch", "--quiet", "origin", base)
     head = git(root, "rev-parse", "HEAD")
-    main = git(root, "rev-parse", "refs/remotes/origin/main")
-    if head != main:
-        raise GuardError(f"task branch must start at fetched origin/main ({main}); current HEAD is {head}")
+    base_sha = git(root, "rev-parse", f"refs/remotes/origin/{base}")
+    if head != base_sha:
+        raise GuardError(f"task branch must start at fetched origin/{base} ({base_sha}); current HEAD is {head}")
     paths = validate_paths(root, files)
     file, lock_dir = layout(root)
     owner = {"task_id": task, "branch": branch, "worktree": str(root),
              "started_at": int(time.time())}
-    data = {**owner, "starting_sha": head, "files": paths}
+    data = {**owner, "starting_sha": head, "base": base, "files": paths}
     with manifest_transaction(root):
         temp = file.with_name(file.name + f".{os.getpid()}.tmp")
         fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -316,14 +318,21 @@ def classify(root: Path) -> dict:
             "scope": data["files"]}
 
 
-def finish(root: Path, pr: int) -> dict:
+def finish(root: Path, pr: int, base: str | None = None) -> dict:
     with manifest_transaction(root):
         file, lock_dir, data = manifest(root)
+        expected_base = data.get("base", "main")
+        if not isinstance(expected_base, str) or subprocess.run(
+                ["git", "check-ref-format", "--branch", expected_base], capture_output=True).returncode:
+            raise GuardError("task manifest base branch is invalid; preserve its scope reservation")
+        if base is not None and base != expected_base:
+            raise GuardError(f"finish base {base} differs from task manifest base {expected_base}")
+        base = expected_base
         state = classify(root)
         if state["status"]:
             raise GuardError("task completion requires a clean worktree; status=" + json.dumps(state["status"]))
         result = subprocess.run([sys.executable, str(Path(__file__).with_name("verify_remote_publication.py")),
-                                 "--repo", str(root), "--pr", str(pr)],
+                                 "--repo", str(root), "--pr", str(pr), "--base", base],
                                 text=True, capture_output=True, timeout=15)
         try:
             receipt = json.loads(result.stdout)
@@ -344,6 +353,7 @@ def main() -> int:
     parser.add_argument("--task")
     parser.add_argument("--file", action="append", default=[])
     parser.add_argument("--pr", type=int)
+    parser.add_argument("--base", help="task or PR base branch; defaults to main on begin and task manifest on finish")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
@@ -351,7 +361,7 @@ def main() -> int:
         if args.command == "begin":
             if not args.task:
                 raise GuardError("begin requires --task")
-            data = begin(root, args.task, args.file)
+            data = begin(root, args.task, args.file, args.base or "main")
             result = {"result": "TASK_STARTED", **data}
         elif args.command == "extend":
             result = {"result": "SCOPE_EXTENDED", **extend(root, args.file)}
@@ -370,7 +380,7 @@ def main() -> int:
         else:
             if not args.pr:
                 raise GuardError("finish requires --pr for live remote and PR verification")
-            result = finish(root, args.pr)
+            result = finish(root, args.pr, args.base)
         if args.command == "postflight" and result.get("result") == "TASK_STATUS":
             if not result.get("status"):
                 result["next_step"] = "run tools/task_worktree_guard.py finish --pr <open-pr-number> after the published branch and PR SHA verify"
