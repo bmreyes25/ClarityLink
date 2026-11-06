@@ -16,7 +16,8 @@ def git(root: Path, *args: str, timeout: float = 5) -> subprocess.CompletedProce
     return subprocess.run(["git", "-C", str(root), *args], text=True, capture_output=True, timeout=timeout)
 
 
-def run(root: Path, branch: str | None = None, pr: int | None = None, timeout: float = 5) -> dict:
+def run(root: Path, branch: str | None = None, pr: int | None = None,
+        timeout: float = 5, base: str = "main") -> dict:
     root = Path(git(root, "rev-parse", "--show-toplevel", timeout=timeout).stdout.strip() or root)
     if git(root, "rev-parse", "--git-dir", timeout=timeout).returncode != 0:
         return {"result": "NO_REMOTE_BRANCH", "reason": "not a Git repository"}
@@ -27,6 +28,10 @@ def run(root: Path, branch: str | None = None, pr: int | None = None, timeout: f
     branch = branch or current
     if not branch:
         return {"result": "NO_REMOTE_BRANCH", "reason": "detached HEAD"}
+    if (not isinstance(base, str) or base.startswith("-") or "@{" in base or base == branch
+            or git(root, "check-ref-format", f"refs/heads/{base}", timeout=timeout).returncode != 0):
+        return {"result": "NO_REMOTE_BRANCH", "branch": branch,
+                "reason": "expected PR base must be a literal branch distinct from the head"}
     if current and current != branch:
         return {"result": "REMOTE_SHA_MISMATCH", "branch": branch, "current_branch": current,
                 "reason": "requested branch is not the checked out branch"}
@@ -60,18 +65,25 @@ def run(root: Path, branch: str | None = None, pr: int | None = None, timeout: f
               "remote_sha": remote_sha, "upstream": upstream.stdout.strip() if upstream.returncode == 0 else None,
               "unpushed_commit_count": 0, "uncommitted_source_count": 0, "pr": None}
     if pr:
-        gh = subprocess.run(["gh", "pr", "view", str(pr), "-R", REPO, "--json", "url,headRefName,headRefOid,baseRefName,state"],
+        gh = subprocess.run(["gh", "pr", "view", str(pr), "-R", REPO, "--json",
+                             "url,headRefName,headRefOid,baseRefName,state,isCrossRepository"],
                             text=True, capture_output=True, timeout=timeout)
         if gh.returncode:
             output["result"] = "NO_REMOTE_BRANCH"
             output["reason"] = (gh.stderr or "PR lookup failed").strip()[:500]
         else:
-            data = json.loads(gh.stdout)
+            try:
+                data = json.loads(gh.stdout)
+            except (TypeError, ValueError):
+                output["result"] = "NO_REMOTE_BRANCH"
+                output["reason"] = "GitHub returned invalid JSON for the pull request"
+                return output
             output["pr"] = data
             if (data.get("headRefName") != branch or data.get("headRefOid") != remote_sha
-                    or data.get("baseRefName") != "main" or data.get("state") != "OPEN"):
+                    or data.get("baseRefName") != base or data.get("state") != "OPEN"
+                    or data.get("isCrossRepository") is not False):
                 output["result"] = "REMOTE_SHA_MISMATCH"
-                output["reason"] = "PR must be open, target main, and match the verified branch name and SHA"
+                output["reason"] = f"PR must be open, target {base}, and match the verified branch name and SHA"
     return output
 
 
@@ -80,6 +92,7 @@ def main() -> int:
     p.add_argument("--repo", type=Path, default=Path.cwd())
     p.add_argument("--branch")
     p.add_argument("--pr", type=int)
+    p.add_argument("--base", default="main", help="expected PR base branch; defaults to main")
     p.add_argument("--timeout", type=float, default=5)
     p.add_argument("--push-rejected", action="store_true", help="report a failed push attempt")
     p.add_argument("--unsafe-content-blocked", action="store_true", help="report a content safety rejection")
@@ -93,7 +106,7 @@ def main() -> int:
         print(json.dumps(result, sort_keys=True))
         return 1
     try:
-        result = run(args.repo, args.branch, args.pr, args.timeout)
+        result = run(args.repo, args.branch, args.pr, args.timeout, args.base)
     except subprocess.TimeoutExpired:
         result = {"result": "NO_REMOTE_BRANCH", "reason": "remote inspection timed out"}
     except OSError as e:

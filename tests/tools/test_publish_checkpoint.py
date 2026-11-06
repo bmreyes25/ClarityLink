@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import subprocess
 import tempfile
 import unittest
@@ -17,6 +18,72 @@ publisher = load("publisher", "tools/publish_checkpoint.py")
 verifier = load("verifier", "tools/verify_remote_publication.py")
 
 class PublishScopeTests(unittest.TestCase):
+    @staticmethod
+    def _run_with_valid_base(responses):
+        """Keep the literal-branch validation out of mocked GitHub read sequences."""
+        def run(command, **kwargs):
+            if command[:2] == ["git", "check-ref-format"]:
+                return subprocess.CompletedProcess(command, 0, "", "")
+            if callable(responses):
+                return responses(command, **kwargs)
+            response = next(responses)
+            if isinstance(response, BaseException):
+                raise response
+            return response
+        return run
+    def test_literal_base_rejects_checkout_expressions_and_self_target(self):
+        for base in ("@{-1}", "feature/head"):
+            with self.subTest(base=base), self.assertRaises(publisher.Failure):
+                publisher.validate_pr_base(Path("/synthetic/repo"), base, "feature/head")
+
+    def test_stacked_base_must_be_an_open_pr_head(self):
+        import json
+        response = subprocess.CompletedProcess([], 0, json.dumps([{"headRefName": "codex/cycle12",
+                                                                      "isCrossRepository": False}]), "")
+        with patch.object(publisher.subprocess, "run", return_value=response) as run:
+            publisher.validate_pr_base(Path("/synthetic/repo"), "codex/cycle12", "codex/stage-a")
+        self.assertIn("--head", run.call_args.args[0])
+        closed = subprocess.CompletedProcess([], 0, "[]", "")
+        with patch.object(publisher.subprocess, "run", return_value=closed):
+            with self.assertRaisesRegex(publisher.Failure, "not the head of an open pull request"):
+                publisher.validate_pr_base(Path("/synthetic/repo"), "codex/cycle12", "codex/stage-a")
+        fork = subprocess.CompletedProcess([], 0,
+            json.dumps([{"headRefName": "codex/cycle12", "isCrossRepository": True}]), "")
+        with patch.object(publisher.subprocess, "run", return_value=fork):
+            with self.assertRaisesRegex(publisher.Failure, "not the head of an open pull request"):
+                publisher.validate_pr_base(Path("/synthetic/repo"), "codex/cycle12", "codex/stage-a")
+
+    def test_stacked_base_lookup_timeout_fails_closed(self):
+        with patch.object(publisher.subprocess, "run", side_effect=self._run_with_valid_base(
+                lambda *args, **kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired(["gh"], 15)))):
+            with self.assertRaisesRegex(publisher.Failure, "timed out.*refusing publication"):
+                publisher.validate_pr_base(Path("/synthetic/repo"), "codex/cycle12", "codex/stage-a")
+
+    def test_existing_pr_lookup_fails_closed_instead_of_creating_duplicate(self):
+        failed = subprocess.CompletedProcess([], 1, "", "authentication unavailable")
+        with patch.object(publisher.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(publisher.Failure, "could not inspect existing open PRs"):
+                publisher.find_open_pr("feature/synthetic")
+        multiple = subprocess.CompletedProcess([], 0, json.dumps([
+            {"number": 1, "url": "https://github.com/bmreyes25/ClarityLink/pull/1", "isCrossRepository": False},
+            {"number": 2, "url": "https://github.com/bmreyes25/ClarityLink/pull/2", "isCrossRepository": False}]), "")
+        with patch.object(publisher.subprocess, "run", return_value=multiple):
+            with self.assertRaisesRegex(publisher.Failure, "multiple open PRs"):
+                publisher.find_open_pr("feature/synthetic")
+
+    def test_existing_pr_lookup_timeout_fails_closed(self):
+        with patch.object(publisher.subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 15)):
+            with self.assertRaisesRegex(publisher.Failure, "timed out.*refusing publication"):
+                publisher.find_open_pr("feature/synthetic")
+
+    def test_canonical_pr_url_produces_integer_for_remote_verifier(self):
+        self.assertEqual(publisher.canonical_pr_number(
+            "https://github.com/bmreyes25/ClarityLink/pull/140"), 140)
+        for url in ("", "https://example.com/pull/140",
+                    "https://github.com/bmreyes25/ClarityLink/pull/0"):
+            with self.subTest(url=url), self.assertRaises(publisher.Failure):
+                publisher.canonical_pr_number(url)
+
     def test_detached_head_branch_preserves_uncommitted_work(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -92,6 +159,44 @@ class PublishScopeTests(unittest.TestCase):
              patch.object(publisher, "live_remote_branch_sha", return_value=""):
             publisher.ensure_no_unpublished_history(root, "feature/synthetic")
 
+    def test_new_stacked_branch_must_start_at_exact_fetched_pr_base(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "abc123", "abc123"]) as git, \
+             patch.object(publisher, "live_remote_branch_sha", return_value=""):
+            publisher.ensure_no_unpublished_history(root, "feature/stage-a", "codex/cycle12")
+        self.assertEqual(git.call_args_list[0].args[1:], ("fetch", "--quiet", "origin", "codex/cycle12"))
+        self.assertEqual(git.call_args_list[2].args[1:], ("rev-parse", "refs/remotes/origin/codex/cycle12"))
+
+    def test_new_stacked_branch_rejects_wrong_start_sha(self):
+        root = Path("/synthetic/repo")
+        with patch.object(publisher, "git", side_effect=["", "def456", "abc123"]), \
+             patch.object(publisher, "live_remote_branch_sha", return_value=""):
+            with self.assertRaisesRegex(publisher.Failure, "origin/codex/cycle12"):
+                publisher.ensure_no_unpublished_history(root, "feature/stage-a", "codex/cycle12")
+
+    def test_stacked_pr_checkpoint_must_target_the_explicit_base(self):
+        import json
+        payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7",
+                   "headRefName": "feature/stage-a", "headRefOid": "abc123",
+                   "baseRefName": "codex/cycle12", "state": "OPEN", "isCrossRepository": False}
+        response = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+        with patch.object(publisher.subprocess, "run", return_value=response):
+            self.assertEqual(publisher.verify_pr_checkpoint(
+                ["gh", "pr", "view", "7"], "feature/stage-a", "abc123",
+                label="stacked PR", base="codex/cycle12"), payload)
+
+    def test_pr_checkpoint_rejects_fork_head_even_when_branch_and_sha_match(self):
+        import json
+        payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7",
+                   "headRefName": "feature/stage-a", "headRefOid": "abc123",
+                   "baseRefName": "main", "state": "OPEN", "isCrossRepository": True}
+        response = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+        run = self._run_with_valid_base(lambda *args, **kwargs: response)
+        with patch.object(publisher.subprocess, "run", side_effect=run):
+            with self.assertRaisesRegex(publisher.Failure, "must be open and target main"):
+                publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/stage-a",
+                                                "abc123", label="test PR")
+
     def test_live_remote_lookup_failure_fails_closed(self):
         root = Path("/synthetic/repo")
         failed = subprocess.CompletedProcess([], 128, "", "fatal: Authentication failed")
@@ -104,25 +209,26 @@ class PublishScopeTests(unittest.TestCase):
         args = publisher.argparse.Namespace(
             repo=root, task="synthetic", branch="feature/synthetic", file=["note.md"],
             message="docs: smoke", verification="VERIFIED", verify_command="true",
-            wip_notes=None, pr=None, public_safe_reviewed=True, maintenance_owner=False,
+            wip_notes=None, pr=None, public_safe_reviewed=True, maintenance_owner=False, base="main",
         )
         with patch.object(publisher, "git", side_effect=[str(root), publisher.REMOTE]), \
              patch.object(publisher, "ensure_branch", return_value="feature/synthetic"), \
              patch.object(publisher, "ensure_no_unpublished_history", side_effect=publisher.Failure("unsafe history")) as preflight:
             with self.assertRaisesRegex(publisher.Failure, "unsafe history"):
                 publisher.publish(args)
-            preflight.assert_called_once_with(root.resolve(), "feature/synthetic")
+            preflight.assert_called_once_with(root.resolve(), "feature/synthetic", "main")
 
     def test_pr_checkpoint_retries_stale_head_after_push(self):
         import json
         expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
-                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+                    "baseRefName": "main", "state": "OPEN", "isCrossRepository": False,
+                    "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
         stale = {**expected, "headRefOid": "previous-sha"}
         responses = [
             subprocess.CompletedProcess([], 0, json.dumps(stale), ""),
             subprocess.CompletedProcess([], 0, json.dumps(expected), ""),
         ]
-        with patch.object(publisher.subprocess, "run", side_effect=responses), \
+        with patch.object(publisher.subprocess, "run", side_effect=self._run_with_valid_base(iter(responses))), \
              patch.object(publisher.time, "sleep") as sleep:
             actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
         self.assertEqual(actual, expected)
@@ -131,38 +237,41 @@ class PublishScopeTests(unittest.TestCase):
     def test_pr_checkpoint_stops_after_bounded_stale_head_reads(self):
         import json
         stale = {"headRefName": "feature/synthetic", "headRefOid": "previous-sha",
-                 "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+                 "baseRefName": "main", "state": "OPEN", "isCrossRepository": False,
+                 "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
         response = subprocess.CompletedProcess([], 0, json.dumps(stale), "")
-        with patch.object(publisher.subprocess, "run", return_value=response) as run, \
+        with patch.object(publisher.subprocess, "run", side_effect=self._run_with_valid_base(lambda *a, **k: response)) as run, \
              patch.object(publisher.time, "sleep") as sleep:
             with self.assertRaisesRegex(publisher.Failure, "after 5 reads"):
                 publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
-        self.assertEqual(run.call_count, 5)
+        self.assertEqual(run.call_count, 6)
         self.assertEqual(sleep.call_count, 4)
 
     def test_pr_checkpoint_retries_cli_timeout(self):
         import json
         expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
-                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+                    "baseRefName": "main", "state": "OPEN", "isCrossRepository": False,
+                    "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
         response = subprocess.CompletedProcess([], 0, json.dumps(expected), "")
         timeout = subprocess.TimeoutExpired(["gh", "pr", "view", "7"], 10)
-        with patch.object(publisher.subprocess, "run", side_effect=[timeout, response]) as run, \
+        with patch.object(publisher.subprocess, "run", side_effect=self._run_with_valid_base(iter([timeout, response]))) as run, \
              patch.object(publisher.time, "sleep") as sleep:
             actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
         self.assertEqual(actual, expected)
-        self.assertEqual(run.call_args_list[0].kwargs["timeout"], 10)
+        self.assertEqual(run.call_args_list[1].kwargs["timeout"], 10)
         sleep.assert_called_once_with(1)
 
     def test_pr_checkpoint_retries_malformed_and_non_object_responses(self):
         import json
         expected = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
-                    "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+                    "baseRefName": "main", "state": "OPEN", "isCrossRepository": False,
+                    "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
         responses = [
             subprocess.CompletedProcess([], 0, "", ""),
             subprocess.CompletedProcess([], 0, "[]", ""),
             subprocess.CompletedProcess([], 0, json.dumps(expected), ""),
         ]
-        with patch.object(publisher.subprocess, "run", side_effect=responses), \
+        with patch.object(publisher.subprocess, "run", side_effect=self._run_with_valid_base(iter(responses))), \
              patch.object(publisher.time, "sleep") as sleep:
             actual = publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
         self.assertEqual(actual, expected)
@@ -171,7 +280,8 @@ class PublishScopeTests(unittest.TestCase):
     def test_pr_checkpoint_rejects_missing_or_null_url_after_bounded_reads(self):
         import json
         valid = {"headRefName": "feature/synthetic", "headRefOid": "abc123",
-                 "baseRefName": "main", "state": "OPEN", "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
+                 "baseRefName": "main", "state": "OPEN", "isCrossRepository": False,
+                 "url": "https://github.com/bmreyes25/ClarityLink/pull/7"}
         malformed = [
             {key: value for key, value in valid.items() if key != "url"},
             {**valid, "url": None},
@@ -180,11 +290,11 @@ class PublishScopeTests(unittest.TestCase):
         for payload in malformed:
             response = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
             with self.subTest(payload=payload), \
-                 patch.object(publisher.subprocess, "run", return_value=response) as run, \
+                 patch.object(publisher.subprocess, "run", side_effect=self._run_with_valid_base(lambda *a, **k: response)) as run, \
                  patch.object(publisher.time, "sleep") as sleep:
                 with self.assertRaisesRegex(publisher.Failure, "after 5 reads"):
                     publisher.verify_pr_checkpoint(["gh", "pr", "view", "7"], "feature/synthetic", "abc123", label="test PR")
-            self.assertEqual(run.call_count, 5)
+            self.assertEqual(run.call_count, 6)
             self.assertEqual(sleep.call_count, 4)
 
     def test_empty_scope_rejected(self):
@@ -349,8 +459,10 @@ class VerifyResultTests(unittest.TestCase):
 
     def test_pr_must_be_open_on_main_and_match_remote_sha(self):
         payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7", "headRefName": "feature/synthetic",
-                   "headRefOid": "abc123", "baseRefName": "main", "state": "OPEN"}
-        for mutation in ({}, {"headRefOid": "def456"}, {"baseRefName": "release"}, {"state": "CLOSED"}):
+                   "headRefOid": "abc123", "baseRefName": "main", "state": "OPEN",
+                   "isCrossRepository": False}
+        for mutation in ({}, {"headRefOid": "def456"}, {"baseRefName": "release"},
+                         {"state": "CLOSED"}, {"isCrossRepository": True}):
             data = {**payload, **mutation}
             result = subprocess.CompletedProcess([], 0, __import__("json").dumps(data), "")
             with patch.object(verifier, "git", side_effect=self.git_result), \
@@ -360,6 +472,16 @@ class VerifyResultTests(unittest.TestCase):
                 self.assertEqual(actual["result"], "REMOTE_VERIFIED")
             else:
                 self.assertEqual(actual["result"], "REMOTE_SHA_MISMATCH")
+
+    def test_pr_can_be_verified_against_an_explicit_stacked_base(self):
+        payload = {"url": "https://github.com/bmreyes25/ClarityLink/pull/7",
+                   "headRefName": "feature/synthetic", "headRefOid": "abc123",
+                   "baseRefName": "codex/cycle12", "state": "OPEN", "isCrossRepository": False}
+        response = subprocess.CompletedProcess([], 0, __import__("json").dumps(payload), "")
+        with patch.object(verifier, "git", side_effect=self.git_result), \
+             patch.object(verifier.subprocess, "run", return_value=response):
+            result = verifier.run(self.root, branch="feature/synthetic", pr=7, base="codex/cycle12")
+        self.assertEqual(result["result"], "REMOTE_VERIFIED")
 
     def test_unpushed_commit_is_detected_even_with_stale_tracking_metadata(self):
         self.remote_out = "def456\trefs/heads/feature/synthetic\n"
