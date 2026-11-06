@@ -28,9 +28,10 @@ from privileged import PrivilegedOperation, PrivilegedRead
 import root_identity_stage_a as stage_a
 
 
-LIVE_COLLECTION_ENABLED = True
+LIVE_COLLECTION_ENABLED = False
 EXPERIMENT = "CL-STAGEB-JMCS-CONNECTED-DELTA"
 LIVE_STAGE_B_ACTIVATION = "--live-stage-b-connected-delta"
+LIVE_COLLECTION_BLOCK_REASON = "live collection is disabled until a supported fixed SHA-256 method for /system/bin/jmcs is reviewed"
 EXPECTED_JMCS_SHA256 = "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232"
 JMCS_STATIC_PATH = "/system/bin/jmcs"
 STATIC_CALLSITES = {
@@ -59,6 +60,25 @@ NETWORK_HEADERS = {
              "tr", "tm->when", "retrnsmt", "uid", "timeout", "inode"),
     "unix": ("Num", "RefCount", "Protocol", "Flags", "Type", "St", "Inode", "Path"),
 }
+
+
+def require_analyzed_jmcs_hash(raw: bytes) -> str:
+    """Accept only the exact target path and pinned digest; classify failures accurately."""
+    match = re.fullmatch(rb"([0-9a-fA-F]{64})[ \t]+/system/bin/jmcs[ \t]*\r?\n?", raw)
+    if not match:
+        line = raw.strip().lower()
+        tool_unavailable = (
+            len(raw) <= 256 and b"\n" not in line and b"\r" not in line
+            and (b"sha256sum" in line or b"sha-256" in line)
+            and (b"not found" in line or b"unavailable" in line)
+        )
+        if tool_unavailable:
+            raise SafetyStop("target sha256sum utility is unavailable; jmcs binary identity is unverified")
+        raise SafetyStop("jmcs hash operation returned no valid digest/path record; binary identity is unverified")
+    digest = match.group(1).decode().lower()
+    if digest != EXPECTED_JMCS_SHA256:
+        raise SafetyStop("current jmcs file hash differs from the analyzed receiver ELF")
+    return digest
 
 
 def owner_disclosure(serial: str) -> str:
@@ -796,10 +816,7 @@ class StageB:
             raise SafetyStop("transport lacks the fixed jmcs file hash operation")
         digest_raw = self._record("baseline", "jmcs_file_hash", hash_reader(),
                                   params=(JMCS_STATIC_PATH,))
-        match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/bin/jmcs\s*\n?", digest_raw)
-        if not match or match.group(1).decode().lower() != EXPECTED_JMCS_SHA256:
-            raise SafetyStop("current jmcs file hash does not match the analyzed receiver ELF")
-        self.capture.analysis["jmcs_file_sha256"] = match.group(1).decode().lower()
+        self.capture.analysis["jmcs_file_sha256"] = require_analyzed_jmcs_hash(digest_raw)
         self.capture.analysis["executable_binding"] = (
             "ps, proc stat PID/comm, status PID/name, and transient cmdline argv0 agree; current /system/bin/jmcs hash and its covering mount are checked; /proc/PID/exe is not exposed by the archived API-17 toolbox evidence, so the running image inode is not independently asserted")
         self._fd_and_socket_snapshot("baseline", identity)
@@ -815,10 +832,7 @@ class StageB:
             raise SafetyStop("transport lacks the fixed jmcs file hash operation")
         digest_raw = self._record("connected", "jmcs_file_hash", hash_result(),
                                   params=(JMCS_STATIC_PATH,))
-        match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/bin/jmcs\s*\n?", digest_raw)
-        if not match or match.group(1).decode().lower() != EXPECTED_JMCS_SHA256:
-            raise SafetyStop("current jmcs file hash does not match the analyzed receiver ELF")
-        self.capture.analysis["jmcs_file_sha256"] = match.group(1).decode().lower()
+        self.capture.analysis["jmcs_file_sha256"] = require_analyzed_jmcs_hash(digest_raw)
         maps_raw = self._read_one("connected", "maps", identity.pid)
         self.capture.analysis["connected_runtime_callsites"] = calculate_runtime_callsites(maps_raw)
         self._fd_and_socket_snapshot("connected", identity)
@@ -834,9 +848,7 @@ class StageB:
             raise SafetyStop("transport lacks the fixed jmcs file hash operation")
         digest_raw = self._record("post_disconnect", "jmcs_file_hash", hash_result(),
                                   params=(JMCS_STATIC_PATH,))
-        match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/bin/jmcs\s*\n?", digest_raw)
-        if not match or match.group(1).decode().lower() != EXPECTED_JMCS_SHA256:
-            raise SafetyStop("current jmcs file hash does not match the analyzed receiver ELF")
+        require_analyzed_jmcs_hash(digest_raw)
         self._fd_and_socket_snapshot("post_disconnect", identity)
         end = self._identity_snapshot("post_disconnect_epoch_end", expected=identity)
         self.identity = end
@@ -1043,13 +1055,13 @@ def main(argv: list[str] | None = None) -> int:
                 ("host shutdown", "adb disconnect <exact TCP/IP serial> only after owner confirms CAR POWERED OFF")):
             print(f"{operation}: {tail}")
         print("successful full-session totals: exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls")
-        print(f"Live execution requires {LIVE_STAGE_B_ACTIVATION} and interactive owner authorization.")
+        print(f"Live execution is disabled: {LIVE_COLLECTION_BLOCK_REASON}.")
         return 0
     if not args.live_stage_b:
         print(f"No live experiment selected. Use --dry-run, or explicitly select {LIVE_STAGE_B_ACTIVATION}.", file=sys.stderr)
         return 2
     if not LIVE_COLLECTION_ENABLED:
-        print("Live Stage B collection is disabled in this source revision.", file=sys.stderr)
+        print(f"Live Stage B collection is disabled: {LIVE_COLLECTION_BLOCK_REASON}.", file=sys.stderr)
         return 2
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
         print("Live Stage B collection requires an interactive terminal for owner authorization.", file=sys.stderr)

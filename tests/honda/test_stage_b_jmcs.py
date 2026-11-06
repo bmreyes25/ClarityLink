@@ -178,6 +178,8 @@ class FakeTransport:
         return stage_b.ReadResult(0, ps_output(self.current_pid), b"")
 
     def hash_jmcs(self):
+        if self.bad == "jmcs-hash-tool-missing":
+            return stage_b.ReadResult(0, b"shell: SHA-256 utility unavailable\n", b"")
         digest = "0" * 64 if self.bad == "jmcs-hash" else self.process_hash
         return stage_b.ReadResult(0, f"{digest}  /system/bin/jmcs\n".encode(), b"")
 
@@ -202,6 +204,7 @@ class FakeTransport:
 
 def activated_transport(monkeypatch, *, owner_authorized=True):
     """Construct the live adapter only in a mocked CLI/terminal test context."""
+    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
     monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
@@ -684,6 +687,101 @@ def test_interrupted_target_operation_warns_against_late_supersu_prompt(tmp_path
     assert any("interrupted" in message and "late SuperSU" in message for message in outputs)
 
 
+def test_missing_jmcs_hash_utility_is_not_reported_as_a_binary_mismatch():
+    status, transport, manifest, _, hashes = run_fake(
+        bad="jmcs-hash-tool-missing",
+        answers=["YES", "DISCONNECTED", "NORMAL", "CAR POWERED OFF"],
+    )
+    assert status == "SAFE_ABORT"
+    assert "sha256sum utility is unavailable" in manifest["stop_reason"]
+    assert "differs from the analyzed" not in manifest["stop_reason"]
+    assert manifest["analysis"].get("jmcs_file_sha256") is None
+    assert manifest["analysis"]["shutdown_ack"] == "confirmed"
+    assert transport.disconnected
+    assert not any(operation in {"fd_links", "network", "maps"}
+                   for operation, _ in transport.ops)
+    hash_record = next(row for row in manifest["commands"]
+                       if row["operation"] == "jmcs_file_hash")
+    assert hash_record["stdout_bytes"] == len(b"shell: SHA-256 utility unavailable\n")
+    assert hashes and all(hashes)
+
+
+def test_jmcs_hash_parser_keeps_digest_and_path_strict():
+    pinned = stage_b.EXPECTED_JMCS_SHA256.encode()
+    assert stage_b.require_analyzed_jmcs_hash(pinned + b"  /system/bin/jmcs\r\n") == pinned.decode()
+    assert stage_b.require_analyzed_jmcs_hash(pinned.upper() + b"\t/system/bin/jmcs\n") == pinned.decode()
+    for malformed in (
+        b"",
+        pinned[:32] + b"  /system/bin/jmcs\n",
+        pinned + b"  /system/bin/jmcs-extra\n",
+        pinned + b"\n/system/bin/jmcs\n",
+        pinned + b"  /system/bin/jmcs\nextra",
+    ):
+        with pytest.raises(stage_b.SafetyStop, match="no valid digest/path record"):
+            stage_b.require_analyzed_jmcs_hash(malformed)
+    with pytest.raises(stage_b.SafetyStop, match="differs from the analyzed"):
+        stage_b.require_analyzed_jmcs_hash(b"0" * 64 + b"  /system/bin/jmcs\n")
+    for unavailable in (
+        b"shell: SHA-256 utility unavailable\n",
+        b"shell: sha256sum: not found\n",
+        b"shell: sha256sum: applet not found\n",
+    ):
+        with pytest.raises(stage_b.SafetyStop, match="utility is unavailable"):
+            stage_b.require_analyzed_jmcs_hash(unavailable)
+
+
+def test_shutdown_wrong_ack_order_never_powers_off_or_disconnects():
+    status, transport, manifest, _, _ = run_fake(
+        bad="jmcs-hash",
+        answers=["YES", "DISCONNECTED", "CAR POWERED OFF"],
+    )
+    assert status == "SAFE_ABORT"
+    assert manifest["analysis"]["shutdown_ack"] == "not_confirmed"
+    assert not transport.disconnected
+
+
+def test_abort_shutdown_eof_before_normal_ack_never_disconnects(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    outputs = []
+
+    def unexpected_eof(_prompt):
+        raise EOFError
+
+    controller = stage_b.StageB(transport, input_fn=unexpected_eof,
+                                output_fn=outputs.append, evidence_root=root,
+                                repo_root=ROOT, offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+    assert not controller._shutdown(endpoint_selected=True, after_abort=True)
+    assert not transport.disconnected
+    assert any("Do not attempt power-off or ADB disconnect" in message for message in outputs)
+
+
+def test_abort_shutdown_eof_before_poweroff_ack_never_disconnects(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    inputs = iter(["NORMAL"])
+
+    def normal_then_eof(_prompt):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    controller = stage_b.StageB(transport, input_fn=normal_then_eof,
+                                output_fn=lambda _: None, evidence_root=root,
+                                repo_root=ROOT, offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+    assert not controller._shutdown(endpoint_selected=True, after_abort=True)
+    assert not transport.disconnected
+
+
 def test_private_evidence_root_rejects_checkout_and_symlink(tmp_path):
     with pytest.raises(stage_b.SafetyStop):
         stage_b.verify_private_root(ROOT / "private-evidence-test", ROOT)
@@ -739,6 +837,7 @@ def test_live_transport_requires_experiment_activation_and_canonical_owner_yes(t
 
 
 def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
+    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: False)
     with mock.patch.object(stage_b, "AdbTransport", side_effect=AssertionError("must not construct without TTY")):
@@ -748,7 +847,17 @@ def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
         stage_b.main(["--serial", SERIAL, "--dry-run", stage_b.LIVE_STAGE_B_ACTIVATION])
 
 
+def test_live_cli_remains_disabled_until_supported_hash_method_is_reviewed(monkeypatch, capsys):
+    assert stage_b.LIVE_COLLECTION_ENABLED is False
+    with mock.patch.object(stage_b, "AdbTransport",
+                           side_effect=AssertionError("disabled live path must not construct ADB transport")):
+        assert stage_b.main(["--serial", SERIAL, stage_b.LIVE_STAGE_B_ACTIVATION]) == 2
+    error = capsys.readouterr().err
+    assert stage_b.LIVE_COLLECTION_BLOCK_REASON in error
+
+
 def test_live_controller_authorizes_only_after_interactive_yes(tmp_path, monkeypatch):
+    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
     monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
