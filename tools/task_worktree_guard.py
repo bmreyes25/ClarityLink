@@ -39,9 +39,19 @@ class GuardError(RuntimeError):
     pass
 
 
+def guard_run(command: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(command, text=True, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise GuardError(f"command timed out after {timeout} seconds: {command[0]}") from exc
+
+
 def git(root: Path, *args: str, check: bool = True) -> str:
-    proc = subprocess.run(["git", "-C", str(root), *args], text=True,
-                          capture_output=True, timeout=10)
+    try:
+        proc = subprocess.run(["git", "-C", str(root), *args], text=True,
+                              capture_output=True, timeout=10)
+    except subprocess.TimeoutExpired as exc:
+        raise GuardError(f"git {args[0]} timed out after 10 seconds") from exc
     if check and proc.returncode:
         raise GuardError((proc.stderr or proc.stdout).strip() or f"git {args[0]} failed")
     return proc.stdout.strip()
@@ -255,7 +265,8 @@ def begin(root: Path, task: str, files: list[str], base: str = "main") -> dict:
     root = Path(git(root, "rev-parse", "--show-toplevel")).resolve()
     canonical_origin(root)
     branch = branch_and_owner(root)
-    if subprocess.run(["git", "check-ref-format", "--branch", base], capture_output=True).returncode:
+    if base.startswith("-") or "@{" in base or subprocess.run(
+            ["git", "check-ref-format", f"refs/heads/{base}"], capture_output=True).returncode:
         raise GuardError(f"invalid task base branch: {base}")
     dirty = porcelain(root)
     if dirty:
@@ -307,6 +318,71 @@ def extend(root: Path, files: list[str]) -> dict:
         return data
 
 
+def bind_pull_request(root: Path, pr: int, base: str) -> dict:
+    """Bind a continuation task to its published starting SHA's open stacked PR."""
+    with manifest_transaction(root):
+        file, _lock_dir, data = manifest(root)
+        root = Path(data["worktree"])
+        branch = data["branch"]
+        changed = changed_paths(root)
+        outside_scope = sorted(changed - set(data["files"]))
+        if outside_scope:
+            raise GuardError("PR binding found changes outside the task scope: " + ", ".join(outside_scope))
+        if (not isinstance(base, str) or base.startswith("-") or "@{" in base or base == branch
+                or subprocess.run(["git", "check-ref-format", f"refs/heads/{base}"],
+                                  capture_output=True).returncode):
+            raise GuardError("PR target base must be a literal branch distinct from the task branch")
+        head = git(root, "rev-parse", "HEAD")
+        if head != data["starting_sha"]:
+            raise GuardError("PR binding must happen before task edits at the recorded starting SHA")
+        remote = guard_run(["git", "-C", str(root), "ls-remote", "--heads", "origin",
+                            f"refs/heads/{branch}"])
+        remote_sha = remote.stdout.split()[0] if remote.returncode == 0 and remote.stdout.split() else ""
+        if remote.returncode or remote_sha != head:
+            raise GuardError("PR binding requires the recorded starting SHA to match the live branch")
+        result = guard_run(["gh", "pr", "view", str(pr), "-R", "bmreyes25/ClarityLink",
+                            "--json", "headRefName,headRefOid,baseRefName,state,isCrossRepository"])
+        if result.returncode:
+            raise GuardError("PR binding could not read the remote publication receipt: "
+                             + (result.stderr or result.stdout).strip())
+        try:
+            receipt = json.loads(result.stdout)
+        except (TypeError, ValueError) as exc:
+            raise GuardError("PR binding could not parse the remote publication receipt") from exc
+        if (result.returncode or not isinstance(receipt, dict)
+                or receipt.get("headRefName") != branch
+                or receipt.get("headRefOid") != head or receipt.get("baseRefName") != base
+                or receipt.get("state") != "OPEN" or receipt.get("isCrossRepository") is not False):
+            raise GuardError("PR binding requires an open PR matching the exact live task head and base")
+        if base != "main":
+            base_pr = guard_run(["gh", "pr", "list", "-R", "bmreyes25/ClarityLink",
+                                 "--head", base, "--state", "open", "--json",
+                                 "headRefName,isCrossRepository"])
+            if base_pr.returncode:
+                raise GuardError("PR binding could not inspect the stacked base PR: "
+                                 + (base_pr.stderr or base_pr.stdout).strip())
+            try:
+                base_rows = json.loads(base_pr.stdout)
+            except (TypeError, ValueError) as exc:
+                raise GuardError("PR binding could not inspect the stacked base PR") from exc
+            if (base_pr.returncode or not isinstance(base_rows, list)
+                    or not any(isinstance(row, dict) and row.get("headRefName") == base
+                               and row.get("isCrossRepository") is False
+                               for row in base_rows)):
+                raise GuardError("a stacked task base must itself be the head of an open PR")
+        try:
+            git(root, "fetch", "--quiet", "origin", base)
+            ancestry = guard_run(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                                  f"refs/remotes/origin/{base}", head], timeout=10)
+        except subprocess.TimeoutExpired as exc:
+            raise GuardError("base fetch or ancestry verification timed out") from exc
+        if ancestry.returncode:
+            raise GuardError("the live PR base is not an ancestor of the task branch")
+        updated = {**data, "base": base, "pull_request": pr}
+        atomic_manifest_write(file, updated)
+        return updated
+
+
 def classify(root: Path) -> dict:
     file, _lock_dir, data = manifest(root)
     status = porcelain(root)
@@ -322,8 +398,10 @@ def finish(root: Path, pr: int, base: str | None = None) -> dict:
     with manifest_transaction(root):
         file, lock_dir, data = manifest(root)
         expected_base = data.get("base", "main")
-        if not isinstance(expected_base, str) or subprocess.run(
-                ["git", "check-ref-format", "--branch", expected_base], capture_output=True).returncode:
+        if (not isinstance(expected_base, str) or expected_base.startswith("-") or "@{" in expected_base
+                or expected_base == data["branch"]
+                or subprocess.run(["git", "check-ref-format", f"refs/heads/{expected_base}"],
+                                  capture_output=True).returncode):
             raise GuardError("task manifest base branch is invalid; preserve its scope reservation")
         if base is not None and base != expected_base:
             raise GuardError(f"finish base {base} differs from task manifest base {expected_base}")
@@ -331,9 +409,12 @@ def finish(root: Path, pr: int, base: str | None = None) -> dict:
         state = classify(root)
         if state["status"]:
             raise GuardError("task completion requires a clean worktree; status=" + json.dumps(state["status"]))
-        result = subprocess.run([sys.executable, str(Path(__file__).with_name("verify_remote_publication.py")),
-                                 "--repo", str(root), "--pr", str(pr), "--base", base],
-                                text=True, capture_output=True, timeout=15)
+        try:
+            result = subprocess.run([sys.executable, str(Path(__file__).with_name("verify_remote_publication.py")),
+                                     "--repo", str(root), "--pr", str(pr), "--base", base],
+                                    text=True, capture_output=True, timeout=15)
+        except subprocess.TimeoutExpired as exc:
+            raise GuardError("remote verification timed out; preserve task scope reservations") from exc
         try:
             receipt = json.loads(result.stdout)
         except ValueError:
@@ -348,7 +429,7 @@ def finish(root: Path, pr: int, base: str | None = None) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("begin", "extend", "status", "finish", "preflight", "postflight"))
+    parser.add_argument("command", choices=("begin", "extend", "bind-pr", "status", "finish", "preflight", "postflight"))
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--task")
     parser.add_argument("--file", action="append", default=[])
@@ -365,6 +446,10 @@ def main() -> int:
             result = {"result": "TASK_STARTED", **data}
         elif args.command == "extend":
             result = {"result": "SCOPE_EXTENDED", **extend(root, args.file)}
+        elif args.command == "bind-pr":
+            if not args.pr or not args.base:
+                raise GuardError("bind-pr requires --pr and --base")
+            result = {"result": "TASK_BOUND_TO_PR", **bind_pull_request(root, args.pr, args.base)}
         elif args.command in ("status", "postflight"):
             try:
                 result = {"result": "TASK_STATUS", **classify(root)}

@@ -15,6 +15,69 @@ SPEC.loader.exec_module(guard)
 
 
 class ScopeReservationTests(unittest.TestCase):
+    def test_guard_run_converts_timeout_to_actionable_guard_error(self):
+        with patch.object(guard.subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 15)):
+            with self.assertRaisesRegex(guard.GuardError, "timed out after 15 seconds"):
+                guard.guard_run(["gh", "pr", "view", "140"])
+
+    def test_bind_pr_binds_existing_remote_head_to_verified_stacked_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            manifest.write_text("{}\n")
+            data = {"task_id": "stage-a", "branch": "codex/stage-a",
+                    "base": "codex/stage-a", "starting_sha": "abc123",
+                    "worktree": str(root), "files": ["tools/a.py"]}
+            responses = [
+                subprocess.CompletedProcess([], 0, "", ""),  # ref format
+                subprocess.CompletedProcess([], 0, "abc123\trefs/heads/codex/stage-a\n", ""),
+                subprocess.CompletedProcess([], 0, json.dumps({
+                    "headRefName": "codex/stage-a", "headRefOid": "abc123",
+                    "baseRefName": "codex/cycle12", "state": "OPEN",
+                    "isCrossRepository": False}), ""),
+                subprocess.CompletedProcess([], 0, json.dumps([{"headRefName": "codex/cycle12",
+                                                                   "isCrossRepository": False}]), ""),
+                subprocess.CompletedProcess([], 0, "", ""),  # ancestor
+            ]
+            captured = {}
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, root / "locks", data)), \
+                 patch.object(guard, "changed_paths", return_value={"tools/a.py"}), \
+                 patch.object(guard, "git", side_effect=["abc123", ""]) as git, \
+                 patch.object(guard.subprocess, "run", side_effect=responses) as run, \
+                 patch.object(guard, "atomic_manifest_write", side_effect=lambda _path, value: captured.update(value)):
+                result = guard.bind_pull_request(root, 140, "codex/cycle12")
+            self.assertEqual(result["base"], "codex/cycle12")
+            self.assertEqual(result["pull_request"], 140)
+            self.assertEqual(captured["starting_sha"], "abc123")
+            self.assertEqual(run.call_args_list[2].args[0][0:4],
+                             ["gh", "pr", "view", "140"])
+            git.assert_any_call(root, "fetch", "--quiet", "origin", "codex/cycle12")
+
+    def test_bind_pr_rejects_a_base_that_is_not_an_open_pr_head(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            data = {"task_id": "stage-a", "branch": "codex/stage-a",
+                    "base": "codex/stage-a", "starting_sha": "abc123",
+                    "worktree": str(root), "files": []}
+            responses = [
+                subprocess.CompletedProcess([], 0, "", ""),
+                subprocess.CompletedProcess([], 0, "abc123\trefs/heads/codex/stage-a\n", ""),
+                subprocess.CompletedProcess([], 0, json.dumps({
+                    "headRefName": "codex/stage-a", "headRefOid": "abc123",
+                    "baseRefName": "codex/cycle12", "state": "OPEN",
+                    "isCrossRepository": False}), ""),
+                subprocess.CompletedProcess([], 0, "[]", ""),
+            ]
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, root / "locks", data)), \
+                 patch.object(guard, "changed_paths", return_value=set()), \
+                 patch.object(guard, "git", return_value="abc123"), \
+                 patch.object(guard.subprocess, "run", side_effect=responses):
+                with self.assertRaisesRegex(guard.GuardError, "head of an open PR"):
+                    guard.bind_pull_request(root, 140, "codex/cycle12")
+
     def test_finish_verifies_a_stacked_pr_against_its_exact_base(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

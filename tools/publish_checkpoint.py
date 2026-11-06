@@ -163,6 +163,10 @@ def reject_staged_outside_scope(root: Path, scope: list[str]) -> None:
 def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, label: str,
                          base: str = "main") -> dict:
     """Read back a just-pushed PR head, tolerating brief GitHub API propagation delay."""
+    if (base.startswith("-") or "@{" in base or base == branch
+            or subprocess.run(["git", "check-ref-format", f"refs/heads/{base}"],
+                              capture_output=True).returncode):
+        raise Failure(f"{label}: invalid or self-referential PR base branch")
     attempts = 5
     last_error = ""
     for attempt in range(attempts):
@@ -184,7 +188,8 @@ def verify_pr_checkpoint(command: list[str], branch: str, local_sha: str, *, lab
                         last_error = "GitHub CLI returned a non-object PR response"
                     elif data.get("headRefName") != branch:
                         raise Failure(f"{label}: pull request head branch does not match the published checkpoint")
-                    elif data.get("baseRefName") != base or data.get("state") != "OPEN":
+                    elif (data.get("baseRefName") != base or data.get("state") != "OPEN"
+                          or data.get("isCrossRepository") is not False):
                         raise Failure(f"{label}: pull request must be open and target {base}")
                     elif not isinstance(data.get("url"), str) or not re.fullmatch(
                             r"https://github\.com/bmreyes25/ClarityLink/pull/[1-9][0-9]*", data["url"]):
@@ -205,14 +210,68 @@ def canonical_pr_number(url: str) -> int:
     return int(match.group(1))
 
 
+def validate_pr_base(root: Path, base: str, head_branch: str) -> None:
+    """Accept literal branch refs; a stacked base must be an open PR head."""
+    if (not isinstance(base, str) or base.startswith("-") or "@{" in base or base == head_branch
+            or subprocess.run(["git", "check-ref-format", f"refs/heads/{base}"],
+                              capture_output=True).returncode):
+        raise Failure(f"invalid or self-referential PR base branch: {base}")
+    if base == "main":
+        return
+    try:
+        result = subprocess.run(["gh", "pr", "list", "-R", REPO, "--head", base,
+                                 "--state", "open", "--json", "headRefName,isCrossRepository"],
+                                text=True, capture_output=True, timeout=15)
+    except subprocess.TimeoutExpired as exc:
+        raise Failure("timed out while verifying the stacked PR base; refusing publication") from exc
+    if result.returncode:
+        raise Failure(f"could not verify that stacked base {base} is an open PR head: "
+                      + (result.stderr or result.stdout).strip())
+    import json
+    try:
+        rows = json.loads(result.stdout)
+    except (TypeError, ValueError) as exc:
+        raise Failure("GitHub returned invalid data while checking the stacked PR base") from exc
+    if not isinstance(rows, list) or not any(
+            isinstance(row, dict) and row.get("headRefName") == base
+            and row.get("isCrossRepository") is False for row in rows):
+        raise Failure(f"stacked PR base {base} is not the head of an open pull request")
+
+
+def find_open_pr(branch: str) -> tuple[int, str] | None:
+    try:
+        result = subprocess.run(["gh", "pr", "list", "-R", REPO, "--head", branch,
+                                 "--state", "open", "--json", "number,url,isCrossRepository"],
+                                text=True, capture_output=True, timeout=15)
+    except subprocess.TimeoutExpired as exc:
+        raise Failure("timed out while checking for an existing open PR; refusing publication") from exc
+    if result.returncode:
+        raise Failure("could not inspect existing open PRs for the published branch: "
+                       + (result.stderr or result.stdout).strip())
+    import json
+    try:
+        rows = json.loads(result.stdout)
+    except (TypeError, ValueError) as exc:
+        raise Failure("GitHub returned invalid existing-PR data for the published branch") from exc
+    if not isinstance(rows, list):
+        raise Failure("GitHub returned a non-list existing-PR response")
+    if len(rows) > 1:
+        raise Failure("multiple open PRs already exist for the published branch; refusing to choose one")
+    if not rows:
+        return None
+    number, url = rows[0].get("number"), rows[0].get("url")
+    if not isinstance(number, int) or not isinstance(url, str) or rows[0].get("isCrossRepository") is not False:
+        raise Failure("existing PR response is missing its number or URL")
+    return number, url
+
+
 def publish(args: argparse.Namespace) -> dict:
     root = Path(git(args.repo, "rev-parse", "--show-toplevel")).resolve()
     if git(root, "remote", "get-url", "origin") not in (REMOTE, "git@github.com:bmreyes25/ClarityLink.git", "ssh://git@github.com/bmreyes25/ClarityLink.git"):
         raise Failure("origin does not identify the canonical GitHub repository")
-    branch = ensure_branch(root, args.branch)
     base = getattr(args, "base", "main")
-    if subprocess.run(["git", "check-ref-format", "--branch", base], capture_output=True).returncode:
-        raise Failure(f"invalid PR base branch: {base}")
+    validate_pr_base(root, base, args.branch)
+    branch = ensure_branch(root, args.branch)
     if branch == "main" or branch.startswith("main/"):
         raise Failure("direct publication to protected main is forbidden")
     ensure_no_unpublished_history(root, branch, base)
@@ -272,16 +331,13 @@ def publish(args: argparse.Namespace) -> dict:
     pr_url = None
     pr_number = args.pr
     if not pr_number:
-        existing = subprocess.run(["gh", "pr", "list", "-R", REPO, "--head", branch, "--state", "open", "--json", "number,url"], text=True, capture_output=True)
-        if existing.returncode == 0:
-            import json
-            rows = json.loads(existing.stdout)
-            if rows:
-                pr_number = rows[0]["number"]
-                pr_url = rows[0]["url"]
+        existing = find_open_pr(branch)
+        if existing:
+            pr_number, pr_url = existing
     if pr_number:
         data = verify_pr_checkpoint(
-            ["gh", "pr", "view", str(pr_number), "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
+            ["gh", "pr", "view", str(pr_number), "-R", REPO, "--json",
+             "headRefName,headRefOid,baseRefName,state,url,isCrossRepository"],
             branch, local_sha, label=f"existing PR #{pr_number}", base=base,
         )
         pr_url = data["url"]
@@ -295,7 +351,8 @@ def publish(args: argparse.Namespace) -> dict:
         pr_number = canonical_pr_number(pr_url)
     if pr_url:
         pr_data = verify_pr_checkpoint(
-            ["gh", "pr", "view", pr_url, "-R", REPO, "--json", "headRefName,headRefOid,baseRefName,state,url"],
+            ["gh", "pr", "view", pr_url, "-R", REPO, "--json",
+             "headRefName,headRefOid,baseRefName,state,url,isCrossRepository"],
             branch, local_sha, label="published PR", base=base,
         )
         pr_url = pr_data["url"]
