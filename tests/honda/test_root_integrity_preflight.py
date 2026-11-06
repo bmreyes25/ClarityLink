@@ -1,79 +1,47 @@
-import sys
+import hashlib
 import json
 from pathlib import Path
 import stat
+import sys
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "tools/honda-readonly-preflight"))
+TOOLS = ROOT / "tools/honda-readonly-preflight"
+sys.path.insert(0, str(TOOLS))
 
 import collector
 import root_integrity_preflight as preflight
-from privileged import EXPECTED_SU_SHA256
 
 
-def test_api17_fixed_ls_and_hash_forms_are_unprivileged_and_literal(monkeypatch, tmp_path):
-    monkeypatch.setattr(collector.shutil, "which", lambda _: "/usr/bin/adb")
-    adb = collector.FixedAdb("AUTHORIZED-ENDPOINT", resolve_auto=False)
-    assert adb.plan("host-devices", ()) == ("/usr/bin/adb", "devices", "-l")
+def test_fixed_plan_is_exact_and_uses_only_explicit_serial(monkeypatch, tmp_path):
+    monkeypatch.setattr(collector.shutil, "which", lambda _: "/opt/homebrew/bin/adb")
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    adb = collector.FixedAdb("TEST-ENDPOINT", resolve_auto=False)
+    assert adb.plan("read", ("/proc/mounts",)) == (
+        "/opt/homebrew/bin/adb", "-s", "TEST-ENDPOINT", "shell", "cat", "/proc/mounts")
     assert adb.plan("ls-su-n", ()) == (
-        "/usr/bin/adb", "-s", "AUTHORIZED-ENDPOINT", "shell", "ls", "-n", "/system/xbin/su")
-    assert adb.plan("hash-su", ()) == (
-        "/usr/bin/adb", "-s", "AUTHORIZED-ENDPOINT", "shell", "sha256sum", "/system/xbin/su")
-    capture = collector.Capture(adb, tmp_path)
-    calls = []
-    monkeypatch.setattr(adb, "_run_planned", lambda command, *args, **kwargs:
-                        (calls.append(command) or (0, b"-rwsr-sr-x 0 0 75348 2026-09-25 12:00 su\n", b"")))
-    assert preflight.read_numeric_su_metadata(adb, capture)[0] == 0
-    assert calls == [("/usr/bin/adb", "-s", "AUTHORIZED-ENDPOINT", "shell", "ls", "-n",
-                      "/system/xbin/su")]
-    assert "-c" not in calls[0]
-    assert "chmod" not in calls[0] and "chown" not in calls[0]
-
-
-class HostListingAdb:
-    serial = "SERIAL-42"
-
-    def __init__(self, output, result="success", code=0):
-        self.output = output
-        self.result = result
-        self.code = code
-        self.records = [{"operation": "host-devices", "result": result,
-                         "timeout_seconds": 5, "max_output_bytes": 4096}]
-
-    def run(self, operation, **kwargs):
-        assert operation == "host-devices"
-        assert kwargs == {"timeout": 5, "max_bytes": 4096}
-        return self.code, self.output, b""
-
-
-def test_exact_endpoint_requires_one_matching_authorized_target():
-    adb = HostListingAdb(b"List of devices attached\nSERIAL-42 device product:clarity\n")
-    preflight.verify_exact_endpoint(adb)
-    assert adb.records[-1]["endpoint_result"] == "ok"
-    assert "SERIAL-42" not in str(adb.records[-1])
-
-
-@pytest.mark.parametrize("listing", [
-    "List of devices attached\nOTHER device\n",
-    "List of devices attached\nSERIAL-42 unauthorized\n",
-    "List of devices attached\nSERIAL-42 device\nOTHER device\n",
-])
-def test_exact_endpoint_refuses_wrong_or_ambiguous_target(monkeypatch, listing):
-    adb = HostListingAdb(listing.encode())
+        "/opt/homebrew/bin/adb", "-s", "TEST-ENDPOINT", "shell", "ls", "-n", "/system/xbin/su")
+    assert preflight.plan_su_pull(adb, private / "su.bin") == (
+        "/opt/homebrew/bin/adb", "-s", "TEST-ENDPOINT", "pull",
+        "/system/xbin/su", str(private / "su.bin"))
     with pytest.raises(collector.SafetyStop):
-        preflight.verify_exact_endpoint(adb)
+        preflight.plan_su_pull(adb, ROOT / "su.bin")
+    existing = private / "existing.bin"
+    existing.write_bytes(b"preserve")
+    with pytest.raises(collector.SafetyStop):
+        preflight.plan_su_pull(adb, existing)
+    assert existing.read_bytes() == b"preserve"
 
 
-@pytest.mark.parametrize(("line", "expected_mode"), [
+@pytest.mark.parametrize(("line", "expected"), [
     (b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n", "0o6777"),
     (b"-rwsr-sr-x 0 0 75348 2026-09-25 12:00 su\n", "0o6755"),
-    (b"-rwxr-xr-x 0 0 75348 2026-09-25 12:00 su\n", "0o0755"),
-    (b"-rwSr-Sr-T 0 0 75348 2026-09-25 12:00 su\n", "0o7644"),
 ])
-def test_parse_api17_numeric_metadata(line, expected_mode):
-    assert preflight.parse_ls_numeric(line)["mode_octal"] == expected_mode
+def test_parse_api17_numeric_metadata(line, expected):
+    assert preflight.parse_ls_numeric(line)["mode_octal"] == expected
 
 
 @pytest.mark.parametrize("raw", [
@@ -81,66 +49,364 @@ def test_parse_api17_numeric_metadata(line, expected_mode):
     b"-rwsr-sr-x root root 75348 2026-09-25 12:00 su\n",
     b"-rwsr-sr-x 0 0 75348 2026-09-25 12:00 other\n",
     b"-rwsr-sr-x 0 0 75348 2026-09-25 12:00 su\n-rwsr-sr-x 0 0 1 2026-09-25 12:00 su\n",
-    b"-rwxrSxr-x 0 0 75348 2026-09-25 12:00 su\n",
 ])
 def test_metadata_parser_fails_closed(raw):
     with pytest.raises(collector.SafetyStop):
         preflight.parse_ls_numeric(raw)
 
 
-def test_hash_parser_requires_exact_single_path_and_digest():
-    assert preflight.parse_sha256sum(
-        f"{EXPECTED_SU_SHA256}  /system/xbin/su\n".encode()) == EXPECTED_SU_SHA256
-    with pytest.raises(collector.SafetyStop):
-        preflight.parse_sha256sum(b"not available\n")
-    with pytest.raises(collector.SafetyStop):
-        preflight.parse_sha256sum(("0" * 64 + "  /system/bin/jmcs\n").encode())
+def test_mount_parser_uses_most_specific_covering_entry_and_reports_ro():
+    raw = (b"/dev/root / ext4 rw,seclabel 0 0\n"
+           b"/dev/block/system /system ext4 ro,seclabel,relatime 0 0\n"
+           b"/dev/block/data /data ext4 rw,seclabel 0 0\n")
+    result = preflight.covering_mount(raw)
+    assert result["complete"] is True
+    assert result["mount_point"] == "/system"
+    assert result["filesystem_type"] == "ext4"
+    assert result["read_only"] is True and result["read_write"] is False
 
 
-def test_integrity_success_never_authorizes_root_execution():
+def test_mount_parser_detects_more_specific_rw_overlay_or_ambiguity():
+    raw = (b"/dev/block/system /system ext4 ro 0 0\n"
+           b"overlay /system/xbin overlay rw,lowerdir=/lower,upperdir=/upper 0 0\n")
+    result = preflight.covering_mount(raw)
+    assert result["mount_point"] == "/system/xbin"
+    assert result["read_write"] is True
+    assert result["overlay_uncertainty"]
+    duplicate = (b"/dev/block/a /system ext4 ro 0 0\n"
+                 b"/dev/block/b /system ext4 rw 0 0\n")
+    assert preflight.covering_mount(duplicate)["complete"] is False
+
+
+def test_mount_parser_fails_incomplete_and_unescaped_flags():
+    assert preflight.covering_mount(b"broken\n")["complete"] is False
+    missing_flag = preflight.covering_mount(b"/dev/block/system /system ext4 relatime 0 0\n")
+    assert missing_flag["complete"] is False
+    escaped = preflight.covering_mount(b"/dev/block/system /system\\040A ext4 ro 0 0\n")
+    assert escaped["complete"] is False
+
+
+def test_candidate_requires_exact_hash_and_ro_but_never_calls_it_integrity_pass():
     metadata = {"file_type": "regular", "uid": 0, "gid": 0,
-                "mode_string": "-rwsr-sr-x", "mode_octal": "0o6755"}
-    assert preflight.integrity_decision(metadata, EXPECTED_SU_SHA256) == (
-        True, "NOT_READY_SIDE_EFFECTS_UNRESOLVED")
+                "mode_octal": "0o6777", "size_bytes": 75348, "setuid": True}
+    mount = {"complete": True, "read_only": True, "read_write": False}
+    assert preflight.controlled_candidate(metadata, preflight.EXPECTED_SU_SHA256, 75348, mount) == (
+        True, "CONTROLLED_IDENTITY_CHECK_CANDIDATE_PENDING_NEW_OWNER_DECISION")
+    assert preflight.controlled_candidate(metadata, "0" * 64, 75348, mount)[0] is False
+    assert preflight.controlled_candidate(metadata, preflight.EXPECTED_SU_SHA256, 75348,
+                                          {**mount, "read_only": False, "read_write": True}) == (
+        False, "INELIGIBLE_SYSTEM_MOUNT_READ_WRITE")
+    assert preflight.controlled_candidate(metadata, preflight.EXPECTED_SU_SHA256, 75348,
+                                          {**mount, "overlay_uncertainty": ["bind"]}) == (
+        False, "INELIGIBLE_MOUNT_LAYERING_UNRESOLVED")
 
 
-@pytest.mark.parametrize(("mode", "digest"), [
-    ("0o6777", EXPECTED_SU_SHA256),  # archived unsafe write permissions
-    ("0o6755", "0" * 64),
-    ("0o0755", EXPECTED_SU_SHA256),
+def test_aborted_preflight_never_reports_controlled_candidate():
+    metadata = {"file_type": "regular", "uid": 0, "gid": 0,
+                "mode_octal": "0o6777", "size_bytes": preflight.EXPECTED_SU_SIZE, "setuid": True}
+    mount = {"complete": True, "read_only": True, "read_write": False}
+    summary = preflight._summary("TEST-ENDPOINT", mount, metadata, preflight.EXPECTED_SU_SHA256,
+                                 preflight.EXPECTED_SU_SIZE, "ABORTED", True,
+                                 dict(preflight.EXPECTED_TARGET_PROPERTIES))
+    assert summary["controlled_root_identity_candidate"] is False
+    assert summary["root_execution_eligibility"] == "INCOMPLETE_PREFLIGHT_ABORTED"
+
+
+class FakeAdb:
+    def __init__(self, serial, binary, mounts, metadata):
+        self.serial = serial
+        self.adb = "/opt/homebrew/bin/adb"
+        self.binary = binary
+        self.mounts = mounts
+        self.metadata = metadata
+        self.records = []
+        self.operations = []
+        self.properties = dict(preflight.EXPECTED_TARGET_PROPERTIES)
+
+    def run(self, operation, *args, **kwargs):
+        self.operations.append((operation, args))
+        output = ({"read": self.mounts, "ls-su-n": self.metadata}.get(operation)
+                  if operation != "property" else (self.properties[args[0]] + "\n").encode())
+        self.records.append({"operation": operation, "result": "success", "exit_code": 0})
+        return 0, output, b""
+
+    def _run_planned(self, command, operation, args, *, timeout, max_bytes):
+        assert command[1:4] == ("-s", self.serial, "pull")
+        assert operation == "pull-su" and args[0] == "/system/xbin/su"
+        Path(args[1]).write_bytes(self.binary)
+        self.operations.append((operation, args))
+        self.records.append({"operation": operation, "result": "success", "exit_code": 0})
+        return 0, b"1 file pulled\n", b""
+
+
+def test_one_shot_run_collects_only_three_target_operations_and_hashes_host_copy(monkeypatch, tmp_path):
+    binary = b"synthetic su bytes"
+    digest = hashlib.sha256(binary).hexdigest()
+    monkeypatch.setattr(preflight, "EXPECTED_SU_SHA256", digest)
+    monkeypatch.setattr(preflight, "EXPECTED_SU_SIZE", len(binary))
+    mounts = b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 ro,seclabel 0 0\n"
+    metadata = b"-rwsrwsrwx 0 0 18 2026-09-25 12:00 su\n"
+    fake = FakeAdb("TEST-ENDPOINT", binary, mounts, metadata)
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    root = tmp_path / "private"
+    output = preflight.run("TEST-ENDPOINT", root)
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == [
+        "property", "property", "property", "read", "ls-su-n", "pull-su"]
+    assert summary["observed_sha256"] == digest
+    assert summary["pulled_size_bytes"] == len(binary)
+    assert summary["controlled_root_identity_candidate"] is True
+    assert summary["target_identity_properties"] == preflight.EXPECTED_TARGET_PROPERTIES
+    assert summary["conventional_integrity_status"].startswith("NOT_A_CONVENTIONAL")
+    assert summary["stage_a"].startswith("NOT_EXECUTED")
+    assert summary["root_or_target_writes_performed"] is False
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    assert stat.S_IMODE((output / "summary.json").stat().st_mode) == 0o600
+    assert stat.S_IMODE((output / "system_xbin_su.bin").stat().st_mode) == 0o600
+    assert summary["expected_sha256"] == summary["observed_sha256"]
+    assert (output / "manifest.json").is_file() and (output / "sha256.txt").is_file()
+
+
+@pytest.mark.parametrize(("mounts", "expected_status"), [
+    (b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 rw,seclabel 0 0\n",
+     "INELIGIBLE_SYSTEM_MOUNT_READ_WRITE"),
+    (b"malformed mount table\n", "INCOMPLETE_EVIDENCE"),
 ])
-def test_integrity_failure_never_authorizes_root_execution(mode, digest):
-    metadata = {"file_type": "regular", "uid": 0, "gid": 0,
-                "mode_string": "-rwsr-sr-x", "mode_octal": mode}
-    assert preflight.integrity_decision(metadata, digest) == (False, "INELIGIBLE")
+def test_non_readonly_or_incomplete_mount_stops_before_metadata_and_pull(
+        monkeypatch, tmp_path, mounts, expected_status):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts,
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    output = preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read"]
+    assert summary["root_execution_eligibility"] == expected_status
+    assert summary["observed_sha256"] is None
+    assert summary["controlled_root_identity_candidate"] is False
+    assert (output / "manifest.json").is_file()
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert manifest["target_identity"].startswith("verified MY16ADA")
 
 
-@pytest.mark.parametrize("mode", ["0o6777", "0o6755"])
-@pytest.mark.parametrize(("uid", "gid"), [(2000, 0), (0, 2000)])
-def test_integrity_gate_requires_numeric_root_owner_and_group(mode, uid, gid):
-    metadata = {"file_type": "regular", "uid": uid, "gid": gid,
-                "mode_string": "-rwsr-sr-x", "mode_octal": mode}
-    assert preflight.integrity_decision(metadata, EXPECTED_SU_SHA256) == (False, "INELIGIBLE")
+def test_wrong_target_identity_stops_before_mount_or_binary_read(monkeypatch, tmp_path):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", b"/dev/system /system ext4 ro 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    fake.properties["ro.product.model"] = "OTHER-MODEL"
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(collector.SafetyStop, match="target identity mismatch"):
+        preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    output = next((tmp_path / "private").iterdir())
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == ["property"]
+    assert summary["controlled_root_identity_candidate"] is False
+    assert summary["target_identity_properties"] == {}
+    manifest = json.loads((output / "manifest.json").read_text())
+    assert any(artifact.get("operation") == "property"
+               and artifact.get("arguments") == ["ro.product.model"]
+               for artifact in manifest["artifacts"])
 
 
-def test_missing_metadata_or_digest_is_incomplete_not_a_current_integrity_verdict():
-    assert preflight.integrity_decision(None, EXPECTED_SU_SHA256) == (False, "INCOMPLETE_EVIDENCE")
-    assert preflight.integrity_decision(
-        {"uid": 0, "gid": 0, "mode_octal": "0o6755"}, None) == (False, "INCOMPLETE_EVIDENCE")
+@pytest.mark.parametrize("reported_size", [75349, 1048577])
+def test_nonmatching_reported_file_size_stops_before_pull(monkeypatch, tmp_path, reported_size):
+    mounts = b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 ro,seclabel 0 0\n"
+    metadata = f"-rwsrwsrwx 0 0 {reported_size} 2026-09-25 12:00 su\n".encode()
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts, metadata)
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    output = preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read", "ls-su-n"]
+    assert summary["execution_status"] == "STOPPED_SIZE_MISMATCH"
+    assert summary["observed_sha256"] is None
+    assert not (output / "system_xbin_su.bin").exists()
 
 
-def test_unprivileged_owner_confirmations_precede_any_device_command(monkeypatch, capsys):
+def test_partial_target_identity_transport_failure_never_marks_candidate(monkeypatch, tmp_path):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", b"/dev/system /system ext4 ro 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    original_run = fake.run
+    def fail_sdk(operation, *args, **kwargs):
+        if operation == "property" and args == ("ro.build.version.sdk",):
+            fake.operations.append((operation, args))
+            fake.records.append({"operation": operation, "result": "transport_failure", "exit_code": 1})
+            return 1, b"", b"device offline"
+        return original_run(operation, *args, **kwargs)
+    fake.run = fail_sdk
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(collector.SafetyStop, match="target identity property did not complete"):
+        preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    output = next((tmp_path / "private").iterdir())
+    summary = json.loads((output / "summary.json").read_text())
+    assert [args for operation, args in fake.operations if operation == "property"] == [
+        ("ro.product.model",), ("ro.build.version.release",), ("ro.build.version.sdk",)]
+    assert summary["controlled_root_identity_candidate"] is False
+    assert summary["root_execution_eligibility"] == "TARGET_IDENTITY_NOT_VERIFIED"
+
+
+def test_cli_reports_a_safe_stop_with_nonzero_status(monkeypatch, tmp_path, capsys):
+    fake = FakeAdb("TEST-ENDPOINT", b"unused",
+                   b"/dev/system /system ext4 rw,seclabel 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    code = preflight.main([
+        "--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private"),
+        "--owner-confirmed", "--vehicle-outdoors-confirmed", "--vehicle-parked-confirmed",
+        "--parking-brake-confirmed", "--factory-behavior-normal-confirmed", "--power-state-confirmed",
+    ])
+    assert code == 1
+    assert "Preflight stopped safely: STOPPED_MOUNT_READ_WRITE" in capsys.readouterr().err
+
+
+def test_cli_reports_host_hash_mismatch_with_nonzero_status(monkeypatch, tmp_path, capsys):
+    fake = FakeAdb("TEST-ENDPOINT", b"wrong host copy",
+                   b"/dev/system /system ext4 ro,seclabel 0 0\n",
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    code = preflight.main([
+        "--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private"),
+        "--owner-confirmed", "--vehicle-outdoors-confirmed", "--vehicle-parked-confirmed",
+        "--parking-brake-confirmed", "--factory-behavior-normal-confirmed", "--power-state-confirmed",
+    ])
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "Preflight stopped safely: INELIGIBLE_BINARY_HASH_MISMATCH" in captured.err
+
+
+def test_cli_valid_candidate_exits_zero_and_reports_private_capture(monkeypatch, tmp_path, capsys):
+    binary = b"synthetic archived su"
+    monkeypatch.setattr(preflight, "EXPECTED_SU_SIZE", len(binary))
+    monkeypatch.setattr(preflight, "EXPECTED_SU_SHA256", hashlib.sha256(binary).hexdigest())
+    fake = FakeAdb("TEST-ENDPOINT", binary,
+                   b"/dev/system /system ext4 ro,seclabel 0 0\n",
+                   f"-rwsrwsrwx 0 0 {len(binary)} 2026-09-25 12:00 su\n".encode())
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    code = preflight.main([
+        "--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private"),
+        "--owner-confirmed", "--vehicle-outdoors-confirmed", "--vehicle-parked-confirmed",
+        "--parking-brake-confirmed", "--factory-behavior-normal-confirmed", "--power-state-confirmed",
+    ])
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "Private evidence captured:" in captured.out
+    assert not captured.err
+
+
+def test_overlay_or_bind_mount_stops_before_metadata_and_pull(monkeypatch, tmp_path):
+    mounts = (b"/dev/system /system ext4 ro,seclabel 0 0\n"
+              b"/dev/upper /system/xbin ext4 ro,bind 0 0\n")
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts,
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    output = preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read"]
+    assert summary["execution_status"] == "STOPPED_MOUNT_LAYERING_UNRESOLVED"
+    assert summary["controlled_root_identity_candidate"] is False
+
+
+def test_dry_run_uses_placeholder_and_never_requires_or_creates_output_root(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(collector.shutil, "which", lambda _name: "/opt/homebrew/bin/adb")
+    output_root = tmp_path / "not-created"
+    monkeypatch.setattr(preflight, "plan_su_pull",
+                        lambda *_args: pytest.fail("dry-run must not inspect/create a destination"))
+    assert preflight.main(["--serial", "TEST-ENDPOINT", "--output-root", str(output_root), "--dry-run"]) == 0
+    stdout = capsys.readouterr().out
+    assert "getprop ro.product.model" in stdout
+    assert "<private-output>/system_xbin_su.bin" in stdout
+    assert not output_root.exists()
+
+
+def test_mount_transport_failure_stops_once_and_preserves_partial_capture(monkeypatch, tmp_path):
+    mounts = b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 ro 0 0\n"
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", mounts,
+                   b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n")
+    original_run = fake.run
+    def failed_mount(operation, *args, **kwargs):
+        if operation != "read":
+            return original_run(operation, *args, **kwargs)
+        fake.operations.append((operation, args))
+        fake.records.append({"operation": operation, "result": "transport_failure", "exit_code": 1})
+        return 1, b"", b"device offline"
+    fake.run = failed_mount
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(collector.SafetyStop, match="partial capture preserved"):
+        preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    output = next((tmp_path / "private").iterdir())
+    assert [name for name, _args in fake.operations] == ["property", "property", "property", "read"]
+    assert json.loads((output / "summary.json").read_text())["execution_status"] == "ABORTED"
+    assert (output / "manifest.json").is_file()
+
+
+def test_pull_failure_preserves_mount_and_numeric_metadata_without_retry(monkeypatch, tmp_path):
+    binary = b"unused"
+    mounts = b"/dev/root / ext4 rw 0 0\n/dev/system /system ext4 ro,seclabel 0 0\n"
+    metadata = b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n"
+    fake = FakeAdb("TEST-ENDPOINT", binary, mounts, metadata)
+    def failed_pull(command, operation, args, *, timeout, max_bytes):
+        fake.operations.append((operation, args))
+        fake.records.append({"operation": operation, "result": "other_command_failure", "exit_code": 1})
+        return 1, b"", b"pull failed"
+    fake._run_planned = failed_pull
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(collector.SafetyStop, match="partial capture preserved"):
+        preflight.run("TEST-ENDPOINT", tmp_path / "private")
+    output = next((tmp_path / "private").iterdir())
+    summary = json.loads((output / "summary.json").read_text())
+    assert [name for name, _args in fake.operations] == [
+        "property", "property", "property", "read", "ls-su-n", "pull-su"]
+    assert summary["target_metadata"]["mode_octal"] == "0o6777"
+    assert summary["observed_sha256"] is None
+    assert (output / "manifest.json").is_file()
+
+
+def test_capture_id_collision_preserves_existing_private_evidence(monkeypatch, tmp_path):
+    class FixedDateTime:
+        @staticmethod
+        def now(_timezone):
+            import datetime as datetime_module
+            return datetime_module.datetime(2026, 11, 5, 12, 0, tzinfo=datetime_module.timezone.utc)
+    monkeypatch.setattr(preflight, "datetime", FixedDateTime)
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    output = root / "su-preflight-20261105T120000.000000Z"
+    output.mkdir(mode=0o700)
+    marker = output / "preserve.txt"
+    marker.write_text("keep")
+    fake = FakeAdb("TEST-ENDPOINT", b"unused", b"", b"")
+    monkeypatch.setattr(preflight, "FixedAdb", lambda serial, resolve_auto: fake)
+    with pytest.raises(FileExistsError):
+        preflight.run("TEST-ENDPOINT", root)
+    assert marker.read_text() == "keep"
+    assert fake.operations == []
+
+
+def test_auto_serial_is_refused_before_private_directory_or_adb(monkeypatch, tmp_path):
     def forbidden(*args, **kwargs):
-        raise AssertionError("ADB target initialization must not occur without confirmations")
+        raise AssertionError("ADB initialized for an unapproved serial")
     monkeypatch.setattr(preflight, "FixedAdb", forbidden)
-    assert preflight.main(["--serial", "AUTHORIZED-ENDPOINT"]) == 1
-    assert "confirmations are required" in capsys.readouterr().err
+    with pytest.raises(collector.SafetyStop, match="auto-selection is disabled"):
+        preflight.run("auto", tmp_path / "private")
+    assert not (tmp_path / "private").exists()
 
 
-def test_api17_device_listing_tolerates_daemon_notice_without_accepting_extra_devices():
-    adb = HostListingAdb(b"* daemon started successfully *\nList of devices attached\nSERIAL-42 device\n")
-    preflight.verify_exact_endpoint(adb)
-    assert adb.records[-1]["candidate_count"] == 1
+def test_confirmation_gate_precedes_adb_initialization(monkeypatch, tmp_path, capsys):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("ADB initialized before required owner readiness")
+    monkeypatch.setattr(preflight, "FixedAdb", forbidden)
+    assert preflight.main(["--serial", "TEST-ENDPOINT", "--output-root", str(tmp_path / "private")]) == 1
+    assert "readiness confirmations" in capsys.readouterr().err
+
+
+def test_pull_plan_rejects_unowned_or_existing_destinations(monkeypatch, tmp_path):
+    monkeypatch.setattr(collector.shutil, "which", lambda _: "/usr/bin/adb")
+    private = tmp_path / "private"
+    private.mkdir(mode=0o700)
+    private.chmod(0o700)
+    adb = collector.FixedAdb("TEST-ENDPOINT", resolve_auto=False)
+    existing = private / "existing.bin"
+    existing.write_bytes(b"keep")
+    with pytest.raises(collector.SafetyStop):
+        preflight.plan_su_pull(adb, existing)
+    assert existing.read_bytes() == b"keep"
 
 
 def test_private_output_summary_is_exclusive_and_mode_restricted(tmp_path):
@@ -165,146 +431,6 @@ def test_existing_broad_output_root_is_refused_without_changing_its_mode(tmp_pat
     target = tmp_path / "publicish"
     target.mkdir(mode=0o755)
     target.chmod(0o755)
-    with pytest.raises(collector.SafetyStop, match="refusing to change it"):
-        preflight.run("SERIAL-42", target)
+    with pytest.raises(collector.SafetyStop, match="group/other permissions"):
+        preflight.run("TEST-ENDPOINT", target)
     assert stat.S_IMODE(target.stat().st_mode) == 0o755
-
-
-class FakeAdb:
-    adb = "/usr/bin/adb"
-
-    def __init__(self, *, metadata_result="success", metadata_code=0,
-                 hash_result="success", hash_code=0, hash_output=None,
-                 identity_device="vcm30t30a"):
-        self.serial = "SERIAL-42"
-        self.records = []
-        self.metadata_result = metadata_result
-        self.metadata_code = metadata_code
-        self.hash_result = hash_result
-        self.hash_code = hash_code
-        self.hash_output = hash_output
-        self.identity_device = identity_device
-        self.operations = []
-
-    def run(self, operation, *args, **kwargs):
-        self.operations.append((operation, args))
-        if operation == "read":
-            output = b"Linux version 3.1.10+ (builder)\n"
-        elif operation == "property":
-            values = {"ro.build.version.release": "4.2.2", "ro.build.version.sdk": "17",
-                      "ro.product.device": self.identity_device, "ro.product.board": "Andromeda",
-                      "ro.hardware": "vcm30t30"}
-            output = (values[args[0]] + "\n").encode()
-        elif operation == "ls-su-n":
-            output = b"-rwsrwsrwx 0 0 75348 2026-09-25 12:00 su\n"
-        elif operation == "hash-su":
-            output = self.hash_output or f"{EXPECTED_SU_SHA256}  /system/xbin/su\n".encode()
-        else:
-            raise AssertionError(f"unexpected operation {operation}")
-        result = (self.metadata_result if operation == "ls-su-n" else
-                  self.hash_result if operation == "hash-su" else "success")
-        self.records.append({"operation": operation, "result": result,
-                             "command": ["adb", "-s", self.serial, "shell", operation],
-                             "exit_code": self.metadata_code if operation == "ls-su-n" else
-                             self.hash_code if operation == "hash-su" else 0})
-        return (self.metadata_code if operation == "ls-su-n" else
-                self.hash_code if operation == "hash-su" else 0), output, b""
-
-
-def _run_fake(monkeypatch, tmp_path, fake):
-    monkeypatch.setattr(preflight, "FixedAdb", lambda *args, **kwargs: fake)
-    monkeypatch.setattr(preflight, "verify_exact_endpoint", lambda adb: None)
-    return preflight.run("SERIAL-42", tmp_path / "private"), fake
-
-
-def test_run_captures_metadata_privately_and_never_invokes_su(monkeypatch, tmp_path):
-    fake = FakeAdb()
-    output, fake = _run_fake(monkeypatch, tmp_path, fake)
-    summary = json.loads((output / "summary.json").read_text())
-    assert summary["metadata"]["uid"] == summary["metadata"]["gid"] == 0
-    assert summary["metadata"]["mode_octal"] == "0o6777"
-    assert summary["integrity_gate"] == "FAIL_OR_INCOMPLETE"
-    assert summary["root_execution_eligibility"] == "INELIGIBLE"
-    assert summary["existing_root_authorization_change"] == "UNKNOWN_NOT_OBSERVED"
-    assert summary["root_or_target_writes_performed"] is False
-    assert [op for op, _ in fake.operations] == [
-        "read", "property", "property", "property", "property", "property",
-        "ls-su-n", "hash-su"]
-    assert all(op != "su" for op, _ in fake.operations)
-    assert stat.S_IMODE(output.stat().st_mode) == 0o700
-    assert stat.S_IMODE((output / "summary.json").stat().st_mode) == 0o600
-    assert (output / "manifest.json").is_file() and (output / "sha256.txt").is_file()
-
-
-@pytest.mark.parametrize("failure", ["timeout", "output_limit", "transport_failure"])
-def test_run_stops_on_metadata_transport_timeout_or_truncation(monkeypatch, tmp_path, failure):
-    fake = FakeAdb(metadata_result=failure)
-    with pytest.raises(collector.SafetyStop, match="partial private capture preserved"):
-        _run_fake(monkeypatch, tmp_path, fake)
-    output, = (tmp_path / "private").iterdir()
-    summary = json.loads((output / "summary.json").read_text())
-    assert summary["execution_status"] == "ABORTED"
-    assert [op for op, _ in fake.operations][-1] == "ls-su-n"
-    assert "hash-su" not in [op for op, _ in fake.operations]
-    assert (output / "manifest.json").is_file()
-
-
-def test_run_preserves_failure_summary_when_target_identity_does_not_match(monkeypatch, tmp_path):
-    fake = FakeAdb(identity_device="wrong-device")
-    with pytest.raises(collector.SafetyStop, match="partial private capture preserved"):
-        _run_fake(monkeypatch, tmp_path, fake)
-    output = next((tmp_path / "private").iterdir())
-    summary = json.loads((output / "summary.json").read_text())
-    assert summary["execution_status"] == "ABORTED"
-    assert "device" in summary["details"]
-    assert [op for op, _ in fake.operations] == ["read", "property", "property", "property"]
-    assert (output / "manifest.json").is_file()
-
-
-def test_nonzero_metadata_result_reports_incomplete_and_skips_hash(monkeypatch, tmp_path):
-    fake = FakeAdb(metadata_result="other_command_failure", metadata_code=1)
-    output, fake = _run_fake(monkeypatch, tmp_path, fake)
-    summary = json.loads((output / "summary.json").read_text())
-    assert summary["execution_status"] == "INCOMPLETE"
-    assert summary["integrity_gate"] == "FAIL_OR_INCOMPLETE"
-    assert summary["root_execution_eligibility"] == "INCOMPLETE_EVIDENCE"
-    assert "hash-su" not in [op for op, _ in fake.operations]
-
-
-@pytest.mark.parametrize(("result", "hash_output"), [
-    ("command_unavailable", b""),
-    ("success", b"sha256sum produced a malformed response\n"),
-])
-def test_failed_or_unparseable_optional_hash_is_incomplete_evidence(monkeypatch, tmp_path, result, hash_output):
-    fake = FakeAdb(hash_result=result, hash_code=127 if result != "success" else 0,
-                   hash_output=hash_output)
-    output, fake = _run_fake(monkeypatch, tmp_path, fake)
-    summary = json.loads((output / "summary.json").read_text())
-    assert summary["execution_status"] == "COMPLETE"
-    assert summary["sha256_status"] == "unavailable_or_unparseable"
-    assert summary["root_execution_eligibility"] == "INCOMPLETE_EVIDENCE"
-    assert [op for op, _ in fake.operations].count("hash-su") == 1
-
-
-def test_capture_id_collision_never_overwrites_existing_evidence(monkeypatch, tmp_path):
-    import datetime as datetime_module
-
-    fixed = datetime_module.datetime(2026, 11, 2, 12, 0, 0, tzinfo=datetime_module.timezone.utc)
-    class FixedDateTime:
-        @staticmethod
-        def now(_timezone):
-            return fixed
-    root = tmp_path / "private"
-    root.mkdir(mode=0o700)
-    output = root / "su-preflight-20261102T120000.000000Z"
-    output.mkdir(mode=0o700)
-    marker = output / "summary.json"
-    marker.write_text("preserve me")
-    monkeypatch.setattr(preflight, "datetime", FixedDateTime)
-    fake = FakeAdb()
-    monkeypatch.setattr(preflight, "FixedAdb", lambda *args, **kwargs: fake)
-    monkeypatch.setattr(preflight, "verify_exact_endpoint", lambda _adb: None)
-    with pytest.raises(FileExistsError):
-        preflight.run("SERIAL-42", root)
-    assert marker.read_text() == "preserve me"
-    assert fake.operations == []
