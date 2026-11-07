@@ -114,20 +114,20 @@ static int32_t cl_rollback(const ClSetupCall *call, ClPreparedTxn *txn,
         }
         txn->generation_owned = 0u;
     }
-    if (txn->gate_token != 0u) {
-        if (services->gate_release(services->userdata, txn->gate_token) != CL_SERVICE_OK) {
+    if (txn->gate_lease != 0u) {
+        if (services->gate_release(services->userdata, txn->gate_lease) != CL_SERVICE_OK) {
             cleanup_failed = 1;
         }
-        txn->gate_token = 0u;
+        txn->gate_lease = 0u;
     }
     txn->state = CL_TXN_ROLLED_BACK;
     return cleanup_failed != 0 ? CL_SETUP_INTERNAL_ERROR : CL_SETUP_REJECTED;
 }
 
-int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
+__attribute__((noinline)) int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
                          const ClSetupServices *services) {
     uint32_t type111_index = 0u;
-    uint32_t gate_token = 0u;
+    uint32_t gate_lease = 0u;
     uint32_t generation = 0u;
     uint32_t port = 0u;
     int32_t parsed;
@@ -137,7 +137,7 @@ int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
     }
     txn->magic = CL_TXN_MAGIC;
     txn->state = CL_TXN_EMPTY;
-    txn->gate_token = 0u;
+    txn->gate_lease = 0u;
     txn->generation = 0u;
     txn->stream_id_low = 0u;
     txn->stream_id_high = 0u;
@@ -146,6 +146,7 @@ int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
     txn->response_appended = 0u;
     txn->listener_owned = 0u;
     txn->generation_owned = 0u;
+    txn->generation_activated = 0u;
 
     if (call == NULL || call->request == NULL) {
         return CL_SETUP_BYPASS;
@@ -165,14 +166,14 @@ int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
     }
 
     /* Process-wide try-lock: no Honda session address is retained or keyed. */
-    parsed = services->gate_claim(services->userdata, &gate_token);
+    parsed = services->gate_claim(services->userdata, &gate_lease);
     if (parsed == CL_SERVICE_BUSY) {
         return CL_SETUP_BUSY;
     }
-    if (parsed != CL_SERVICE_OK || gate_token == 0u) {
+    if (parsed != CL_SERVICE_OK || gate_lease == 0u) {
         return CL_SETUP_INTERNAL_ERROR;
     }
-    txn->gate_token = gate_token;
+    txn->gate_lease = gate_lease;
     txn->stream_id_low = screen->stream_id_low;
     txn->stream_id_high = screen->stream_id_high;
 
@@ -205,22 +206,58 @@ int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
     return CL_SETUP_PREPARED;
 }
 
-int32_t cl_setup_finish(const ClSetupCall *call, ClPreparedTxn *txn,
-                        int32_t serializer_r0, int32_t commit_allowed,
-                        const ClSetupServices *services) {
+__attribute__((noinline)) int32_t cl_setup_activate(const ClSetupCall *call, ClPreparedTxn *txn,
+                          const ClSetupServices *services) {
     if (txn == NULL || txn->magic != CL_TXN_MAGIC || txn->state != CL_TXN_PREPARED ||
         !cl_services_valid(services)) {
         return CL_SETUP_BYPASS;
     }
-    if (commit_allowed != 0 && serializer_r0 == CL_SERIALIZER_SUCCESS &&
-        call != NULL && call->status_out != NULL &&
-        (uintptr_t)call->status_out == call->expected_status_out && *call->status_out == 0 &&
+    if (txn->generation_activated != 0u) {
+        return CL_SETUP_PREPARED;
+    }
+    if (call == NULL) {
+        txn->state = CL_TXN_CLEANUP_REQUIRED;
+        return CL_SETUP_INTERNAL_ERROR;
+    }
+    if (call->status_out != NULL &&
+        (uintptr_t)call->status_out == call->expected_status_out &&
         services->generation_commit(services->userdata, txn->generation) == CL_SERVICE_OK) {
-        if (services->gate_release(services->userdata, txn->gate_token) != CL_SERVICE_OK) {
-            (void)cl_rollback(call, txn, services);
+        txn->generation_activated = 1u;
+        return CL_SETUP_PREPARED;
+    }
+    return cl_rollback(call, txn, services);
+}
+
+__attribute__((noinline)) int32_t cl_setup_finish(const ClSetupCall *call, ClPreparedTxn *txn,
+                        int32_t serializer_r0, int32_t commit_allowed,
+                        const ClSetupServices *services) {
+    if (txn == NULL || txn->magic != CL_TXN_MAGIC ||
+        !cl_services_valid(services)) {
+        return CL_SETUP_BYPASS;
+    }
+    if (txn->state == CL_TXN_CLEANUP_REQUIRED) {
+        if (call == NULL) {
             return CL_SETUP_INTERNAL_ERROR;
         }
-        txn->gate_token = 0u;
+        return cl_rollback(call, txn, services);
+    }
+    if (txn->state != CL_TXN_PREPARED) {
+        return CL_SETUP_BYPASS;
+    }
+    if (commit_allowed != 0 && txn->generation_activated != 0u &&
+        serializer_r0 == CL_SERIALIZER_SUCCESS && call != NULL &&
+        call->status_out != NULL &&
+        (uintptr_t)call->status_out == call->expected_status_out && *call->status_out == 0) {
+        if (services->gate_release(services->userdata, txn->gate_lease) != CL_SERVICE_OK) {
+            /* Serialization already exposed this live listener; never retract it. */
+            txn->gate_lease = 0u;
+            txn->listener_owned = 0u;
+            txn->generation_owned = 0u;
+            txn->response_appended = 0u;
+            txn->state = CL_TXN_COMMITTED;
+            return CL_SETUP_INTERNAL_ERROR;
+        }
+        txn->gate_lease = 0u;
         txn->listener_owned = 0u;
         txn->generation_owned = 0u;
         txn->response_appended = 0u;
@@ -245,7 +282,7 @@ static ClSetupCall cl_call_from_wire(const ClShimCallContext *wire) {
 #define CL_TEST_SERVICE_TABLE_ADDRESS UINT32_C(0x20800)
 #endif
 
-int32_t project_prepare(ClShimCallContext *wire) {
+__attribute__((noinline)) int32_t project_prepare(ClShimCallContext *wire) {
     ClSetupCall call;
     ClPreparedTxn *txn;
     const ClSetupServices *services =
@@ -258,7 +295,7 @@ int32_t project_prepare(ClShimCallContext *wire) {
     return cl_setup_prepare(&call, txn, services);
 }
 
-int32_t project_finish(int32_t commit_allowed, ClShimCallContext *wire) {
+__attribute__((noinline)) int32_t project_finish(int32_t commit_allowed, ClShimCallContext *wire) {
     ClSetupCall call;
     ClPreparedTxn *txn;
     const ClSetupServices *services =
@@ -268,7 +305,28 @@ int32_t project_finish(int32_t commit_allowed, ClShimCallContext *wire) {
     }
     call = cl_call_from_wire(wire);
     txn = (ClPreparedTxn *)(uintptr_t)wire->transaction;
-    wire->finish_result = (uint32_t)cl_setup_finish(
-        &call, txn, (int32_t)wire->serializer_r0, commit_allowed, services);
+    {
+        int32_t activation_result = (int32_t)wire->finish_result;
+        int32_t finish_result = cl_setup_finish(
+            &call, txn, (int32_t)wire->serializer_r0, commit_allowed, services);
+        if (finish_result == CL_SETUP_BYPASS &&
+            activation_result != CL_SETUP_BYPASS && activation_result != CL_SETUP_PREPARED) {
+            finish_result = activation_result;
+        }
+        wire->finish_result = (uint32_t)finish_result;
+    }
     return (int32_t)wire->finish_result;
+}
+
+__attribute__((noinline)) int32_t project_activate(ClShimCallContext *wire) {
+    ClSetupCall call;
+    ClPreparedTxn *txn;
+    const ClSetupServices *services =
+        (const ClSetupServices *)(uintptr_t)CL_TEST_SERVICE_TABLE_ADDRESS;
+    if (wire == NULL || wire->transaction == 0u) {
+        return CL_SETUP_REJECTED;
+    }
+    call = cl_call_from_wire(wire);
+    txn = (ClPreparedTxn *)(uintptr_t)wire->transaction;
+    return cl_setup_activate(&call, txn, services);
 }
