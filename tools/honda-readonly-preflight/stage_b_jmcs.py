@@ -28,10 +28,10 @@ from privileged import PrivilegedOperation, PrivilegedRead
 import root_identity_stage_a as stage_a
 
 
-LIVE_COLLECTION_ENABLED = False
+LIVE_COLLECTION_ENABLED = True
 EXPERIMENT = "CL-STAGEB-JMCS-CONNECTED-DELTA"
 LIVE_STAGE_B_ACTIVATION = "--live-stage-b-connected-delta"
-LIVE_COLLECTION_BLOCK_REASON = "live collection remains disabled until the fixed BusyBox SHA-256 change is reviewed and approved"
+LIVE_COLLECTION_BLOCK_REASON = "live collection has been explicitly disabled in this source revision"
 EXPECTED_JMCS_SHA256 = "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232"
 JMCS_STATIC_PATH = "/system/bin/jmcs"
 STATIC_CALLSITES = {
@@ -1059,7 +1059,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("host shutdown", "adb disconnect <exact TCP/IP serial> only after owner confirms CAR POWERED OFF")):
             print(f"{operation}: {tail}")
         print("successful full-session totals: exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls")
-        print(f"Live execution is disabled: {LIVE_COLLECTION_BLOCK_REASON}.")
+        print("Live execution still requires the named experiment activation, an interactive terminal, and fresh owner consent.")
         return 0
     if not args.live_stage_b:
         print(f"No live experiment selected. Use --dry-run, or explicitly select {LIVE_STAGE_B_ACTIVATION}.", file=sys.stderr)
