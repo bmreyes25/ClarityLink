@@ -31,7 +31,7 @@ import root_identity_stage_a as stage_a
 LIVE_COLLECTION_ENABLED = False
 EXPERIMENT = "CL-STAGEB-JMCS-CONNECTED-DELTA"
 LIVE_STAGE_B_ACTIVATION = "--live-stage-b-connected-delta"
-LIVE_COLLECTION_BLOCK_REASON = "live collection is disabled until a supported fixed SHA-256 method for /system/bin/jmcs is reviewed"
+LIVE_COLLECTION_BLOCK_REASON = "live collection remains disabled until the fixed BusyBox SHA-256 change is reviewed and approved"
 EXPECTED_JMCS_SHA256 = "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232"
 JMCS_STATIC_PATH = "/system/bin/jmcs"
 STATIC_CALLSITES = {
@@ -64,16 +64,14 @@ NETWORK_HEADERS = {
 
 def require_analyzed_jmcs_hash(raw: bytes) -> str:
     """Accept only the exact target path and pinned digest; classify failures accurately."""
-    match = re.fullmatch(rb"([0-9a-fA-F]{64})[ \t]+/system/bin/jmcs[ \t]*\r?\n?", raw)
+    match = re.fullmatch(rb"([0-9a-f]{64})  /system/bin/jmcs\r?\n", raw)
     if not match:
         line = raw.strip().lower()
-        tool_unavailable = (
-            len(raw) <= 256 and b"\n" not in line and b"\r" not in line
-            and (b"sha256sum" in line or b"sha-256" in line)
-            and (b"not found" in line or b"unavailable" in line)
-        )
-        if tool_unavailable:
-            raise SafetyStop("target sha256sum utility is unavailable; jmcs binary identity is unverified")
+        if len(raw) <= 256 and b"\n" not in line and b"\r" not in line:
+            if b"applet not found" in line and (b"sha256sum" in line or b"busybox" in line):
+                raise SafetyStop("fixed BusyBox sha256sum applet is unavailable; jmcs binary identity is unverified")
+            if b"/system/xbin/busybox" in line and b"not found" in line:
+                raise SafetyStop("fixed /system/xbin/busybox executable is unavailable; jmcs binary identity is unverified")
         raise SafetyStop("jmcs hash operation returned no valid digest/path record; binary identity is unverified")
     digest = match.group(1).decode().lower()
     if digest != EXPECTED_JMCS_SHA256:
@@ -885,16 +883,22 @@ class StageB:
                 self._emit("A read was interrupted; the remote operation may still be running. Do not approve any late SuperSU prompt. No retry will run.")
         self._emit("No more target reads will run. Check factory displays, audio, warnings, and vehicle behavior.")
         if after_abort:
+            self._emit("RESTORATION STEP 1 OF 2 — Check factory displays, audio, warnings, and behavior. Do not power off or disconnect yet.")
             try:
-                normal = self.input("Is factory behavior normal and stable? Type NORMAL only if yes; otherwise STOP: ").strip()
+                normal = self.input("Step 1 acknowledgment: type exactly NORMAL only when factory behavior is normal and stable; otherwise type STOP: ").strip()
             except (EOFError, KeyboardInterrupt):
                 normal = "STOP"
             if normal != "NORMAL":
                 self._emit("Stop here. Do not attempt power-off or ADB disconnect through this controller; use your safety judgment.")
                 return False
-        self._emit("If factory behavior is normal, turn the Honda off with factory controls and reply CAR POWERED OFF only after shutdown.")
+        if after_abort:
+            self._emit("RESTORATION STEP 2 OF 2 — Use factory controls to power off the Honda. Do not disconnect ADB before shutdown is complete.")
+            shutdown_prompt = "Step 2 acknowledgment: type exactly CAR POWERED OFF only after shutdown is complete: "
+        else:
+            self._emit("SESSION CLOSE — First confirm factory behavior is normal. Then use factory controls to power off the Honda. Do not disconnect ADB before shutdown is complete.")
+            shutdown_prompt = "Session shutdown acknowledgment: type exactly CAR POWERED OFF only after shutdown is complete: "
         try:
-            ack = self.input("Vehicle shutdown acknowledgment: ").strip()
+            ack = self.input(shutdown_prompt).strip()
         except (EOFError, KeyboardInterrupt):
             ack = ""
         if ack != "CAR POWERED OFF":
@@ -1048,10 +1052,10 @@ def main(argv: list[str] | None = None) -> int:
                 ("endpoint", "adb devices -l; exact selected TCP/IP serial only"),
                 ("identity", "fixed MY16ADA/Android properties; /proc/self/mounts; su metadata and exact binary fingerprint"),
                 ("root", "adb -s <serial> shell /system/xbin/su -c id (once)"),
-                ("baseline process", "adb shell ps; su -c cat /proc/<pid>/{stat,status,cmdline}; sha256sum /system/bin/jmcs"),
+                ("baseline process", "adb shell ps; su -c cat /proc/<pid>/{stat,status,cmdline}; adb -s <exact-serial> shell /system/xbin/busybox sha256sum /system/bin/jmcs"),
                 ("baseline sockets", "su -c ls -l /proc/<pid>/fd; cat /proc/net/{tcp,tcp6,udp,udp6,unix}"),
-                ("connected", "cat /proc/<pid>/maps once; repeat bounded FD/socket snapshot and epoch checks"),
-                ("post-disconnect", "repeat process identity plus transient cmdline validation and jmcs hash, then bounded FD/socket snapshot"),
+                ("connected", "repeat fixed BusyBox JMCS hash; cat /proc/<pid>/maps once; repeat bounded FD/socket snapshot and epoch checks"),
+                ("post-disconnect", "repeat process identity plus transient cmdline validation and fixed BusyBox JMCS hash, then bounded FD/socket snapshot"),
                 ("host shutdown", "adb disconnect <exact TCP/IP serial> only after owner confirms CAR POWERED OFF")):
             print(f"{operation}: {tail}")
         print("successful full-session totals: exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls")
