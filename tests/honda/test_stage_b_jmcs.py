@@ -178,8 +178,25 @@ class FakeTransport:
         return stage_b.ReadResult(0, ps_output(self.current_pid), b"")
 
     def hash_jmcs(self):
+        self.ops.append(("hash-jmcs", "/system/bin/jmcs"))
+        if self.bad == "busybox-binary-missing":
+            return stage_b.ReadResult(0, b"/system/bin/sh: /system/xbin/busybox: not found\r\n", b"")
+        if self.bad == "busybox-applet-missing":
+            return stage_b.ReadResult(0, b"/system/xbin/busybox: sha256sum: applet not found\r\n", b"")
+        if self.bad == "jmcs-hash-shell-error":
+            return stage_b.ReadResult(0, b"/system/bin/sh: unexpected shell error\r\n", b"")
+        valid_hash = f"{self.process_hash}  /system/bin/jmcs\n".encode()
+        if self.bad == "jmcs-hash-nonzero":
+            return stage_b.ReadResult(1, valid_hash, b"")
+        if self.bad == "jmcs-hash-stderr":
+            return stage_b.ReadResult(0, valid_hash, b"hash warning\n")
+        if self.bad == "jmcs-hash-timeout":
+            return stage_b.ReadResult(0, valid_hash, b"", timed_out=True)
+        if self.bad == "jmcs-hash-truncated":
+            return stage_b.ReadResult(0, valid_hash, b"", output_limited=True)
         digest = "0" * 64 if self.bad == "jmcs-hash" else self.process_hash
-        return stage_b.ReadResult(0, f"{digest}  /system/bin/jmcs\n".encode(), b"")
+        ending = b"\r\n" if self.bad == "jmcs-hash-crlf" else b"\n"
+        return stage_b.ReadResult(0, f"{digest}  /system/bin/jmcs".encode() + ending, b"")
 
     def read_fd_links(self, pid):
         self.ops.append(("fd_links", str(pid)))
@@ -202,6 +219,7 @@ class FakeTransport:
 
 def activated_transport(monkeypatch, *, owner_authorized=True):
     """Construct the live adapter only in a mocked CLI/terminal test context."""
+    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
     monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
@@ -631,8 +649,8 @@ def test_real_transport_privileged_plans_and_bounds_are_fixed(monkeypatch):
             assert command[1:5] == ("-s", SERIAL, "shell", "ps")
             assert max_bytes == stage_b.MAX_SMALL_OPERATION_BYTES
         elif operation == "stage_b_jmcs_hash":
-            assert command[1:5] == ("-s", SERIAL, "shell", "sha256sum")
-            assert command[5] == "/system/bin/jmcs"
+            assert command[1:6] == ("-s", SERIAL, "shell", "/system/xbin/busybox", "sha256sum")
+            assert command[6] == "/system/bin/jmcs"
             assert max_bytes == stage_b.MAX_SMALL_OPERATION_BYTES
 
 
@@ -682,6 +700,202 @@ def test_interrupted_target_operation_warns_against_late_supersu_prompt(tmp_path
     assert controller._shutdown(endpoint_selected=False, after_abort=True)
     assert controller.capture.analysis["remote_operation_may_still_be_running"] is True
     assert any("interrupted" in message and "late SuperSU" in message for message in outputs)
+
+
+@pytest.mark.parametrize(("bad", "reason"), [
+    ("busybox-binary-missing", "fixed /system/xbin/busybox executable is unavailable"),
+    ("busybox-applet-missing", "BusyBox sha256sum applet is unavailable"),
+])
+def test_missing_fixed_busybox_hash_component_fails_closed_without_binary_mismatch(bad, reason):
+    status, transport, manifest, _, hashes = run_fake(
+        bad=bad,
+        answers=["YES", "DISCONNECTED", "NORMAL", "CAR POWERED OFF"],
+    )
+    assert status == "SAFE_ABORT"
+    assert reason in manifest["stop_reason"]
+    assert "differs from the analyzed" not in manifest["stop_reason"]
+    assert manifest["analysis"].get("jmcs_file_sha256") is None
+    assert manifest["analysis"]["shutdown_ack"] == "confirmed"
+    assert transport.disconnected
+    assert [op for op, _ in transport.ops].count("hash-jmcs") == 1
+    assert not any(operation in {"fd_links", "network", "maps"}
+                   for operation, _ in transport.ops)
+    hash_record = next(row for row in manifest["commands"]
+                       if row["operation"] == "jmcs_file_hash")
+    expected_output = {
+        "busybox-binary-missing": b"/system/bin/sh: /system/xbin/busybox: not found\r\n",
+        "busybox-applet-missing": b"/system/xbin/busybox: sha256sum: applet not found\r\n",
+    }[bad]
+    assert hash_record["stdout_bytes"] == len(expected_output)
+    assert hashes and all(hashes)
+
+
+def test_jmcs_hash_parser_keeps_digest_and_path_strict():
+    pinned = stage_b.EXPECTED_JMCS_SHA256.encode()
+    assert stage_b.require_analyzed_jmcs_hash(pinned + b"  /system/bin/jmcs\r\n") == pinned.decode()
+    for malformed in (
+        b"",
+        pinned[:32] + b"  /system/bin/jmcs\n",
+        pinned.upper() + b"  /system/bin/jmcs\n",
+        pinned + b" /system/bin/jmcs\n",
+        pinned + b"  /system/bin/jmcs",
+        pinned + b"  /system/bin/jmcs \n",
+        pinned + b"  /system/bin/jmcs-extra\n",
+        pinned + b"\n/system/bin/jmcs\n",
+        pinned + b"  /system/bin/jmcs\nextra",
+    ):
+        with pytest.raises(stage_b.SafetyStop, match="no valid digest/path record"):
+            stage_b.require_analyzed_jmcs_hash(malformed)
+    with pytest.raises(stage_b.SafetyStop, match="differs from the analyzed"):
+        stage_b.require_analyzed_jmcs_hash(b"0" * 64 + b"  /system/bin/jmcs\n")
+    with pytest.raises(stage_b.SafetyStop, match="fixed /system/xbin/busybox executable is unavailable"):
+        stage_b.require_analyzed_jmcs_hash(
+            b"/system/bin/sh: /system/xbin/busybox: not found\r\n")
+    with pytest.raises(stage_b.SafetyStop, match="BusyBox sha256sum applet is unavailable"):
+        stage_b.require_analyzed_jmcs_hash(
+            b"/system/xbin/busybox: sha256sum: applet not found\r\n")
+    with pytest.raises(stage_b.SafetyStop, match="no valid digest/path record"):
+        stage_b.require_analyzed_jmcs_hash(b"/system/bin/sh: shell error\r\n")
+    with pytest.raises(stage_b.SafetyStop, match="no valid digest/path record"):
+        stage_b.require_analyzed_jmcs_hash(
+            b"sha256sum: /system/bin/jmcs: No such file or directory\r\n")
+
+
+def test_hash_operation_has_exact_busybox_arguments_and_no_fallback():
+    from collector import FixedAdb
+    assert FixedAdb.plan_without_adb_lookup(
+        SERIAL, "hash-jmcs", ()) == (
+            "adb", "-s", SERIAL, "shell", "/system/xbin/busybox",
+            "sha256sum", "/system/bin/jmcs")
+    with pytest.raises(stage_b.SafetyStop):
+        FixedAdb.plan_without_adb_lookup(SERIAL, "hash-jmcs", ("/tmp/other",))
+
+
+def test_hash_command_success_crlf_output_and_pinned_digest_are_accepted():
+    status, transport, manifest, _, hashes = run_fake(bad="jmcs-hash-crlf")
+    assert status == "COMPLETE_OFFLINE_REVIEW_REQUIRED"
+    assert manifest["analysis"]["jmcs_file_sha256"] == stage_b.EXPECTED_JMCS_SHA256
+    assert [op for op, _ in transport.ops].count("hash-jmcs") == 3
+    assert all(hashes)
+
+
+@pytest.mark.parametrize("bad", [
+    "jmcs-hash", "jmcs-hash-shell-error", "jmcs-hash-nonzero",
+    "jmcs-hash-stderr", "jmcs-hash-timeout", "jmcs-hash-truncated",
+])
+def test_hash_operation_errors_and_invalid_digest_fail_closed_without_retry(bad):
+    status, transport, manifest, _, hashes = run_fake(
+        bad=bad, answers=["YES", "DISCONNECTED", "NORMAL", "CAR POWERED OFF"])
+    assert status == "SAFE_ABORT"
+    if bad in {"jmcs-hash-nonzero", "jmcs-hash-stderr", "jmcs-hash-timeout", "jmcs-hash-truncated"}:
+        assert "fixed jmcs_file_hash read failed, timed out, or was incomplete" in manifest["stop_reason"]
+    elif bad == "jmcs-hash":
+        assert "differs from the analyzed receiver ELF" in manifest["stop_reason"]
+    else:
+        assert "no valid digest/path record" in manifest["stop_reason"]
+    assert manifest["analysis"].get("jmcs_file_sha256") is None
+    assert [op for op, _ in transport.ops].count("hash-jmcs") == 1
+    assert not any(op in {"maps", "fd_links", "network"} for op, _ in transport.ops)
+    assert manifest["analysis"]["shutdown_ack"] == "confirmed"
+    assert transport.disconnected
+    assert all(hashes)
+
+
+def test_shutdown_wrong_ack_order_never_powers_off_or_disconnects():
+    status, transport, manifest, _, _ = run_fake(
+        bad="jmcs-hash",
+        answers=["YES", "DISCONNECTED", "CAR POWERED OFF"],
+    )
+    assert status == "SAFE_ABORT"
+    assert manifest["analysis"]["shutdown_ack"] == "not_confirmed"
+    assert not transport.disconnected
+
+
+def test_abort_shutdown_prompts_are_distinct_and_disconnect_follows_both_acks(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    prompts = []
+    disconnected_at_prompt = []
+    answers = iter(["NORMAL", "CAR POWERED OFF"])
+    controller = stage_b.StageB(
+        transport, input_fn=lambda prompt: (
+            prompts.append(prompt), disconnected_at_prompt.append(transport.disconnected),
+            next(answers))[2],
+        output_fn=lambda _: None, evidence_root=root, repo_root=ROOT,
+        offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+
+    assert controller._shutdown(endpoint_selected=True, after_abort=True)
+    assert "Step 1 acknowledgment" in prompts[0] and "NORMAL" in prompts[0]
+    assert "Step 2 acknowledgment" in prompts[1] and "CAR POWERED OFF" in prompts[1]
+    assert disconnected_at_prompt == [False, False]
+    assert transport.disconnected
+
+
+def test_normal_session_close_does_not_claim_it_is_step_two_of_abort(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    prompts = []
+    outputs = []
+    controller = stage_b.StageB(
+        transport, input_fn=lambda prompt: (prompts.append(prompt), "CAR POWERED OFF")[1],
+        output_fn=outputs.append, evidence_root=root, repo_root=ROOT,
+        offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+
+    assert controller._shutdown(endpoint_selected=True, after_abort=False)
+    assert "Session shutdown acknowledgment" in prompts[0]
+    assert any("First confirm factory behavior is normal" in message for message in outputs)
+    assert all("STEP 2 OF 2" not in message for message in outputs)
+    assert transport.disconnected
+
+
+def test_abort_shutdown_eof_before_normal_ack_never_disconnects(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    outputs = []
+
+    def unexpected_eof(_prompt):
+        raise EOFError
+
+    controller = stage_b.StageB(transport, input_fn=unexpected_eof,
+                                output_fn=outputs.append, evidence_root=root,
+                                repo_root=ROOT, offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+    assert not controller._shutdown(endpoint_selected=True, after_abort=True)
+    assert not transport.disconnected
+    assert any("Do not attempt power-off or ADB disconnect" in message for message in outputs)
+
+
+def test_abort_shutdown_eof_before_poweroff_ack_never_disconnects(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    transport = FakeTransport()
+    inputs = iter(["NORMAL"])
+
+    def normal_then_eof(_prompt):
+        try:
+            return next(inputs)
+        except StopIteration:
+            raise EOFError
+
+    controller = stage_b.StageB(transport, input_fn=normal_then_eof,
+                                output_fn=lambda _: None, evidence_root=root,
+                                repo_root=ROOT, offline_simulation=True)
+    capture_dir = root / "capture"
+    capture_dir.mkdir(mode=0o700)
+    controller.capture = stage_b.StageBCapture(None, capture_dir, SERIAL)
+    assert not controller._shutdown(endpoint_selected=True, after_abort=True)
+    assert not transport.disconnected
 
 
 def test_private_evidence_root_rejects_checkout_and_symlink(tmp_path):
@@ -739,6 +953,7 @@ def test_live_transport_requires_experiment_activation_and_canonical_owner_yes(t
 
 
 def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
+    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: False)
     with mock.patch.object(stage_b, "AdbTransport", side_effect=AssertionError("must not construct without TTY")):
@@ -748,7 +963,17 @@ def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
         stage_b.main(["--serial", SERIAL, "--dry-run", stage_b.LIVE_STAGE_B_ACTIVATION])
 
 
+def test_live_cli_remains_disabled_until_supported_hash_method_is_reviewed(monkeypatch, capsys):
+    assert stage_b.LIVE_COLLECTION_ENABLED is False
+    with mock.patch.object(stage_b, "AdbTransport",
+                           side_effect=AssertionError("disabled live path must not construct ADB transport")):
+        assert stage_b.main(["--serial", SERIAL, stage_b.LIVE_STAGE_B_ACTIVATION]) == 2
+    error = capsys.readouterr().err
+    assert stage_b.LIVE_COLLECTION_BLOCK_REASON in error
+
+
 def test_live_controller_authorizes_only_after_interactive_yes(tmp_path, monkeypatch):
+    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
     monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
@@ -782,7 +1007,10 @@ def test_live_controller_authorizes_only_after_interactive_yes(tmp_path, monkeyp
 def test_dry_run_mentions_postdisconnect_hash_and_cmdline_validation(capsys):
     assert stage_b.main(["--serial", SERIAL, "--dry-run"]) == 0
     output = capsys.readouterr().out
-    assert "post-disconnect: repeat process identity plus transient cmdline validation and jmcs hash" in output
+    assert "adb -s <exact-serial> shell /system/xbin/busybox sha256sum /system/bin/jmcs" in output
+    assert output.count("sha256sum") == 1
+    assert "connected: repeat fixed BusyBox JMCS hash" in output
+    assert "post-disconnect: repeat process identity plus transient cmdline validation and fixed BusyBox JMCS hash" in output
     assert "exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls" in output
 
 

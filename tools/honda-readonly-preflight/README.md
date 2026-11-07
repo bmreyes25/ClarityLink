@@ -127,7 +127,7 @@ This is a host-side Python collector for Step 40E. It stores target command outp
 The legacy collector's offline-analysis surface exposes only these fixed operations. This inventory does not authorize live execution: C-P live collection is limited to the exact ordered operations, arguments, timeouts and output ceilings in `campaign_profile.json`, enforced by `campaign_runner.py`.
 
 - host-selected existing ADB serial + legacy `adb shell` service (compatible with API-17 adbd; `exec-out` is not used);
-- target `id`, optional `uname -a`, `ps`, `service list`, fixed `sha256sum /system/bin/jmcs`, fixed `ls -l /system/bin/jmcs`;
+- target `id`, optional `uname -a`, `ps`, `service list`, fixed `/system/xbin/busybox sha256sum /system/bin/jmcs`, fixed `ls -l /system/bin/jmcs`;
 - `cat` of enumerated `/proc`, `/sys` CPU-topology/cache, process, task, and network paths;
 - `ls` of fixed proc/sys directories and validated numeric PID task/FD directories (the output parser accepts API-17 toolbox's default whitespace columns);
 - symlink target inspection via fixed `ls -l` on validated process exe/cwd/root and numeric FD paths (the collector does not assume a standalone `readlink` applet exists);

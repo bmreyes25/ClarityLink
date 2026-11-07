@@ -28,9 +28,10 @@ from privileged import PrivilegedOperation, PrivilegedRead
 import root_identity_stage_a as stage_a
 
 
-LIVE_COLLECTION_ENABLED = True
+LIVE_COLLECTION_ENABLED = False
 EXPERIMENT = "CL-STAGEB-JMCS-CONNECTED-DELTA"
 LIVE_STAGE_B_ACTIVATION = "--live-stage-b-connected-delta"
+LIVE_COLLECTION_BLOCK_REASON = "live collection remains disabled until the fixed BusyBox SHA-256 change is reviewed and approved"
 EXPECTED_JMCS_SHA256 = "cbc7ba881648fb8ffdfcc4c1100a028345c37134a2ae3b9dff7d76572851c232"
 JMCS_STATIC_PATH = "/system/bin/jmcs"
 STATIC_CALLSITES = {
@@ -59,6 +60,23 @@ NETWORK_HEADERS = {
              "tr", "tm->when", "retrnsmt", "uid", "timeout", "inode"),
     "unix": ("Num", "RefCount", "Protocol", "Flags", "Type", "St", "Inode", "Path"),
 }
+
+
+def require_analyzed_jmcs_hash(raw: bytes) -> str:
+    """Accept only the exact target path and pinned digest; classify failures accurately."""
+    match = re.fullmatch(rb"([0-9a-f]{64})  /system/bin/jmcs\r?\n", raw)
+    if not match:
+        line = raw.strip().lower()
+        if len(raw) <= 256 and b"\n" not in line and b"\r" not in line:
+            if b"applet not found" in line and (b"sha256sum" in line or b"busybox" in line):
+                raise SafetyStop("fixed BusyBox sha256sum applet is unavailable; jmcs binary identity is unverified")
+            if b"/system/xbin/busybox" in line and b"not found" in line:
+                raise SafetyStop("fixed /system/xbin/busybox executable is unavailable; jmcs binary identity is unverified")
+        raise SafetyStop("jmcs hash operation returned no valid digest/path record; binary identity is unverified")
+    digest = match.group(1).decode().lower()
+    if digest != EXPECTED_JMCS_SHA256:
+        raise SafetyStop("current jmcs file hash differs from the analyzed receiver ELF")
+    return digest
 
 
 def owner_disclosure(serial: str) -> str:
@@ -796,10 +814,7 @@ class StageB:
             raise SafetyStop("transport lacks the fixed jmcs file hash operation")
         digest_raw = self._record("baseline", "jmcs_file_hash", hash_reader(),
                                   params=(JMCS_STATIC_PATH,))
-        match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/bin/jmcs\s*\n?", digest_raw)
-        if not match or match.group(1).decode().lower() != EXPECTED_JMCS_SHA256:
-            raise SafetyStop("current jmcs file hash does not match the analyzed receiver ELF")
-        self.capture.analysis["jmcs_file_sha256"] = match.group(1).decode().lower()
+        self.capture.analysis["jmcs_file_sha256"] = require_analyzed_jmcs_hash(digest_raw)
         self.capture.analysis["executable_binding"] = (
             "ps, proc stat PID/comm, status PID/name, and transient cmdline argv0 agree; current /system/bin/jmcs hash and its covering mount are checked; /proc/PID/exe is not exposed by the archived API-17 toolbox evidence, so the running image inode is not independently asserted")
         self._fd_and_socket_snapshot("baseline", identity)
@@ -815,10 +830,7 @@ class StageB:
             raise SafetyStop("transport lacks the fixed jmcs file hash operation")
         digest_raw = self._record("connected", "jmcs_file_hash", hash_result(),
                                   params=(JMCS_STATIC_PATH,))
-        match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/bin/jmcs\s*\n?", digest_raw)
-        if not match or match.group(1).decode().lower() != EXPECTED_JMCS_SHA256:
-            raise SafetyStop("current jmcs file hash does not match the analyzed receiver ELF")
-        self.capture.analysis["jmcs_file_sha256"] = match.group(1).decode().lower()
+        self.capture.analysis["jmcs_file_sha256"] = require_analyzed_jmcs_hash(digest_raw)
         maps_raw = self._read_one("connected", "maps", identity.pid)
         self.capture.analysis["connected_runtime_callsites"] = calculate_runtime_callsites(maps_raw)
         self._fd_and_socket_snapshot("connected", identity)
@@ -834,9 +846,7 @@ class StageB:
             raise SafetyStop("transport lacks the fixed jmcs file hash operation")
         digest_raw = self._record("post_disconnect", "jmcs_file_hash", hash_result(),
                                   params=(JMCS_STATIC_PATH,))
-        match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/bin/jmcs\s*\n?", digest_raw)
-        if not match or match.group(1).decode().lower() != EXPECTED_JMCS_SHA256:
-            raise SafetyStop("current jmcs file hash does not match the analyzed receiver ELF")
+        require_analyzed_jmcs_hash(digest_raw)
         self._fd_and_socket_snapshot("post_disconnect", identity)
         end = self._identity_snapshot("post_disconnect_epoch_end", expected=identity)
         self.identity = end
@@ -873,16 +883,22 @@ class StageB:
                 self._emit("A read was interrupted; the remote operation may still be running. Do not approve any late SuperSU prompt. No retry will run.")
         self._emit("No more target reads will run. Check factory displays, audio, warnings, and vehicle behavior.")
         if after_abort:
+            self._emit("RESTORATION STEP 1 OF 2 — Check factory displays, audio, warnings, and behavior. Do not power off or disconnect yet.")
             try:
-                normal = self.input("Is factory behavior normal and stable? Type NORMAL only if yes; otherwise STOP: ").strip()
+                normal = self.input("Step 1 acknowledgment: type exactly NORMAL only when factory behavior is normal and stable; otherwise type STOP: ").strip()
             except (EOFError, KeyboardInterrupt):
                 normal = "STOP"
             if normal != "NORMAL":
                 self._emit("Stop here. Do not attempt power-off or ADB disconnect through this controller; use your safety judgment.")
                 return False
-        self._emit("If factory behavior is normal, turn the Honda off with factory controls and reply CAR POWERED OFF only after shutdown.")
+        if after_abort:
+            self._emit("RESTORATION STEP 2 OF 2 — Use factory controls to power off the Honda. Do not disconnect ADB before shutdown is complete.")
+            shutdown_prompt = "Step 2 acknowledgment: type exactly CAR POWERED OFF only after shutdown is complete: "
+        else:
+            self._emit("SESSION CLOSE — First confirm factory behavior is normal. Then use factory controls to power off the Honda. Do not disconnect ADB before shutdown is complete.")
+            shutdown_prompt = "Session shutdown acknowledgment: type exactly CAR POWERED OFF only after shutdown is complete: "
         try:
-            ack = self.input("Vehicle shutdown acknowledgment: ").strip()
+            ack = self.input(shutdown_prompt).strip()
         except (EOFError, KeyboardInterrupt):
             ack = ""
         if ack != "CAR POWERED OFF":
@@ -1036,20 +1052,20 @@ def main(argv: list[str] | None = None) -> int:
                 ("endpoint", "adb devices -l; exact selected TCP/IP serial only"),
                 ("identity", "fixed MY16ADA/Android properties; /proc/self/mounts; su metadata and exact binary fingerprint"),
                 ("root", "adb -s <serial> shell /system/xbin/su -c id (once)"),
-                ("baseline process", "adb shell ps; su -c cat /proc/<pid>/{stat,status,cmdline}; sha256sum /system/bin/jmcs"),
+                ("baseline process", "adb shell ps; su -c cat /proc/<pid>/{stat,status,cmdline}; adb -s <exact-serial> shell /system/xbin/busybox sha256sum /system/bin/jmcs"),
                 ("baseline sockets", "su -c ls -l /proc/<pid>/fd; cat /proc/net/{tcp,tcp6,udp,udp6,unix}"),
-                ("connected", "cat /proc/<pid>/maps once; repeat bounded FD/socket snapshot and epoch checks"),
-                ("post-disconnect", "repeat process identity plus transient cmdline validation and jmcs hash, then bounded FD/socket snapshot"),
+                ("connected", "repeat fixed BusyBox JMCS hash; cat /proc/<pid>/maps once; repeat bounded FD/socket snapshot and epoch checks"),
+                ("post-disconnect", "repeat process identity plus transient cmdline validation and fixed BusyBox JMCS hash, then bounded FD/socket snapshot"),
                 ("host shutdown", "adb disconnect <exact TCP/IP serial> only after owner confirms CAR POWERED OFF")):
             print(f"{operation}: {tail}")
         print("successful full-session totals: exactly 35 fixed /system/xbin/su -c reads and five bounded temporary su binary pulls")
-        print(f"Live execution requires {LIVE_STAGE_B_ACTIVATION} and interactive owner authorization.")
+        print(f"Live execution is disabled: {LIVE_COLLECTION_BLOCK_REASON}.")
         return 0
     if not args.live_stage_b:
         print(f"No live experiment selected. Use --dry-run, or explicitly select {LIVE_STAGE_B_ACTIVATION}.", file=sys.stderr)
         return 2
     if not LIVE_COLLECTION_ENABLED:
-        print("Live Stage B collection is disabled in this source revision.", file=sys.stderr)
+        print(f"Live Stage B collection is disabled: {LIVE_COLLECTION_BLOCK_REASON}.", file=sys.stderr)
         return 2
     if not (sys.stdin.isatty() and sys.stdout.isatty()):
         print("Live Stage B collection requires an interactive terminal for owner authorization.", file=sys.stderr)

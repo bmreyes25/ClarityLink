@@ -248,7 +248,7 @@ class FixedAdb:
                 raise SafetyStop("fixed command does not accept extra arguments")
             remote = {"id": ("id",), "uname": ("uname", "-a"), "ps": ("ps",),
                       "service-list": ("service", "list"),
-                      "hash-jmcs": ("sha256sum", JMCS_STATIC_PATH),
+                      "hash-jmcs": ("/system/xbin/busybox", "sha256sum", JMCS_STATIC_PATH),
                       "ls-jmcs": ("ls", "-l", JMCS_STATIC_PATH),
                       "hash-su": ("sha256sum", "/system/xbin/su"),
                       "ls-su": ("ls", "-l", "/system/xbin/su"),
