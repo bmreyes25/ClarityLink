@@ -21,7 +21,8 @@ typedef enum {
     CL_TXN_EMPTY = 0,
     CL_TXN_PREPARED = 1,
     CL_TXN_COMMITTED = 2,
-    CL_TXN_ROLLED_BACK = 3
+    CL_TXN_ROLLED_BACK = 3,
+    CL_TXN_CLEANUP_REQUIRED = 4
 } ClTransactionState;
 
 typedef struct {
@@ -60,7 +61,7 @@ typedef struct {
 typedef struct {
     uint32_t magic;
     uint32_t state;
-    uint32_t gate_token;
+    uint32_t gate_lease;
     uint32_t generation;
     uint32_t stream_id_low;
     uint32_t stream_id_high;
@@ -69,10 +70,11 @@ typedef struct {
     uint32_t response_appended;
     uint32_t listener_owned;
     uint32_t generation_owned;
+    uint32_t generation_activated;
 } ClPreparedTxn;
 
-typedef int32_t (*ClGateClaim)(void *userdata, uint32_t *token_out);
-typedef int32_t (*ClGateRelease)(void *userdata, uint32_t token);
+typedef int32_t (*ClGateClaim)(void *userdata, uint32_t *lease_out);
+typedef int32_t (*ClGateRelease)(void *userdata, uint32_t lease);
 typedef int32_t (*ClGenerationPrepare)(void *userdata, uint32_t id_low,
                                        uint32_t id_high, uint32_t *generation_out);
 typedef int32_t (*ClListenerPrepare)(void *userdata, uint32_t generation,
@@ -93,16 +95,24 @@ typedef struct {
 
 /*
  * Service contract: callbacks are synchronous, non-throwing C operations.
- * A callback that reports failure must leave no newly acquired ownership;
- * successful prepare callbacks return a generation/token that is later
- * addressed by exact value. Implementations must serialize shared state.
+ * A callback that reports failure must leave no newly acquired ownership.
+ * gate_release consumes the exact lease on both success and failure, so an
+ * error reports cleanup status without leaving the process gate held.
+ * generation_rollback must be able to revoke a generation after commit when
+ * stock serialization later fails.
+ * Successful prepare callbacks return a generation/lease later addressed by
+ * exact value. Implementations must serialize shared state.
  */
 
 int32_t cl_setup_prepare(const ClSetupCall *call, ClPreparedTxn *txn,
                          const ClSetupServices *services);
+/* If activation reports CLEANUP_REQUIRED, finish with the original valid call
+ * to restore its borrowed response and release transaction-owned resources. */
 int32_t cl_setup_finish(const ClSetupCall *call, ClPreparedTxn *txn,
                         int32_t serializer_r0, int32_t commit_allowed,
                         const ClSetupServices *services);
+int32_t cl_setup_activate(const ClSetupCall *call, ClPreparedTxn *txn,
+                          const ClSetupServices *services);
 
 /* 32-bit call frame shared with the standalone Thumb trampoline. */
 typedef struct {
@@ -119,13 +129,15 @@ typedef struct {
     uint32_t finish_result;
 } ClShimCallContext;
 
-_Static_assert(sizeof(ClPreparedTxn) == 44u, "transaction wire size changed");
+_Static_assert(sizeof(ClPreparedTxn) == 48u, "transaction wire size changed");
+_Static_assert(sizeof(ClPreparedTxn) <= 64u, "transaction exceeds reserved shim storage");
 _Static_assert(sizeof(ClShimCallContext) == 56u, "shim context wire size changed");
 _Static_assert(offsetof(ClShimCallContext, transaction) == 48u,
                "shim transaction offset changed");
 
 /* Emulator-only wrappers use the service table at a fixed test address. */
 int32_t project_prepare(ClShimCallContext *wire);
+int32_t project_activate(ClShimCallContext *wire);
 int32_t project_finish(int32_t commit_allowed, ClShimCallContext *wire);
 
 #endif

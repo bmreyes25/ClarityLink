@@ -1,5 +1,6 @@
 """Execute the compiled Thumb trampoline and native C transaction helpers."""
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from pathlib import Path
 import struct
 import sys
@@ -113,11 +114,12 @@ class EmulatorHarness:
         self.serializer_nested = serializer_nested
         self.status_pointer_override = status_pointer_override
         self.request_options = request_options or {}
-        self.state = {"gate": False, "next_token": 0, "next_generation": 0,
-                      "serializer": 0, "prepare_entry": 0, "finish_entry": 0,
+        self.state = {"gate": False, "next_lease": 0, "next_generation": 0,
+                      "serializer": 0, "prepare_entry": 0, "activate_entry": 0, "finish_entry": 0,
                       "events": [], "commits": [], "rollbacks": [],
                       "listener_rollbacks": [], "ready": set(), "port": 43000,
                       "serializer_args": [],
+                      "serializer_response": [],
                       "nested_saved": None, "nested_active": False,
                       "nested_started": False, "nested_completed": False,
                       "nested_serializer_count": 0, "nested_return_r0": 1}
@@ -162,6 +164,11 @@ class EmulatorHarness:
         state["nested_active"] = False
         state["nested_completed"] = True
 
+    def _service_fails(self, name):
+        if isinstance(self.fail_service, (set, tuple, list)):
+            return name in self.fail_service
+        return self.fail_service == name
+
     def _service(self, name):
         uc = self.uc
         state = self.state
@@ -172,18 +179,18 @@ class EmulatorHarness:
             if state["gate"]:
                 self._return_from_service(0)
                 return
-            if self.fail_service == name:
+            if self._service_fails(name):
                 self._return_from_service(0)
                 return
             state["gate"] = True
-            state["next_token"] += 1
-            _put32(uc, a1, state["next_token"])
+            state["next_lease"] += 1
+            _put32(uc, a1, state["next_lease"])
             self._return_from_service(1)
         elif name == "release":
             state["gate"] = False
-            self._return_from_service(1)
+            self._return_from_service(0 if self._service_fails(name) else 1)
         elif name == "generation_prepare":
-            if self.fail_service == name:
+            if self._service_fails(name):
                 self._return_from_service(0)
                 return
             state["next_generation"] += 1
@@ -199,20 +206,20 @@ class EmulatorHarness:
             state["ready"].add(generation)
             state["port"] = 43000 + generation
             _put32(uc, port_out, state["port"])
-            self._return_from_service(0 if self.fail_service == name else 1)
+            self._return_from_service(0 if self._service_fails(name) else 1)
         elif name == "generation_commit":
             generation = a1
             assert generation in state["ready"]
             state["commits"].append(generation)
-            self._return_from_service(0 if self.fail_service == name else 1)
+            self._return_from_service(0 if self._service_fails(name) else 1)
         elif name == "generation_rollback":
             state["rollbacks"].append(a1)
             state["ready"].discard(a1)
-            self._return_from_service(0 if self.fail_service == name else 1)
+            self._return_from_service(0 if self._service_fails(name) else 1)
         elif name == "listener_rollback":
             state["listener_rollbacks"].append(a1)
             state["ready"].discard(a1)
-            self._return_from_service(0 if self.fail_service == name else 1)
+            self._return_from_service(0 if self._service_fails(name) else 1)
 
     def _on_code(self, uc, address, _size, _userdata):
         pc = address & ~1
@@ -222,12 +229,19 @@ class EmulatorHarness:
         symbols = self.symbols
         if pc == (symbols["project_prepare"] & ~1):
             self.state["prepare_entry"] += 1
+        elif pc == (symbols["project_activate"] & ~1):
+            self.state["activate_entry"] += 1
         elif pc == (symbols["project_finish"] & ~1):
             self.state["finish_entry"] += 1
         elif pc == (symbols["stock_serializer"] & ~1):
             args = tuple(uc.reg_read(reg) for reg in ARG_REGS)
             self.state["serializer"] += 1
             self.state["serializer_args"].append(args)
+            response = args[2]
+            if response:
+                count = _u32(uc, response + 4)
+                self.state["serializer_response"].append(
+                    bytes(uc.mem_read(response, 8 + min(count, 8) * 8)))
             if self.state["nested_active"]:
                 self.state["nested_serializer_count"] += 1
             status_ptr = args[3]
@@ -277,12 +291,21 @@ def test_compiled_arm_prepare_finish_execute_without_helper_hooks():
     assert h.meta["writable_state_sections"] == ()
     assert h.meta["text_size"] < 4096
     assert {"cl_setup_prepare", "cl_setup_finish"}.issubset(h.meta["relocation_symbols"])
+    edges = {(caller, callee) for caller, callee, _ in h.meta["relocation_edges"]}
+    assert {("shim_entry", "project_prepare"), ("project_prepare", "cl_setup_prepare"),
+            ("shim_entry", "project_activate"),
+            ("project_activate", "cl_setup_activate"), ("shim_entry", "stock_serializer"),
+            ("shim_entry", "project_finish"), ("project_finish", "cl_setup_finish")} <= edges
+    call_order = [callee for caller, callee, _ in sorted(h.meta["relocation_edges"], key=lambda edge: edge[2])
+                  if caller == "shim_entry"]
+    assert call_order == ["project_prepare", "project_activate", "stock_serializer", "project_finish"]
     assert h.state["prepare_entry"] == h.state["finish_entry"] == 1
     assert h.state["serializer"] == 1 and h.state["outer_continuation"]
     assert h.outer_prepare_result() == CL_PREPARED
     assert h.outer_finish_result() == CL_PREPARED
     assert h.state["events"] == ["claim", "generation_prepare", "listener_prepare",
                                   "generation_commit", "release"]
+    assert h.state["serializer_response"][0][4:8] == (2).to_bytes(4, "little")
     assert h.state["commits"] == [1] and not h.state["rollbacks"]
     assert h.uc.reg_read(UC_ARM_REG_SP) == FRAME
     assert tuple(h.uc.reg_read(reg) for reg in CALLEE_SAVED) == (
@@ -317,6 +340,7 @@ def test_native_prepare_bypass_reject_and_service_failure(case, result):
     assert h.outer_prepare_result() == result
     assert h.state["serializer"] == 1 and h.state["outer_continuation"]
     assert h.state["prepare_entry"] == h.state["finish_entry"] == 1
+    assert h.state["activate_entry"] == int(result == CL_PREPARED)
     if result != CL_PREPARED:
         assert h.state["gate"] is False
         assert h.outer_finish_result() in (CL_BYPASS, CL_REJECTED)
@@ -340,7 +364,7 @@ def test_native_finish_gates_commit_and_preserves_serializer_result(serializer_r
         assert h.word(h.outer_case["response"] + 8 + 8) == 111
     else:
         assert h.outer_finish_result() == CL_REJECTED
-        assert not h.state["commits"] and h.state["rollbacks"] == [1]
+        assert h.state["commits"] == [1] and h.state["rollbacks"] == [1]
         assert h.state["listener_rollbacks"] == [1]
         assert h.word(h.outer_case["response"] + 4) == 1
 
@@ -353,6 +377,19 @@ def test_native_commit_service_failure_rolls_back_without_replaying_serializer()
     assert h.state["rollbacks"] == [1] and h.state["listener_rollbacks"] == [1]
     assert h.word(h.outer_case["response"] + 4) == 1
     assert h.state["outer_continuation"]
+    assert int.from_bytes(h.state["serializer_response"][0][4:8], "little") == 1
+    assert h.outer_finish_result() == CL_REJECTED
+
+
+def test_gate_release_failure_preserves_serialized_listener_and_stock_result():
+    h = EmulatorHarness(fail_service="release", serializer_r0=0xC8).run()
+    assert h.state["serializer"] == 1 and h.uc.reg_read(UC_ARM_REG_R0) == 0xC8
+    assert int.from_bytes(h.state["serializer_response"][0][4:8], "little") == 2
+    assert h.word(h.outer_case["response"] + 4) == 2
+    assert h.state["ready"] == {1}
+    assert not h.state["rollbacks"] and not h.state["listener_rollbacks"]
+    assert not h.state["gate"]
+    assert h.outer_finish_result() == CL_INTERNAL
 
 
 def test_native_rollback_service_failure_is_reported_without_changing_stock_r0():
@@ -363,10 +400,18 @@ def test_native_rollback_service_failure_is_reported_without_changing_stock_r0()
     assert h.state["rollbacks"] == [1] and h.state["listener_rollbacks"] == [1]
 
 
+def test_activation_rollback_failure_status_survives_project_finish():
+    h = EmulatorHarness(fail_service={"generation_commit", "generation_rollback"}, serializer_r0=0xC8).run()
+    assert h.state["serializer"] == 1 and h.uc.reg_read(UC_ARM_REG_R0) == 0xC8
+    assert h.outer_finish_result() == CL_INTERNAL
+    assert h.state["ready"] == set() and not h.state["gate"]
+
+
 def test_mismatched_status_pointer_fails_closed_without_dereferencing_it():
     h = EmulatorHarness(status_pointer_override=DATA + 0x3F0).run()
     assert h.state["serializer"] == 1
     assert h.state["commits"] == [] and h.state["rollbacks"] == []
+    assert h.state["listener_rollbacks"] == []
     assert h.uc.reg_read(UC_ARM_REG_R0) == 0xC8
 
 
@@ -390,11 +435,55 @@ def test_serializer_boundary_reenters_same_emulator_without_losing_outer_result(
     assert h.uc.reg_read(UC_ARM_REG_SP) == FRAME and h.state["outer_continuation"]
 
 
-def test_independent_emulator_processes_execute_concurrently():
-    def run(port):
+def test_independent_emulator_instances_execute_concurrently():
+    barrier = Barrier(2)
+    def run():
+        barrier.wait(timeout=5)
         return EmulatorHarness().run()
     with ThreadPoolExecutor(max_workers=2) as pool:
-        a = pool.submit(run, 43001)
-        b = pool.submit(run, 43002)
+        a = pool.submit(run)
+        b = pool.submit(run)
         left, right = a.result(timeout=10), b.result(timeout=10)
     assert left.state["commits"] == right.state["commits"] == [1]
+
+
+@pytest.mark.parametrize(("case", "committed"), [
+    ({}, True),
+    ({"fail_service": "listener_prepare"}, False),
+    ({"serializer_r0": 0x1F4}, False),
+    ({"fail_service": "generation_commit"}, False),
+])
+def test_synthetic_shim_contract_keeps_stock_type110_byte_identical(case, committed):
+    """Run the project shim against synthetic memory without Honda artifacts."""
+    h = EmulatorHarness(**case)
+    request = h.outer_case["request"]
+    response = h.outer_case["response"]
+    request_before = bytes(h.uc.mem_read(request, 8 + 12 * 2))
+    type110_before = bytes(h.uc.mem_read(response + 8, 8))
+    response_before = bytes(h.uc.mem_read(response, 8 + 8 * 8))
+
+    h.run()
+
+    assert bytes(h.uc.mem_read(request, len(request_before))) == request_before
+    assert bytes(h.uc.mem_read(response + 8, 8)) == type110_before
+    assert h.state["serializer"] == 1
+    # The callback snapshot captures the serializer-time response before rollback.
+    appended_at_serialize = case.get("fail_service") not in {"listener_prepare", "generation_commit"}
+    serialized_response = h.state["serializer_response"][0]
+    assert int.from_bytes(serialized_response[4:8], "little") == (
+        2 if appended_at_serialize else 1
+    )
+    assert serialized_response[8:16] == type110_before
+    assert h.uc.reg_read(UC_ARM_REG_R0) == case.get("serializer_r0", 0xC8)
+    if committed:
+        assert h.word(response + 4) == 2
+        assert bytes(h.uc.mem_read(response + 16, 8)) == struct.pack("<II", 111, 43001)
+        assert h.state["commits"] == [1]
+        assert not h.state["rollbacks"] and not h.state["listener_rollbacks"]
+    else:
+        assert bytes(h.uc.mem_read(response, len(response_before))) == response_before
+        assert not h.state["ready"]
+        assert not h.state["gate"]
+        assert h.state["rollbacks"] == [1]
+        expected_listener_rollback = [] if case.get("fail_service") == "listener_prepare" else [1]
+        assert h.state["listener_rollbacks"] == expected_listener_rollback

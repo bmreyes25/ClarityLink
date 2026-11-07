@@ -9,13 +9,15 @@
 typedef struct {
     pthread_mutex_t mutex;
     uint32_t gate_held;
-    uint32_t next_token;
+    uint32_t next_lease;
+    uint32_t held_lease;
     uint32_t next_generation;
+    uint32_t active_generation;
     uint32_t next_port;
     uint32_t fail_generation;
     uint32_t fail_listener;
     uint32_t fail_commit;
-    uint32_t fail_release_once;
+    uint32_t fail_release_count;
     uint32_t claims;
     uint32_t releases;
     uint32_t generations_prepared;
@@ -26,8 +28,8 @@ typedef struct {
     uint32_t busy_count;
 } TestServiceState;
 
-_Static_assert(sizeof(ClPreparedTxn) == 44, "transaction retains only scalar project state");
-_Static_assert(sizeof(((ClPreparedTxn *)0)->gate_token) == sizeof(uint32_t), "fixed-width token");
+_Static_assert(sizeof(ClPreparedTxn) == 48, "transaction retains only scalar project state");
+_Static_assert(sizeof(((ClPreparedTxn *)0)->gate_lease) == sizeof(uint32_t), "fixed-width lease");
 
 static int32_t service_claim(void *opaque, uint32_t *out) {
     TestServiceState *state = (TestServiceState *)opaque;
@@ -39,26 +41,28 @@ static int32_t service_claim(void *opaque, uint32_t *out) {
         result = 0;
     } else {
         state->gate_held = 1u;
-        *out = ++state->next_token;
+        *out = ++state->next_lease;
+        state->held_lease = *out;
         ++state->claims;
     }
     pthread_mutex_unlock(&state->mutex);
     return result;
 }
 
-static int32_t service_release(void *opaque, uint32_t token) {
+static int32_t service_release(void *opaque, uint32_t lease) {
     TestServiceState *state = (TestServiceState *)opaque;
     pthread_mutex_lock(&state->mutex);
-    if (state->fail_release_once != 0u) {
-        state->fail_release_once = 0u;
-        pthread_mutex_unlock(&state->mutex);
-        return -1;
-    }
-    if (state->gate_held == 0u || token == 0u) {
+    if (state->gate_held == 0u || lease == 0u || lease != state->held_lease) {
         pthread_mutex_unlock(&state->mutex);
         return -1;
     }
     state->gate_held = 0u;
+    state->held_lease = 0u;
+    if (state->fail_release_count != 0u) {
+        --state->fail_release_count;
+        pthread_mutex_unlock(&state->mutex);
+        return -1;
+    }
     ++state->releases;
     pthread_mutex_unlock(&state->mutex);
     return 1;
@@ -102,6 +106,7 @@ static int32_t service_generation_commit(void *opaque, uint32_t generation) {
         return -1;
     }
     ++state->generations_committed;
+    state->active_generation = generation;
     pthread_mutex_unlock(&state->mutex);
     return 1;
 }
@@ -111,6 +116,7 @@ static int32_t service_generation_rollback(void *opaque, uint32_t generation) {
     if (generation == 0u) return -1;
     pthread_mutex_lock(&state->mutex);
     ++state->generations_rolled_back;
+    if (state->active_generation == generation) state->active_generation = 0u;
     pthread_mutex_unlock(&state->mutex);
     return 1;
 }
@@ -179,6 +185,7 @@ static int test_bypass_and_success(void) {
     ClSyntheticResponse original;
     ClPreparedTxn txn;
     ClSetupCall call;
+    uint32_t completed_gate_lease;
     int32_t status = 0;
     int marker = 7;
     service_state_init(&state);
@@ -188,6 +195,8 @@ static int test_bypass_and_success(void) {
     original = response;
     call = make_call(&request, &response, &status, &marker);
     memset(&txn, 0, sizeof(txn));
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_BYPASS);
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_BYPASS);
     CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_BYPASS);
     CHECK(memcmp(&response, &original, sizeof(response)) == 0);
     CHECK(state.claims == 0u);
@@ -201,9 +210,16 @@ static int test_bypass_and_success(void) {
     CHECK(response.streams[0].data_port == original.streams[0].data_port);
     CHECK(response.streams[1].type == 111u && response.streams[1].data_port == 42001u);
     CHECK(txn.state == CL_TXN_PREPARED && txn.generation != 0u);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(state.generations_committed == 1u);
+    completed_gate_lease = txn.gate_lease;
     CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_PREPARED);
     CHECK(txn.state == CL_TXN_COMMITTED && state.generations_committed == 1u);
     CHECK(state.gate_held == 0u && state.releases == 1u);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_BYPASS);
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_BYPASS);
+    CHECK(service_release(&state, completed_gate_lease) == -1);
     service_state_destroy(&state);
     return 0;
 }
@@ -247,20 +263,65 @@ static int test_rejections_and_rollback(void) {
     CHECK(memcmp(&response, &original, sizeof(response)) == 0);
     state.fail_listener = 0u;
     CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_PREPARED);
     CHECK(cl_setup_finish(&call, &txn, 500, 0, &ops) == CL_SETUP_REJECTED);
     CHECK(txn.state == CL_TXN_ROLLED_BACK && state.listeners_rolled_back == 1u);
+    CHECK(state.active_generation == 0u);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_BYPASS);
     CHECK(state.gate_held == 0u && memcmp(&response, &original, sizeof(response)) == 0);
 
     CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
     state.fail_commit = 1u;
-    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_REJECTED);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_REJECTED);
+    CHECK(response.count == 1u);
+    CHECK(txn.state == CL_TXN_ROLLED_BACK);
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_BYPASS);
     CHECK(state.listeners_rolled_back == 2u && state.gate_held == 0u);
     state.fail_commit = 0u;
 
     CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
-    state.fail_release_once = 1u;
+    CHECK(cl_setup_activate(NULL, &txn, &ops) == CL_SETUP_INTERNAL_ERROR);
+    CHECK(txn.state == CL_TXN_CLEANUP_REQUIRED && response.count == 2u);
+    CHECK(cl_setup_finish(NULL, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_INTERNAL_ERROR);
+    CHECK(txn.state == CL_TXN_CLEANUP_REQUIRED && response.count == 2u);
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 0, &ops) == CL_SETUP_REJECTED);
+    CHECK(txn.state == CL_TXN_ROLLED_BACK && response.count == 1u);
+
+    CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    {
+        ClSetupCall invalid_call = call;
+        invalid_call.status_out = NULL;
+        CHECK(cl_setup_activate(&invalid_call, &txn, &ops) == CL_SETUP_REJECTED);
+    }
+    CHECK(txn.state == CL_TXN_ROLLED_BACK && response.count == 1u);
+
+    CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    call.expected_status_out = (uintptr_t)&status + sizeof(status);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_REJECTED);
+    CHECK(txn.state == CL_TXN_ROLLED_BACK && response.count == 1u);
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_BYPASS);
+    call.expected_status_out = (uintptr_t)&status;
+
+    CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_REJECTED);
+    CHECK(txn.state == CL_TXN_ROLLED_BACK && response.count == 1u);
+
+    CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    state.fail_release_count = 1u;
     CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_INTERNAL_ERROR);
-    CHECK(state.listeners_rolled_back == 3u && state.gate_held == 0u);
+    CHECK(txn.state == CL_TXN_COMMITTED && state.listeners_rolled_back == 6u);
+    CHECK(state.gate_held == 0u && response.count == 2u);
+
+    init_type111(&request, &response, 0);
+    CHECK(cl_setup_prepare(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    CHECK(cl_setup_activate(&call, &txn, &ops) == CL_SETUP_PREPARED);
+    state.fail_release_count = 2u;
+    CHECK(cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_INTERNAL_ERROR);
+    CHECK(txn.state == CL_TXN_COMMITTED && response.count == 2u);
+    CHECK(state.listeners_rolled_back == 6u && state.gate_held == 0u);
+    CHECK(txn.gate_lease == 0u);
     service_state_destroy(&state);
     return 0;
 }
@@ -291,6 +352,7 @@ static int test_borrowed_pointer_non_retention_and_busy_policy(void) {
     CHECK(cl_setup_prepare(&call_b, &txn_b, &ops) == CL_SETUP_BUSY);
     CHECK(response_b.count == 1u && response_b.streams[0].type == 110u);
     CHECK(cl_setup_finish(&call_b, &txn_b, CL_SERIALIZER_SUCCESS, 0, &ops) == CL_SETUP_BYPASS);
+    CHECK(cl_setup_activate(&call_a, &txn_a, &ops) == CL_SETUP_PREPARED);
     CHECK(cl_setup_finish(&call_a, &txn_a, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_PREPARED);
 
     CHECK(cl_setup_prepare(&call_b, &txn_b, &ops) == CL_SETUP_PREPARED);
@@ -306,6 +368,7 @@ static int test_borrowed_pointer_non_retention_and_busy_policy(void) {
             }
         }
     }
+    CHECK(cl_setup_activate(&call_b, &txn_b, &ops) == CL_SETUP_PREPARED);
     CHECK(cl_setup_finish(&call_b, &txn_b, CL_SERIALIZER_SUCCESS, 1, &ops) == CL_SETUP_PREPARED);
     service_state_destroy(&state);
     return 0;
@@ -338,6 +401,7 @@ static void *overlap_worker(void *opaque) {
         result = cl_setup_prepare(&call, &txn, &ops);
         if (result == CL_SETUP_PREPARED) {
             ++input->prepared;
+            if (cl_setup_activate(&call, &txn, &ops) != CL_SETUP_PREPARED) return (void *)1;
             (void)sched_yield();
             (void)cl_setup_finish(&call, &txn, CL_SERIALIZER_SUCCESS, 1, &ops);
         } else if (result == CL_SETUP_BUSY) {
@@ -403,6 +467,7 @@ static int test_deterministic_malformed_input_sweep(void) {
         memset(&txn, 0, sizeof(txn));
         (void)cl_setup_prepare(&call, &txn, &ops);
         if (txn.state == CL_TXN_PREPARED) {
+            (void)cl_setup_activate(&call, &txn, &ops);
             (void)cl_setup_finish(&call, &txn, 500, 0, &ops);
         }
         CHECK(state.gate_held == 0u);

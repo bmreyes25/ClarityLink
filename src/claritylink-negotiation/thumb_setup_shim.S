@@ -25,6 +25,9 @@ shim_entry:
     str     r2,  [sp, #28]          /* serializer_r2 */
     str     r3,  [sp, #32]          /* serializer_r3 */
 
+    movs    r5, #0
+    str     r5, [sp, #52]           /* activation/finish status */
+
     /* Caller-frame values always use the saved pre-prologue SP. */
     ldr     r5, [r12, #0x1c]
     str     r5, [sp, #4]            /* request */
@@ -47,6 +50,14 @@ shim_entry:
     bl      project_prepare         /* returns 1 only for prepared Type111 */
     str     r0, [r7, #36]           /* prepare result */
 
+    /* Activate the ready listener before Type111 can reach serialization. */
+    cmp     r0, #1
+    bne     1f
+    mov     r0, r7
+    bl      project_activate
+    str     r0, [r7, #52]           /* retain activation/cleanup failure status */
+1:
+
     /* Preserve serializer args in context; restore immediately before BL. */
     ldr     r0, [r7, #20]
     ldr     r1, [r7, #24]
@@ -56,7 +67,7 @@ shim_entry:
     str     r0, [r7, #40]           /* serializer_r0 */
     mov     r4, r0                  /* preserve stock r0 over project completion */
 
-    /* Commit is impossible when preparation failed or statusOut is NULL. */
+    /* Finish only releases ownership after successful stock serialization. */
     ldr     r1, [r7, #36]
     cmp     r1, #1
     bne     2f
@@ -73,7 +84,7 @@ shim_entry:
     ldr     r1, [r0]
     cmp     r1, #0
     bne     2f
-    movs    r0, #1                  /* eligible for project commit */
+    movs    r0, #1                  /* eligible to finish activated transaction */
     b       3f
 2:  movs    r0, #0                  /* project rollback */
 3:  mov     r1, r7

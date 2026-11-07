@@ -76,6 +76,7 @@ def build_thumb_shim(base_address: int = 0x10000) -> tuple[bytes, dict[str, int]
         raise ShimBuildError("shim/helper text size exceeds 4096-byte review bound")
     image = bytearray(data[text_sec[4]:text_sec[4] + text_sec[5]])
     symbols: dict[str, int] = {}
+    functions: dict[str, tuple[int, int]] = {}
     undefined_symbols: list[str] = []
     for sec in sh:
         if sec[1] != 2:
@@ -83,7 +84,7 @@ def build_thumb_shim(base_address: int = 0x10000) -> tuple[bytes, dict[str, int]
         strings_sec = sh[sec[6]]
         strings = data[strings_sec[4]:strings_sec[4] + strings_sec[5]]
         for pos in range(sec[4], sec[4] + sec[5], sec[9] or 16):
-            name_off, value, _size, _info, _other, ndx = struct.unpack_from("<IIIBBH", data, pos)
+            name_off, value, size, info, _other, ndx = struct.unpack_from("<IIIBBH", data, pos)
             if not name_off:
                 continue
             end = strings.find(b"\0", name_off)
@@ -94,8 +95,11 @@ def build_thumb_shim(base_address: int = 0x10000) -> tuple[bytes, dict[str, int]
             if ndx != text_index:
                 continue
             symbols[name] = base_address + (value & ~1) | (value & 1)
+            if (info & 0x0F) == 2 and size > 0:  # STT_FUNC
+                functions[name] = (value & ~1, size)
     relocation_count = 0
     relocation_symbols: list[str] = []
+    relocation_edges: list[tuple[str, str, int]] = []
     from thumb_call import encode_thumb_bl
 
     for sec in sh:
@@ -116,22 +120,49 @@ def build_thumb_shim(base_address: int = 0x10000) -> tuple[bytes, dict[str, int]
             end = strings.find(b"\0", name_off)
             name = strings[name_off:end].decode("ascii")
             relocation_symbols.append(name)
+            callers = [func_name for func_name, (start, size) in functions.items()
+                       if start <= offset < start + size]
+            if len(callers) != 1:
+                raise ShimBuildError(f"relocation at {offset:#x} has no unique function caller")
+            relocation_edges.append((callers[0], name, offset))
             target = base_address + (value & ~1)
             call_address = base_address + offset
             image[offset:offset + 4] = encode_thumb_bl(call_address, target)
             relocation_count += 1
-    required = {"shim_entry", "project_prepare", "stock_serializer", "project_finish",
-                "cl_setup_prepare", "cl_setup_finish"}
+    required = {"shim_entry", "project_prepare", "project_activate", "stock_serializer",
+                "project_finish", "cl_setup_prepare", "cl_setup_activate", "cl_setup_finish"}
     if not required.issubset(symbols):
         raise ShimBuildError("expected shim entry/helper symbols missing")
     if symbols["shim_entry"] & 1 == 0:
         raise ShimBuildError("shim_entry is missing Thumb function state")
     if flags != 0x05000000:
         raise ShimBuildError("shim object is not ARM EABI5")
-    required_calls = {"project_prepare", "stock_serializer", "project_finish",
-                      "cl_setup_prepare", "cl_setup_finish"}
-    if not required_calls.issubset(relocation_symbols):
-        raise ShimBuildError(f"required compiled call edges missing: {sorted(required_calls - set(relocation_symbols))}")
+    required_edges = {
+        ("shim_entry", "project_prepare"),
+        ("shim_entry", "project_activate"),
+        ("shim_entry", "stock_serializer"),
+        ("shim_entry", "project_finish"),
+        ("project_prepare", "cl_setup_prepare"),
+        ("project_activate", "cl_setup_activate"),
+        ("project_finish", "cl_setup_finish"),
+    }
+    actual_edges = {(caller, callee) for caller, callee, _offset in relocation_edges}
+    if actual_edges != required_edges:
+        raise ShimBuildError(
+            f"compiled call edges differ: missing={sorted(required_edges - actual_edges)}, "
+            f"unexpected={sorted(actual_edges - required_edges)}"
+        )
+    expected_calls = {
+        "shim_entry": ["project_prepare", "project_activate", "stock_serializer", "project_finish"],
+        "project_prepare": ["cl_setup_prepare"],
+        "project_activate": ["cl_setup_activate"],
+        "project_finish": ["cl_setup_finish"],
+    }
+    for caller, expected in expected_calls.items():
+        actual = [callee for edge_caller, callee, _offset in sorted(relocation_edges, key=lambda edge: edge[2])
+                  if edge_caller == caller]
+        if actual != expected:
+            raise ShimBuildError(f"compiled call sequence changed for {caller}: {actual}")
     if undefined_symbols:
         raise ShimBuildError(f"unexpected undefined imports: {undefined_symbols!r}")
     meta = {"machine": 40, "eabi_flags": flags, "relocations": relocation_count,
@@ -139,5 +170,6 @@ def build_thumb_shim(base_address: int = 0x10000) -> tuple[bytes, dict[str, int]
             "undefined_imports": tuple(undefined_symbols), "writable_text": False,
             "helper_source": str(HELPER_SOURCE),
             "relocation_symbols": tuple(relocation_symbols),
+            "relocation_edges": tuple(relocation_edges),
             "writable_state_sections": tuple(writable_state)}
     return bytes(image), symbols, meta
