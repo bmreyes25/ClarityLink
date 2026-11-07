@@ -953,7 +953,7 @@ def test_live_transport_requires_experiment_activation_and_canonical_owner_yes(t
 
 
 def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
+    assert stage_b.LIVE_COLLECTION_ENABLED is True
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: False)
     with mock.patch.object(stage_b, "AdbTransport", side_effect=AssertionError("must not construct without TTY")):
@@ -963,17 +963,28 @@ def test_live_cli_has_only_named_tty_gated_activation(monkeypatch, capsys):
         stage_b.main(["--serial", SERIAL, "--dry-run", stage_b.LIVE_STAGE_B_ACTIVATION])
 
 
-def test_live_cli_remains_disabled_until_supported_hash_method_is_reviewed(monkeypatch, capsys):
-    assert stage_b.LIVE_COLLECTION_ENABLED is False
+def test_live_cli_fails_closed_when_explicit_code_gate_is_off(capsys):
     with mock.patch.object(stage_b, "AdbTransport",
                            side_effect=AssertionError("disabled live path must not construct ADB transport")):
-        assert stage_b.main(["--serial", SERIAL, stage_b.LIVE_STAGE_B_ACTIVATION]) == 2
+        with mock.patch.object(stage_b, "LIVE_COLLECTION_ENABLED", False):
+            assert stage_b.main(["--serial", SERIAL, stage_b.LIVE_STAGE_B_ACTIVATION]) == 2
     error = capsys.readouterr().err
     assert stage_b.LIVE_COLLECTION_BLOCK_REASON in error
 
 
+def test_live_activation_is_named_and_dry_run_never_constructs_adb(capsys):
+    assert stage_b.LIVE_COLLECTION_ENABLED is True
+    with mock.patch.object(stage_b, "AdbTransport",
+                           side_effect=AssertionError("offline modes must not construct ADB transport")):
+        assert stage_b.main(["--serial", SERIAL]) == 2
+        assert stage_b.main(["--serial", SERIAL, "--dry-run"]) == 0
+    output = capsys.readouterr().out
+    assert "named experiment activation" in output
+    assert stage_b.LIVE_STAGE_B_ACTIVATION not in output
+
+
 def test_live_controller_authorizes_only_after_interactive_yes(tmp_path, monkeypatch):
-    monkeypatch.setattr(stage_b, "LIVE_COLLECTION_ENABLED", True)
+    assert stage_b.LIVE_COLLECTION_ENABLED is True
     monkeypatch.setattr(stage_b.shutil, "which", lambda name: "/usr/bin/adb")
     monkeypatch.setattr(stage_b.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(stage_b.sys.stdout, "isatty", lambda: True)
