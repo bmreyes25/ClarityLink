@@ -26,6 +26,10 @@ from tools.honda_native_boundary_probe import (
     _symbol,
     _symbol_details,
     _validate_dynamic_relocations,
+    ELF32Dependency,
+    ResolvedELF32Symbol,
+    _api17_resolve_symbol,
+    _relocation_value,
     run_registration_probe,
 )
 
@@ -37,9 +41,16 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
                                 plt_size_override: int | None = None,
                                 relative_target: int = 0x2020,
                                 relative_symbol_index: int = 0,
+                                glob_dat_symbol_index: int | None = None,
+                                abs32_symbol_index: int | None = None,
+                                import_binding: int = 1,
+                                callback_table_section_index: int = 2,
                                 jump_symbol_index: int = 4,
                                 pt_dynamic_offset_delta: int = 0,
                                 rel_dyn_section_offset_delta: int = 0,
+                                dynstr_address_override: int | None = None,
+                                register_symbol_info: int = 0x12,
+                                dynsym_first_global: int = 1,
                                 initial_callback_table: tuple[int, ...] = (0, 0, 0, 0, 0, 0),
                                 initial_registration_flag: int = 0,
                                 registration_flag_address: int = 0x2018) -> str:
@@ -56,7 +67,8 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     if len(initial_callback_table) != 6:
         raise ValueError("initial callback table must contain six words")
     data = (struct.pack("<6I", *initial_callback_table)
-            + struct.pack("<I", initial_registration_flag) + bytes(4) + struct.pack("<I", 0x10))
+            + struct.pack("<I", initial_registration_flag) + bytes(4)
+            + struct.pack("<II", 0x10, 0x20))
     shstr = b"\0.text\0.data\0.plt\0.shstrtab\0.dynstr\0.dynsym\0.rel.dyn\0.rel.plt\0"
     section_names = (".text", ".data", ".plt", ".shstrtab", ".dynstr", ".dynsym",
                      ".rel.dyn", ".rel.plt")
@@ -67,19 +79,26 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     )}
     dynsym = b"\0" * 16
     function_value = 0x1001 if thumb_function else 0x1000
-    dynsym += struct.pack("<IIIBBH", dynstr_offsets["register_cb"], function_value, 48, 0x12, 0, 1)
-    dynsym += struct.pack("<IIIBBH", dynstr_offsets["callback_table"], 0x2000, 24, 0x11, 0, 2)
+    dynsym += struct.pack("<IIIBBH", dynstr_offsets["register_cb"], function_value, 48,
+                          register_symbol_info, 0, 1)
+    dynsym += struct.pack("<IIIBBH", dynstr_offsets["callback_table"], 0x2000, 24, 0x11, 0,
+                          callback_table_section_index)
     dynsym += struct.pack("<IIIBBH", dynstr_offsets["registration_flag"],
                           registration_flag_address, 4, 0x11, 0, 2)
     import_shndx = 1 if defined_import else 0
-    dynsym += struct.pack("<IIIBBH", dynstr_offsets["external_probe"], 0, 0, 0x12, 0,
-                          import_shndx)
+    dynsym += struct.pack("<IIIBBH", dynstr_offsets["external_probe"], 0, 0,
+                          (import_binding << 4) | 2, 0, import_shndx)
     relative_relocation = struct.pack("<II", relative_target, (relative_symbol_index << 8) | 23)
+    glob_dat_relocation = (b"" if glob_dat_symbol_index is None else
+                           struct.pack("<II", 0x2024, (glob_dat_symbol_index << 8) | 21))
+    abs32_relocation = (b"" if abs32_symbol_index is None else
+                        struct.pack("<II", 0x2024, (abs32_symbol_index << 8) | 2))
+    rel_dyn = relative_relocation + glob_dat_relocation + abs32_relocation
     jump_slot_relocation = struct.pack("<II", 0x201C, (jump_symbol_index << 8) | 22)
 
     text_offset, data_offset, plt_offset = 0x1000, 0x2000, 0x3000
     metadata_offset = 0x4000
-    metadata = bytearray(relative_relocation + jump_slot_relocation)
+    metadata = bytearray(rel_dyn + jump_slot_relocation)
     dynsym_relative = len(metadata)
     metadata.extend(dynsym)
     dynstr_relative = len(metadata)
@@ -87,14 +106,16 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     dynamic_relative = (len(metadata) + 3) & ~3
     metadata.extend(bytes(dynamic_relative - len(metadata)))
     dynamic_tags = (
-        (17, metadata_offset), (18, len(relative_relocation)), (19, 8),
-        (23, metadata_offset + len(relative_relocation)), (2, len(jump_slot_relocation)),
-        (20, 17), (6, metadata_offset + dynsym_relative), (11, 16), (0, 0),
+        (17, metadata_offset), (18, len(rel_dyn)), (19, 8),
+        (23, metadata_offset + len(rel_dyn)), (2, len(jump_slot_relocation)),
+        (20, 17), (5, metadata_offset + dynstr_relative if dynstr_address_override is None
+                   else dynstr_address_override), (10, len(dynstr)),
+        (6, metadata_offset + dynsym_relative), (11, 16), (0, 0),
     )
     dynamic = b"".join(struct.pack("<II", *item) for item in dynamic_tags)
     metadata.extend(dynamic)
     rel_dyn_offset = metadata_offset
-    rel_plt_offset = metadata_offset + len(relative_relocation)
+    rel_plt_offset = metadata_offset + len(rel_dyn)
     dynsym_offset = metadata_offset + dynsym_relative
     dynstr_offset = metadata_offset + dynstr_relative
     dynamic_offset = metadata_offset + dynamic_relative
@@ -130,9 +151,9 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     sections.append(section(".shstrtab", 3, 0, 0, shstr_offset, len(shstr)))
     sections.append(section(".dynstr", 3, 2, dynstr_offset, dynstr_offset, len(dynstr)))
     sections.append(section(".dynsym", 11, 2, dynsym_offset, dynsym_offset, len(dynsym),
-                            link=5, info=1, align=4, entsize=16))
+                            link=5, info=dynsym_first_global, align=4, entsize=16))
     sections.append(section(".rel.dyn", 9, 2, rel_dyn_offset,
-                            rel_dyn_offset + rel_dyn_section_offset_delta, len(relative_relocation),
+                            rel_dyn_offset + rel_dyn_section_offset_delta, len(rel_dyn),
                             link=6, info=2, align=4, entsize=8))
     sections.append(section(".rel.plt", 9, 2, rel_plt_offset, rel_plt_offset, len(jump_slot_relocation),
                             link=6, info=2, align=4, entsize=8))
@@ -673,7 +694,7 @@ def test_elf_validator_rejects_non_arm32_and_non_shared_objects():
         little_endian = True
 
         def __getitem__(self, key):
-            return {"e_machine": "EM_ARM", "e_type": "ET_EXEC"}[key]
+            return {"e_machine": "EM_ARM", "e_type": "ET_EXEC", "e_flags": 0x05000000}[key]
 
     with pytest.raises(ValueError, match="ET_DYN"):
         _validate_elf_format(ArmExecutable())
@@ -691,7 +712,8 @@ class _FileBackedLoadSegment:
 
 def _packed_dynamic_segment(segment):
     names = {
-        "DT_PLTRELSZ": 2, "DT_SYMTAB": 6, "DT_RELA": 7, "DT_RELASZ": 8,
+        "DT_PLTRELSZ": 2, "DT_STRTAB": 5, "DT_SYMTAB": 6, "DT_RELA": 7, "DT_RELASZ": 8,
+        "DT_STRSZ": 10,
         "DT_RELAENT": 9, "DT_SYMENT": 11, "DT_REL": 17, "DT_RELSZ": 18,
         "DT_RELENT": 19, "DT_PLTREL": 20, "DT_TEXTREL": 22, "DT_JMPREL": 23,
         "DT_FLAGS": 30, "DT_RELR": 36, "DT_RELRSZ": 35, "DT_RELRENT": 37,
@@ -766,6 +788,9 @@ def test_dynamic_relocation_requires_matching_section_not_unrelated_section():
         def __getitem__(self, key):
             return self.values[key]
 
+        def data(self):
+            return struct.pack("<II", 0x4020, 23)
+
     class Elf:
         def __init__(self, address):
             self.address = address
@@ -804,6 +829,9 @@ def test_dynamic_rela_table_requires_exact_allocated_rela_section():
                     "sh_size": 12, "sh_entsize": 12, "sh_flags": 2,
                     "sh_offset": 0x4000}[key]
 
+        def data(self):
+            return struct.pack("<IIi", 0x4020, 23, 0)
+
     class Elf:
         def iter_segments(self):
             return iter((DynamicSegment(), _FileBackedLoadSegment()))
@@ -816,6 +844,22 @@ def test_dynamic_rela_table_requires_exact_allocated_rela_section():
     assert symbols is None
 
 
+def test_dynamic_symbol_names_require_dt_strtab_to_match_allocated_dynstr(tmp_path: Path):
+    artifact = tmp_path / "mismatched-dynstr.so"
+    digest = _synthetic_arm_shared_object(artifact, dynstr_address_override=0x4100)
+    with pytest.raises(ValueError, match="DT_STRTAB/DT_STRSZ"):
+        _read_elf(artifact, digest)
+
+
+def test_loader_rejects_relocation_target_inside_dynamic_string_table(tmp_path: Path):
+    artifact = tmp_path / "relocation-overwrites-dynstr.so"
+    digest = _synthetic_arm_shared_object(artifact, relative_target=0x4060)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="overlaps dynamic relocation or symbol metadata"):
+        _load_image(uc, elf, tables, symbols)
+
+
 def test_plt_rela_requires_supported_dt_pltrel_and_dynamic_symbols():
     from types import SimpleNamespace
 
@@ -823,6 +867,7 @@ def test_plt_rela_requires_supported_dt_pltrel_and_dynamic_symbols():
         ("DT_JMPREL", "d_ptr", 0x4000), ("DT_PLTRELSZ", "d_val", 12),
         ("DT_PLTREL", "d_val", 7), ("DT_RELAENT", "d_val", 12),
         ("DT_SYMTAB", "d_ptr", 0x5000), ("DT_SYMENT", "d_val", 16),
+        ("DT_STRTAB", "d_ptr", 0x4800), ("DT_STRSZ", "d_val", 16),
     )
 
     class DynamicSegment:
@@ -839,9 +884,13 @@ def test_plt_rela_requires_supported_dt_pltrel_and_dynamic_symbols():
     class Section:
         def __init__(self, values):
             self.values = values
+            self.name = values.get("name", "")
 
         def __getitem__(self, key):
             return self.values[key]
+
+        def data(self):
+            return struct.pack("<IIi", 0x4020, 22, 0)
 
     class RelaSection(Section):
         pass
@@ -852,13 +901,15 @@ def test_plt_rela_requires_supported_dt_pltrel_and_dynamic_symbols():
     symbols = Section({"sh_type": "SHT_DYNSYM", "sh_addr": 0x5000,
                        "sh_size": 16, "sh_entsize": 16, "sh_flags": 2,
                        "sh_offset": 0x5000})
+    strings = Section({"name": ".dynstr", "sh_type": "SHT_STRTAB", "sh_addr": 0x4800,
+                       "sh_size": 16, "sh_flags": 2, "sh_offset": 0x4800})
 
     class Elf:
         def iter_segments(self):
             return iter((DynamicSegment(), _FileBackedLoadSegment(0x1010)))
 
         def iter_sections(self):
-            return iter((relocation, symbols))
+            return iter((relocation, symbols, strings))
 
     tables, dynamic_symbols = _validate_dynamic_relocations(Elf(), RelaSection, 0x10000)
     assert tables[0].is_plt
@@ -1020,3 +1071,334 @@ def test_probe_rejects_wrong_callback_layout_before_loading_artifact(tmp_path: P
             tmp_path / "missing.so", "0" * 64, "entry", "callbacks", "flag",
             (1, 2, 3), (4, 5, 6), 0, 1,
         )
+
+
+class _DynamicSymbol:
+    def __init__(self, name, value, *, bind="STB_GLOBAL", visibility="STV_DEFAULT",
+                 section=1, symbol_type="STT_OBJECT", size=4):
+        self.name = name
+        self.values = {
+            "st_value": value,
+            "st_size": size,
+            "st_shndx": section,
+            "st_info": {"bind": bind, "type": symbol_type},
+            "st_other": {"visibility": visibility},
+        }
+
+    def __getitem__(self, key):
+        return self.values[key]
+
+
+class _DynamicSymbolTable:
+    def __init__(self, symbols):
+        self.symbols = tuple(symbols)
+
+    def iter_symbols(self):
+        return iter(self.symbols)
+
+
+class _ResolverELF:
+    elfclass = 32
+    little_endian = True
+
+    def __init__(self, symbols=(), *, machine="EM_ARM", e_type="ET_DYN", sections=4,
+                 section_flags=2):
+        self.symbol_table = _DynamicSymbolTable(symbols)
+        self.machine = machine
+        self.e_type = e_type
+        self.e_flags = 0x05000000
+        self.sections = sections
+        self.section_flags = section_flags
+        definitions = [s for s in self.symbol_table.symbols if isinstance(s["st_shndx"], int)]
+        self.segment_start = min((s["st_value"] for s in definitions), default=0)
+        segment_end = max((s["st_value"] + max(1, s.values.get("st_size", 0))
+                           for s in definitions), default=self.segment_start + 1)
+        self.segment_size = max(1, segment_end - self.segment_start)
+        self.segment_file_size = self.segment_size
+
+    def get_section_by_name(self, name):
+        return self.symbol_table if name == ".dynsym" else None
+
+    def num_sections(self):
+        return self.sections
+
+    def get_section(self, index):
+        if index != 1:
+            return None
+        return {"sh_flags": self.section_flags, "sh_addr": self.segment_start,
+                "sh_size": self.segment_size}
+
+    def iter_segments(self):
+        return iter(({
+            "p_type": "PT_LOAD", "p_filesz": self.segment_file_size,
+            "p_memsz": self.segment_size,
+            "p_vaddr": self.segment_start, "p_flags": 5,
+        },))
+
+    def __getitem__(self, key):
+        return {"e_machine": self.machine, "e_type": self.e_type, "e_flags": self.e_flags}[key]
+
+
+def _dependency(identity, symbols=(), *, bias=0x10000, **kwargs):
+    return ELF32Dependency(identity, _ResolverELF(symbols, **kwargs), bias)
+
+
+def test_api17_resolver_uses_first_needed_definition_and_load_bias():
+    requester = _dependency("requester")
+    first = _dependency("first.so", [_DynamicSymbol("object", 0x1234)], bias=0x20000)
+    second = _dependency("second.so", [_DynamicSymbol("object", 0x5678)], bias=0x30000)
+    resolved = _api17_resolve_symbol("object", requester, (first, second))
+    assert resolved is not None
+    assert (resolved.address, resolved.provider, resolved.binding) == (0x21234, "first.so", "STB_GLOBAL")
+
+
+def test_api17_resolver_prefers_requester_scope():
+    requester = _dependency("requester", [_DynamicSymbol("object", 0x111)], bias=0x10000)
+    needed = _dependency("needed.so", [_DynamicSymbol("object", 0x222)], bias=0x20000)
+    assert _api17_resolve_symbol("object", requester, (needed,)).address == 0x10111
+
+
+def test_api17_resolver_keeps_first_weak_definition_per_bionic_order():
+    requester = _dependency("requester")
+    weak = _dependency("weak.so", [_DynamicSymbol("object", 0x100, bind="STB_WEAK")], bias=0x1000)
+    strong = _dependency("strong.so", [_DynamicSymbol("object", 0x200)], bias=0x2000)
+    assert _api17_resolve_symbol("object", requester, (weak, strong)).address == 0x1100
+
+
+def test_api17_resolver_rejects_unresolved_strong_symbol():
+    with pytest.raises(ValueError, match="unresolved strong"):
+        _api17_resolve_symbol("missing", _dependency("requester"), ())
+
+
+def test_api17_resolver_allows_unresolved_weak_symbol_as_zero_result():
+    assert _api17_resolve_symbol("missing", _dependency("requester"), (), weak_undefined=True) is None
+
+
+def test_api17_resolver_skips_local_definitions():
+    requester = _dependency("requester")
+    local = _dependency("local.so", [_DynamicSymbol("object", 1, bind="STB_LOCAL")])
+    later = _dependency("later.so", [_DynamicSymbol("object", 0x44)], bias=0x4000)
+    assert _api17_resolve_symbol("object", requester, (local, later)).address == 0x4044
+
+
+def test_api17_resolver_rejects_hidden_visibility_instead_of_guessing():
+    hidden = _dependency("hidden.so", [_DynamicSymbol("object", 1, visibility="STV_HIDDEN")])
+    later = _dependency("later.so", [_DynamicSymbol("object", 0x44)], bias=0x4000)
+    with pytest.raises(ValueError, match="hidden symbol visibility"):
+        _api17_resolve_symbol("object", _dependency("requester"), (hidden, later))
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"machine": "EM_X86_64"}, {"e_type": "ET_EXEC"}, {"sections": 1},
+])
+def test_api17_resolver_rejects_wrong_architecture_or_symbol_section(kwargs):
+    requester = _dependency("requester", [_DynamicSymbol("object", 0x100)], **kwargs)
+    with pytest.raises(ValueError):
+        _api17_resolve_symbol("object", requester, ())
+
+
+def test_api17_resolver_rejects_incompatible_arm_eabi():
+    requester = _dependency("requester", [_DynamicSymbol("object", 0x100)])
+    requester.elf.e_flags = 0
+    with pytest.raises(ValueError, match="EABI5"):
+        _api17_resolve_symbol("object", requester, ())
+
+
+def test_api17_resolver_rejects_duplicate_same_object_definitions():
+    provider = _dependency("provider.so", [
+        _DynamicSymbol("object", 0x100), _DynamicSymbol("object", 0x200),
+    ])
+    with pytest.raises(ValueError, match="duplicate eligible"):
+        _api17_resolve_symbol("object", _dependency("requester"), (provider,))
+
+
+def test_api17_resolver_rejects_non_allocated_definition():
+    provider = ELF32Dependency(
+        "provider.so", _ResolverELF([_DynamicSymbol("object", 0x100)], section_flags=0), 0x1000
+    )
+    with pytest.raises(ValueError, match="outside allocated loadable memory"):
+        _api17_resolve_symbol("object", _dependency("requester"), (provider,))
+
+
+def test_api17_resolver_rejects_symbol_extent_outside_load_segment():
+    provider = _dependency("provider.so", [_DynamicSymbol("object", 0x100, size=8)], bias=0x1000)
+    provider.elf.segment_size = 4
+    with pytest.raises(ValueError, match="outside allocated loadable memory"):
+        _api17_resolve_symbol("object", _dependency("requester"), (provider,))
+
+
+def test_api17_resolver_rejects_function_in_zero_filled_segment_tail():
+    provider = _dependency(
+        "provider.so", [_DynamicSymbol("function", 0x100, symbol_type="STT_FUNC", size=8)],
+        bias=0x1000,
+    )
+    provider.elf.segment_file_size = 4
+    with pytest.raises(ValueError, match="outside allocated loadable memory"):
+        _api17_resolve_symbol("function", _dependency("requester"), (provider,))
+
+
+def test_api17_resolver_rejects_load_bias_overflow():
+    provider = _dependency("provider.so", [_DynamicSymbol("object", 0xFFFFFFF0)], bias=0x20)
+    with pytest.raises(ValueError, match="overflows 32 bits"):
+        _api17_resolve_symbol("object", _dependency("requester"), (provider,))
+
+
+def test_r_arm_glob_dat_writes_resolved_symbol_address_not_addend():
+    # API 17 Bionic writes S for GLOB_DAT; the REL word is not used as A.
+    assert _relocation_value(21, load_base=0x10000, implicit_addend=0xFFFF,
+                             symbol_address=0x23456789) == 0x23456789
+
+
+def test_r_arm_glob_dat_requires_dependency_backed_address():
+    with pytest.raises(ValueError, match="requires a resolved"):
+        _relocation_value(21, load_base=0x10000)
+
+
+def test_r_arm_glob_dat_resolves_defined_requester_symbol(tmp_path: Path):
+    artifact = tmp_path / "defined-glob-dat.so"
+    digest = _synthetic_arm_shared_object(artifact, glob_dat_symbol_index=2)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    _load_image(
+        uc, elf, tables, symbols,
+        symbol_resolver=lambda _name, _weak: ResolvedELF32Symbol(
+            LOAD_BASE + 0x2000, "verified-fixture-requester", "STB_GLOBAL"
+        ),
+    )
+    assert struct.unpack("<I", uc.mem_read(LOAD_BASE + 0x2024, 4))[0] == LOAD_BASE + 0x2000
+
+
+def test_loader_preserves_thumb_bit_for_local_glob_dat_function(tmp_path: Path):
+    artifact = tmp_path / "local-thumb-glob-dat.so"
+    digest = _synthetic_arm_shared_object(
+        artifact, glob_dat_symbol_index=1, register_symbol_info=0x02,
+        dynsym_first_global=2,
+    )
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    _load_image(uc, elf, tables, symbols)
+    assert struct.unpack("<I", uc.mem_read(LOAD_BASE + 0x2024, 4))[0] == LOAD_BASE + 0x1001
+
+
+def test_r_arm_glob_dat_rejects_defined_global_without_lookup(tmp_path: Path):
+    artifact = tmp_path / "defined-global-no-lookup.so"
+    digest = _synthetic_arm_shared_object(artifact, glob_dat_symbol_index=2)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="defined global requester symbol requires API17 lookup"):
+        _load_image(uc, elf, tables, symbols)
+
+
+def test_r_arm_abs32_uses_symbol_plus_rel_addend_modulo_32_bits():
+    assert _relocation_value(2, load_base=0x10000, implicit_addend=0x30,
+                             symbol_address=0x12340000) == 0x12340030
+    assert _relocation_value(2, load_base=0x10000, explicit_addend=-1,
+                             symbol_address=0) == 0xFFFFFFFF
+
+
+def test_r_arm_abs32_requires_a_resolved_symbol_address():
+    with pytest.raises(ValueError, match="requires a resolved"):
+        _relocation_value(2, load_base=0x10000, implicit_addend=4)
+
+
+def test_r_arm_abs32_preserves_thumb_state_bit():
+    assert _relocation_value(2, load_base=0x10000, implicit_addend=0x20,
+                             symbol_address=0x12340000, thumb_target=True) == 0x12340021
+
+
+def test_loader_applies_dependency_backed_glob_dat(tmp_path: Path):
+    artifact = tmp_path / "external-glob-dat.so"
+    digest = _synthetic_arm_shared_object(artifact, glob_dat_symbol_index=4)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    resolved_address = 0x23456000
+    _load_image(
+        uc, elf, tables, symbols,
+        symbol_resolver=lambda _name, _weak: ResolvedELF32Symbol(
+            resolved_address, "verified-fixture-provider", "STB_GLOBAL"
+        ),
+    )
+    assert struct.unpack("<I", uc.mem_read(LOAD_BASE + 0x2024, 4))[0] == resolved_address
+
+
+def test_loader_rejects_unresolved_strong_glob_dat(tmp_path: Path):
+    artifact = tmp_path / "missing-strong-glob-dat.so"
+    digest = _synthetic_arm_shared_object(artifact, glob_dat_symbol_index=4)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="unresolved strong"):
+        _load_image(uc, elf, tables, symbols, symbol_resolver=lambda _name, _weak: None)
+
+
+def test_loader_resolves_unresolved_weak_glob_dat_to_zero(tmp_path: Path):
+    artifact = tmp_path / "missing-weak-glob-dat.so"
+    digest = _synthetic_arm_shared_object(
+        artifact, glob_dat_symbol_index=4, import_binding=2,
+    )
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    _load_image(uc, elf, tables, symbols, symbol_resolver=lambda _name, _weak: None)
+    assert struct.unpack("<I", uc.mem_read(LOAD_BASE + 0x2024, 4))[0] == 0
+
+
+def test_loader_rejects_glob_dat_symbol_index_outside_dynsym(tmp_path: Path):
+    artifact = tmp_path / "invalid-glob-dat-index.so"
+    digest = _synthetic_arm_shared_object(artifact, glob_dat_symbol_index=5)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="symbol relocation index exceeds DT_SYMTAB"):
+        _load_image(uc, elf, tables, symbols)
+
+
+def test_loader_requires_lookup_for_defined_global_requester_symbol(tmp_path: Path):
+    artifact = tmp_path / "non-allocated-requester-symbol.so"
+    digest = _synthetic_arm_shared_object(
+        artifact, glob_dat_symbol_index=2, callback_table_section_index=4,
+    )
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="defined global requester symbol requires API17 lookup"):
+        _load_image(uc, elf, tables, symbols)
+
+
+def test_loader_applies_dependency_backed_abs32(tmp_path: Path):
+    artifact = tmp_path / "external-abs32.so"
+    digest = _synthetic_arm_shared_object(artifact, abs32_symbol_index=4)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    resolved_address = 0x12340000
+    _load_image(
+        uc, elf, tables, symbols,
+        symbol_resolver=lambda _name, _weak: ResolvedELF32Symbol(
+            resolved_address, "verified-fixture-provider", "STB_GLOBAL"
+        ),
+    )
+    assert struct.unpack("<I", uc.mem_read(LOAD_BASE + 0x2024, 4))[0] == resolved_address + 0x20
+
+
+@pytest.mark.parametrize("relocation", ["glob_dat", "abs32"])
+def test_loader_rejects_dependency_address_outside_elf32(tmp_path: Path, relocation: str):
+    artifact = tmp_path / f"out-of-range-{relocation}.so"
+    digest = _synthetic_arm_shared_object(
+        artifact,
+        glob_dat_symbol_index=4 if relocation == "glob_dat" else None,
+        abs32_symbol_index=4 if relocation == "abs32" else None,
+    )
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="resolved symbol address is outside ELF32"):
+        _load_image(
+            uc, elf, tables, symbols,
+            symbol_resolver=lambda _name, _weak: ResolvedELF32Symbol(
+                0x1_0000_0000, "verified-fixture-provider", "STB_GLOBAL"
+            ),
+        )
+
+
+def test_loader_rejects_unresolved_strong_abs32(tmp_path: Path):
+    artifact = tmp_path / "missing-strong-abs32.so"
+    digest = _synthetic_arm_shared_object(artifact, abs32_symbol_index=4)
+    elf, _raw, tables, symbols = _read_elf(artifact, digest)
+    uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="unresolved strong"):
+        _load_image(uc, elf, tables, symbols, symbol_resolver=lambda _name, _weak: None)

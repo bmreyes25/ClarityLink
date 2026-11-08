@@ -12,6 +12,7 @@ defined-symbol PLT calls are rejected because this loader does not resolve them.
 from __future__ import annotations
 
 import argparse
+from functools import cached_property
 from dataclasses import dataclass
 import hashlib
 from io import BytesIO
@@ -19,6 +20,7 @@ import re
 import struct
 from pathlib import Path
 import sys
+from typing import Callable
 
 
 PAGE_SIZE = 0x1000
@@ -59,6 +61,129 @@ class RelocationTable:
     section_type: str
     entry_size: int
     is_plt: bool = False
+
+
+@dataclass(frozen=True)
+class ELF32Dependency:
+    """Caller-supplied ELF object and load bias; not an artifact attestation."""
+
+    identity: str
+    elf: object
+    load_bias: int
+
+    @cached_property
+    def dynamic_symbol_index(self):
+        section = self.elf.get_section_by_name(".dynsym")
+        if section is None:
+            return {}
+        symbols: dict[str, list[object]] = {}
+        for symbol in section.iter_symbols():
+            if symbol.name:
+                symbols.setdefault(symbol.name, []).append(symbol)
+        return {name: tuple(items) for name, items in symbols.items()}
+
+
+@dataclass(frozen=True)
+class ResolvedELF32Symbol:
+    address: int
+    provider: str
+    binding: str
+    thumb_target: bool = False
+
+
+def _defined_symbol_is_mapped(elf, section_index: int | str, address: int,
+                              size: int, symbol_type: str) -> bool:
+    if section_index == "SHN_ABS":
+        return True
+    if not isinstance(section_index, int) or section_index <= 0 or section_index >= elf.num_sections():
+        return False
+    section = elf.get_section(section_index)
+    if not int(section["sh_flags"]) & 2:  # SHF_ALLOC
+        return False
+    size = max(1, size)
+    section_start = int(section["sh_addr"])
+    section_end = section_start + int(section["sh_size"])
+    if address < section_start or address + size > section_end:
+        return False
+    required_flags = {"STT_FUNC": 1, "STT_OBJECT": 4}.get(symbol_type, 0)
+    return any(
+        segment["p_type"] == "PT_LOAD"
+        and int(segment["p_filesz"]) <= int(segment["p_memsz"])
+        and int(segment["p_vaddr"]) <= address
+        and address + size <= int(segment["p_vaddr"]) + int(
+            segment["p_filesz"] if symbol_type == "STT_FUNC" else segment["p_memsz"]
+        )
+        and (int(segment["p_flags"]) & required_flags) == required_flags
+        for segment in elf.iter_segments()
+    )
+
+
+def _api17_resolve_symbol(name: str, requester: ELF32Dependency,
+                          needed: tuple[ELF32Dependency, ...], *, weak_undefined: bool = False
+                          ) -> ResolvedELF32Symbol | None:
+    """Resolve a dynamic symbol using API 17's requester-then-DT_NEEDED order.
+
+    Inputs must be immutable, fingerprint-validated ELF objects. This models
+    requester and ordered direct-needed lookup only; process-global preloads and
+    main-executable scope are outside this resolver. It follows the pinned
+    Bionic linker rule that the first global or weak definition wins.
+    The caller must establish artifact identity and keep the ELF source immutable;
+    this helper enforces neither provenance nor file immutability. It does not load
+    dependencies or initialize their runtime state.
+    """
+    if not name or "\0" in name:
+        raise ValueError("dynamic symbol name must be nonempty and contain no NUL")
+    ordered = (requester, *needed)
+    identities = [item.identity for item in ordered]
+    if any(not identity for identity in identities) or len(set(identities)) != len(identities):
+        raise ValueError("dependency identities must be nonempty and unique in lookup scope")
+    for dependency in ordered:
+        _validate_elf_format(dependency.elf)
+        matches = []
+        for symbol in dependency.dynamic_symbol_index.get(name, ()):
+            if symbol["st_shndx"] == "SHN_UNDEF":
+                continue
+            binding = symbol["st_info"]["bind"]
+            visibility = symbol["st_other"]["visibility"]
+            if binding not in {"STB_GLOBAL", "STB_WEAK"}:
+                continue
+            if visibility not in {"STV_DEFAULT", "STV_PROTECTED"}:
+                raise ValueError("hidden symbol visibility is outside the supported lookup contract")
+            if symbol["st_info"]["type"] in {"STT_TLS", "STT_GNU_IFUNC"}:
+                raise ValueError("TLS and IFUNC symbols require unsupported address semantics")
+            section_index = symbol["st_shndx"]
+            if section_index == "SHN_ABS":
+                raise ValueError("absolute symbol mapping is unsupported")
+            if not isinstance(section_index, int) or section_index >= dependency.elf.num_sections():
+                raise ValueError("defined dynamic symbol has an invalid section index")
+            symbol_value = int(symbol["st_value"])
+            symbol_type = symbol["st_info"]["type"]
+            mapped_value = symbol_value & ~1 if symbol_type == "STT_FUNC" else symbol_value
+            symbol_size = int(symbol["st_size"])
+            if not _defined_symbol_is_mapped(
+                dependency.elf, section_index, mapped_value, symbol_size, symbol_type
+            ):
+                raise ValueError("defined dynamic symbol is outside allocated loadable memory")
+            matches.append((symbol, binding))
+        if len(matches) > 1:
+            # Bionic's hash lookup selects one entry; without reproducing the
+            # provider's validated hash-chain order, duplicate same-object
+            # names cannot be resolved faithfully.
+            raise ValueError("provider has duplicate eligible dynamic symbol definitions")
+        if matches:
+            symbol, binding = matches[0]
+            symbol_type = symbol["st_info"]["type"]
+            value = int(symbol["st_value"])
+            address = value + dependency.load_bias
+            if not 0 <= address <= 0xFFFFFFFF:
+                raise ValueError("resolved ELF32 symbol address overflows 32 bits")
+            return ResolvedELF32Symbol(
+                address, dependency.identity, binding,
+                symbol_type == "STT_FUNC" and bool(value & 1),
+            )
+    if weak_undefined:
+        return None
+    raise ValueError(f"unresolved strong ELF32 dynamic symbol: {name}")
 
 
 @dataclass(frozen=True)
@@ -135,6 +260,8 @@ def _validate_elf_format(elf) -> None:
         raise ValueError("only little-endian ELF32 ARM artifacts are supported")
     if elf["e_type"] != "ET_DYN":
         raise ValueError("only ET_DYN shared objects are supported")
+    if int(elf["e_flags"]) & 0xFF000000 != 0x05000000:
+        raise ValueError("only ARM EABI5 objects are supported")
 
 
 def _validate_load_segments(elf, file_size: int) -> None:
@@ -188,9 +315,9 @@ def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int):
     relocation_sections = [section for section in elf.iter_sections()
                            if isinstance(section, relocation_section_type)]
     numeric_names = {
-        2: "DT_PLTRELSZ", 6: "DT_SYMTAB", 7: "DT_RELA", 8: "DT_RELASZ",
+        2: "DT_PLTRELSZ", 5: "DT_STRTAB", 6: "DT_SYMTAB", 7: "DT_RELA", 8: "DT_RELASZ",
         9: "DT_RELAENT", 11: "DT_SYMENT", 17: "DT_REL", 18: "DT_RELSZ",
-        19: "DT_RELENT", 20: "DT_PLTREL", 22: "DT_TEXTREL", 23: "DT_JMPREL",
+        10: "DT_STRSZ", 19: "DT_RELENT", 20: "DT_PLTREL", 22: "DT_TEXTREL", 23: "DT_JMPREL",
         30: "DT_FLAGS", 35: "DT_RELRSZ",
         36: "DT_RELR", 37: "DT_RELRENT",
     }
@@ -223,7 +350,7 @@ def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int):
             relocation_tags = {
                 "DT_REL", "DT_RELSZ", "DT_RELENT", "DT_RELA", "DT_RELASZ", "DT_RELAENT",
                 "DT_JMPREL", "DT_PLTRELSZ", "DT_PLTREL", "DT_RELR", "DT_RELRSZ", "DT_RELRENT",
-                "DT_SYMTAB", "DT_SYMENT", "DT_FLAGS",
+                "DT_SYMTAB", "DT_SYMENT", "DT_STRTAB", "DT_STRSZ", "DT_FLAGS",
             }
             if name in relocation_tags and name in dynamic_tags:
                 raise ValueError(f"duplicate dynamic relocation tag {name}")
@@ -282,9 +409,34 @@ def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int):
     if sum(table.size // table.entry_size for table in tables) > MAX_RELOCATION_ENTRIES:
         raise ValueError("dynamic relocation count exceeds the inspection limit")
 
-    jump_slots = any(table.is_plt for table in tables)
+    symbol_relocations = any(table.is_plt for table in tables)
     dynamic_symbols = None
-    if jump_slots:
+    for table in tables:
+        section = next(section for section in relocation_sections
+                       if int(section["sh_addr"]) == table.address
+                       and int(section["sh_size"]) == table.size
+                       and section["sh_type"] == table.section_type)
+        raw = section.data()
+        for offset in range(0, len(raw), table.entry_size):
+            info = struct.unpack_from("<I", raw, offset + 4)[0]
+            if (info & 0xFF) in {2, 21, 22}:
+                symbol_relocations = True
+    if symbol_relocations:
+        string_address = dynamic_tags.get("DT_STRTAB", 0)
+        string_size = dynamic_tags.get("DT_STRSZ", 0)
+        string_sections = [section for section in elf.iter_sections()
+                           if section.name == ".dynstr"
+                           and section["sh_type"] == "SHT_STRTAB"
+                           and int(section["sh_addr"]) == string_address
+                           and int(section["sh_size"]) == string_size
+                           and int(section["sh_flags"]) & 2]
+        if not string_address or not string_size or len(string_sections) != 1:
+            raise ValueError("DT_STRTAB/DT_STRSZ do not identify one allocated .dynstr table")
+        string_section = string_sections[0]
+        if not _file_backed_load_mapping(
+            elf, string_address, string_size, int(string_section["sh_offset"]), file_size
+        ):
+            raise ValueError("dynamic string table is outside consistent file-backed PT_LOAD data")
         symbol_address = dynamic_tags.get("DT_SYMTAB", 0)
         symbol_entry = dynamic_tags.get("DT_SYMENT", 0)
         if not symbol_address or symbol_entry != 16:
@@ -335,12 +487,28 @@ def _symbol(elf, name: str, *, maximum_size: int | None = None) -> tuple[int, in
 
 
 def _relocation_value(kind: int, *, load_base: int, implicit_addend: int = 0,
-                      explicit_addend: int | None = None, import_stub: int = IMPORT_BASE) -> int:
+                      explicit_addend: int | None = None, import_stub: int = IMPORT_BASE,
+                      symbol_address: int | None = None, thumb_target: bool = False) -> int:
     if kind == 23:  # R_ARM_RELATIVE
         addend = implicit_addend if explicit_addend is None else explicit_addend
         return (load_base + addend) & 0xFFFFFFFF
     if kind == 22:  # R_ARM_JUMP_SLOT
-        return import_stub | 1
+        if symbol_address is None:
+            return import_stub | 1
+        if not isinstance(symbol_address, int) or isinstance(symbol_address, bool) or not 0 <= symbol_address <= 0xFFFFFFFF:
+            raise ValueError("R_ARM_JUMP_SLOT requires a resolved ELF32 symbol address")
+        return symbol_address | int(thumb_target)
+    if kind == 21:  # R_ARM_GLOB_DAT: S; the REL addend is not part of this relocation.
+        if (symbol_address is None or not isinstance(symbol_address, int)
+                or isinstance(symbol_address, bool) or not 0 <= symbol_address <= 0xFFFFFFFF):
+            raise ValueError("R_ARM_GLOB_DAT requires a resolved ELF32 symbol address")
+        return symbol_address | int(thumb_target)
+    if kind == 2:  # R_ARM_ABS32: (S + A) | T modulo 2^32.
+        if (symbol_address is None or not isinstance(symbol_address, int)
+                or isinstance(symbol_address, bool) or not 0 <= symbol_address <= 0xFFFFFFFF):
+            raise ValueError("R_ARM_ABS32 requires a resolved ELF32 symbol address")
+        addend = implicit_addend if explicit_addend is None else explicit_addend
+        return ((symbol_address + addend) | int(thumb_target)) & 0xFFFFFFFF
     raise ValueError(f"unsupported ARM relocation type {kind}")
 
 
@@ -400,7 +568,9 @@ def _validate_emulator_permissions(regions, *, stack: int, import_stub: int,
             raise RuntimeError("emulator import and return stubs must be read-only executable")
 
 
-def _load_image(uc, elf, relocation_tables, dynamic_symbol_table) -> None:
+def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
+                symbol_resolver: Callable[[str, bool], ResolvedELF32Symbol | None] | None = None
+                ) -> None:
     from unicorn import UC_PROT_EXEC, UC_PROT_READ, UC_PROT_WRITE
 
     segments = [s for s in elf.iter_segments() if s["p_type"] == "PT_LOAD"]
@@ -443,12 +613,16 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table) -> None:
                 target_offset, info = struct.unpack_from("<II", raw, offset)
                 addend = None
             kind, symbol_index = info & 0xFF, info >> 8
-            if kind == 22:
-                if not symbol_index or dynamic_symbol_table is None:
-                    raise ValueError("R_ARM_JUMP_SLOT requires a dynamic imported symbol")
+            if kind in {2, 21, 22} and symbol_index:
+                if dynamic_symbol_table is None:
+                    raise ValueError("symbol relocation requires DT_SYMTAB")
                 if symbol_index >= dynamic_symbol_table[1]:
-                    raise ValueError("R_ARM_JUMP_SLOT symbol index exceeds DT_SYMTAB")
+                    message = ("R_ARM_JUMP_SLOT symbol index exceeds DT_SYMTAB" if kind == 22
+                               else "symbol relocation index exceeds DT_SYMTAB")
+                    raise ValueError(message)
                 required_symbols.add(symbol_index)
+            elif kind in {21, 22}:
+                raise ValueError("symbol relocation requires a nonzero dynamic symbol index")
             parsed_relocations.append((table, target_offset, kind, symbol_index, addend))
 
     symbol_snapshots = {}
@@ -460,9 +634,20 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table) -> None:
             ))
 
     metadata_ranges = [(table.address, table.address + table.size) for table in relocation_tables]
+    metadata_ranges.extend(
+        (int(segment["p_vaddr"]), int(segment["p_vaddr"]) + int(segment["p_memsz"]))
+        for segment in elf.iter_segments() if segment["p_type"] == "PT_DYNAMIC"
+    )
     if dynamic_symbol_table is not None:
         symbol_address, symbol_count = dynamic_symbol_table
         metadata_ranges.append((symbol_address, symbol_address + symbol_count * 16))
+        dynamic_string_sections = [section for section in elf.iter_sections()
+                                   if section.name == ".dynstr"]
+        if len(dynamic_string_sections) != 1:
+            raise ValueError("dynamic symbol relocation requires one validated .dynstr table")
+        string_section = dynamic_string_sections[0]
+        metadata_ranges.append((int(string_section["sh_addr"]),
+                                int(string_section["sh_addr"]) + int(string_section["sh_size"])))
     relocated_targets = set()
     for _table, target_offset, kind, symbol_index, addend in parsed_relocations:
         if target_offset & 3:
@@ -473,12 +658,12 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table) -> None:
         if target_offset in relocated_targets:
             raise ValueError("duplicate ARM relocation target is unsupported")
         relocated_targets.add(target_offset)
-        if kind == 22:
+        if kind in {2, 21, 22} and symbol_index:
             symbol_bytes = symbol_snapshots[symbol_index]
-            _name, _value, _size, _info, _other, section_index = struct.unpack(
+            _name_offset, _value, _size, _symbol_info, _symbol_other, section_index = struct.unpack(
                 "<IIIBBH", symbol_bytes
             )
-            if section_index != 0:
+            if kind == 22 and section_index != 0:
                 raise ValueError("defined-symbol PLT calls are unsupported")
         if kind == 23 and symbol_index:
             raise ValueError("R_ARM_RELATIVE relocations must use the null symbol")
@@ -486,9 +671,102 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table) -> None:
             raise ValueError("ARM relocation target is outside writable loadable data")
         destination = LOAD_BASE + target_offset
         implicit_addend = 0 if addend is not None else struct.unpack("<I", uc.mem_read(destination, 4))[0]
+        symbol_address = None
+        thumb_target = False
+        if kind in {2, 21, 22}:
+            if symbol_index == 0:
+                symbol_address = 0
+            else:
+                (symbol_name_offset, symbol_value, _symbol_size,
+                 info_byte, other_byte, section_index) = struct.unpack(
+                    "<IIIBBH", symbol_snapshots[symbol_index]
+                )
+                if section_index != 0:
+                    symbol_type = info_byte & 0xF
+                    thumb_target = symbol_type == 2 and bool(symbol_value & 1)
+                    binding = info_byte >> 4
+                    visibility = other_byte & 0x3
+                    if binding == 0:
+                        if visibility != 0:
+                            raise ValueError("local requester symbol has unsupported visibility")
+                        if section_index == 0xFFF1:
+                            raise ValueError("absolute local requester symbols are unsupported")
+                        if (not isinstance(section_index, int) or section_index <= 0
+                                or section_index >= elf.num_sections()):
+                            raise ValueError("relocation symbol has an unsupported section index")
+                        mapped_value = symbol_value & ~1 if symbol_type == 2 else symbol_value
+                        if not _defined_symbol_is_mapped(
+                            elf, section_index, mapped_value, _symbol_size,
+                            {2: "STT_FUNC", 1: "STT_OBJECT"}.get(symbol_type, "STT_NOTYPE"),
+                        ):
+                            raise ValueError("requester symbol is outside allocated loadable memory")
+                        symbol_address = LOAD_BASE + mapped_value
+                    elif binding in {1, 2} and visibility == 0:
+                        if symbol_resolver is None:
+                            raise ValueError("defined global requester symbol requires API17 lookup")
+                        dynamic_string_sections = [section for section in elf.iter_sections()
+                                                   if section.name == ".dynstr"]
+                        if (len(dynamic_string_sections) != 1
+                                or symbol_name_offset >= int(dynamic_string_sections[0]["sh_size"])):
+                            raise ValueError("dynamic import name is outside the unique .dynstr table")
+                        try:
+                            symbol_name = dynamic_string_sections[0].get_string(symbol_name_offset)
+                        except UnicodeDecodeError as exc:
+                            raise ValueError("dynamic symbol name is not valid UTF-8") from exc
+                        if not symbol_name:
+                            raise ValueError("dynamic symbol name is empty")
+                        resolved = symbol_resolver(symbol_name, binding == 2)
+                        if resolved is None:
+                            if binding != 2:
+                                raise ValueError("unresolved strong dynamic symbol")
+                            symbol_address = 0
+                        else:
+                            symbol_address = resolved.address
+                            if (not isinstance(symbol_address, int)
+                                    or isinstance(symbol_address, bool)
+                                    or symbol_address < 0
+                                    or symbol_address > 0xFFFFFFFF):
+                                raise ValueError("resolved symbol address is outside ELF32")
+                            thumb_target = resolved.thumb_target
+                    else:
+                        raise ValueError("defined requester symbol binding or visibility is unsupported")
+                else:
+                    if kind == 22 and symbol_resolver is None:
+                        # Existing CL-48 synthetic probe contract: its isolated
+                        # no-side-effect PLT return stub is not a dependency.
+                        symbol_address = IMPORT_BASE | 1
+                    else:
+                        if symbol_resolver is None:
+                            raise ValueError("symbol relocation requires dependency-backed symbol resolution")
+                        dynamic_string_sections = [section for section in elf.iter_sections()
+                                                   if section.name == ".dynstr"]
+                        if (len(dynamic_string_sections) != 1
+                                or symbol_name_offset >= int(dynamic_string_sections[0]["sh_size"])):
+                            raise ValueError("dynamic import name is outside the unique .dynstr table")
+                        try:
+                            symbol_name = dynamic_string_sections[0].get_string(symbol_name_offset)
+                        except UnicodeDecodeError as exc:
+                            raise ValueError("dynamic symbol name is not valid UTF-8") from exc
+                        binding = (info_byte >> 4) & 0xF
+                        if not symbol_name or binding not in {1, 2}:
+                            raise ValueError("relocation import name or binding is unsupported")
+                        resolved = symbol_resolver(symbol_name, binding == 2)
+                        if resolved is None:
+                            if binding != 2:
+                                raise ValueError("unresolved strong dynamic symbol")
+                            symbol_address = 0
+                        else:
+                            symbol_address = resolved.address
+                            if (not isinstance(symbol_address, int)
+                                    or isinstance(symbol_address, bool)
+                                    or symbol_address < 0
+                                    or symbol_address > 0xFFFFFFFF):
+                                raise ValueError("resolved symbol address is outside ELF32")
+                            thumb_target = resolved.thumb_target
         value = _relocation_value(
             kind, load_base=LOAD_BASE, implicit_addend=implicit_addend,
-            explicit_addend=addend,
+            explicit_addend=addend, symbol_address=symbol_address,
+            thumb_target=thumb_target,
         )
         uc.mem_write(destination, struct.pack("<I", value & 0xFFFFFFFF))
 
@@ -564,6 +842,7 @@ def run_registration_probe(
     expected_first_return: int,
     expected_second_return: int,
     repetitions: int = 1,
+    symbol_resolver: Callable[[str, bool], ResolvedELF32Symbol | None] | None = None,
 ) -> ProbeResult:
     if len(first_callbacks) != 6 or len(second_callbacks) != 6:
         raise ValueError("callback tables must each contain exactly six 32-bit synthetic pointers")
@@ -626,7 +905,8 @@ def run_registration_probe(
     observations = []
     for _ in range(repetitions):
         uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
-        _load_image(uc, elf, relocation_tables, dynamic_symbol_table)
+        _load_image(uc, elf, relocation_tables, dynamic_symbol_table,
+                    symbol_resolver=symbol_resolver)
         first_callbacks_bytes = struct.pack("<6I", *first_callbacks)
         initial_table = bytes(uc.mem_read(storage_address, 24))
         initial_flag = struct.unpack("<I", uc.mem_read(flag_address, 4))[0]
