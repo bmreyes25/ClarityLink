@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import argparse
 from functools import cached_property
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 from io import BytesIO
 import re
@@ -28,11 +28,22 @@ LOAD_BASE = 0x10000
 STACK_BASE = 0x700000
 IMPORT_BASE = 0x800000
 RETURN_BASE = 0x810000
+RUNTIME_RESERVED_RANGES = ((STACK_BASE, STACK_BASE + 0x20000),
+                           (IMPORT_BASE, IMPORT_BASE + PAGE_SIZE),
+                           (RETURN_BASE, RETURN_BASE + PAGE_SIZE))
 INSTRUCTION_LIMIT = 2000
 MAX_ARTIFACT_BYTES = 128 * 1024 * 1024
 MAX_IMAGE_END = STACK_BASE
+DEPENDENCY_START_ADDRESS = 0x10000000
 MAX_RELOCATION_ENTRIES = 250_000
+MAX_DYNAMIC_ENTRIES = 65_536
+MAX_DYNAMIC_BYTES = MAX_DYNAMIC_ENTRIES * 8
 MAX_PLT_BYTES = 4096
+MAX_IMAGE_MAPPING_BYTES = 64 * 1024 * 1024
+MAX_IMAGE_LOAD_SEGMENTS = 32
+MAX_IMAGE_MAPPING_PAGES = MAX_IMAGE_MAPPING_BYTES // PAGE_SIZE
+MAX_DEPENDENCY_SOURCE_BYTES = 256 * 1024 * 1024
+MAX_PROGRAM_HEADERS = 65536 // 32
 SHA256_PATTERN = re.compile(r"[0-9a-fA-F]{64}\Z")
 
 
@@ -89,6 +100,408 @@ class ResolvedELF32Symbol:
     provider: str
     binding: str
     thumb_target: bool = False
+
+
+@dataclass(frozen=True)
+class ELF32LoadSegmentPlan:
+    program_header_index: int
+    virtual_address: int
+    file_offset: int
+    file_size: int
+    memory_size: int
+    alignment: int
+    flags: int
+
+
+@dataclass(frozen=True)
+class ELF32MappingPlan:
+    identity: str
+    source_sha256: str
+    load_bias: int
+    image_start: int
+    image_end: int
+    segments: tuple[ELF32LoadSegmentPlan, ...]
+    page_permissions: tuple[tuple[int, int], ...]
+    relro_pages: tuple[int, ...]
+    max_mapping_bytes: int
+    dependency_mapping_budget: int | None = None
+
+
+def plan_elf32_dependency_mappings(images: tuple[tuple[str, object], ...], *,
+                                  start_address: int = DEPENDENCY_START_ADDRESS,
+                                  max_total_mapped_bytes: int = 256 * 1024 * 1024,
+                                  max_total_source_bytes: int = MAX_DEPENDENCY_SOURCE_BYTES
+                                  ) -> tuple[ELF32MappingPlan, ...]:
+    """Plan load biases only; this does not map or relocate the dependency closure."""
+    if not images or len(images) > 64:
+        raise ValueError("dependency image count is outside the supported bound")
+    if not 0 < max_total_mapped_bytes <= 256 * 1024 * 1024:
+        raise ValueError("total dependency mapping limit is outside the supported bound")
+    if not 0 < max_total_source_bytes <= MAX_DEPENDENCY_SOURCE_BYTES:
+        raise ValueError("total dependency source limit is outside the supported bound")
+    identities = [identity for identity, _elf in images]
+    if any(not isinstance(identity, str) or not identity or "\0" in identity for identity in identities):
+        raise ValueError("dependency identities must be nonempty strings")
+    if len(set(identities)) != len(identities):
+        raise ValueError("dependency identities must be unique")
+    if not isinstance(start_address, int) or isinstance(start_address, bool) or start_address % PAGE_SIZE:
+        raise ValueError("dependency layout start must be a page-aligned address")
+    if start_address < DEPENDENCY_START_ADDRESS:
+        raise ValueError("dependency layout must begin in the reserved dependency address range")
+    cursor = start_address
+    mapped_ranges = list(RUNTIME_RESERVED_RANGES)
+    plans = []
+    total_bytes = 0
+    total_source_bytes = 0
+    for identity, elf in images:
+        _validate_elf_format(elf)
+        source_size = _stream_size(elf.stream)
+        if source_size > MAX_ARTIFACT_BYTES:
+            raise ValueError("ELF artifact exceeds the supported source-size bound")
+        total_source_bytes += source_size
+        if total_source_bytes > max_total_source_bytes:
+            raise ValueError("dependency closure exceeds the total source-size bound")
+        _validate_load_segments(elf, source_size)
+        loadable = [s for s in elf.iter_segments()
+                    if s["p_type"] == "PT_LOAD" and int(s["p_memsz"])]
+        if not loadable:
+            raise ValueError("dependency image contains no nonempty PT_LOAD segment")
+        min_page = min(int(s["p_vaddr"]) & ~(PAGE_SIZE - 1) for s in loadable)
+        if min_page > cursor:
+            raise ValueError("dependency object would require a negative ARM32 load bias")
+        alignment = max([PAGE_SIZE, *(int(s["p_align"]) for s in loadable)])
+        if alignment & (alignment - 1):
+            raise ValueError("dependency image has a non-power-of-two load alignment")
+        load_bias = ((cursor - min_page + alignment - 1) // alignment) * alignment
+        plan = plan_elf32_mapping(
+            elf, identity, load_bias, mapped_ranges=tuple(mapped_ranges),
+        )
+        plan = replace(plan, dependency_mapping_budget=max_total_mapped_bytes)
+        total_bytes += len(plan.page_permissions) * PAGE_SIZE
+        if total_bytes > max_total_mapped_bytes:
+            raise ValueError("dependency closure exceeds the total mapping memory bound")
+        plans.append(plan)
+        mapped_ranges.append((plan.image_start, plan.image_end + PAGE_SIZE))
+        cursor = plan.image_end + PAGE_SIZE
+        if cursor > 0x1_0000_0000:
+            raise ValueError("dependency closure exceeds the ARM32 address space")
+    return tuple(plans)
+
+
+def _stream_size(stream) -> int:
+    position = stream.tell()
+    try:
+        stream.seek(0, 2)
+        size = stream.tell()
+    finally:
+        stream.seek(position)
+    return size
+
+
+def _stream_sha256(stream) -> str:
+    position = stream.tell()
+    digest = hashlib.sha256()
+    try:
+        stream.seek(0)
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    finally:
+        stream.seek(position)
+    return digest.hexdigest()
+
+
+def _snapshot_elf(elf):
+    from elftools.elf.elffile import ELFFile
+
+    try:
+        source_view = elf.stream.getbuffer()
+    except (AttributeError, BufferError, OSError, ValueError) as exc:
+        raise ValueError("ELF mapping requires a bounded in-memory source snapshot") from exc
+    try:
+        if source_view.nbytes > MAX_ARTIFACT_BYTES:
+            raise ValueError("ELF artifact exceeds the supported source-size bound")
+        source_bytes = bytes(source_view)
+    finally:
+        source_view.release()
+    return ELFFile(BytesIO(source_bytes))
+
+
+def _ensure_emulator_usable(uc) -> None:
+    if getattr(uc, "_claritylink_loader_failed", False):
+        raise RuntimeError("emulator is unusable after a loader failure; create a fresh instance")
+
+
+def _poison_emulator(uc) -> None:
+    try:
+        uc._claritylink_loader_failed = True
+    except Exception as exc:
+        raise RuntimeError("could not mark failed emulator unusable; discard the instance") from exc
+
+
+def plan_elf32_mapping(elf, identity: str, load_bias: int, *,
+                       mapped_ranges: tuple[tuple[int, int], ...] = (),
+                       max_mapping_bytes: int = MAX_IMAGE_MAPPING_BYTES
+                       ) -> ELF32MappingPlan:
+    """Plan bounded PT_LOAD mapping modeled on supported API-17 Bionic cases.
+
+    The caller owns artifact fingerprint/provenance checks. Segment-order page
+    protections follow API 17 Bionic: a later PT_LOAD touching a shared page
+    supplies its final protection. Unsupported layouts fail closed. No image
+    bytes are mapped by this function.
+    """
+    if not isinstance(identity, str) or not identity or "\0" in identity:
+        raise ValueError("ELF mapping identity must be a nonempty string")
+    if not isinstance(load_bias, int) or isinstance(load_bias, bool) or not 0 <= load_bias <= 0xFFFFFFFF:
+        raise ValueError("ELF load bias must be an unsigned 32-bit address")
+    if load_bias % PAGE_SIZE:
+        raise ValueError("ELF load bias must be page-aligned")
+    if max_mapping_bytes <= 0 or max_mapping_bytes > MAX_IMAGE_MAPPING_BYTES:
+        raise ValueError("ELF image mapping limit is outside the supported bound")
+    _validate_elf_format(elf)
+    file_size = _stream_size(elf.stream)
+    if file_size > MAX_ARTIFACT_BYTES:
+        raise ValueError("ELF artifact exceeds the supported source-size bound")
+    _validate_program_header_bounds(elf, file_size)
+    segments = []
+    byte_ranges = []
+    page_permissions: dict[int, int] = {}
+    image_start = None
+    image_end = 0
+    for index, segment in enumerate(elf.iter_segments()):
+        if segment["p_type"] != "PT_LOAD":
+            continue
+        if len(segments) >= MAX_IMAGE_LOAD_SEGMENTS:
+            raise ValueError("ELF has more PT_LOAD segments than the supported limit")
+        offset = int(segment["p_offset"])
+        vaddr = int(segment["p_vaddr"])
+        filesz = int(segment["p_filesz"])
+        memsz = int(segment["p_memsz"])
+        align = int(segment["p_align"])
+        flags = int(segment["p_flags"])
+        if not flags & 4:
+            raise ValueError("ELF PT_LOAD without read permission is unsupported")
+        if filesz > memsz or offset + filesz > file_size:
+            raise ValueError("ELF PT_LOAD file or memory bounds are invalid")
+        if align not in (0, 1) and (align & (align - 1) or vaddr % align != offset % align):
+            raise ValueError("ELF PT_LOAD alignment is invalid")
+        if align > 1 and load_bias % align:
+            raise ValueError("ELF load bias does not satisfy PT_LOAD alignment")
+        if (vaddr & (PAGE_SIZE - 1)) != (offset & (PAGE_SIZE - 1)):
+            raise ValueError("ELF PT_LOAD page offsets do not match API 17 mapping requirements")
+        start = load_bias + vaddr
+        end = start + memsz
+        if start > 0xFFFFFFFF or end > 0x1_0000_0000 or end < start:
+            raise ValueError("ELF PT_LOAD runtime range overflows ELF32")
+        if (memsz > filesz and not flags & 2
+                and ((start + filesz) & (PAGE_SIZE - 1))):
+            raise ValueError("read-only partial-page BSS differs from the API 17 mapping contract")
+        if memsz:
+            for old_start, old_end in byte_ranges:
+                if start < old_end and old_start < end:
+                    raise ValueError("overlapping ELF PT_LOAD memory ranges are unsupported")
+            byte_ranges.append((start, end))
+            page_start = start & ~(PAGE_SIZE - 1)
+            page_end = (end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)
+            if page_end - page_start > max_mapping_bytes:
+                raise ValueError("ELF PT_LOAD exceeds the bounded mapping size")
+            for page in range(page_start, page_end, PAGE_SIZE):
+                if page not in page_permissions and len(page_permissions) >= MAX_IMAGE_MAPPING_PAGES:
+                    raise ValueError("ELF image exceeds the bounded mapping size")
+                page_permissions[page] = flags
+            image_start = page_start if image_start is None else min(image_start, page_start)
+            image_end = max(image_end, page_end)
+        segments.append(ELF32LoadSegmentPlan(index, vaddr, offset, filesz, memsz, align, flags))
+    if not segments or image_start is None or image_end <= image_start:
+        raise ValueError("ELF contains no nonempty PT_LOAD image")
+    mapped_bytes = len(page_permissions) * PAGE_SIZE
+    if mapped_bytes > max_mapping_bytes or len(page_permissions) > MAX_IMAGE_MAPPING_PAGES:
+        raise ValueError("ELF image exceeds the bounded mapping size")
+    relro_pages = set()
+    for segment in elf.iter_segments():
+        if segment["p_type"] != "PT_GNU_RELRO" or not int(segment["p_memsz"]):
+            continue
+        relro_start = load_bias + int(segment["p_vaddr"])
+        relro_end = relro_start + int(segment["p_memsz"])
+        if relro_end > 0x1_0000_0000 or relro_end < relro_start:
+            raise ValueError("ELF GNU_RELRO range overflows ELF32")
+        page_start = relro_start & ~(PAGE_SIZE - 1)
+        page_end = (relro_end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)
+        for page in range(page_start, page_end, PAGE_SIZE):
+            if page not in page_permissions:
+                raise ValueError("ELF GNU_RELRO page is outside mapped PT_LOAD memory")
+            if page_permissions[page] & 2:
+                relro_pages.add(page)
+            page_permissions[page] &= ~2
+    if any(flags & 2 and flags & 1 for flags in page_permissions.values()):
+        raise ValueError("ELF PT_LOAD permissions would create a writable executable page")
+    for page in page_permissions:
+        if any(page < end and start < page + PAGE_SIZE for start, end in mapped_ranges):
+            raise ValueError("ELF mapping overlaps an existing image or reserved mapping")
+    return ELF32MappingPlan(
+        identity, _stream_sha256(elf.stream), load_bias, image_start, image_end, tuple(segments),
+        tuple(sorted(page_permissions.items())), tuple(sorted(relro_pages)), max_mapping_bytes,
+    )
+
+
+def map_elf32_segments(uc, elf, plan: ELF32MappingPlan, *,
+                       max_total_mapped_bytes: int = 256 * 1024 * 1024) -> tuple[tuple[int, int, int], ...]:
+    """Map one source-verified PT_LOAD plan; callers discard failed emulators."""
+    return _map_elf32_snapshot(
+        uc, _snapshot_elf(elf), plan,
+        max_total_mapped_bytes=max_total_mapped_bytes,
+    )
+
+
+def map_elf32_dependency_segments(
+    uc, images: tuple[tuple[str, object], ...], plans: tuple[ELF32MappingPlan, ...], *,
+    max_total_mapped_bytes: int = 256 * 1024 * 1024,
+) -> tuple[tuple[int, int, int], ...]:
+    """Map a planned dependency batch atomically, rolling back prior images on failure."""
+    if not images or len(images) > 64 or len(images) != len(plans):
+        raise ValueError("dependency image and plan counts must match and be within 1..64")
+    if tuple(identity for identity, _elf in images) != tuple(plan.identity for plan in plans):
+        raise ValueError("dependency image identities do not match their mapping plans")
+    if any(plan.image_start < DEPENDENCY_START_ADDRESS
+           or plan.image_end <= plan.image_start for plan in plans):
+        raise ValueError("dependency plan lies outside the reserved dependency address range")
+    total_source_bytes = sum(_stream_size(elf.stream) for _identity, elf in images)
+    if (any(_stream_size(elf.stream) > MAX_ARTIFACT_BYTES for _identity, elf in images)
+            or total_source_bytes > MAX_DEPENDENCY_SOURCE_BYTES):
+        raise ValueError("dependency closure exceeds the total source-size bound")
+    mapped_plan_pages: set[int] = set()
+    for plan in plans:
+        plan_pages = {page for page, _flags in plan.page_permissions}
+        if mapped_plan_pages.intersection(plan_pages):
+            raise ValueError("dependency mapping plans overlap each other")
+        mapped_plan_pages.update(plan_pages)
+    mapping_budgets = {plan.dependency_mapping_budget for plan in plans}
+    if len(mapping_budgets) != 1 or None in mapping_budgets:
+        raise ValueError("dependency plans do not share one validated mapping budget")
+    effective_mapping_budget = min(max_total_mapped_bytes, next(iter(mapping_budgets)))
+    mapped_regions = []
+    try:
+        for (_identity, elf), plan in zip(images, plans, strict=True):
+            mapped_regions.extend(map_elf32_segments(
+                uc, elf, plan, max_total_mapped_bytes=effective_mapping_budget,
+            ))
+    except BaseException as exc:
+        cleanup_errors = []
+        for start, end, _flags in reversed(mapped_regions):
+            try:
+                uc.mem_unmap(start, end - start)
+            except BaseException as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cleanup_errors:
+            _poison_emulator(uc)
+            raise RuntimeError(
+                "dependency mapping failed and batch rollback was incomplete; discard emulator"
+            ) from exc
+        raise
+    return tuple(mapped_regions)
+
+
+def _map_elf32_snapshot(uc, source_elf, plan: ELF32MappingPlan, *,
+                        max_total_mapped_bytes: int = 256 * 1024 * 1024
+                        ) -> tuple[tuple[int, int, int], ...]:
+    """Map a caller-isolated byte snapshot after verifying it against the plan."""
+    from unicorn import UC_PROT_EXEC, UC_PROT_READ, UC_PROT_WRITE
+
+    _ensure_emulator_usable(uc)
+    if not isinstance(source_elf.stream, BytesIO):
+        raise ValueError("internal segment mapper requires its isolated byte snapshot")
+    if not 0 < max_total_mapped_bytes <= 256 * 1024 * 1024:
+        raise ValueError("total emulator mapping limit is outside the supported bound")
+    if plan.dependency_mapping_budget is not None:
+        if not 0 < plan.dependency_mapping_budget <= 256 * 1024 * 1024:
+            raise ValueError("planned dependency mapping budget is invalid")
+        max_total_mapped_bytes = min(max_total_mapped_bytes, plan.dependency_mapping_budget)
+    # Replanning verifies the source-derived layout. Runtime and prior-image
+    # exclusions are checked against the fixed ranges and live emulator map below.
+    verified = plan_elf32_mapping(
+        source_elf, plan.identity, plan.load_bias,
+        max_mapping_bytes=plan.max_mapping_bytes,
+    )
+    verified = replace(verified, dependency_mapping_budget=plan.dependency_mapping_budget)
+    if verified != plan:
+        raise ValueError("ELF mapping plan does not match current source bytes or program headers")
+    regions = tuple((int(start), int(end) + 1) for start, end, _flags in uc.mem_regions())
+    for page, _flags in plan.page_permissions:
+        if any(start < page + PAGE_SIZE and page < end
+               for start, end in RUNTIME_RESERVED_RANGES):
+            raise ValueError("ELF image overlaps a reserved emulator runtime mapping")
+        if any(start < page + PAGE_SIZE and page < end for start, end in regions):
+            raise ValueError("ELF image overlaps an existing emulator mapping")
+    new_bytes = len(plan.page_permissions) * PAGE_SIZE
+    if sum(end - start for start, end in regions) + new_bytes > max_total_mapped_bytes:
+        raise ValueError("ELF dependency mapping exceeds the total emulator memory bound")
+
+    pages = {page: bytearray(PAGE_SIZE) for page, _flags in plan.page_permissions}
+    stream = source_elf.stream
+    for segment in plan.segments:
+        if not segment.memory_size:
+            continue
+        runtime_start = plan.load_bias + segment.virtual_address
+        page_start = runtime_start & ~(PAGE_SIZE - 1)
+        file_page_start = segment.file_offset & ~(PAGE_SIZE - 1)
+        file_end = segment.file_offset + segment.file_size
+        if segment.file_size or segment.file_offset & (PAGE_SIZE - 1):
+            mapped_file_end = (file_end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)
+            mapped_length = mapped_file_end - file_page_start
+            for page_offset in range(0, mapped_length, PAGE_SIZE):
+                page = page_start + page_offset
+                if page in pages:
+                    chunk_size = min(PAGE_SIZE, mapped_length - page_offset)
+                    stream.seek(file_page_start + page_offset)
+                    page_bytes = stream.read(chunk_size)
+                    if len(page_bytes) < chunk_size:
+                        page_bytes += bytes(chunk_size - len(page_bytes))
+                    pages[page][:] = page_bytes.ljust(PAGE_SIZE, b"\0")
+            bss_start = runtime_start + segment.file_size
+        else:
+            bss_start = runtime_start
+        bss_end = runtime_start + segment.memory_size
+        if segment.flags & 2 and bss_start & (PAGE_SIZE - 1):
+            bss_end = max(bss_end, (bss_start + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
+        if segment.memory_size > segment.file_size:
+            bss_end = max(bss_end, (runtime_start + segment.memory_size + PAGE_SIZE - 1)
+                          & ~(PAGE_SIZE - 1))
+        zero_start = bss_start
+        while zero_start < bss_end:
+            page = zero_start & ~(PAGE_SIZE - 1)
+            page_end = min(bss_end, page + PAGE_SIZE)
+            if page in pages:
+                pages[page][zero_start - page:page_end - page] = bytes(page_end - zero_start)
+            zero_start = page_end
+    mapped_pages = []
+    try:
+        for page, flags in plan.page_permissions:
+            permission = ((UC_PROT_READ if flags & 4 else 0)
+                          | (UC_PROT_WRITE if flags & 2 else 0)
+                          | (UC_PROT_EXEC if flags & 1 else 0))
+            uc.mem_map(page, PAGE_SIZE, permission)
+            mapped_pages.append(page)
+            uc.mem_write(page, bytes(pages[page]))
+    except BaseException as exc:
+        cleanup_errors = []
+        for page in reversed(mapped_pages):
+            try:
+                uc.mem_unmap(page, PAGE_SIZE)
+            except BaseException as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cleanup_errors:
+            _poison_emulator(uc)
+            raise RuntimeError("segment mapping failed and rollback was incomplete; discard emulator") from exc
+        raise
+    return tuple(
+        (page, page + PAGE_SIZE,
+         ((UC_PROT_READ if flags & 4 else 0)
+          | (UC_PROT_WRITE if flags & 2 else 0)
+          | (UC_PROT_EXEC if flags & 1 else 0)))
+        for page, flags in plan.page_permissions
+    )
 
 
 def _defined_symbol_is_mapped(elf, section_index: int | str, address: int,
@@ -229,7 +642,7 @@ class ProbeResult:
         return self._reported().registration_flag
 
 
-def _read_elf(path: Path, expected_sha256: str):
+def _read_elf(path: Path, expected_sha256: str, *, allow_textrel: bool = False):
     try:
         from elftools.elf.elffile import ELFFile
         from elftools.elf.relocation import RelocationSection
@@ -250,7 +663,7 @@ def _read_elf(path: Path, expected_sha256: str):
     _validate_elf_format(elf)
     _validate_load_segments(elf, len(raw))
     relocation_tables, dynamic_symbol_table = _validate_dynamic_relocations(
-        elf, RelocationSection, len(raw)
+        elf, RelocationSection, len(raw), allow_textrel=allow_textrel
     )
     return elf, raw, relocation_tables, dynamic_symbol_table
 
@@ -265,6 +678,7 @@ def _validate_elf_format(elf) -> None:
 
 
 def _validate_load_segments(elf, file_size: int) -> None:
+    _validate_program_header_bounds(elf, file_size)
     ranges = []
     for segment in elf.iter_segments():
         if segment["p_type"] != "PT_LOAD":
@@ -281,7 +695,18 @@ def _validate_load_segments(elf, file_size: int) -> None:
         raise ValueError("overlapping PT_LOAD memory ranges are unsupported")
 
 
+def _validate_program_header_bounds(elf, file_size: int) -> None:
+    offset = int(elf["e_phoff"])
+    count = int(elf["e_phnum"])
+    entry_size = int(elf["e_phentsize"])
+    if (count < 1 or count > MAX_PROGRAM_HEADERS or entry_size != 32
+            or offset > file_size or count > (file_size - offset) // entry_size):
+        raise ValueError("ELF program-header table is outside file bounds")
+
+
 def _parse_dynamic_entries(raw: bytes) -> tuple[tuple[int, int], ...]:
+    if len(raw) > MAX_DYNAMIC_BYTES:
+        raise ValueError("PT_DYNAMIC exceeds the supported entry-count bound")
     if len(raw) % 8:
         raise ValueError("PT_DYNAMIC size is not aligned to ELF32 dynamic entries")
     entries = []
@@ -311,7 +736,8 @@ def _file_backed_load_mapping(elf, address: int, size: int, file_offset: int, fi
     )
 
 
-def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int):
+def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int, *,
+                                  allow_textrel: bool = False):
     relocation_sections = [section for section in elf.iter_sections()
                            if isinstance(section, relocation_section_type)]
     numeric_names = {
@@ -332,6 +758,8 @@ def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int):
         raise ValueError("multiple PT_DYNAMIC segments are unsupported")
     for segment in dynamic_segments:
         address, size, offset = int(segment["p_vaddr"]), int(segment["p_filesz"]), int(segment["p_offset"])
+        if size > MAX_DYNAMIC_BYTES:
+            raise ValueError("PT_DYNAMIC exceeds the supported entry-count bound")
         if size > int(segment["p_memsz"]) or not _file_backed_load_mapping(
             elf, address, size, offset, file_size
         ):
@@ -342,9 +770,11 @@ def _validate_dynamic_relocations(elf, relocation_section_type, file_size: int):
                 raise ValueError("Android packed relocations are unsupported")
             name = numeric_names.get(raw_name, str(raw_name)) if isinstance(raw_name, int) else raw_name
             if name == "DT_TEXTREL":
-                raise ValueError("DT_TEXTREL relocations are unsupported")
+                if not allow_textrel:
+                    raise ValueError("DT_TEXTREL relocations are unsupported")
             if name == "DT_FLAGS" and value & 4:
-                raise ValueError("DF_TEXTREL relocations are unsupported")
+                if not allow_textrel:
+                    raise ValueError("DF_TEXTREL relocations are unsupported")
             if name.startswith("DT_ANDROID_REL") or name.startswith("DT_ANDROID_RELR"):
                 raise ValueError("Android packed relocations are unsupported")
             relocation_tags = {
@@ -557,6 +987,43 @@ def _range_in_writable_load_segment(elf, start: int, size: int) -> bool:
     )
 
 
+def _range_in_any_load_segment(elf, start: int, size: int) -> bool:
+    end = start + size
+    return any(
+        segment["p_type"] == "PT_LOAD"
+        and int(segment["p_vaddr"]) <= start
+        and end <= int(segment["p_vaddr"]) + int(segment["p_memsz"])
+        for segment in elf.iter_segments()
+    )
+
+
+def _elf_declares_textrel(elf) -> bool:
+    file_size = _stream_size(elf.stream)
+    if file_size > MAX_ARTIFACT_BYTES:
+        raise ValueError("ELF artifact exceeds the supported source-size bound")
+    _validate_program_header_bounds(elf, file_size)
+    dynamic_segments = [
+        segment for segment in elf.iter_segments() if segment["p_type"] == "PT_DYNAMIC"
+    ]
+    if len(dynamic_segments) > 1:
+        raise ValueError("multiple PT_DYNAMIC segments are unsupported")
+    declared = False
+    for segment in dynamic_segments:
+        address = int(segment["p_vaddr"])
+        size = int(segment["p_filesz"])
+        offset = int(segment["p_offset"])
+        if size > MAX_DYNAMIC_BYTES:
+            raise ValueError("PT_DYNAMIC exceeds the supported entry-count bound")
+        if (size > int(segment["p_memsz"])
+                or not _file_backed_load_mapping(elf, address, size, offset, file_size)):
+            raise ValueError("PT_DYNAMIC is outside consistent file-backed PT_LOAD data")
+        declared |= any(
+            tag == 22 or (tag == 30 and value & 4)
+            for tag, value in _parse_dynamic_entries(segment.data())
+        )
+    return declared
+
+
 def _validate_emulator_permissions(regions, *, stack: int, import_stub: int,
                                    return_stub: int, read: int, write: int, execute: int) -> None:
     permissions = {start: flags for start, _end, flags in regions}
@@ -569,7 +1036,43 @@ def _validate_emulator_permissions(regions, *, stack: int, import_stub: int,
 
 
 def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
-                symbol_resolver: Callable[[str, bool], ResolvedELF32Symbol | None] | None = None
+                symbol_resolver: Callable[[str, bool], ResolvedELF32Symbol | None] | None = None,
+                identity: str = "synthetic-root", load_bias: int = LOAD_BASE,
+                map_runtime_support: bool = True,
+                allow_textrel: bool = False) -> None:
+    _ensure_emulator_usable(uc)
+    try:
+        source_elf = _snapshot_elf(elf)
+        source_size = _stream_size(source_elf.stream)
+        _validate_elf_format(source_elf)
+        _validate_load_segments(source_elf, source_size)
+        if _elf_declares_textrel(source_elf) and not allow_textrel:
+            raise ValueError("ELF declares text relocations but textrel support is disabled")
+        from elftools.elf.relocation import RelocationSection
+
+        verified_tables, verified_symbols = _validate_dynamic_relocations(
+            source_elf, RelocationSection, _stream_size(source_elf.stream),
+            allow_textrel=allow_textrel,
+        )
+        if (tuple(relocation_tables) != verified_tables
+                or dynamic_symbol_table != verified_symbols):
+            raise ValueError("relocation metadata does not match the immutable ELF snapshot")
+        _load_image_impl(
+            uc, source_elf, verified_tables, verified_symbols,
+            symbol_resolver=symbol_resolver, identity=identity, load_bias=load_bias,
+            map_runtime_support=map_runtime_support,
+            allow_textrel=allow_textrel,
+        )
+    except BaseException:
+        _poison_emulator(uc)
+        raise
+
+
+def _load_image_impl(uc, elf, relocation_tables, dynamic_symbol_table, *,
+                symbol_resolver: Callable[[str, bool], ResolvedELF32Symbol | None] | None = None,
+                identity: str = "synthetic-root", load_bias: int = LOAD_BASE,
+                map_runtime_support: bool = True,
+                allow_textrel: bool = False
                 ) -> None:
     from unicorn import UC_PROT_EXEC, UC_PROT_READ, UC_PROT_WRITE
 
@@ -577,29 +1080,29 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
     segments = [s for s in segments if int(s["p_memsz"])]
     if not segments:
         raise ValueError("ELF contains no loadable segments")
-    for segment in segments:
-        if int(segment["p_filesz"]) > int(segment["p_memsz"]):
-            raise ValueError("ELF load segment file size exceeds its memory size")
-    page_permissions = _page_permissions(segments)
-    for page, permissions in page_permissions.items():
-        uc.mem_map(page, PAGE_SIZE, permissions)
+    textrel_declared = _elf_declares_textrel(elf)
+    if textrel_declared and not allow_textrel:
+        raise ValueError("ELF declares text relocations but textrel support is disabled")
+    mapping_plan = plan_elf32_mapping(
+        elf, identity, load_bias, mapped_ranges=RUNTIME_RESERVED_RANGES,
+    )
+    if mapping_plan.image_end > MAX_IMAGE_END:
+        raise ValueError("root ELF exceeds the reserved root image address range")
+    _map_elf32_snapshot(uc, elf, mapping_plan)
+    page_flags = dict(mapping_plan.page_permissions)
 
-    for segment in segments:
-        start = LOAD_BASE + int(segment["p_vaddr"])
-        if segment.data():
-            uc.mem_write(start, segment.data())
-
-    uc.mem_map(STACK_BASE, 0x20000, UC_PROT_READ | UC_PROT_WRITE)
-    uc.mem_map(IMPORT_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_WRITE)
-    uc.mem_map(RETURN_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_WRITE)
-    # Thumb `movs r0,#0; bx lr`; imports have no side effects and return zero.
-    uc.mem_write(IMPORT_BASE, b"\x00\x20\x70\x47")
-    uc.mem_write(RETURN_BASE, b"\x70\x47")
-    uc.mem_protect(IMPORT_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_EXEC)
-    uc.mem_protect(RETURN_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_EXEC)
+    if map_runtime_support:
+        uc.mem_map(STACK_BASE, 0x20000, UC_PROT_READ | UC_PROT_WRITE)
+        uc.mem_map(IMPORT_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        uc.mem_map(RETURN_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        # Thumb `movs r0,#0; bx lr`; synthetic probes opt into this helper map.
+        uc.mem_write(IMPORT_BASE, b"\x00\x20\x70\x47")
+        uc.mem_write(RETURN_BASE, b"\x70\x47")
+        uc.mem_protect(IMPORT_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_EXEC)
+        uc.mem_protect(RETURN_BASE, PAGE_SIZE, UC_PROT_READ | UC_PROT_EXEC)
 
     table_snapshots = tuple(
-        (table, bytes(uc.mem_read(LOAD_BASE + table.address, table.size)))
+        (table, bytes(uc.mem_read(load_bias + table.address, table.size)))
         for table in relocation_tables
     )
     parsed_relocations = []
@@ -630,7 +1133,7 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
         symbol_address, _symbol_count = dynamic_symbol_table
         for symbol_index in required_symbols:
             symbol_snapshots[symbol_index] = bytes(uc.mem_read(
-                LOAD_BASE + symbol_address + symbol_index * 16, 16
+                load_bias + symbol_address + symbol_index * 16, 16
             ))
 
     metadata_ranges = [(table.address, table.address + table.size) for table in relocation_tables]
@@ -667,9 +1170,28 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
                 raise ValueError("defined-symbol PLT calls are unsupported")
         if kind == 23 and symbol_index:
             raise ValueError("R_ARM_RELATIVE relocations must use the null symbol")
-        if not _range_in_writable_load_segment(elf, target_offset, 4):
+        target_end = target_offset + 4
+        if not _range_in_any_load_segment(elf, target_offset, 4):
+            raise ValueError("ARM relocation target is outside loadable memory")
+        # API 17 only unprotects non-writable PT_LOAD pages when the object
+        # declares text relocations. GNU RELRO is separately protected after
+        # ordinary relocations, so those pages remain eligible here.
+        if (not _range_in_writable_load_segment(elf, target_offset, 4)
+                and not (allow_textrel and textrel_declared)):
             raise ValueError("ARM relocation target is outside writable loadable data")
-        destination = LOAD_BASE + target_offset
+        target_pages = tuple(range(
+            (load_bias + target_offset) & ~(PAGE_SIZE - 1),
+            ((load_bias + target_end - 1) & ~(PAGE_SIZE - 1)) + PAGE_SIZE,
+            PAGE_SIZE,
+        ))
+        if any(page not in page_flags for page in target_pages):
+            raise ValueError("ARM relocation target page is outside mapped ELF memory")
+        temporary_pages = tuple(page for page in target_pages if not page_flags[page] & 2)
+        relro_pages = set(mapping_plan.relro_pages)
+        requires_textrel = any(page not in relro_pages for page in temporary_pages)
+        if requires_textrel and not (allow_textrel and textrel_declared):
+            raise ValueError("read-only PT_LOAD relocation page requires declared text relocation support")
+        destination = load_bias + target_offset
         implicit_addend = 0 if addend is not None else struct.unpack("<I", uc.mem_read(destination, 4))[0]
         symbol_address = None
         thumb_target = False
@@ -700,7 +1222,7 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
                             {2: "STT_FUNC", 1: "STT_OBJECT"}.get(symbol_type, "STT_NOTYPE"),
                         ):
                             raise ValueError("requester symbol is outside allocated loadable memory")
-                        symbol_address = LOAD_BASE + mapped_value
+                        symbol_address = load_bias + mapped_value
                     elif binding in {1, 2} and visibility == 0:
                         if symbol_resolver is None:
                             raise ValueError("defined global requester symbol requires API17 lookup")
@@ -764,17 +1286,41 @@ def _load_image(uc, elf, relocation_tables, dynamic_symbol_table, *,
                                 raise ValueError("resolved symbol address is outside ELF32")
                             thumb_target = resolved.thumb_target
         value = _relocation_value(
-            kind, load_base=LOAD_BASE, implicit_addend=implicit_addend,
+            kind, load_base=load_bias, implicit_addend=implicit_addend,
             explicit_addend=addend, symbol_address=symbol_address,
             thumb_target=thumb_target,
         )
-        uc.mem_write(destination, struct.pack("<I", value & 0xFFFFFFFF))
+        if temporary_pages:
+            original_permissions = []
+            try:
+                for page in temporary_pages:
+                    flags = page_flags[page]
+                    permission = ((UC_PROT_READ if flags & 4 else 0)
+                                  | (UC_PROT_WRITE if flags & 2 else 0)
+                                  | (UC_PROT_EXEC if flags & 1 else 0))
+                    temporary_permission = (permission | UC_PROT_READ | UC_PROT_WRITE) & ~UC_PROT_EXEC
+                    uc.mem_protect(page, PAGE_SIZE, temporary_permission)
+                    original_permissions.append((page, permission))
+                uc.mem_write(destination, struct.pack("<I", value & 0xFFFFFFFF))
+            finally:
+                restore_errors = []
+                for page, permission in reversed(original_permissions):
+                    try:
+                        uc.mem_protect(page, PAGE_SIZE, permission)
+                    except BaseException as restore_error:
+                        restore_errors.append(restore_error)
+                if restore_errors:
+                    _poison_emulator(uc)
+                    raise RuntimeError("relocation page protection restore failed; discard emulator") from restore_errors[0]
+        else:
+            uc.mem_write(destination, struct.pack("<I", value & 0xFFFFFFFF))
 
-    _validate_emulator_permissions(
-        uc.mem_regions(), stack=STACK_BASE, import_stub=IMPORT_BASE,
-        return_stub=RETURN_BASE, read=UC_PROT_READ, write=UC_PROT_WRITE,
-        execute=UC_PROT_EXEC,
-    )
+    if map_runtime_support:
+        _validate_emulator_permissions(
+            uc.mem_regions(), stack=STACK_BASE, import_stub=IMPORT_BASE,
+            return_stub=RETURN_BASE, read=UC_PROT_READ, write=UC_PROT_WRITE,
+            execute=UC_PROT_EXEC,
+        )
 
     return None
 
@@ -783,6 +1329,7 @@ def _execute_bounded(uc, *, entry: int, allowed_ranges: tuple[tuple[int, int], .
                      sentinel: int, import_stub: int, instruction_limit: int,
                      return_register: int,
                      arm_ranges: tuple[tuple[int, int], ...] = ()) -> tuple[int, int]:
+    _ensure_emulator_usable(uc)
     from unicorn import UC_HOOK_CODE
     from unicorn.arm_const import UC_ARM_REG_CPSR
 
