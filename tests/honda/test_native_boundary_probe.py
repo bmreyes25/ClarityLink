@@ -1,5 +1,7 @@
 import argparse
+from dataclasses import replace
 import hashlib
+from io import BytesIO
 from pathlib import Path
 import struct
 
@@ -9,7 +11,12 @@ from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R1, UC_AR
 
 from tools.honda_native_boundary_probe import (
     IMPORT_BASE,
+    DEPENDENCY_START_ADDRESS,
     LOAD_BASE,
+    PAGE_SIZE,
+    MAX_DYNAMIC_BYTES,
+    RETURN_BASE,
+    STACK_BASE,
     ProbeObservation,
     ProbeResult,
     _load_image,
@@ -26,9 +33,14 @@ from tools.honda_native_boundary_probe import (
     _symbol,
     _symbol_details,
     _validate_dynamic_relocations,
+    _elf_declares_textrel,
+    plan_elf32_mapping,
+    map_elf32_segments,
+    map_elf32_dependency_segments,
     ELF32Dependency,
     ResolvedELF32Symbol,
     _api17_resolve_symbol,
+    plan_elf32_dependency_mappings,
     _relocation_value,
     run_registration_probe,
 )
@@ -37,9 +49,14 @@ from tools.honda_native_boundary_probe import (
 def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
                                 plt_executable: bool = True,
                                 plt_section_flags: int = 6,
+                                plt_flags: int | None = None,
+                                plt_address: int = 0x3000,
+                                plt_file_offset: int = 0x3000,
+                                plt_alignment: int = 0x1000,
                                 defined_import: bool = False,
                                 plt_size_override: int | None = None,
                                 relative_target: int = 0x2020,
+                                relative_initial_addend: int | None = None,
                                 relative_symbol_index: int = 0,
                                 glob_dat_symbol_index: int | None = None,
                                 abs32_symbol_index: int | None = None,
@@ -49,6 +66,8 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
                                 pt_dynamic_offset_delta: int = 0,
                                 rel_dyn_section_offset_delta: int = 0,
                                 dynstr_address_override: int | None = None,
+                                data_bss_bytes: int = 0,
+                                declare_textrel: bool = False,
                                 register_symbol_info: int = 0x12,
                                 dynsym_first_global: int = 1,
                                 initial_callback_table: tuple[int, ...] = (0, 0, 0, 0, 0, 0),
@@ -66,9 +85,16 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     plt = plt_code + bytes(plt_size - len(plt_code))
     if len(initial_callback_table) != 6:
         raise ValueError("initial callback table must contain six words")
-    data = (struct.pack("<6I", *initial_callback_table)
-            + struct.pack("<I", initial_registration_flag) + bytes(4)
-            + struct.pack("<II", 0x10, 0x20))
+    data = bytearray(struct.pack("<6I", *initial_callback_table)
+                     + struct.pack("<I", initial_registration_flag) + bytes(4)
+                     + struct.pack("<II", 0x10, 0x20))
+    if relative_initial_addend is not None:
+        if 0x1000 <= relative_target < 0x1000 + len(code):
+            struct.pack_into("<I", code, relative_target - 0x1000, relative_initial_addend)
+        elif 0x2000 <= relative_target < 0x2000 + len(data):
+            struct.pack_into("<I", data, relative_target - 0x2000, relative_initial_addend)
+        else:
+            raise ValueError("synthetic relocation addend must be in the code or data fixture")
     shstr = b"\0.text\0.data\0.plt\0.shstrtab\0.dynstr\0.dynsym\0.rel.dyn\0.rel.plt\0"
     section_names = (".text", ".data", ".plt", ".shstrtab", ".dynstr", ".dynsym",
                      ".rel.dyn", ".rel.plt")
@@ -96,7 +122,8 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     rel_dyn = relative_relocation + glob_dat_relocation + abs32_relocation
     jump_slot_relocation = struct.pack("<II", 0x201C, (jump_symbol_index << 8) | 22)
 
-    text_offset, data_offset, plt_offset = 0x1000, 0x2000, 0x3000
+    text_offset, data_offset = 0x1000, 0x2000
+    plt_offset = plt_file_offset
     metadata_offset = 0x4000
     metadata = bytearray(rel_dyn + jump_slot_relocation)
     dynsym_relative = len(metadata)
@@ -112,6 +139,8 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
                    else dynstr_address_override), (10, len(dynstr)),
         (6, metadata_offset + dynsym_relative), (11, 16), (0, 0),
     )
+    if declare_textrel:
+        dynamic_tags = dynamic_tags[:-1] + ((22, 0), dynamic_tags[-1])
     dynamic = b"".join(struct.pack("<II", *item) for item in dynamic_tags)
     metadata.extend(dynamic)
     rel_dyn_offset = metadata_offset
@@ -131,9 +160,11 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     phdrs = struct.pack("<IIIIIIII", 1, text_offset, 0x1000, 0x1000,
                         len(code), len(code), 5, 0x1000)
     phdrs += struct.pack("<IIIIIIII", 1, data_offset, 0x2000, 0x2000,
-                         len(data), len(data), 6, 0x1000)
-    phdrs += struct.pack("<IIIIIIII", 1, plt_offset, 0x3000, 0x3000,
-                         len(plt), len(plt), 5 if plt_executable else 6, 0x1000)
+                         len(data), len(data) + data_bss_bytes, 6, 0x1000)
+    phdrs += struct.pack("<IIIIIIII", 1, plt_offset, plt_address, plt_address,
+                         len(plt), len(plt),
+                         plt_flags if plt_flags is not None else (5 if plt_executable else 6),
+                         plt_alignment)
     phdrs += struct.pack("<IIIIIIII", 1, metadata_offset, metadata_offset, metadata_offset,
                          len(metadata), len(metadata), 4, 0x1000)
     phdrs += struct.pack("<IIIIIIII", 2, dynamic_offset + pt_dynamic_offset_delta,
@@ -147,7 +178,8 @@ def _synthetic_arm_shared_object(path: Path, *, thumb_function: bool = True,
     sections = [bytes(40)]
     sections.append(section(".text", 1, 6, 0x1000, text_offset, len(code), align=2))
     sections.append(section(".data", 1, 3, 0x2000, data_offset, len(data), align=4))
-    sections.append(section(".plt", 1, plt_section_flags, 0x3000, plt_offset, len(plt), align=4))
+    sections.append(section(".plt", 1, plt_flags if plt_flags is not None else plt_section_flags,
+                            plt_address, plt_offset, len(plt), align=4))
     sections.append(section(".shstrtab", 3, 0, 0, shstr_offset, len(shstr)))
     sections.append(section(".dynstr", 3, 2, dynstr_offset, dynstr_offset, len(dynstr)))
     sections.append(section(".dynsym", 11, 2, dynsym_offset, dynsym_offset, len(dynsym),
@@ -203,6 +235,919 @@ def test_synthetic_arm_elf_loader_applies_relative_relocation(tmp_path: Path):
     assert jump_slot == IMPORT_BASE | 1
 
 
+def _synthetic_mapping_elf(path: Path, **options):
+    digest = _synthetic_arm_shared_object(path, **options)
+    raw = path.read_bytes()
+    return _elf32_file(raw), raw, digest
+
+
+def _elf32_file(raw):
+    from elftools.elf.elffile import ELFFile
+
+    return ELFFile(BytesIO(raw))
+
+
+def test_segment_mapper_copies_load_images_and_zeroes_bss(tmp_path: Path):
+    artifact = tmp_path / "mapping-bss.so"
+    _initial_elf, _raw, digest = _synthetic_mapping_elf(artifact, data_bss_bytes=32)
+    raw = bytearray(artifact.read_bytes())
+    data_load = next(
+        segment for segment in _initial_elf.iter_segments()
+        if segment["p_type"] == "PT_LOAD" and int(segment["p_vaddr"]) == 0x2000
+    )
+    file_tail = int(data_load["p_offset"]) + int(data_load["p_filesz"])
+    raw[file_tail:file_tail + 32] = bytes([0xA5]) * 32
+    artifact.write_bytes(raw)
+    source_digest = hashlib.sha256(raw).hexdigest()
+    elf = _elf32_file(raw)
+    plan = plan_elf32_mapping(elf, "synthetic-provider", 0x01000000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    regions = map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x01002000, int(data_load["p_filesz"])) == raw[
+        int(data_load["p_offset"]):file_tail
+    ]
+    assert bytes(raw[file_tail:file_tail + 32]) == bytes([0xA5]) * 32
+    assert emulator.mem_read(0x01002000 + int(data_load["p_filesz"]), 32) == bytes(32)
+    assert [region[2] for region in regions if region[0] == 0x01001000] == [UC_PROT_READ | UC_PROT_EXEC]
+    assert [region[2] for region in regions if region[0] == 0x01002000] == [UC_PROT_READ | UC_PROT_WRITE]
+    assert hashlib.sha256(artifact.read_bytes()).hexdigest() == source_digest
+
+
+def test_writable_unaligned_file_tail_is_zeroed_without_explicit_bss(tmp_path: Path):
+    artifact = tmp_path / "mapping-writable-page-tail.so"
+    _initial_elf, raw, _digest = _synthetic_mapping_elf(artifact)
+    data_load_index = next(
+        index for index in range(struct.unpack_from("<H", raw, 44)[0])
+        if struct.unpack_from("<I", raw, 52 + index * 32)[0] == 1
+        and struct.unpack_from("<I", raw, 52 + index * 32 + 8)[0] == 0x2000
+    )
+    header = 52 + data_load_index * 32
+    file_size = 0x19
+    patched = bytearray(raw)
+    struct.pack_into("<II", patched, header + 16, file_size, file_size)
+    patched[0x2000 + file_size:0x3000] = bytes([0xA5]) * (PAGE_SIZE - file_size)
+    artifact.write_bytes(patched)
+    elf = _elf32_file(patched)
+    plan = plan_elf32_mapping(elf, "writable-tail", 0x01000000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x01002000, file_size) == patched[0x2000:0x2000 + file_size]
+    assert emulator.mem_read(0x01002000 + file_size, PAGE_SIZE - file_size) == bytes(PAGE_SIZE - file_size)
+
+
+def test_segment_mapper_rejects_reserved_runtime_range_before_mapping(tmp_path: Path):
+    artifact = tmp_path / "mapping-reserved-runtime.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    load_bias = STACK_BASE - 0x1000
+    plan = plan_elf32_mapping(elf, "reserved-runtime", load_bias)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="reserved emulator runtime mapping"):
+        map_elf32_segments(emulator, elf, plan)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_root_loader_rejects_dependency_address_range(tmp_path: Path):
+    artifact = tmp_path / "root-dependency-range.so"
+    digest = _synthetic_arm_shared_object(artifact)
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="reserved root image address range"):
+        _load_image(
+            emulator, elf, relocation_tables, dynamic_symbols,
+            load_bias=DEPENDENCY_START_ADDRESS - 0x1000,
+            map_runtime_support=False,
+        )
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_root_loader_keeps_runtime_range_reserved_without_optional_stubs(tmp_path: Path):
+    artifact = tmp_path / "root-runtime-range.so"
+    digest = _synthetic_arm_shared_object(artifact)
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="overlaps an existing image or reserved mapping"):
+        _load_image(
+            emulator, elf, relocation_tables, dynamic_symbols,
+            load_bias=STACK_BASE - 0x1000, map_runtime_support=False,
+        )
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_segment_mapper_rejects_source_bytes_changed_after_planning(tmp_path: Path):
+    artifact = tmp_path / "mapping-source-changed.so"
+    elf, raw, _digest = _synthetic_mapping_elf(artifact)
+    plan = plan_elf32_mapping(elf, "source-bound-plan", 0x02000000)
+    changed = bytearray(raw)
+    changed[0x1010] ^= 0x01
+    changed_elf = _elf32_file(changed)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="plan does not match current source bytes"):
+        map_elf32_segments(emulator, changed_elf, plan)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_segment_mapper_rechecks_plan_specific_mapping_limit(tmp_path: Path):
+    artifact = tmp_path / "mapping-plan-limit.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    plan = plan_elf32_mapping(elf, "plan-limit", 0x02000000)
+    constrained = replace(plan, max_mapping_bytes=PAGE_SIZE)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="bounded mapping size"):
+        map_elf32_segments(emulator, elf, constrained)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_segment_mapper_reads_only_from_its_verified_source_snapshot(tmp_path: Path):
+    from elftools.elf.elffile import ELFFile
+
+    artifact = tmp_path / "mapping-snapshot-source.so"
+    _initial, raw, _digest = _synthetic_mapping_elf(artifact)
+
+    class MutableStream(BytesIO):
+        mutate_reads = False
+
+        def read(self, size=-1):
+            data = super().read(size)
+            if self.mutate_reads:
+                return bytes((byte ^ 0xFF) for byte in data)
+            return data
+
+    stream = MutableStream(raw)
+    elf = ELFFile(stream)
+    plan = plan_elf32_mapping(elf, "snapshot-bound", 0x02000000)
+    stream.mutate_reads = True
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x02001000, 32) == raw[0x1000:0x1020]
+
+
+def test_segment_planner_rejects_source_above_artifact_limit(tmp_path: Path, monkeypatch):
+    artifact = tmp_path / "mapping-source-limit.so"
+    elf, raw, _digest = _synthetic_mapping_elf(artifact)
+    monkeypatch.setattr("tools.honda_native_boundary_probe.MAX_ARTIFACT_BYTES", len(raw) - 1)
+
+    with pytest.raises(ValueError, match="source-size bound"):
+        plan_elf32_mapping(elf, "oversized-source", 0x02000000)
+
+
+def test_segment_mapper_rejects_oversized_source_before_snapshot_copy(tmp_path: Path, monkeypatch):
+    artifact = tmp_path / "mapping-snapshot-limit.so"
+    elf, raw, _digest = _synthetic_mapping_elf(artifact)
+    plan = plan_elf32_mapping(elf, "snapshot-size-limit", 0x02000000)
+    monkeypatch.setattr("tools.honda_native_boundary_probe.MAX_ARTIFACT_BYTES", len(raw) - 1)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="source-size bound"):
+        map_elf32_segments(emulator, elf, plan)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_segment_mapper_shared_page_uses_later_api17_segment_protection(tmp_path: Path):
+    artifact = tmp_path / "mapping-shared-page.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(
+        artifact, plt_address=0x1FF0, plt_file_offset=0x1FF0,
+        plt_alignment=0x1000, plt_flags=6,
+    )
+    plan = plan_elf32_mapping(elf, "shared-page", 0x02000000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    regions = map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x02001000, 32) == elf.stream.getvalue()[0x1000:0x1020]
+    assert emulator.mem_read(0x02001FF0, 12) == elf.stream.getvalue()[0x1FF0:0x1FFC]
+    page = next(region for region in regions if region[0] == 0x02001000)
+    assert page[2] == UC_PROT_READ | UC_PROT_WRITE
+
+
+def test_segment_mapper_shared_page_permissions_follow_final_program_header(tmp_path: Path):
+    artifact = tmp_path / "mapping-shared-page-reversed.so"
+    _elf, raw, _digest = _synthetic_mapping_elf(
+        artifact, plt_address=0x1FF0, plt_file_offset=0x1FF0,
+        plt_alignment=0x1000, plt_flags=6,
+    )
+    data = bytearray(raw)
+    first = bytes(data[52:84])
+    third = bytes(data[52 + 64:52 + 96])
+    data[52:84] = third
+    data[52 + 64:52 + 96] = first
+    struct.pack_into("<I", data, 52 + 4, 0x3FF0)
+    artifact.write_bytes(data)
+    elf = _elf32_file(data)
+    plan = plan_elf32_mapping(elf, "reversed-page-order", 0x02100000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    regions = map_elf32_segments(emulator, elf, plan)
+
+    sharing_segments = [
+        segment for segment in elf.iter_segments()
+        if segment["p_type"] == "PT_LOAD"
+        and ((0x02100000 + int(segment["p_vaddr"])) & ~(PAGE_SIZE - 1)) == 0x02101000
+    ]
+    assert len(sharing_segments) >= 2
+    earlier, later = sharing_segments[-2:]
+    earlier_file_page = int(earlier["p_offset"]) & ~(PAGE_SIZE - 1)
+    later_file_page = int(later["p_offset"]) & ~(PAGE_SIZE - 1)
+    assert earlier_file_page != later_file_page
+    assert data[earlier_file_page + 0xFF0:earlier_file_page + 0xFFC] != data[
+        later_file_page + 0xFF0:later_file_page + 0xFFC
+    ]
+    assert emulator.mem_read(0x02101000, PAGE_SIZE) == data[later_file_page:later_file_page + PAGE_SIZE]
+    assert emulator.mem_read(0x02101FF0, 12) == data[0x1FF0:0x1FFC]
+    page = next(region for region in regions if region[0] == 0x02101000)
+    assert page[2] == UC_PROT_READ | UC_PROT_EXEC
+
+
+def test_segment_mapper_shared_page_maps_the_later_file_page(tmp_path: Path):
+    artifact = tmp_path / "mapping-shared-page-different-file-page.so"
+    elf, raw, _digest = _synthetic_mapping_elf(
+        artifact, plt_address=0x1FF0, plt_file_offset=0x3FF0,
+        plt_alignment=0x1000, plt_flags=5,
+    )
+    plan = plan_elf32_mapping(elf, "shared-page-later-file", 0x02400000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x02401000, PAGE_SIZE) == raw[0x3000:0x4000]
+    assert emulator.mem_read(0x02401FF0, 12) == raw[0x3FF0:0x3FFC]
+
+
+def test_segment_mapper_three_shared_headers_apply_last_bss_page(tmp_path: Path):
+    artifact = tmp_path / "mapping-three-shared-headers.so"
+    _elf, raw, _digest = _synthetic_mapping_elf(artifact)
+    data = bytearray(raw)
+    for index, file_offset, virtual_address, file_size, memory_size, flags in (
+        (0, 0x1000, 0x1000, 0x20, 0x20, 5),
+        (1, 0x2020, 0x1020, 0x8, 0x8, 6),
+        (2, 0x3028, 0x1028, 0, 0x40, 6),
+    ):
+        header = 52 + index * 32
+        struct.pack_into("<III", data, header + 4,
+                         file_offset, virtual_address, virtual_address)
+        struct.pack_into("<III", data, header + 16,
+                         file_size, memory_size, flags)
+    elf = _elf32_file(data)
+    plan = plan_elf32_mapping(elf, "three-shared-headers", 0x02600000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    regions = map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x02601000, 0x28) == data[0x3000:0x3028]
+    assert emulator.mem_read(0x02601028, 0xD8) == bytes(0xD8)
+    page = next(region for region in regions if region[0] == 0x02601000)
+    assert page[2] == UC_PROT_READ | UC_PROT_WRITE
+
+
+def test_segment_planner_rejects_readonly_partial_page_bss(tmp_path: Path):
+    artifact = tmp_path / "mapping-readonly-bss.so"
+    _synthetic_arm_shared_object(artifact, data_bss_bytes=32)
+    raw = bytearray(artifact.read_bytes())
+    struct.pack_into("<I", raw, 52 + 32 + 24, 4)
+    elf = _elf32_file(raw)
+    with pytest.raises(ValueError, match="read-only partial-page BSS"):
+        plan_elf32_mapping(elf, "readonly-bss", 0x02500000)
+
+
+def test_segment_planner_rejects_readonly_unaligned_zero_filesz_segment(tmp_path: Path):
+    artifact = tmp_path / "mapping-readonly-zero-filesz.so"
+    _synthetic_arm_shared_object(artifact)
+    data = bytearray(artifact.read_bytes())
+    phdr = 52 + 32
+    struct.pack_into("<III", data, phdr + 4, 0x2028, 0x2028, 0x2028)
+    struct.pack_into("<II", data, phdr + 16, 0, 0x20)
+    struct.pack_into("<I", data, phdr + 24, 4)
+    elf = _elf32_file(data)
+
+    with pytest.raises(ValueError, match="read-only partial-page BSS"):
+        plan_elf32_mapping(elf, "readonly-zero-filesz", 0x02510000)
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"plt_address": 0x1FF0, "plt_file_offset": 0x3FF0, "plt_flags": 7},
+         "writable executable page"),
+        ({"data_bss_bytes": -1}, "file or memory bounds"),
+    ],
+)
+def test_segment_mapper_rejects_unsafe_segment_layout(tmp_path: Path, options, message):
+    artifact = tmp_path / "invalid-mapping.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact, **options)
+    with pytest.raises(ValueError, match=message):
+        plan_elf32_mapping(elf, "invalid", 0x03000000)
+
+
+def test_segment_mapper_rejects_unaligned_bias_and_empty_identity(tmp_path: Path):
+    artifact = tmp_path / "mapping-arguments.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    with pytest.raises(ValueError, match="page-aligned"):
+        plan_elf32_mapping(elf, "image", 0x01000001)
+    with pytest.raises(ValueError, match="identity"):
+        plan_elf32_mapping(elf, "", 0x01000000)
+
+
+def test_segment_mapper_rejects_load_bias_overflow_and_existing_overlap(tmp_path: Path):
+    artifact = tmp_path / "mapping-bounds.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    with pytest.raises(ValueError, match="overflows ELF32"):
+        plan_elf32_mapping(elf, "overflow", 0xFFFFF000)
+    with pytest.raises(ValueError, match="overlaps an existing image"):
+        plan_elf32_mapping(elf, "collision", 0x01000000,
+                           mapped_ranges=((0x01001000, 0x01002000),))
+
+
+def test_segment_mapper_rejects_invalid_file_offset(tmp_path: Path):
+    from elftools.elf.elffile import ELFFile
+
+    artifact = tmp_path / "mapping-invalid-offset.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    struct.pack_into("<I", raw, 88, len(raw) + 1)
+    elf = ELFFile(BytesIO(raw))
+    with pytest.raises(ValueError, match="file or memory bounds"):
+        plan_elf32_mapping(elf, "bad-file-range", 0x04000000)
+
+
+def test_segment_planner_rejects_nonreadable_load_segment(tmp_path: Path):
+    artifact = tmp_path / "mapping-nonreadable.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    struct.pack_into("<I", raw, 52 + 24, 1)
+    elf = _elf32_file(raw)
+    with pytest.raises(ValueError, match="without read permission"):
+        plan_elf32_mapping(elf, "nonreadable-load", 0x04000000)
+
+
+def test_textrel_inspection_rejects_out_of_file_dynamic_segment(tmp_path: Path):
+    from elftools.elf.elffile import ELFFile
+
+    artifact = tmp_path / "mapping-invalid-dynamic.so"
+    _synthetic_arm_shared_object(artifact, declare_textrel=True)
+    raw = bytearray(artifact.read_bytes())
+    original = ELFFile(BytesIO(raw))
+    dynamic_index = next(
+        index for index, segment in enumerate(original.iter_segments())
+        if segment["p_type"] == "PT_DYNAMIC"
+    )
+    struct.pack_into("<I", raw, 52 + dynamic_index * 32 + 4, len(raw) + 1)
+
+    with pytest.raises(ValueError, match="PT_DYNAMIC is outside consistent"):
+        _elf_declares_textrel(ELFFile(BytesIO(raw)))
+
+
+def test_dynamic_segment_rejects_excessive_entry_count_before_read(tmp_path: Path):
+    from elftools.elf.elffile import ELFFile
+    from elftools.elf.relocation import RelocationSection
+
+    artifact = tmp_path / "mapping-oversized-dynamic.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    original = ELFFile(BytesIO(raw))
+    dynamic_index = next(
+        index for index, segment in enumerate(original.iter_segments())
+        if segment["p_type"] == "PT_DYNAMIC"
+    )
+    dynamic_header = 52 + dynamic_index * 32
+    excessive_size = MAX_DYNAMIC_BYTES + 8
+    struct.pack_into("<II", raw, dynamic_header + 16, excessive_size, excessive_size)
+    elf = ELFFile(BytesIO(raw))
+
+    with pytest.raises(ValueError, match="PT_DYNAMIC exceeds the supported entry-count bound"):
+        _elf_declares_textrel(elf)
+    with pytest.raises(ValueError, match="PT_DYNAMIC exceeds the supported entry-count bound"):
+        _validate_dynamic_relocations(elf, RelocationSection, len(raw))
+
+
+def test_segment_mapper_rejects_out_of_bounds_program_header_table(tmp_path: Path):
+    artifact = tmp_path / "mapping-invalid-phdr-table.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    struct.pack_into("<I", raw, 28, len(raw) + 1)
+    elf = _elf32_file(raw)
+    with pytest.raises(ValueError, match="program-header table is outside file bounds"):
+        plan_elf32_mapping(elf, "bad-phdr-table", 0x04000000)
+    with pytest.raises(ValueError, match="program-header table is outside file bounds"):
+        plan_elf32_dependency_mappings((("bad-phdr-table", elf),))
+
+
+def test_segment_mapper_rejects_invalid_program_alignment(tmp_path: Path):
+    from elftools.elf.elffile import ELFFile
+
+    artifact = tmp_path / "mapping-invalid-alignment.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    struct.pack_into("<I", raw, 112, 3)
+    elf = ELFFile(BytesIO(raw))
+    with pytest.raises(ValueError, match="alignment is invalid"):
+        plan_elf32_mapping(elf, "bad-alignment", 0x04000000)
+
+
+def test_segment_mapper_rejects_memory_limit_and_emulator_collision(tmp_path: Path):
+    artifact = tmp_path / "mapping-limits.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    with pytest.raises(ValueError, match="mapping size"):
+        plan_elf32_mapping(elf, "too-large", 0x01000000, max_mapping_bytes=PAGE_SIZE)
+    plan = plan_elf32_mapping(elf, "mapped", 0x01000000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    emulator.mem_map(0x01001000, 0x1000, UC_PROT_READ)
+    with pytest.raises(ValueError, match="overlaps an existing emulator mapping"):
+        map_elf32_segments(emulator, elf, plan)
+
+    with pytest.raises(ValueError, match="total emulator memory bound"):
+        map_elf32_segments(Uc(UC_ARCH_ARM, UC_MODE_THUMB), elf, plan,
+                           max_total_mapped_bytes=PAGE_SIZE)
+
+
+def test_segment_mapper_rolls_back_partial_mapping_after_write_failure(tmp_path: Path):
+    artifact = tmp_path / "mapping-write-failure.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    plan = plan_elf32_mapping(elf, "rollback-fixture", 0x02300000)
+
+    class FailingWriteUc:
+        def __init__(self):
+            self.inner = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+        def mem_write(self, _address, _data):
+            raise RuntimeError("injected host write failure")
+
+    emulator = FailingWriteUc()
+    with pytest.raises(RuntimeError, match="injected host write failure"):
+        map_elf32_segments(emulator, elf, plan)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_segment_mapper_handles_bss_only_unaligned_segment(tmp_path: Path):
+    artifact = tmp_path / "mapping-bss-only.so"
+    _elf, raw, _digest = _synthetic_mapping_elf(artifact)
+    data = bytearray(raw)
+    phdr = 52 + 32
+    struct.pack_into("<III", data, phdr + 4, 0x2028, 0x2028, 0x2028)
+    struct.pack_into("<II", data, phdr + 16, 0, 0x20)
+    artifact.write_bytes(data)
+    elf = _elf32_file(data)
+    plan = plan_elf32_mapping(elf, "bss-only", 0x02200000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    map_elf32_segments(emulator, elf, plan)
+
+    assert emulator.mem_read(0x02202000, 0x48) == data[0x2000:0x2028] + bytes(0x20)
+
+
+def test_relocation_loader_uses_mapped_image_load_bias(tmp_path: Path):
+    artifact = tmp_path / "biased-relocation.so"
+    digest = _synthetic_arm_shared_object(artifact)
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+    bias = 0x00600000
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    _load_image(
+        emulator, elf, relocation_tables, dynamic_symbols,
+        identity="biased-fixture", load_bias=bias,
+        map_runtime_support=True,
+    )
+    assert struct.unpack("<I", emulator.mem_read(bias + 0x2020, 4))[0] == bias + 0x10
+
+
+def test_writable_segment_relocation_uses_temporary_nx_on_readonly_shared_page(tmp_path: Path):
+    artifact = tmp_path / "writable-relocation-shared-page.so"
+    _synthetic_arm_shared_object(
+        artifact, plt_address=0x1FF0, plt_file_offset=0x1FF0,
+        plt_flags=6, plt_alignment=0x1000, declare_textrel=True,
+    )
+    raw = bytearray(artifact.read_bytes())
+    first = bytes(raw[52:84])
+    third = bytes(raw[52 + 64:52 + 96])
+    raw[52:84] = third
+    raw[52 + 64:52 + 96] = first
+    struct.pack_into("<I", raw, 0x4000, 0x1FF0)
+    artifact.write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(
+        artifact, digest, allow_textrel=True,
+    )
+
+    class RecordingUc:
+        def __init__(self):
+            self.inner = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+            self.protections = []
+            self.write_permissions = []
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+        def mem_protect(self, address, size, permissions):
+            self.protections.append((address, size, permissions))
+            return self.inner.mem_protect(address, size, permissions)
+
+        def mem_write(self, address, data):
+            page = address & ~(PAGE_SIZE - 1)
+            region = next((region for region in self.inner.mem_regions()
+                           if region[0] <= page <= region[1]), None)
+            self.write_permissions.append((address, None if region is None else region[2]))
+            return self.inner.mem_write(address, data)
+
+    emulator = RecordingUc()
+    _load_image(emulator, elf, relocation_tables, dynamic_symbols, allow_textrel=True)
+    initial_addend = struct.unpack_from("<I", raw, 0x1FF0)[0]
+    assert struct.unpack("<I", emulator.mem_read(LOAD_BASE + 0x1FF0, 4))[0] == (
+        LOAD_BASE + initial_addend
+    ) & 0xFFFFFFFF
+    assert (LOAD_BASE + 0x1000, PAGE_SIZE, UC_PROT_READ | UC_PROT_WRITE) in emulator.protections
+    assert (LOAD_BASE + 0x1000, PAGE_SIZE, UC_PROT_READ | UC_PROT_EXEC) in emulator.protections
+    assert not any(flags & UC_PROT_WRITE and flags & UC_PROT_EXEC
+                   for _address, _size, flags in emulator.protections)
+    target_write = [flags for address, flags in emulator.write_permissions
+                    if address == LOAD_BASE + 0x1FF0]
+    assert target_write[-1] == UC_PROT_READ | UC_PROT_WRITE
+
+
+def test_writable_segment_shared_with_readonly_page_requires_textrel(tmp_path: Path):
+    artifact = tmp_path / "undeclared-shared-page-relocation.so"
+    _synthetic_arm_shared_object(
+        artifact, plt_address=0x1FF0, plt_file_offset=0x1FF0,
+        plt_flags=6, plt_alignment=0x1000,
+    )
+    raw = bytearray(artifact.read_bytes())
+    first = bytes(raw[52:84])
+    third = bytes(raw[52 + 64:52 + 96])
+    raw[52:84] = third
+    raw[52 + 64:52 + 96] = first
+    struct.pack_into("<I", raw, 0x4000, 0x1FF0)
+    artifact.write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+
+    with pytest.raises(ValueError, match="requires declared text relocation support"):
+        _load_image(Uc(UC_ARCH_ARM, UC_MODE_THUMB), elf,
+                    relocation_tables, dynamic_symbols)
+
+
+def test_relocation_rejects_readonly_segment_even_when_shared_page_is_writable(tmp_path: Path):
+    artifact = tmp_path / "readonly-relocation-shared-page.so"
+    _synthetic_arm_shared_object(
+        artifact, plt_address=0x1F00, plt_file_offset=0x1F00,
+        plt_flags=5, plt_alignment=0x1000,
+    )
+    raw = bytearray(artifact.read_bytes())
+    raw[0x1F10:0x1F10 + 40] = raw[0x2000:0x2028]
+    data_phdr = bytes(raw[52 + 32:52 + 64])
+    plt_phdr = bytes(raw[52 + 64:52 + 96])
+    raw[52 + 32:52 + 64] = plt_phdr
+    raw[52 + 64:52 + 96] = data_phdr
+    struct.pack_into("<III", raw, 52 + 64 + 4, 0x1F10, 0x1F10, 0x1F10)
+    struct.pack_into("<I", raw, 0x4000, 0x1F00)
+    artifact.write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+
+    with pytest.raises(ValueError, match="outside writable loadable data"):
+        _load_image(Uc(UC_ARCH_ARM, UC_MODE_THUMB), elf,
+                    relocation_tables, dynamic_symbols)
+
+
+def test_api17_gnu_relro_is_read_only_after_relocation(tmp_path: Path):
+    artifact = tmp_path / "gnu-relro.so"
+    digest = _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    struct.pack_into("<H", raw, 44, 6)
+    relro = struct.pack("<IIIIIIII", 0x6474E552, 0x2000, 0x2000, 0x2000,
+                        0x28, 0x28, 4, 4)
+    raw[52 + 5 * 32:52 + 6 * 32] = relro
+    artifact.write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    _load_image(emulator, elf, relocation_tables, dynamic_symbols)
+
+    assert struct.unpack("<I", emulator.mem_read(LOAD_BASE + 0x2020, 4))[0] == LOAD_BASE + 0x10
+    data_page = next(region for region in emulator.mem_regions()
+                     if region[0] == LOAD_BASE + 0x2000)
+    assert data_page[2] == UC_PROT_READ
+
+
+def test_api17_relro_rounding_protects_a_shared_writable_page(tmp_path: Path):
+    artifact = tmp_path / "gnu-relro-shared-page.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    shared_data_offset = 0x3028
+    shared_data_header = 52 + 6 * 32
+    struct.pack_into("<H", raw, 44, 7)
+    struct.pack_into(
+        "<IIIIIIII", raw, shared_data_header,
+        1, shared_data_offset, 0x2028, 0x2028, 0x10, 0x10, 6, 0x1000,
+    )
+    relro_header = 52 + 5 * 32
+    struct.pack_into(
+        "<IIIIIIII", raw, relro_header,
+        0x6474E552, 0x2000, 0x2000, 0x2000, 0x28, 0x28, 4, 4,
+    )
+    elf = _elf32_file(raw)
+    plan = plan_elf32_mapping(elf, "relro-shared-page", LOAD_BASE)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    regions = map_elf32_segments(emulator, elf, plan)
+
+    page = next(region for region in regions if region[0] == LOAD_BASE + 0x2000)
+    assert page[2] == UC_PROT_READ
+    assert emulator.mem_read(LOAD_BASE + 0x2028, 0x10) == raw[shared_data_offset:shared_data_offset + 0x10]
+
+
+def test_textrel_disabled_rejects_before_mapping_segments(tmp_path: Path):
+    artifact = tmp_path / "textrel-disabled.so"
+    digest = _synthetic_arm_shared_object(
+        artifact, relative_target=0x1020, relative_initial_addend=0, declare_textrel=True,
+    )
+    elf, _raw, tables, symbols = _read_elf(artifact, digest, allow_textrel=True)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    with pytest.raises(ValueError, match="support is disabled"):
+        _load_image(emulator, elf, tables, symbols)
+    assert tuple(emulator.mem_regions()) == ()
+    with pytest.raises(RuntimeError, match="unusable after a loader failure"):
+        _load_image(emulator, elf, tables, symbols)
+    with pytest.raises(RuntimeError, match="unusable after a loader failure"):
+        _execute_bounded(
+            emulator, entry=LOAD_BASE + 0x1000,
+            allowed_ranges=((LOAD_BASE + 0x1000, LOAD_BASE + 0x1038),),
+            sentinel=RETURN_BASE, import_stub=IMPORT_BASE,
+            instruction_limit=8, return_register=UC_ARM_REG_R0,
+        )
+
+
+def test_api17_textrel_write_is_temporary_and_final_permissions_are_restored(tmp_path: Path):
+    artifact = tmp_path / "textrel.so"
+    digest = _synthetic_arm_shared_object(
+        artifact, relative_target=0x1020, relative_initial_addend=0, declare_textrel=True,
+    )
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(
+        artifact, digest, allow_textrel=True,
+    )
+    class RecordingUc:
+        def __init__(self):
+            self.inner = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+            self.protections = []
+            self.write_permissions = []
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+        def mem_protect(self, address, size, permissions):
+            self.protections.append((address, size, permissions))
+            return self.inner.mem_protect(address, size, permissions)
+
+        def mem_write(self, address, data):
+            page = address & ~(PAGE_SIZE - 1)
+            region = next((region for region in self.inner.mem_regions()
+                           if region[0] <= page <= region[1]), None)
+            self.write_permissions.append((address, None if region is None else region[2]))
+            return self.inner.mem_write(address, data)
+
+    emulator = RecordingUc()
+    _load_image(
+        emulator, elf, relocation_tables, dynamic_symbols,
+        identity="textrel-fixture", allow_textrel=True,
+    )
+    assert struct.unpack("<I", emulator.mem_read(LOAD_BASE + 0x1020, 4))[0] == LOAD_BASE
+    assert (LOAD_BASE + 0x1000, PAGE_SIZE, UC_PROT_READ | UC_PROT_WRITE) in emulator.protections
+    assert (LOAD_BASE + 0x1000, PAGE_SIZE, UC_PROT_READ | UC_PROT_EXEC) in emulator.protections
+    assert not any(flags & UC_PROT_WRITE and flags & UC_PROT_EXEC
+                   for _address, _size, flags in emulator.protections)
+    target_write = [flags for address, flags in emulator.write_permissions
+                    if address == LOAD_BASE + 0x1020]
+    assert target_write[-1] == UC_PROT_READ | UC_PROT_WRITE
+    final_page = next(region for region in emulator.mem_regions()
+                      if region[0] == LOAD_BASE + 0x1000)
+    assert final_page[2] == UC_PROT_READ | UC_PROT_EXEC
+
+
+def test_textrel_requires_explicit_support_and_declared_elf_flag(tmp_path: Path):
+    declared = tmp_path / "declared-textrel.so"
+    digest = _synthetic_arm_shared_object(
+        declared, relative_target=0x1020, relative_initial_addend=0, declare_textrel=True,
+    )
+    with pytest.raises(ValueError, match="DT_TEXTREL relocations are unsupported"):
+        _read_elf(declared, digest)
+    elf, _raw, tables, symbols = _read_elf(declared, digest, allow_textrel=True)
+    with pytest.raises(ValueError, match="support is disabled"):
+        _load_image(Uc(UC_ARCH_ARM, UC_MODE_THUMB), elf, tables, symbols)
+
+    undeclared = tmp_path / "undeclared-textrel.so"
+    digest = _synthetic_arm_shared_object(
+        undeclared, relative_target=0x1020, relative_initial_addend=0,
+    )
+    elf, _raw, tables, symbols = _read_elf(undeclared, digest)
+    with pytest.raises(ValueError, match="outside writable loadable data"):
+        _load_image(
+            Uc(UC_ARCH_ARM, UC_MODE_THUMB), elf, tables, symbols,
+            allow_textrel=True,
+        )
+
+
+def test_relocation_rejects_misaligned_word_target(tmp_path: Path):
+    artifact = tmp_path / "misaligned-relocation-target.so"
+    digest = _synthetic_arm_shared_object(artifact, relative_target=0x1FFE)
+    elf, _raw, relocation_tables, dynamic_symbols = _read_elf(artifact, digest)
+
+    with pytest.raises(ValueError, match="ARM word relocation target is misaligned"):
+        _load_image(Uc(UC_ARCH_ARM, UC_MODE_THUMB), elf, relocation_tables, dynamic_symbols)
+
+
+def test_dependency_layout_is_deterministic_and_keeps_images_distinct(tmp_path: Path):
+    first_path, second_path = tmp_path / "first.so", tmp_path / "second.so"
+    first, _first_raw, _ = _synthetic_mapping_elf(first_path)
+    second, _second_raw, _ = _synthetic_mapping_elf(second_path)
+    images = (("requester", first), ("provider", second))
+    one = plan_elf32_dependency_mappings(images)
+    two = plan_elf32_dependency_mappings(images)
+    assert one == two
+    assert one[0].identity == "requester"
+    assert one[1].identity == "provider"
+    assert one[0].image_end + PAGE_SIZE <= one[1].image_start
+    assert one[0].load_bias != one[1].load_bias
+
+
+def test_dependency_plans_map_as_distinct_images_in_one_emulator(tmp_path: Path):
+    first, first_raw, _ = _synthetic_mapping_elf(tmp_path / "mapped-first.so")
+    second, second_raw, _ = _synthetic_mapping_elf(tmp_path / "mapped-second.so")
+    plans = plan_elf32_dependency_mappings((
+        ("mapped-first", first), ("mapped-second", second),
+    ))
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    images = (("mapped-first", first), ("mapped-second", second))
+    mapped = map_elf32_dependency_segments(emulator, images, plans)
+
+    assert all(mapped)
+    assert plans[0].image_end + PAGE_SIZE <= plans[1].image_start
+    first_regions = tuple(
+        region for region in mapped if plans[0].image_start <= region[0] < plans[0].image_end
+    )
+    second_regions = tuple(
+        region for region in mapped if plans[1].image_start <= region[0] < plans[1].image_end
+    )
+    for first_region in first_regions:
+        for second_region in second_regions:
+            assert not (first_region[0] < second_region[1]
+                        and second_region[0] < first_region[1])
+    first_segment = next(segment for segment in plans[0].segments if segment.file_size)
+    second_segment = next(segment for segment in plans[1].segments if segment.file_size)
+    assert emulator.mem_read(
+        plans[0].load_bias + first_segment.virtual_address, first_segment.file_size,
+    ) == first_raw[first_segment.file_offset:first_segment.file_offset + first_segment.file_size]
+    assert emulator.mem_read(
+        plans[1].load_bias + second_segment.virtual_address, second_segment.file_size,
+    ) == second_raw[second_segment.file_offset:second_segment.file_offset + second_segment.file_size]
+
+
+def test_dependency_mapper_enforces_aggregate_source_limit(tmp_path: Path, monkeypatch):
+    first, _first_raw, _ = _synthetic_mapping_elf(tmp_path / "source-first.so")
+    second, _second_raw, _ = _synthetic_mapping_elf(tmp_path / "source-second.so")
+    images = (("source-first", first), ("source-second", second))
+    plans = plan_elf32_dependency_mappings(images)
+    monkeypatch.setattr("tools.honda_native_boundary_probe.MAX_DEPENDENCY_SOURCE_BYTES", 1)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="total source-size bound"):
+        map_elf32_dependency_segments(emulator, images, plans)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_dependency_mapper_enforces_planned_mapping_budget(tmp_path: Path):
+    first, _first_raw, _ = _synthetic_mapping_elf(tmp_path / "budget-first.so")
+    second, _second_raw, _ = _synthetic_mapping_elf(tmp_path / "budget-second.so")
+    images = (("budget-first", first), ("budget-second", second))
+    plans = plan_elf32_dependency_mappings(images)
+    first_image_bytes = len(plans[0].page_permissions) * PAGE_SIZE
+    constrained = tuple(replace(plan, dependency_mapping_budget=first_image_bytes)
+                       for plan in plans)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="total emulator memory bound"):
+        map_elf32_dependency_segments(emulator, images, constrained)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_dependency_mapper_rejects_more_than_64_images_before_mapping():
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+    images = tuple((f"image-{index}", None) for index in range(65))
+
+    with pytest.raises(ValueError, match="within 1..64"):
+        map_elf32_dependency_segments(emulator, images, ())
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_dependency_batch_rolls_back_prior_images_when_later_map_fails(tmp_path: Path):
+    first, _first_raw, _ = _synthetic_mapping_elf(tmp_path / "rollback-first.so")
+    second, _second_raw, _ = _synthetic_mapping_elf(tmp_path / "rollback-second.so")
+    images = (("rollback-first", first), ("rollback-second", second))
+    plans = plan_elf32_dependency_mappings(images)
+    second_start = plans[1].image_start
+
+    class FailingSecondImageUc:
+        def __init__(self):
+            self.inner = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+        def mem_write(self, address, data):
+            if address >= second_start:
+                raise RuntimeError("injected second-image write failure")
+            return self.inner.mem_write(address, data)
+
+    emulator = FailingSecondImageUc()
+    with pytest.raises(RuntimeError, match="injected second-image write failure"):
+        map_elf32_dependency_segments(emulator, images, plans)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_segment_mapper_poisons_emulator_when_rollback_fails(tmp_path: Path):
+    artifact = tmp_path / "rollback-failure.so"
+    elf, _raw, _digest = _synthetic_mapping_elf(artifact)
+    plan = plan_elf32_mapping(elf, "rollback-failure", 0x02200000)
+
+    class FailingCleanupUc:
+        def __init__(self):
+            self.inner = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+        def mem_write(self, _address, _data):
+            raise RuntimeError("injected page-write failure")
+
+        def mem_unmap(self, _address, _size):
+            raise RuntimeError("injected rollback failure")
+
+    emulator = FailingCleanupUc()
+    with pytest.raises(RuntimeError, match="rollback was incomplete"):
+        map_elf32_segments(emulator, elf, plan)
+    assert emulator._claritylink_loader_failed is True
+    with pytest.raises(RuntimeError, match="emulator is unusable"):
+        map_elf32_segments(emulator, elf, plan)
+
+
+def test_dependency_batch_rejects_matching_plan_below_dependency_range(tmp_path: Path):
+    elf, _raw, _ = _synthetic_mapping_elf(tmp_path / "dependency-low-plan.so")
+    plan = plan_elf32_mapping(elf, "low-dependency", 0x02000000)
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="outside the reserved dependency address range"):
+        map_elf32_dependency_segments(emulator, (("low-dependency", elf),), (plan,))
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_dependency_batch_rejects_pairwise_overlapping_plans(tmp_path: Path):
+    first, _raw, _ = _synthetic_mapping_elf(tmp_path / "overlap-first.so")
+    second, _raw2, _ = _synthetic_mapping_elf(tmp_path / "overlap-second.so")
+    images = (("overlap-first", first), ("overlap-second", second))
+    shared_bias = DEPENDENCY_START_ADDRESS - 0x1000
+    plans = (
+        plan_elf32_mapping(first, "overlap-first", shared_bias),
+        plan_elf32_mapping(second, "overlap-second", shared_bias),
+    )
+    emulator = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
+
+    with pytest.raises(ValueError, match="plans overlap each other"):
+        map_elf32_dependency_segments(emulator, images, plans)
+    assert tuple(emulator.mem_regions()) == ()
+
+
+def test_dependency_layout_rejects_negative_load_bias(tmp_path: Path):
+    artifact = tmp_path / "dependency-negative-bias.so"
+    _synthetic_arm_shared_object(artifact)
+    raw = bytearray(artifact.read_bytes())
+    elf = _elf32_file(raw)
+    for index, segment in enumerate(elf.iter_segments()):
+        if segment["p_type"] == "PT_LOAD":
+            header = 52 + index * 32
+            address = int(segment["p_vaddr"]) + 0x20000000
+            struct.pack_into("<II", raw, header + 8, address, address)
+    elf = _elf32_file(raw)
+
+    with pytest.raises(ValueError, match="negative ARM32 load bias"):
+        plan_elf32_dependency_mappings((("negative-bias", elf),))
+
+
+def test_dependency_layout_rejects_duplicate_identity_and_memory_budget(tmp_path: Path):
+    artifact = tmp_path / "dependency-identity.so"
+    elf, raw, _ = _synthetic_mapping_elf(artifact)
+    with pytest.raises(ValueError, match="identities must be unique"):
+        plan_elf32_dependency_mappings((("duplicate", elf), ("duplicate", elf)))
+    with pytest.raises(ValueError, match="memory bound"):
+        plan_elf32_dependency_mappings((("bounded", elf),), max_total_mapped_bytes=PAGE_SIZE)
+    with pytest.raises(ValueError, match="total source-size bound"):
+        plan_elf32_dependency_mappings(
+            (("first", elf), ("second", elf)), max_total_source_bytes=len(raw),
+        )
+
+
 def test_dynamic_tag_parser_requires_in_bounds_terminator_and_complete_entry():
     assert _parse_dynamic_entries(struct.pack("<II", 6, 0x4000) + bytes(8)) == ((6, 0x4000),)
     with pytest.raises(ValueError, match="DT_NULL terminator"):
@@ -244,6 +1189,11 @@ def test_load_segment_validator_rejects_overlapping_memory_ranges():
             return self.values[key]
 
     class Elf:
+        headers = {"e_phoff": 0, "e_phnum": 2, "e_phentsize": 32}
+
+        def __getitem__(self, key):
+            return self.headers[key]
+
         def iter_segments(self):
             return iter((Segment(0x1000, 0), Segment(0x1100, 0x100)))
 
