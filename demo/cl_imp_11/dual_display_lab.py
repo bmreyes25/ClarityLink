@@ -53,7 +53,8 @@ from model import (  # noqa: E402
 )
 from safe_area import SafeAreaConfig, SafeAreaGate  # noqa: E402
 from type111_setup_contract import (  # noqa: E402
-    DeterministicListenerAllocator, SerializerResult, Type111SetupContract,
+    DeterministicListenerAllocator, SecurityMode, SerializerResult,
+    Type111SetupContract,
 )
 from export_visual_demo import encode_rgba_png  # noqa: E402
 
@@ -97,6 +98,7 @@ class MockDelegatedReplayTransport:
         self.replay = replay
         self.delegation = delegation
         self.delegation_result = None
+        self._pending_setup_response = False
         self._closed = False
 
     @property
@@ -109,22 +111,55 @@ class MockDelegatedReplayTransport:
 
     def read_request(self, timeout: float):
         request = self.replay.read_request(timeout)
+        self._pending_setup_response = False
+        self.delegation_result = None
         if request.method == "SETUP" and request.path == "/session":
             self.delegation_result = self.delegation.handle_setup(
                 request.generation, request.body, lambda _candidate: SerializerResult(0xC8, 0))
-            if not (self.delegation_result.secondary_committed and
-                    self.delegation_result.primary_preserved):
+            result = self.delegation_result
+            serializer_result = result.transaction.serializer_result
+            stock_path_ready = (
+                result.primary_preserved and serializer_result is not None and
+                serializer_result.succeeded
+            )
+            if not result.transaction.requested_type111:
+                auxiliary_path_ready = not result.secondary_committed
+            elif result.secondary_committed:
+                auxiliary_path_ready = (
+                    result.transaction.committed and
+                    result.security_mode == SecurityMode.SYNTHETIC_TEST_ONLY.value
+                )
+            else:
+                # A failed/disabled auxiliary stream may fall back to stock Type110
+                # only, but a live unadvertised child is never allowed through.
+                auxiliary_path_ready = not result.transaction.committed
+            if not stock_path_ready or not auxiliary_path_ready:
+                self._rollback_unaccepted_setup(result)
+                self.delegation_result = None
                 raise RuntimeError("mock_stock_delegation_rejected")
+            self._pending_setup_response = True
         return request
 
     def write_response(self, response: ControlResponse) -> None:
         if self._closed:
             raise RuntimeError("mock_transport_closed")
-        if response.status == 200 and self.delegation_result is not None:
+        is_setup_response = self._pending_setup_response
+        self._pending_setup_response = False
+        if is_setup_response and response.status == 200 and self.delegation_result is not None:
             streams = response.body.get("streams", ())
-            if {item.get("type") for item in streams if isinstance(item, dict)} != {110, 111}:
-                raise RuntimeError("runtime_dual_stream_setup_missing")
+            expected = {110, 111} if self.delegation_result.secondary_committed else {110}
+            if {item.get("type") for item in streams if isinstance(item, dict)} != expected:
+                self._rollback_unaccepted_setup(self.delegation_result)
+                raise RuntimeError("runtime_setup_response_does_not_match_committed_streams")
+        elif (is_setup_response and self.delegation_result is not None and
+              self.delegation_result.secondary_committed):
+            self._rollback_unaccepted_setup(self.delegation_result)
         self.replay.write_response(response)
+
+    def _rollback_unaccepted_setup(self, result) -> None:
+        if (result is not None and result.secondary_committed and
+                not self.delegation.teardown_secondary(result.generation)):
+            raise RuntimeError("mock_type111_rollback_failed")
 
     def close(self) -> None:
         self._closed = True
@@ -138,13 +173,18 @@ def _mock_delegation(generation: int) -> StockFirstType111Delegator:
     )
     twin.add_screen(ScreenRole.TYPE110, 1100 + generation)
     lifecycle = DualScreenLifecycleTwin(twin)
-    contract = Type111SetupContract(lifecycle, DeterministicListenerAllocator())
+    contract = Type111SetupContract(
+        lifecycle, DeterministicListenerAllocator(),
+        enable_synthetic_type111_for_tests=True,
+    )
     mock_primary = MockStockPrimarySession({
         "streams": [{"type": 110, "dataPort": 41001}],
         "audio": {"owner": "MOCK_STOCK_PRIMARY"},
         "primaryControlOwner": "MOCK_STOCK_SESSION",
     })
-    delegator = StockFirstType111Delegator(mock_primary, contract)
+    delegator = StockFirstType111Delegator(
+        mock_primary, contract, allow_synthetic_type111_for_tests=True
+    )
     delegator.open(generation)
     return delegator
 

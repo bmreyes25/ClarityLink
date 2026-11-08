@@ -7,16 +7,58 @@ existing evidence-bounded setup contract.
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from threading import RLock
 from typing import Any, Callable, Mapping
 
-from type111_setup_contract import (SerializerResult, SetupTransactionResult,
-                                    Type111SetupContract)
+from type111_setup_contract import (
+    SecurityMode,
+    SerializerResult,
+    SetupTransactionResult,
+    Type111SetupContract,
+    contains_type111_request,
+)
 
 
 def _valid_generation(generation: Any) -> bool:
     return (not isinstance(generation, bool) and isinstance(generation, int) and generation >= 1)
+
+
+def _fail_transaction_generation(transaction: SetupTransactionResult) -> bool:
+    generation = transaction.generation_lease
+    if generation is None:
+        return bool(
+            transaction.cleanup_error_code is None and
+            (not transaction.requested_type111 or not transaction.committed)
+        )
+    # Generation tokens stop only their own registry child, even after the
+    # lifecycle has advanced to a newer current child.
+    try:
+        stopped = generation.fail()
+    except Exception:
+        return False
+    if stopped:
+        return True
+    try:
+        return getattr(generation.phase, "name", None) == "STOPPED"
+    except Exception:
+        return False
+
+
+def _mark_secondary_rolled_back(
+    transaction: SetupTransactionResult,
+    stock_response: Mapping[str, Any],
+    error_code: str | None,
+) -> SetupTransactionResult:
+    return replace(
+        transaction,
+        response=deepcopy(dict(stock_response)),
+        listener_id=None,
+        data_port=None,
+        response_appended=False,
+        committed=False,
+        error_code=error_code or transaction.error_code,
+    )
 
 
 class DelegationError(RuntimeError):
@@ -54,12 +96,25 @@ class MockStockPrimarySession:
         return deepcopy(self._response)
 
     def revoke(self, generation: int) -> bool:
-        if not _valid_generation(generation) or not self.active or generation != self.generation:
+        if (not _valid_generation(generation) or not self.active or
+                generation != self.generation):
+            return False
+        self._clear_generation(generation)
+        return True
+
+    def invalidate(self, generation: int) -> bool:
+        """Clear state for a parent already marked inactive by its owner."""
+        if not _valid_generation(generation) or generation != self.generation:
             return False
         self.active = False
         self.generation = None
-        self.events.append("MOCK_PRIMARY_REVOKE")
+        self.events.append("MOCK_PRIMARY_INVALIDATE")
         return True
+
+    def _clear_generation(self, generation: int) -> None:
+        self.active = False
+        self.generation = None
+        self.events.append("MOCK_PRIMARY_REVOKE")
 
 
 @dataclass(frozen=True)
@@ -71,20 +126,36 @@ class DelegatedSetupResult:
     error_code: str | None
     transaction: SetupTransactionResult
 
+    @property
+    def security_mode(self) -> str:
+        return self.transaction.security_mode.value
+
+    @property
+    def fallback_error_code(self) -> str | None:
+        return self.transaction.fallback_error_code
+
 
 class StockFirstType111Delegator:
-    """Run the mock primary setup first, then the independently owned child."""
+    """Run one mock parent session and its independently owned child.
+
+    This instance is single-parent. A reconnect needs a fresh primary,
+    lifecycle and delegator because a destroyed lifecycle cannot be reopened.
+    """
 
     def __init__(self, primary: MockStockPrimarySession,
-                 secondary: Type111SetupContract) -> None:
+                 secondary: Type111SetupContract, *,
+                 allow_synthetic_type111_for_tests: bool = False) -> None:
         self.primary = primary
         self.secondary = secondary
+        self._allow_synthetic_type111_for_tests = allow_synthetic_type111_for_tests
         self._active_generation: int | None = None
         self._lock = RLock()
         self._setup_in_progress = False
 
     def open(self, generation: int) -> None:
         with self._lock:
+            if self.secondary.lifecycle.parent_destroyed:
+                raise DelegationError("parent_lifecycle_destroyed")
             self.primary.open(generation)
             self._active_generation = generation
 
@@ -110,36 +181,112 @@ class StockFirstType111Delegator:
         serializer: Callable[[Mapping[str, Any]], SerializerResult],
     ) -> DelegatedSetupResult:
         if (not _valid_generation(generation) or generation != self._active_generation or
-                not self.primary.active):
+                not self.primary.active or self.primary.generation != generation):
             raise DelegationError("stale_or_inactive_delegation_generation")
 
         stock_response = self.primary.handle_setup(generation, request)
         stock_snapshot = deepcopy(stock_response)
-        transaction = self.secondary.process(request, stock_response, serializer)
+        transaction = self.secondary.process(
+            request, stock_response, serializer,
+            allow_synthetic_type111_for_tests=self._allow_synthetic_type111_for_tests,
+        )
 
-        if generation != self._active_generation or not self.primary.active:
-            child = self.secondary.lifecycle.current_type111
-            if child is not None:
-                child.fail()
+        cleanup_retry_failed = False
+        if transaction.cleanup_error_code is not None:
+            cleanup_retry_failed = not _fail_transaction_generation(transaction)
+            if not cleanup_retry_failed:
+                transaction = replace(transaction, cleanup_error_code=None)
+
+        if (generation != self._active_generation or not self.primary.active or
+                self.primary.generation != generation):
+            if generation == self._active_generation and not self.primary.active:
+                # Parent loss invalidates every project-owned child, even if this
+                # request failed before obtaining a child generation.
+                cleanup_ok = not cleanup_retry_failed
+                if not cleanup_ok:
+                    cleanup_ok = _fail_transaction_generation(transaction)
+                try:
+                    destroyed = self.secondary.lifecycle.destroy_parent()
+                except Exception:
+                    cleanup_ok = False
+                else:
+                    if not destroyed:
+                        cleanup_ok = bool(
+                            cleanup_ok and self.secondary.lifecycle.parent_destroyed and
+                            self.secondary.lifecycle.current_type111 is None and
+                            not self.secondary.lifecycle.type110.active
+                        )
+                self.primary.invalidate(generation)
+                if cleanup_ok:
+                    self._active_generation = None
+            else:
+                # A stale transaction must not tear down a newer parent session.
+                cleanup_ok = _fail_transaction_generation(transaction)
+            if cleanup_ok and (transaction.requested_type111 or transaction.generation_lease is not None):
+                transaction = _mark_secondary_rolled_back(
+                    transaction, stock_snapshot,
+                    "session_revoked_during_setup" if generation == self._active_generation else None,
+                )
             return DelegatedSetupResult(
-                generation, stock_snapshot, False, True, "session_revoked_during_setup", transaction)
+                generation, stock_snapshot, False, True,
+                ("session_revoked_during_setup" if cleanup_ok else "type111_cleanup_failed"), transaction)
+
+        if cleanup_retry_failed:
+            return DelegatedSetupResult(
+                generation, stock_snapshot, False, True,
+                "type111_cleanup_failed", transaction)
+
+        if transaction.fallback_error_code is not None:
+            cleanup_ok = _fail_transaction_generation(transaction)
+            error_code = (
+                transaction.fallback_error_code if cleanup_ok
+                else "type111_cleanup_failed"
+            )
+            return DelegatedSetupResult(
+                generation, stock_snapshot, False, False, error_code, transaction)
 
         candidate = transaction.response
-        requested_type111 = _contains_type111(request)
-        if (candidate is None or
-                not _primary_entries_unchanged(stock_snapshot, candidate) or
-                not _stock_response_is_preserved(stock_snapshot, candidate, requested_type111)):
-            child = self.secondary.lifecycle.current_type111
-            if child is not None:
-                child.fail()
+        requested_type111 = contains_type111_request(request)
+        if transaction.error_code in (
+            "stock_response_must_be_mapping", "stock_response_streams_invalid"
+        ):
             return DelegatedSetupResult(
-                generation, stock_snapshot, False, False, "primary_response_changed", transaction)
+                generation, stock_snapshot, False, False,
+                transaction.error_code, transaction)
+        if candidate is None:
+            return DelegatedSetupResult(
+                generation, stock_snapshot, False, False,
+                transaction.error_code or "stock_response_unavailable", transaction)
+        if (not _primary_entries_unchanged(stock_snapshot, candidate) or
+                not _stock_response_is_preserved(stock_snapshot, candidate, requested_type111)):
+            cleanup_ok = _fail_transaction_generation(transaction)
+            if cleanup_ok and (transaction.requested_type111 or transaction.generation_lease is not None):
+                transaction = _mark_secondary_rolled_back(
+                    transaction, stock_snapshot,
+                    "primary_response_changed",
+                )
+            return DelegatedSetupResult(
+                generation, stock_snapshot, False, False,
+                ("primary_response_changed" if cleanup_ok else "type111_cleanup_failed"), transaction)
 
-        secondary_committed = bool(requested_type111 and transaction.committed)
+        synthetic_only = transaction.security_mode is SecurityMode.SYNTHETIC_TEST_ONLY
+        secondary_committed = bool(
+            requested_type111 and transaction.committed and synthetic_only and
+            self._allow_synthetic_type111_for_tests
+        )
+        error_code = transaction.error_code
         response = candidate if not requested_type111 or secondary_committed else stock_snapshot
+        if transaction.committed and requested_type111 and not secondary_committed:
+            error_code = error_code or "type111_not_enabled_by_delegator"
+            if not _fail_transaction_generation(transaction):
+                error_code = "type111_cleanup_failed"
+            else:
+                transaction = _mark_secondary_rolled_back(
+                    transaction, stock_snapshot, error_code,
+                )
         return DelegatedSetupResult(
             generation, deepcopy(response), secondary_committed, True,
-            transaction.error_code, transaction)
+            error_code, transaction)
 
     def teardown_secondary(self, generation: int) -> bool:
         with self._lock:
@@ -168,14 +315,45 @@ class StockFirstType111Delegator:
         with self._lock:
             if not _valid_generation(generation) or generation != self._active_generation:
                 return False
+            if self.primary.active and self.primary.generation != generation:
+                return False
             # Parent authority owns the complete synthetic session tree. A
             # revoked parent cannot leave either child Type111 or its modeled
             # Type110 screen active. This is mock lifecycle behavior only; it
             # does not install or describe a Honda finalizer callback.
-            self.secondary.lifecycle.destroy_parent()
-            revoked = self.primary.revoke(generation)
+            cleanup_ok = True
+            child = self.secondary.lifecycle.current_type111
+            if child is not None:
+                try:
+                    stopped = child.fail()
+                except Exception:
+                    stopped = False
+                if not stopped:
+                    cleanup_ok = getattr(child.phase, "name", None) == "STOPPED"
+            try:
+                destroyed = self.secondary.lifecycle.destroy_parent()
+            except Exception:
+                destroyed = False
+                cleanup_ok = False
+            if not destroyed:
+                cleanup_ok = bool(
+                    cleanup_ok and self.secondary.lifecycle.parent_destroyed and
+                    self.secondary.lifecycle.current_type111 is None and
+                    not self.secondary.lifecycle.type110.active
+                )
+            if not cleanup_ok:
+                self.primary.invalidate(generation)
+                return False
+            if self.primary.active:
+                primary_revoked = self.primary.revoke(generation)
+                if not primary_revoked:
+                    return False
+            else:
+                self.primary.invalidate(generation)
+                if self.primary.active or self.primary.generation is not None:
+                    return False
             self._active_generation = None
-            return revoked
+            return True
 
 
 def _primary_entries_unchanged(before: Mapping[str, Any], after: Mapping[str, Any]) -> bool:
@@ -207,12 +385,3 @@ def _stock_response_is_preserved(before: Mapping[str, Any], after: Mapping[str, 
                 suffix[0].get("type") == 111)
     except Exception:
         return False
-
-
-def _contains_type111(request: Any) -> bool:
-    if not isinstance(request, Mapping):
-        return False
-    streams = request.get("streams")
-    return isinstance(streams, (list, tuple)) and any(
-        isinstance(item, Mapping) and item.get("type") == 111 for item in streams
-    )
