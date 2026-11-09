@@ -52,7 +52,8 @@ static void prepare_type111(const CLNativeSetupRequest *request,
     void *transaction = 0;
     const void *candidate = 0;
 
-    if (!ops || !request->accepted_auxiliary_capability ||
+    if (!ops || !ops->factory_setup ||
+        !request->accepted_auxiliary_capability ||
         !ops->validate_type111 || !ops->prepare_type111 ||
         !ops->commit_type111 || !ops->rollback_type111 ||
         !ops->withdraw_type111 || !ops->withdraw_parent_type111) {

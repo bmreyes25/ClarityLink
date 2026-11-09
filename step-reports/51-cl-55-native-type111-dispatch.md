@@ -21,9 +21,10 @@ Exercise it through a host harness and the existing NDK/Unicorn ARMv7 path.
 The factory callback is passed the original request view for 100, 101, 110,
 and unknown types, in input order. Type111 never reaches that callback. It is
 held unless a caller supplies the accepted auxiliary capability plus
-project-owned validation, preparation, commit, rollback, child-withdrawal, and
-parent-withdrawal callbacks. Missing either teardown callback disables the
-Type111 route. A prepared candidate remains hidden behind the factory
+project-owned stock delegation, validation, preparation, commit, rollback,
+child-withdrawal, and parent-withdrawal callbacks. Missing stock delegation or
+either teardown callback disables the Type111 route. A prepared candidate
+remains hidden behind the factory
 fallback until private response serialization succeeds and the project commit
 callback revalidates the parent, generations, authority, and transport.
 
@@ -54,7 +55,9 @@ unknown type; Type111 bypassed the factory path and preserved the fallback
 response on missing authority, unready transport, duplicate identity, partial
 setup, serializer failure, and commit failure. No successful Type111 commit
 was executed. Serializer and commit failures cleared the candidate, transaction,
-and borrowed request handle before returning.
+and borrowed request handle before returning. Missing the factory delegate or
+either required teardown callback also kept Type111 disabled; Type110 still
+delegated to the stock callback.
 
 The existing Python integration regressions passed **53 tests** for stream
 dispatch, the Type111 setup contract, and stock delegation. `clang --analyze`
