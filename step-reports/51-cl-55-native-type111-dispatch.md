@@ -21,10 +21,11 @@ Exercise it through a host harness and the existing NDK/Unicorn ARMv7 path.
 The factory callback is passed the original request view for 100, 101, 110,
 and unknown types, in input order. Type111 never reaches that callback. It is
 held unless a caller supplies the accepted auxiliary capability plus
-project-owned validation, preparation, commit, and rollback callbacks. A
-prepared candidate remains hidden behind the factory fallback until the
-enclosing response serializer succeeds and the project commit callback
-revalidates the parent, generations, authority, and transport.
+project-owned validation, preparation, commit, rollback, child-withdrawal, and
+parent-withdrawal callbacks. Missing either teardown callback disables the
+Type111 route. A prepared candidate remains hidden behind the factory
+fallback until private response serialization succeeds and the project commit
+callback revalidates the parent, generations, authority, and transport.
 
 The adapter does not define a Honda struct layout, wire field, dataPort,
 listener, key, or authentication scheme. No in-repository callback currently

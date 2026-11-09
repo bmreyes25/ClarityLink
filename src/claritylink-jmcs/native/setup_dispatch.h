@@ -108,8 +108,9 @@ typedef struct CLNativeSetupResult {
     CLNativePrepareStatus prepare_result;
 } CLNativeSetupResult;
 
-/* Routes the input array in order. Type111 is disabled unless all explicit
- * readiness/transaction callbacks and an accepted capability are supplied.
+/* Routes the input array in order. Type111 is disabled unless readiness,
+ * transaction, child-withdrawal, and parent-withdrawal callbacks and a
+ * non-null accepted-capability handle are supplied.
  * Failure preserves factory_fallback_entry by pointer identity. Input request
  * storage must remain valid until every prepared result is finalized. The
  * function allocates no memory and bounds request processing to eight entries. */

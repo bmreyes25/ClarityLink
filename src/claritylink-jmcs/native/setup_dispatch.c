@@ -54,7 +54,8 @@ static void prepare_type111(const CLNativeSetupRequest *request,
 
     if (!ops || !request->accepted_auxiliary_capability ||
         !ops->validate_type111 || !ops->prepare_type111 ||
-        !ops->commit_type111 || !ops->rollback_type111) {
+        !ops->commit_type111 || !ops->rollback_type111 ||
+        !ops->withdraw_type111 || !ops->withdraw_parent_type111) {
         result->code = CL_NATIVE_SETUP_TYPE111_DISABLED;
         return;
     }

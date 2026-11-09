@@ -222,22 +222,29 @@ static int test_disabled_missing_identity_and_repeat_setup(void) {
         result.response_entry != fallback || mock.stock_calls != 0)
         return 1;
     ops = make_ops(&mock, 1);
+    ops.withdraw_type111 = 0;
+    if (cl_native_setup_dispatch_batch(&request, 1, fallback, &ops, &result) !=
+        CL_NATIVE_SETUP_BATCH_COMPLETED ||
+        result.code != CL_NATIVE_SETUP_TYPE111_DISABLED ||
+        result.response_entry != fallback || mock.prepare_calls != 0)
+        return 2;
+    ops = make_ops(&mock, 1);
     request.stream_connection = 0;
     if (cl_native_setup_dispatch_batch(&request, 1, fallback, &ops, &result) !=
         CL_NATIVE_SETUP_BATCH_COMPLETED ||
         result.code != CL_NATIVE_SETUP_TYPE111_INVALID_IDENTITY ||
         result.response_entry != fallback || mock.readiness_calls != 0)
-        return 2;
+        return 3;
     request = make_request(110, &token);
     if (cl_native_setup_dispatch_batch(&request, 1, fallback, &ops, &result) !=
         CL_NATIVE_SETUP_BATCH_COMPLETED ||
         result.code != CL_NATIVE_SETUP_STOCK_HANDLED ||
         result.response_entry != request.opaque_request)
-        return 3;
+        return 4;
     if (cl_native_setup_dispatch_batch(&request, 1, fallback, &ops, &result) !=
         CL_NATIVE_SETUP_BATCH_COMPLETED || mock.stock_calls != 2)
-        return 4;
-    return mock.stack_alignment_failures == 0 ? 0 : 5;
+        return 5;
+    return mock.stack_alignment_failures == 0 ? 0 : 6;
 }
 
 static int test_duplicate_and_readiness_fail_closed(void) {
