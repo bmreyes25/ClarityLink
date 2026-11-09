@@ -64,7 +64,7 @@ dispatch, the Type111 setup contract, and stock delegation. `clang --analyze`
 completed without diagnostics. AddressSanitizer and UndefinedBehaviorSanitizer
 completed with `ASAN_OPTIONS=detect_leaks=0`; LeakSanitizer reported that leak
 detection is unsupported on this platform. The dispatcher itself performs no
-dynamic allocation. Scoped public-safety and whitespace checks passed. Four
+dynamic allocation. Scoped public-safety and whitespace checks passed. Five
 WIP checkpoints were published through the Studio publisher and their remote
 SHAs verified; the latest at report preparation is
 `fa3dcc869f70e7292bf91b00970e3f7453fa6978`. Exact-scope independent review and
