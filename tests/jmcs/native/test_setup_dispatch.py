@@ -49,6 +49,10 @@ def skip_or_fail(reason: str) -> None:
     pytest.skip(reason)
 
 
+def undefined_symbol_names(symbol_table: str) -> list[str]:
+    return re.findall(r"\b(?:GLOBAL|WEAK)\s+DEFAULT\s+UND\s+(\S+)", symbol_table)
+
+
 def ndk_tools(ndk: str) -> Path | None:
     machine = platform.machine().lower()
     if sys.platform == "darwin":
@@ -96,6 +100,18 @@ def test_api17_armv7_thumb_dispatcher_execution(tmp_path):
 
     executable = tmp_path / "native_setup_dispatch_arm.elf"
     flat = tmp_path / "native_setup_dispatch_arm.bin"
+    production_object = tmp_path / "setup_dispatch.o"
+    checked([str(clang), "--target=armv7a-linux-androideabi17",
+             "-mcpu=cortex-a9", "-mthumb", "-mfloat-abi=soft",
+             "-fno-pic", "-fno-pie", "-Wall", "-Wextra", "-Werror",
+             "-std=c11", "-ffreestanding", "-fno-builtin",
+             "-fno-stack-protector", "-fno-unwind-tables",
+             "-fno-asynchronous-unwind-tables", "-fno-jump-tables", "-O1",
+             "-c", str(SOURCE), "-o", str(production_object)])
+    production_symbols = checked([str(readelf), "-s", str(production_object)]).stdout
+    assert not undefined_symbol_names(production_symbols), (
+        "standalone production dispatcher needs unresolved ARM runtime symbols")
+
     checked([str(clang), "--target=armv7a-linux-androideabi17",
              "-mcpu=cortex-a9", "-mthumb", "-mfloat-abi=soft",
              "-fno-pic", "-fno-pie", "-Wall", "-Wextra", "-Werror",
@@ -118,7 +134,7 @@ def test_api17_armv7_thumb_dispatcher_execution(tmp_path):
     assert "Class:                             ELF32" in header
     assert "Machine:                           ARM" in header
     assert "Flags:                             0x5000200" in header
-    assert "GLOBAL DEFAULT UND" not in symbols
+    assert not undefined_symbol_names(symbols)
     relocations = checked([str(readelf), "-r", str(executable)]).stdout
     assert "Relocation section" not in relocations
     disassembly = checked([str(objdump), "-d", str(executable)]).stdout
@@ -162,10 +178,12 @@ def test_api17_armv7_thumb_dispatcher_execution(tmp_path):
     machine.reg_write(UC_ARM_REG_PC, entry | 1)
     try:
         machine.emu_start(entry | 1, SENTINEL, timeout=1_000_000,
-                          count=100_000)
+                          count=1_000_000)
     except Exception as exc:
         pytest.fail(f"ARM dispatcher failed at PC trace {trace[-8:]!r}: {exc}")
-    assert machine.reg_read(UC_ARM_REG_R0) == 0, trace[-12:]
+    assert machine.reg_read(UC_ARM_REG_R0) == 0, (
+        f"return={machine.reg_read(UC_ARM_REG_R0)}; "
+        f"trace={[hex(address) for address in trace[-40:]]}")
     assert machine.reg_read(UC_ARM_REG_PC) & ~1 == SENTINEL
     assert machine.reg_read(UC_ARM_REG_SP) == initial_sp
     for register, value in preserved.items():
