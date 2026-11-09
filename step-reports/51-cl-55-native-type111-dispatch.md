@@ -64,8 +64,11 @@ dispatch, the Type111 setup contract, and stock delegation. `clang --analyze`
 completed without diagnostics. AddressSanitizer and UndefinedBehaviorSanitizer
 completed with `ASAN_OPTIONS=detect_leaks=0`; LeakSanitizer reported that leak
 detection is unsupported on this platform. The dispatcher itself performs no
-dynamic allocation. Public-safety scan, exact-scope independent review, and
-Studio publication preflight remain pending.
+dynamic allocation. Scoped public-safety and whitespace checks passed. Four
+WIP checkpoints were published through the Studio publisher and their remote
+SHAs verified; the latest at report preparation is
+`fa3dcc869f70e7292bf91b00970e3f7453fa6978`. Exact-scope independent review and
+a VERIFIED PR preflight remain pending.
 
 **Conclusion:** The compiled project-owned adapter has a verified offline
 Type110-preserving dispatch and fail-closed Type111 contract. The caller must
@@ -75,9 +78,10 @@ connected to Honda `jmcs`; there is no validated Control SETUP capability
 handle, receiver-owned Type111 authority, listener or transport callback in
 this build. No iPhone negotiation or vehicle behavior is proved.
 
-**Next action:** complete the scoped review and public-safety checks, then
-publish only as an honestly labeled checkpoint. Keep Type111 disabled until
-the capability and authenticated media context are established.
+**Next action:** complete exact-scope engineering/security review, then use the
+VERIFIED publisher and create a stacked PR against the reviewed dependency
+branch if review passes. Keep Type111 disabled until the capability and
+authenticated media context are established.
 
 ## Closeout
 
