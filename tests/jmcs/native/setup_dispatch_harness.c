@@ -305,7 +305,8 @@ static int test_partial_setup_rollback_and_serializer_failure(void) {
         if (cl_native_setup_finalize_type111(&result, &ops, 0) !=
                 CL_NATIVE_SETUP_TYPE111_SERIALIZER_FAILED ||
             result.response_entry != fallback || result.candidate_entry != 0 ||
-            result.transaction != 0 || mock.commit_calls != 0 ||
+            result.transaction != 0 || result.request != 0 ||
+            mock.commit_calls != 0 ||
             mock.rollback_calls != 2)
             return 2;
     }
@@ -329,7 +330,8 @@ static int test_commit_failure_and_teardown_forwarding(void) {
     if (cl_native_setup_finalize_type111(&result, &ops, 1) !=
             CL_NATIVE_SETUP_TYPE111_COMMIT_FAILED ||
         result.response_entry != fallback || result.candidate_entry != 0 ||
-        result.transaction != 0 || mock.commit_calls != 1 ||
+        result.transaction != 0 || result.request != 0 ||
+        mock.commit_calls != 1 ||
         mock.rollback_calls != 1)
         return 1;
     if (cl_native_setup_withdraw_type111(&ops, parent, 17, connection, 23) != 0 ||

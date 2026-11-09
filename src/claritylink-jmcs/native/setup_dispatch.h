@@ -18,6 +18,8 @@ typedef struct CLNativeSetupRequest {
     uint64_t parent_generation;
     const void *stream_connection;
     uint64_t stream_generation;
+    /* Opaque borrowed handle only. validate_type111 must confirm this is the
+     * currently accepted capability for this parent and generation. */
     const void *accepted_auxiliary_capability;
     const void *opaque_request;
 } CLNativeSetupRequest;
@@ -70,13 +72,15 @@ typedef struct CLNativeSetupOps {
      * media-ready transport. The project currently provides no Honda binding. */
     CLNativeReadiness (*validate_type111)(
         void *context, const CLNativeSetupRequest *request);
-    /* Stages only project-owned resources. The candidate is provisional: the
-     * caller may use it to build an untransmitted serialized candidate, but
-     * response_entry stays at the factory fallback until finalize commits. */
+    /* Stages only project-owned resources. The candidate is provisional. A
+     * caller may serialize it into a private, untransmitted buffer; it must
+     * keep the factory fallback response available until finalize commits. */
     CLNativePrepareStatus (*prepare_type111)(
         void *context, const CLNativeSetupRequest *request,
         void **transaction, const void **candidate_entry);
-    /* Return 0 only if the parent/generations/resources are still current. */
+    /* Return 0 only if parent/generations/resources are still current and the
+     * candidate remains valid after this cookie is consumed. Transfer/pin its
+     * lifetime in project-owned state through response completion/withdrawal. */
     int32_t (*commit_type111)(void *context, void *transaction);
     /* Releases every partial output, including a candidate returned without
      * a transaction cookie after a faulty or partial prepare. */
@@ -114,9 +118,11 @@ CLNativeSetupCode cl_native_setup_dispatch_batch(
     const void *factory_fallback_entry, const CLNativeSetupOps *ops,
     CLNativeSetupResult *results);
 
-/* Call only after the enclosing response serialization result is known. On a
- * serialization or commit failure, rollback runs and the factory fallback is
- * retained. The adapter itself creates no listener, dataPort, or wire fields. */
+/* Call after serialization into a private, untransmitted buffer. The caller
+ * may expose that buffer only if this returns TYPE111_COMMITTED; otherwise it
+ * must send/use the original factory response. On failure, rollback runs and
+ * the factory fallback is retained. This adapter creates no listener,
+ * dataPort, or wire fields. */
 CLNativeSetupCode cl_native_setup_finalize_type111(
     CLNativeSetupResult *result, const CLNativeSetupOps *ops,
     int32_t serialization_succeeded);

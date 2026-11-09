@@ -29,6 +29,12 @@ revalidates the parent, generations, authority, and transport.
 The adapter does not define a Honda struct layout, wire field, dataPort,
 listener, key, or authentication scheme. No in-repository callback currently
 proves an accepted Honda control capability or authenticated media context.
+The accepted-capability handle is opaque and must be checked against its
+parent/generation by the readiness callback. A candidate response must be
+serialized only to an untransmitted buffer; the caller may expose that buffer
+only after finalization commits. Commit must retain or transfer the candidate's
+lifetime beyond consumption of the transaction cookie. Rollback clears all
+borrowed request/resource handles held by the adapter.
 The tests exercise Type111 disabled/not-ready, partial setup rollback,
 serialization failure, commit failure, duplicate identity rejection, and
 teardown forwarding. The readiness callback used to reach the partial-setup
@@ -46,7 +52,8 @@ stacks. The harness verified factory callback order for 100/101/110 and an
 unknown type; Type111 bypassed the factory path and preserved the fallback
 response on missing authority, unready transport, duplicate identity, partial
 setup, serializer failure, and commit failure. No successful Type111 commit
-was executed.
+was executed. Serializer and commit failures cleared the candidate, transaction,
+and borrowed request handle before returning.
 
 The existing Python integration regressions passed **53 tests** for stream
 dispatch, the Type111 setup contract, and stock delegation. `clang --analyze`
@@ -57,7 +64,9 @@ dynamic allocation. Public-safety scan, exact-scope independent review, and
 Studio publication preflight remain pending.
 
 **Conclusion:** The compiled project-owned adapter has a verified offline
-Type110-preserving dispatch and fail-closed Type111 contract. It is not
+Type110-preserving dispatch and fail-closed Type111 contract. The caller must
+hold candidate serialization privately until commit succeeds; the adapter
+does not itself control transmission. It is not
 connected to Honda `jmcs`; there is no validated Control SETUP capability
 handle, receiver-owned Type111 authority, listener or transport callback in
 this build. No iPhone negotiation or vehicle behavior is proved.

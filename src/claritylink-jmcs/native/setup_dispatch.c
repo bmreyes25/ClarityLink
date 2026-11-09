@@ -40,6 +40,7 @@ static void rollback_pending(const CLNativeSetupOps *ops,
                               result->transaction, result->candidate_entry);
     result->transaction = 0;
     result->candidate_entry = 0;
+    result->request = 0;
 }
 
 static void prepare_type111(const CLNativeSetupRequest *request,
