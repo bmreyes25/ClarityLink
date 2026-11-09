@@ -341,6 +341,23 @@ def test_default_contract_rejects_type111_without_authenticated_authority_and_pr
     assert type110.active
 
 
+def test_default_type111_fallback_reports_failed_stock_serializer():
+    lifecycle, type110 = _twin()
+    stock = {"streams": [{"type": 110, "dataPort": 41100}]}
+    calls = []
+    result = Type111SetupContract(lifecycle, DeterministicListenerAllocator()).process(
+        {"streams": [{"type": 111, "streamConnectionID": 2201}]}, stock,
+        lambda response: (calls.append(response) or SerializerResult(0x1F4, 1)),
+    )
+
+    assert result.error_code == "type111_authority_unavailable"
+    assert result.fallback_error_code == "stock_serializer_failed"
+    assert result.serializer_result == SerializerResult(0x1F4, 1)
+    assert result.serializer_invocations == len(calls) == 1
+    assert not result.committed and result.response == stock
+    assert lifecycle.current_type111 is None and type110.active
+
+
 def test_default_authority_gate_passes_malformed_stock_unchanged_to_original_serializer():
     lifecycle, type110 = _twin()
     allocator = DeterministicListenerAllocator()

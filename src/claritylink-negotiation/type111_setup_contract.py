@@ -219,9 +219,10 @@ class Type111SetupContract:
         """Run a host-only response-construction probe, never network I/O.
 
         The serializer callback must not publish bytes or perform transport
-        side effects. A caller may expose the returned response only after this
-        method returns; real integration needs an explicit response-commit
-        boundary.
+        side effects. A Type111 candidate attempt can be followed by a stock
+        fallback attempt, so the callback may run twice. A caller may expose a
+        returned response only after this method returns; real integration
+        needs an explicit response-commit boundary.
         """
         synthetic_enabled = (
             self._synthetic_type111_for_tests and
@@ -355,6 +356,8 @@ class Type111SetupContract:
                 result = candidate if isinstance(candidate, SerializerResult) else None
                 if candidate is not None and result is None:
                     fallback_error_code = "stock_serializer_result_invalid"
+                elif result is not None and not result.succeeded:
+                    fallback_error_code = "stock_serializer_failed"
                 if (isinstance(serializer_input, dict) and isinstance(response, Mapping) and
                         not _mapping_matches(serializer_input, response)):
                     fallback_error_code = "stock_serializer_mutated_response"

@@ -16,7 +16,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 for path in (
@@ -94,9 +94,11 @@ class MockDelegatedReplayTransport:
     authenticated = False
 
     def __init__(self, replay: ReplaySessionTransport,
-                 delegation: StockFirstType111Delegator) -> None:
+                 delegation: StockFirstType111Delegator,
+                 setup_response_validator: Callable[[Any, ControlResponse], bool] | None = None) -> None:
         self.replay = replay
         self.delegation = delegation
+        self.setup_response_validator = setup_response_validator
         self.delegation_result = None
         self._pending_setup_response = False
         self._closed = False
@@ -110,9 +112,11 @@ class MockDelegatedReplayTransport:
         return self.replay.session_identifier
 
     def read_request(self, timeout: float):
-        request = self.replay.read_request(timeout)
+        if self._pending_setup_response and self.delegation_result is not None:
+            self._rollback_unaccepted_setup(self.delegation_result)
         self._pending_setup_response = False
         self.delegation_result = None
+        request = self.replay.read_request(timeout)
         if request.method == "SETUP" and request.path == "/session":
             self.delegation_result = self.delegation.handle_setup(
                 request.generation, request.body, lambda _candidate: SerializerResult(0xC8, 0))
@@ -144,17 +148,28 @@ class MockDelegatedReplayTransport:
         if self._closed:
             raise RuntimeError("mock_transport_closed")
         is_setup_response = self._pending_setup_response
-        self._pending_setup_response = False
-        if is_setup_response and response.status == 200 and self.delegation_result is not None:
-            streams = response.body.get("streams", ())
-            expected = {110, 111} if self.delegation_result.secondary_committed else {110}
-            if {item.get("type") for item in streams if isinstance(item, dict)} != expected:
-                self._rollback_unaccepted_setup(self.delegation_result)
+        result = self.delegation_result if is_setup_response else None
+        if result is not None and response.status == 200:
+            response_matches = (
+                self.setup_response_validator(result, response)
+                if self.setup_response_validator is not None
+                else (not result.secondary_committed and response.body == result.response)
+            )
+            if not response_matches:
+                if result.secondary_committed:
+                    self._rollback_unaccepted_setup(result)
+                self._pending_setup_response = False
                 raise RuntimeError("runtime_setup_response_does_not_match_committed_streams")
-        elif (is_setup_response and self.delegation_result is not None and
-              self.delegation_result.secondary_committed):
-            self._rollback_unaccepted_setup(self.delegation_result)
-        self.replay.write_response(response)
+        if result is not None and result.secondary_committed and response.status != 200:
+            self._rollback_unaccepted_setup(result)
+        try:
+            self.replay.write_response(response)
+        except Exception:
+            if result is not None and result.secondary_committed:
+                self._rollback_unaccepted_setup(result)
+            raise
+        finally:
+            self._pending_setup_response = False
 
     def _rollback_unaccepted_setup(self, result) -> None:
         if (result is not None and result.secondary_committed and
@@ -162,8 +177,30 @@ class MockDelegatedReplayTransport:
             raise RuntimeError("mock_type111_rollback_failed")
 
     def close(self) -> None:
+        if self._closed:
+            return
+        cleanup_ok = True
+        cleanup_error: Exception | None = None
+        try:
+            child = self.delegation.secondary.lifecycle.current_type111
+            if child is not None and child.phase.name != "STOPPED":
+                cleanup_ok = child.teardown()
+                if not cleanup_ok:
+                    cleanup_ok = child.phase.name == "STOPPED"
+        except Exception as exc:
+            cleanup_ok = False
+            cleanup_error = exc
+        replay_close_error: Exception | None = None
+        try:
+            self.replay.close()
+        except Exception as exc:
+            replay_close_error = exc
+        if not cleanup_ok:
+            raise RuntimeError("mock_session_cleanup_failed") from cleanup_error
+        if replay_close_error is not None:
+            raise RuntimeError("mock_transport_close_failed") from replay_close_error
         self._closed = True
-        self.replay.close()
+        self._pending_setup_response = False
 
 
 def _mock_delegation(generation: int) -> StockFirstType111Delegator:
@@ -314,8 +351,44 @@ class RenderedSecondaryOutput:
             return self._condition.wait_for(predicate, timeout)
 
 
+def _setup_response_matches_receiver(receiver: Receiver, result: Any,
+                                     response: ControlResponse) -> bool:
+    if (response.status != 200 or response.generation != receiver.generation or
+            receiver.last_response is None or
+            response.body != receiver.last_response.fields):
+        return False
+    expected_streams = result.response.get("streams")
+    actual_streams = response.body.get("streams")
+    if (not isinstance(expected_streams, (list, tuple)) or
+            not isinstance(actual_streams, (list, tuple)) or
+            any(not isinstance(item, dict) for item in actual_streams)):
+        return False
+    expected_types = [item.get("type") for item in expected_streams
+                      if isinstance(item, dict)]
+    actual_types = [item.get("type") for item in actual_streams]
+    if len(expected_types) != len(expected_streams) or actual_types != expected_types:
+        return False
+    if sum(stream_type == 110 for stream_type in actual_types) != 1:
+        return False
+    if result.secondary_committed != (sum(stream_type == 111 for stream_type in actual_types) == 1):
+        return False
+    if sum(stream_type == 111 for stream_type in actual_types) > 1:
+        return False
+    for item in actual_streams:
+        if item.get("type") == 110:
+            if receiver.primary is None or item.get("dataPort") != receiver.primary.port:
+                return False
+        elif item.get("type") == 111:
+            if receiver.secondary is None or item.get("dataPort") != receiver.secondary.port:
+                return False
+        else:
+            return False
+    return True
+
+
 def _profile_transport(generation: int, delegation: StockFirstType111Delegator,
-                       streams: list[dict[str, int]]) -> MockDelegatedReplayTransport:
+                       streams: list[dict[str, int]],
+                       setup_response_validator: Callable[[Any, ControlResponse], bool] | None = None) -> MockDelegatedReplayTransport:
     handoff = SessionHandoff(f"cl-imp-11-synthetic-{generation}", generation,
                              SessionOrigin.SANITIZED_REPLAY, "CL-IMP-11-MODEL_ONLY",
                              object())
@@ -323,7 +396,7 @@ def _profile_transport(generation: int, delegation: StockFirstType111Delegator,
         ControlRequest("GET", "/info", {}, generation),
         ControlRequest("SETUP", "/session", {"streams": streams}, generation),
     ])
-    return MockDelegatedReplayTransport(replay, delegation)
+    return MockDelegatedReplayTransport(replay, delegation, setup_response_validator)
 
 
 def _start_runtime(receiver: Receiver, primary: PrimaryLabOutput,
@@ -333,7 +406,12 @@ def _start_runtime(receiver: Receiver, primary: PrimaryLabOutput,
         {"type": 111, "streamConnectionID": 1110 + generation},
     ]
     delegation = _mock_delegation(generation)
-    transport = _profile_transport(generation, delegation, streams)
+    transport = _profile_transport(
+        generation, delegation, streams,
+        lambda result, response: _setup_response_matches_receiver(
+            receiver, result, response,
+        ),
+    )
     session = ReceiverSession(
         ReplayAuthenticationProvider(SessionHandoff(
             f"cl-imp-11-synthetic-{generation}", generation, SessionOrigin.SANITIZED_REPLAY,

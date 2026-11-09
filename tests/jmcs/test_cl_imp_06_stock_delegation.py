@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,6 +14,7 @@ sys.path[:0] = [
 ]
 
 from claritylink_jmcs.session_transport import ControlRequest, ControlResponse  # noqa: E402
+from claritylink_jmcs.receiver import FaultInjector, Receiver  # noqa: E402
 from claritylink_jmcs.stock_delegation import (  # noqa: E402
     DelegationError,
     MockStockPrimarySession,
@@ -25,7 +27,10 @@ from claritylink_jmcs.compat.honda.setup import (  # noqa: E402
 from dual_screen_lifecycle import DualScreenLifecycleTwin  # noqa: E402
 from legacy_dual_screen_twin import LegacyDualScreenTwin, ScreenRole  # noqa: E402
 from project_lifecycle import ChildPhase  # noqa: E402
-from demo.cl_imp_11.dual_display_lab import MockDelegatedReplayTransport  # noqa: E402
+from demo.cl_imp_11.dual_display_lab import (  # noqa: E402
+    MockDelegatedReplayTransport,
+    _setup_response_matches_receiver,
+)
 from type111_setup_contract import (  # noqa: E402
     DeterministicListenerAllocator,
     SecurityMode,
@@ -101,6 +106,24 @@ def test_default_delegator_disables_type111_but_preserves_mixed_stock_request():
     assert primary.active and stock.active and stock.setup_calls == 1
 
 
+def test_failed_stock_serializer_is_not_reported_as_a_preserved_primary():
+    delegator, stock, primary, lifecycle, allocator, stock_response = make_delegator(
+        synthetic_contract=False, synthetic_delegator=False,
+    )
+    delegator.open(44)
+    result = delegator.handle_setup(
+        44, {"streams": [{"type": 111, "streamConnectionID": 4401}]},
+        lambda _response: SerializerResult(0x1F4, 1),
+    )
+
+    assert result.response == stock_response
+    assert not result.primary_preserved and not result.secondary_committed
+    assert result.error_code == "stock_serializer_failed"
+    assert result.transaction.fallback_error_code == "stock_serializer_failed"
+    assert lifecycle.current_type111 is None and not allocator.reservations
+    assert primary.active and stock.active
+
+
 
 def test_missing_transport_allocator_fails_open_to_stock_response():
     delegator, stock, primary, lifecycle, allocator, stock_response = make_delegator(
@@ -153,6 +176,99 @@ def test_disabled_type111_lab_transport_returns_stock_only_response():
     assert result.primary_preserved and not result.secondary_committed
     transport.write_response(ControlResponse(200, stock_response, 51))
     assert replay.responses == [ControlResponse(200, stock_response, 51)]
+
+
+def _type111_setup_request(generation: int) -> ControlRequest:
+    return ControlRequest(
+        "SETUP", "/session",
+        {"streams": [{"type": 110, "streamConnectionID": 1101},
+                     {"type": 111, "streamConnectionID": generation + 5100}]},
+        generation,
+    )
+
+
+class _ReplayQueue:
+    def __init__(self, requests, *, fail_write=False):
+        self.requests = list(requests)
+        self.responses = []
+        self.fail_write = fail_write
+        self.closed = False
+
+    def read_request(self, _timeout):
+        return self.requests.pop(0)
+
+    def write_response(self, response):
+        if self.fail_write:
+            raise RuntimeError("injected replay write failure")
+        self.responses.append(response)
+
+    def close(self):
+        self.closed = True
+
+
+def test_unwritten_setup_is_rolled_back_before_next_request():
+    delegator, _stock, primary, lifecycle, allocator, _stock_response = make_delegator()
+    delegator.open(61)
+    replay = _ReplayQueue([
+        _type111_setup_request(61), ControlRequest("GET", "/info", {}, 61),
+    ])
+    transport = MockDelegatedReplayTransport(replay, delegator)
+
+    transport.read_request(1)
+    assert transport.delegation_result.secondary_committed
+    transport.read_request(1)
+
+    assert allocator.reservations[0].state.value == "CLOSED"
+    assert lifecycle.current_type111 is None
+    assert primary.active and transport.delegation_result is None
+
+
+def test_setup_response_must_match_delegated_candidate_and_write_failure_rolls_back():
+    delegator, _stock, primary, lifecycle, allocator, _stock_response = make_delegator()
+    delegator.open(62)
+    replay = _ReplayQueue([_type111_setup_request(62)])
+    transport = MockDelegatedReplayTransport(
+        replay, delegator,
+        setup_response_validator=lambda result, response: response.body == result.response,
+    )
+    transport.read_request(1)
+    result = transport.delegation_result
+    altered = {**result.response, "streams": [dict(item) for item in result.response["streams"]]}
+    altered["streams"][-1]["dataPort"] += 1
+
+    with pytest.raises(RuntimeError, match="does_not_match_committed_streams"):
+        transport.write_response(ControlResponse(200, altered, 62))
+    assert allocator.reservations[0].state.value == "CLOSED"
+    assert lifecycle.current_type111 is None
+    assert primary.active and not replay.responses
+
+    delegator, _stock, primary, lifecycle, allocator, _stock_response = make_delegator()
+    delegator.open(63)
+    replay = _ReplayQueue([_type111_setup_request(63)], fail_write=True)
+    transport = MockDelegatedReplayTransport(
+        replay, delegator, setup_response_validator=lambda _result, _response: True,
+    )
+    transport.read_request(1)
+    with pytest.raises(RuntimeError, match="injected replay write failure"):
+        transport.write_response(ControlResponse(200, {}, 63))
+    assert allocator.reservations[0].state.value == "CLOSED"
+    assert lifecycle.current_type111 is None
+    assert primary.active
+
+
+def test_transport_close_withdraws_pending_child_for_parent_finalizer():
+    delegator, stock, primary, lifecycle, allocator, _stock_response = make_delegator()
+    delegator.open(64)
+    replay = _ReplayQueue([_type111_setup_request(64)])
+    transport = MockDelegatedReplayTransport(replay, delegator)
+    transport.read_request(1)
+    assert transport.delegation_result.secondary_committed
+
+    transport.close()
+
+    assert replay.closed and primary.active and stock.active
+    assert allocator.reservations[0].state.value == "CLOSED"
+    assert lifecycle.current_type111 is None
 
 
 def test_committed_child_rejected_by_outer_flag_is_rolled_back_before_stock_response():
@@ -208,9 +324,9 @@ def test_delegator_retries_cleanup_after_contract_cleanup_exception():
         lambda _response: SerializerResult(500, 1),
     )
 
-    assert result.response == stock_response and result.primary_preserved
+    assert result.response == stock_response and not result.primary_preserved
     assert not result.secondary_committed
-    assert result.error_code == "type111_candidate_serializer_failed"
+    assert result.error_code == "stock_serializer_failed"
     assert lifecycle.current_type111 is None and primary.active
     assert allocator.reservations[0].state.value == "CLOSED"
 
@@ -315,9 +431,16 @@ def test_lab_transport_limits_stream_validation_to_matching_setup_response():
             pass
 
     replay = ReplayStub()
-    transport = MockDelegatedReplayTransport(replay, delegator)
+    expected = []
+    transport = MockDelegatedReplayTransport(
+        replay, delegator,
+        setup_response_validator=lambda result, response: bool(
+            expected and response.body == expected[0] == result.response
+        ),
+    )
     setup = transport.read_request(0)
     setup_response = transport.delegation_result.response
+    expected.append(setup_response)
     assert setup.method == "SETUP"
     transport.write_response(ControlResponse(200, setup_response, 56))
 
@@ -327,6 +450,99 @@ def test_lab_transport_limits_stream_validation_to_matching_setup_response():
     followup_response = ControlResponse(200, {"parameter": "ok"}, 56)
     transport.write_response(followup_response)
     assert replay.responses == [ControlResponse(200, setup_response, 56), followup_response]
+
+
+def test_transport_close_retries_child_cleanup_after_transient_failure():
+    delegator, _stock, _primary, lifecycle, _allocator, _stock_response = make_delegator()
+    delegator.open(65)
+    replay = _ReplayQueue([_type111_setup_request(65)])
+    transport = MockDelegatedReplayTransport(replay, delegator)
+    transport.read_request(1)
+    child = lifecycle.current_type111
+    original_teardown = child.teardown
+    attempts = []
+
+    def fail_once():
+        attempts.append(True)
+        if len(attempts) == 1:
+            return False
+        return original_teardown()
+
+    child.teardown = fail_once
+    with pytest.raises(RuntimeError, match="mock_session_cleanup_failed"):
+        transport.close()
+    assert not transport._closed and lifecycle.current_type111 is child
+
+    transport.close()
+    assert transport._closed and lifecycle.current_type111 is None
+
+
+def test_committed_delegation_is_rolled_back_when_receiver_returns_type110_only():
+    generation = 1
+    delegator, _stock, _primary, lifecycle, allocator, _stock_response = make_delegator()
+    delegator.open(generation)
+    receiver = Receiver(clear_lab=True, faults=FaultInjector("listener_bind"))
+    receiver_generation = receiver.start_session()
+    assert receiver_generation == generation
+    receiver.info_exchanged(generation)
+    request = _type111_setup_request(generation)
+    replay = _ReplayQueue([request])
+    transport = MockDelegatedReplayTransport(
+        replay, delegator,
+        setup_response_validator=lambda result, response:
+            _setup_response_matches_receiver(receiver, result, response),
+    )
+    transport.read_request(1)
+    assert transport.delegation_result.secondary_committed
+    fallback = receiver.setup(request.body, generation)
+    response = ControlResponse(200, fallback.fields, generation)
+    assert [item["type"] for item in response.body["streams"]] == [110]
+    assert not _setup_response_matches_receiver(receiver, transport.delegation_result, response)
+
+    with pytest.raises(RuntimeError, match="does_not_match_committed_streams"):
+        transport.write_response(response)
+
+    assert lifecycle.current_type111 is None
+    assert allocator.reservations[0].state.value == "CLOSED"
+    receiver.teardown(generation)
+
+
+def test_receiver_response_validator_accepts_exact_ports_and_rejects_bad_stream_shapes():
+    body = {"streams": [
+        {"type": 110, "dataPort": 31001},
+        {"type": 111, "dataPort": 31002},
+    ]}
+    receiver = SimpleNamespace(
+        generation=7,
+        last_response=SimpleNamespace(fields=body),
+        primary=SimpleNamespace(port=31001),
+        secondary=SimpleNamespace(port=31002),
+    )
+    result = SimpleNamespace(
+        response={"streams": [{"type": 110}, {"type": 111}]},
+        secondary_committed=True,
+    )
+    response = ControlResponse(200, body, 7)
+
+    assert _setup_response_matches_receiver(receiver, result, response)
+
+    wrong_port = {"streams": [dict(item) for item in body["streams"]]}
+    wrong_port["streams"][1]["dataPort"] += 1
+    assert not _setup_response_matches_receiver(
+        receiver, result, ControlResponse(200, wrong_port, 7),
+    )
+
+    duplicate = {"streams": [*body["streams"], dict(body["streams"][1])]}
+    receiver.last_response = SimpleNamespace(fields=duplicate)
+    assert not _setup_response_matches_receiver(
+        receiver, result, ControlResponse(200, duplicate, 7),
+    )
+
+    malformed = {"streams": [body["streams"][0], "invalid"]}
+    receiver.last_response = SimpleNamespace(fields=malformed)
+    assert not _setup_response_matches_receiver(
+        receiver, result, ControlResponse(200, malformed, 7),
+    )
 
 
 @pytest.mark.parametrize("response_status", [200, 500])
@@ -562,7 +778,8 @@ def test_serializer_failure_returns_primary_snapshot_instead_of_candidate_append
         lambda value: (calls.append(value) or SerializerResult(0x1F4, 1)),
     )
 
-    assert not result.secondary_committed and result.primary_preserved
+    assert not result.secondary_committed and not result.primary_preserved
+    assert result.error_code == "stock_serializer_failed"
     assert result.response == stock_response
     assert result.transaction.response == stock_response
     assert result.transaction.data_port is None

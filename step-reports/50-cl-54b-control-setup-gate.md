@@ -10,6 +10,12 @@ Base: native checkpoint `a945ead50a4cd36db935b7865a15bb88f6a1f56f`
 
 **Change:** `Type111SetupContract` now rejects Type111 by default with `type111_authority_unavailable` before listener allocation or generation creation. It passes a copy of the unchanged stock response through the stock serializer once, reports `TYPE111_DISABLED_AUTHORITY_UNKNOWN`, and returns no Type111 port, listener, or generation. Factory Type110-only requests still use the normal transaction path. Existing Type111 lifecycle tests and the synthetic lab explicitly opt in using `enable_synthetic_type111_for_tests`; the typed `SecurityMode` is propagated through the stock-first adapter, and the lab accepts its synthetic stream only when the result is tagged `SYNTHETIC_TEST_ONLY`.
 
+On a synthetic Type111 candidate failure, the response-construction callback may
+run once for the auxiliary candidate and once for the factory-only fallback.
+It must be side-effect free and must not publish bytes. If the fallback
+serializer fails, the transaction now reports `stock_serializer_failed` and
+does not mark `primary_preserved=true`.
+
 The adapter is a host-side transaction model. It has no binding to Honda's receiver session, Control SETUP implementation, authenticated transport, or stream dispatcher. The opt-in is for offline tests and the synthetic lab only; it permits the exact deterministic test allocator and the host `RealListenerAllocator` configured with `InterfaceKind.LOOPBACK_TEST`. The type and policy are checked at construction and immediately before reservation. The stock-first delegator passes its own default-off test flag into the contract before setup, so an unapproved synthetic result is never listener-allocated or serialized. `security_mode` describes execution/evidence context, not success: consumers must also check `committed`. These checks are not a security boundary, and neither flag is Honda feature authorization.
 
 ## Evidence boundary
@@ -34,7 +40,7 @@ pytest -q tests/negotiation/test_type111_setup_contract.py \
   tests/native/test_native_setup_txn_host.py \
   tests/jmcs/test_cl_imp_06_stock_delegation.py \
   tests/integration/test_cl_imp_11_dual_display_lab.py
-137 passed, 21 subtests passed
+145 passed, 21 subtests passed (including the review-fix regressions)
 ```
 
 The inherited native advertisement helper was also revalidated with the
@@ -63,6 +69,42 @@ Independent review found that a failed Type111 candidate serialization could pre
 
 Cleanup now preserves the exact generation token when the first cleanup attempt raises, retries it at the delegator boundary, checks the generation phase when cleanup returns false, and reports unresolved cleanup as `type111_cleanup_failed`. Parent loss is still handled if a child cleanup retry fails; a failed parent cleanup remains explicitly retryable by session revocation. A failed post-serializer snapshot copy retains the pre-serializer stock snapshot when available. The serializer callback is documented as a local response-construction probe with no network side effects; an actual Honda integration still needs a verified response-commit boundary.
 
-The optional listener-class lookup is no longer cached, so a missing or reloaded host module cannot leave a stale allocator-type result. When an outer synthetic-mode gate rolls back an already committed child, the returned transaction snapshot now clears its listener/port and committed markers after successful cleanup. Fallback serializer errors now prevent the lab from claiming healthy stock setup, and an unaccepted or mismatched mock SETUP response tears down the project child. The mock response validator is reset and associated with each request, and session revocation refuses a mismatched primary generation. These fixes do not establish Honda Control SETUP negotiation or a Type111 security/transport handoff.
+The optional listener-class lookup is no longer cached, so a missing or reloaded host module cannot leave a stale allocator-type result. When an outer synthetic-mode gate rolls back an already committed child, the returned transaction snapshot now clears its listener/port and committed markers after successful cleanup. Fallback serializer errors now prevent the lab from claiming healthy stock setup, and an unaccepted or mismatched mock SETUP response tears down the project child. For a pending SETUP response, the validator receives that delegation result and checks stream types against its candidate, confirms the receiver's actual listener ports, and compares the response body with the receiver's stored SETUP result. The separate synthetic delegator and receiver allocate separate ports; matching those ports is not claimed. Transport close retries child cleanup after transient failure; parent session revocation remains the parent owner's separate operation. These fixes do not establish Honda Control SETUP negotiation or a Type111 security/transport handoff.
 
-No vehicle, firmware, startup configuration, archived receiver bytes, or live iPhone session was touched. This offline checkpoint was published as `WIP_UNVERIFIED` on `codex/cl-54b-control-setup` at `4c3c86b39542b9d5f18ce5d498590e9cbf3aa7e4`; the publisher verified the same remote SHA and did not open a PR. Exact-scope independent review remains pending, so the WIP publication is not an approval or a reviewed PR checkpoint. The next publication step is an eligible exact-scope review followed by a VERIFIED stacked PR if the review and release checks pass.
+## Review correction (2026-11-08)
+
+An exact-scope Claude review returned **NEEDS_CHANGES** with four medium
+findings: an unwritten committed child could survive request advancement or
+transport write failure; response validation checked only stream-type sets;
+stock serializer failure could be reported as preserved; and retry behavior
+needed explicit documentation. The current changes roll back an unaccepted
+child on request advancement, write failure, or transport close; parent
+finalization remains responsible for revoking the complete session. The lab
+now validates each response against its pending delegation result, stream
+composition, receiver response, and active listener ports. Failed stock serialization is reported as
+`stock_serializer_failed` with `primary_preserved=false`. The serializer
+contract now states that a failed Type111 candidate may be followed by a
+factory-only retry. New regressions cover each path. Focused rerun: 96 passed.
+
+A second Claude review confirmed the first four findings were addressed but
+identified a remaining MEDIUM issue: the validator compared against the
+receiver's stored response without checking Type111 agreement. The current
+change binds validation to the pending delegation result and checks stream
+composition and active receiver ports. A new regression forces the receiver's
+Type110-only fallback after delegation prepared Type111 and verifies rollback.
+The second review also found close retryability and a weak mismatch test; close
+now retries and the mismatch test uses an exact-result validator. A third
+Claude review returned **APPROVE**, with no critical/high/medium findings. A
+fourth exact-scope review also returned **APPROVE**, ran the seven-file
+regression command in Studio's test environment, and confirmed **145 passed,
+21 subtests passed**. It noted only low concerns: `ReceiverSession.close` drops
+its transport reference before a failing close could be retried, cleanup
+rollback can be retried by close or the next read, and the synthetic receiver's
+listener ports are intentionally separate from the delegator's synthetic
+allocator port. The mismatch path retains its pending state if rollback raises,
+and direct validator tests cover exact ports, wrong ports, duplicate Type111
+entries, and malformed stream items. The parent session remains responsible for
+final revocation. ECC review tooling was unavailable in this session, so no ECC
+review is claimed.
+
+No vehicle, firmware, startup configuration, archived receiver bytes, or live iPhone session was touched. The prior published WIP head is `67800fff2bde819c84abf6ff41623bd1f9977189`; PR #153 is the dependency base and no Control PR exists. Exact-scope Claude review is APPROVE. ECC engineering/security review tooling was unavailable in this session; no ECC approval is claimed. This revision is therefore preserved as `WIP_UNVERIFIED` pending the independent ECC review gate and Studio VERIFIED preflight. No PR merge or GitHub Actions run is authorized.
