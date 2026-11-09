@@ -55,9 +55,9 @@ unknown type; Type111 bypassed the factory path and preserved the fallback
 response on missing authority, unready transport, duplicate identity, partial
 setup, serializer failure, and commit failure. No successful Type111 commit
 was executed. Serializer and commit failures cleared the candidate, transaction,
-and borrowed request handle before returning. Missing the factory delegate or
-either required teardown callback also kept Type111 disabled; Type110 still
-delegated to the stock callback.
+and borrowed request handle before returning. A missing capability handle,
+factory delegate, or either required teardown callback kept Type111 disabled;
+Type110 still delegated to the stock callback.
 
 The existing Python integration regressions passed **53 tests** for stream
 dispatch, the Type111 setup contract, and stock delegation. `clang --analyze`
