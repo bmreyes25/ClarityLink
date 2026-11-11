@@ -1,5 +1,10 @@
 > **Historical log.** This file accumulates dated records and is kept for provenance. For current status read [docs/status/README.md](docs/status/README.md).
 
+# CL-T111-01 native boundary execution — 2026-11-11
+
+- [Native boundary execution checkpoint](step-reports/52-cl-t111-01-native-boundary-execution.md) — genuine Honda constructor and CFLite helper execution matched between the archived stock and modified images; startup stops before the stock `/info` callsite. A genuine session/Screen is specifically required for callback augmentation.
+- Public source tested: PR #117 pass-through patcher and PR #153 candidate helper. The report records exact public revisions, test counts, native-versus-synthetic evidence classes, and the session prerequisite without publishing private receiver artifacts.
+
 # R7C4 final Android integration closure — 2026-10-07
 
 - [R7C4 report](step-reports/43t1-r7c4-final-android-integration-closure.md) — local environment restored; API17 Dalvik native socket/JNI probes and 100-cycle synthetic-ingest run passed; deterministic race/fault matrix remains blocked.
