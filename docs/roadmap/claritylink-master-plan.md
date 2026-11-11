@@ -19,6 +19,18 @@
 - [Campaign tracker issues](../status/campaign-issues.md) (ten canonical campaign issues)
 - [Reference-library status](../research/cl-master-01-reference-status.md) (existing CL-R13-A work is in PR #53; do not duplicate it)
 
+## Current implementation track — CL-T111 (reconciled 2026-11-11)
+
+The work now follows the firmware-specific, offline CL-T111 implementation track in [cl-t111-implementation-track.md](cl-t111-implementation-track.md). It builds on the existing receiver, ELF, and display work while preserving each artifact's evidence class. It does not assume a supported Honda additive API, and it does not treat the absence of one as a ban on bounded offline engineering.
+
+The verified publication baseline is `origin/main` at `f32f87d3f5737f3fda8d50e06ab9663c4087a810`. The previously active `cl-r4-reliability-completion` worktree had two unpublished commits and local edits at kickoff; it was preserved and excluded from this documentation checkpoint. Relevant live GitHub provenance at this reconciliation is: PR #117 (native stock-pass-through/isolated-copy machinery, open); PRs #145 and #146–#151 (native transaction and runtime work, open and stacked); PR #152 (receiver compatibility, open); and PR #153 (native display advertisement, open and based on #152). CL-MASTER-01 was established in merged PR #54. These records are inputs, not CL-T111 acceptance receipts.
+
+The available evidence corrects older assumptions. CL-61 observed the initialized default-profile display UUID as a CFString in genuine Honda CoreFoundation objects; this does not establish all production profiles or UUID semantics. The display descriptor's 960×540 values, Android Display 1's 800×480 logical geometry, and the physical Navigation aperture remain separate coordinate systems. No direct UUID-to-streamConnectionID relationship has been established. The bounded static paths still show stock Type110 handling and no Type111 dispatch in the examined Honda path.
+
+CL-61's constructor/helper execution is not a real receiver callback test. CL-62 did not invoke the displays callback because the preserved runtime had no Honda-created AirPlayReceiverSession and Screen association. The later local CL-63–CL-65 records did not establish that session or callback; their findings remain local research pending separate public-safety review. No CL-66–CL-68 acceptance receipt was located in fetched public branches during this reconciliation. Historical CL-64 through CL-69 identifiers and reports retain their original meanings.
+
+The next project stage is CL-T111-00 reconciliation followed by CL-T111-01's bounded stock-delegating wrapper work. The exact entry, callee, session, and recovery acceptance conditions are defined in the linked track. Current runtime evidence does not authorize a fabricated session or another nondiscriminating emulator attempt. `safeForHonda() == false`; no Honda, vehicle, live ADB, firmware, or connected-iPhone operation is authorized.
+
 ## Phase plan
 
 | Phase | Campaign / objective | State and exit condition |
@@ -62,7 +74,7 @@ Critical blockers:
 4. Independent review and separate owner authorization for any bench-iPhone or vehicle activity.
 5. Verified encrypted private evidence backup/recovery; this document makes no such claim.
 
-## Next authorized offline milestone
+## Historical next offline milestone (recorded before CL-T111)
 
 **CL-INT-04 — autonomous host-owned Display 1 withdrawal**, tracked under existing issue [#62](https://github.com/bmreyes25/ClarityLink/issues/62). This follows merged policy PR #91 and reuses merged fail-safe, Type111 ingest, and error-handling infrastructure from PRs #92, #94, and #97. Implement and verify:
 
