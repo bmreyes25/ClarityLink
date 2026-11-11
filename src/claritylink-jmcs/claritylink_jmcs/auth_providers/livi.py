@@ -13,6 +13,7 @@ from ..authentication import (
     AuthenticationError,
     AuthorityType,
     SessionOrigin,
+    TrustClass,
 )
 from ..session_transport import ControlRequest, ControlResponse, TransportError, validate_control_request
 
@@ -165,6 +166,10 @@ class LiviAuthority:
                 transport=transport,
                 authority_type=self.authority_type,
                 authenticated=True,
+                # A local bridge's self-asserted state is never attestation; a
+                # synthetic bridge is explicitly test-only.
+                trust=(TrustClass.UNVERIFIED_HARDWARE if self.bridge_kind == "REAL_LIVI_BRIDGE"
+                       else TrustClass.SYNTHETIC_TEST),
                 capabilities={
                     "control_delegation": True,
                     "real_livi_bridge": self.bridge_kind == "REAL_LIVI_BRIDGE",

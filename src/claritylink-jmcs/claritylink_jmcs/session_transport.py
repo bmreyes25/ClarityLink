@@ -154,6 +154,7 @@ class LabSessionTransport:
         self._handoff = handoff
         self._channel = channel
         self._closed = False
+        self._request_pending = False
 
     @property
     def authenticated(self) -> bool:
@@ -170,6 +171,8 @@ class LabSessionTransport:
     def read_request(self, timeout: float) -> ControlRequest:
         if not self.authenticated:
             raise TransportError("transport_closed")
+        if self._request_pending:
+            raise TransportError("request_already_pending")
         if not 0 < timeout <= 30:
             raise TransportError("invalid_timeout")
         try:
@@ -177,11 +180,19 @@ class LabSessionTransport:
         except (TimeoutError, EOFError, ConnectionError) as exc:
             raise TransportError("peer_disconnected_or_timeout") from exc
         validate_control_request(request, self.generation)
+        self._request_pending = True
         return request
 
     def write_response(self, response: ControlResponse) -> None:
-        if not self.authenticated or response.generation != self.generation:
+        if (not self.authenticated or not isinstance(response, ControlResponse) or
+                response.generation != self.generation):
             raise TransportError("stale_or_closed_transport")
+        if not self._request_pending:
+            raise TransportError("response_without_request")
+        if type(response.status) is not int or not 100 <= response.status <= 599:
+            raise TransportError("malformed_response")
+        # One response per request: a failed write still consumes the request.
+        self._request_pending = False
         self._channel.write_response(response)
 
     def close(self) -> None:

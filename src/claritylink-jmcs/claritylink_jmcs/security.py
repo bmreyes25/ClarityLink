@@ -152,3 +152,135 @@ class ModernChaChaScreenSecurity:
         self.stream_connection_id = None
         self.counter = 0
         self._closed = True
+
+
+_GRANTABLE_PROFILES = (SecurityProfile.LEGACY_AES_SCREEN, SecurityProfile.MODERN_CHACHA_SCREEN)
+
+
+class Type111SecurityGrant:
+    """Parent-owned, single-use security material for exactly one Type111 stream.
+
+    A provider attaches this to its handoff. It binds the profile to one parent
+    session, generation and stream connection ID. The grant never selects a
+    decoder from a peer-supplied string: only profiles listed in
+    `_PROFILE_PROVIDERS` can be built, and the key is zeroed once released.
+    """
+    __slots__ = ("profile", "provenance", "session_identifier", "generation",
+                 "stream_connection_id", "synthetic", "_key", "_released", "_closed")
+
+    def __init__(self, profile: str, *, provenance: str, session_identifier: str,
+                 generation: int, stream_connection_id: int, key: bytes,
+                 synthetic: bool) -> None:
+        if (type(profile) is not str or profile not in _GRANTABLE_PROFILES or
+                not isinstance(provenance, str) or not provenance.strip() or
+                not isinstance(session_identifier, str) or not session_identifier or
+                not _valid_positive_u64(generation) or
+                not _valid_positive_u64(stream_connection_id) or
+                not isinstance(key, bytes) or not 16 <= len(key) <= 64 or
+                type(synthetic) is not bool):
+            raise SecurityError("invalid_security_grant")
+        self.profile = profile
+        self.provenance = provenance
+        self.session_identifier = session_identifier
+        self.generation = generation
+        self.stream_connection_id = stream_connection_id
+        self.synthetic = synthetic
+        self._key = bytearray(key)
+        self._released = False
+        self._closed = False
+
+    @property
+    def usable(self) -> bool:
+        return not self._released and not self._closed
+
+    def release_key(self) -> bytes:
+        if not self.usable:
+            raise SecurityError("security_grant_consumed")
+        self._released = True
+        key = bytes(self._key)
+        self._zero()
+        return key
+
+    def _zero(self) -> None:
+        for i in range(len(self._key)):
+            self._key[i] = 0
+
+    def close(self) -> None:
+        self._zero()
+        self._closed = True
+
+    def __repr__(self) -> str:
+        return f"Type111SecurityGrant(profile={self.profile}, generation={self.generation}, usable={self.usable})"
+
+    def __reduce__(self) -> None:
+        raise SecurityError("security_grant_not_serializable")
+
+
+_PROFILE_PROVIDERS = {SecurityProfile.MODERN_CHACHA_SCREEN: ModernChaChaScreenSecurity}
+
+
+class _GrantBoundSecurity:
+    """ScreenSecurityProvider that builds its inner provider only after full binding."""
+
+    def __init__(self, grant: Type111SecurityGrant, handoff: object,
+                 allow_test_profiles: bool) -> None:
+        self._grant = grant
+        self._handoff = handoff
+        self._allow_test_profiles = allow_test_profiles
+        self._inner: ModernChaChaScreenSecurity | None = None
+        self._opened = False
+
+    def open(self, generation: int, stream_connection_id: int) -> None:
+        grant, handoff = self._grant, self._handoff
+        if self._opened or not grant.usable or getattr(handoff, "closed", True):
+            raise SecurityError("security_grant_unavailable")
+        if (not _valid_positive_u64(generation) or not _valid_positive_u64(stream_connection_id)
+                or generation != grant.generation or generation != getattr(handoff, "generation", None)
+                or grant.session_identifier != getattr(handoff, "session_identifier", None)
+                or stream_connection_id != grant.stream_connection_id):
+            raise SecurityError("security_grant_binding_mismatch")
+        provider = _PROFILE_PROVIDERS.get(grant.profile)
+        if provider is None:
+            raise SecurityError("security_profile_unimplemented")
+        from .authentication import TrustClass
+        if grant.synthetic:
+            if not self._allow_test_profiles:
+                raise SecurityError("synthetic_security_not_enabled")
+        elif getattr(handoff, "trust", None) is not TrustClass.ATTESTED:
+            raise SecurityError("security_authority_unattested")
+        self._opened = True
+        inner = provider(grant.release_key(), provenance=grant.provenance)
+        inner.open(generation, stream_connection_id)
+        self._inner = inner
+
+    def unprotect(self, generation: int, body: bytes, header: bytes = b"") -> bytes:
+        if self._inner is None or getattr(self._handoff, "closed", True):
+            raise SecurityError("stale_security_context")
+        return self._inner.unprotect(generation, body, header)
+
+    def close(self) -> None:
+        inner, self._inner = self._inner, None
+        try:
+            if inner is not None:
+                inner.close()
+        finally:
+            self._grant.close()
+
+
+class HandoffSecurityFactory:
+    """Receiver `security_factory` that yields the parent grant's provider once."""
+
+    def __init__(self, handoff: object, *, allow_test_profiles: bool = False) -> None:
+        grant = getattr(handoff, "security_context", None)
+        if not isinstance(grant, Type111SecurityGrant):
+            raise SecurityError("security_grant_required")
+        self._grant = grant
+        self._handoff = handoff
+        self._allow_test_profiles = allow_test_profiles
+        self._issued = False
+
+    def __call__(self) -> ScreenSecurityProvider:
+        if self._issued:
+            raise SecurityError("security_grant_consumed")
+        self._issued = True
+        return _GrantBoundSecurity(self._grant, self._handoff, self._allow_test_profiles)
