@@ -58,6 +58,11 @@ typedef struct CLDisplayProfile {
 
 #define CL_INFO_MAX_EXISTING_DISPLAYS 8L
 
+typedef enum CLInfoAugmentPolicy {
+    CL_INFO_AUGMENT_POLICY_DISABLED = 0,
+    CL_INFO_AUGMENT_POLICY_TYPE111 = 1
+} CLInfoAugmentPolicy;
+
 typedef enum CLInfoAugmentResult {
     CL_INFO_AUGMENT_OK = 0,
     CL_INFO_AUGMENT_INVALID_ARGUMENT = 1,
@@ -65,10 +70,14 @@ typedef enum CLInfoAugmentResult {
     CL_INFO_AUGMENT_DUPLICATE_AUXILIARY = 3,
     CL_INFO_AUGMENT_ALLOCATION_FAILED = 4,
     CL_INFO_AUGMENT_APPEND_FAILED = 5,
-    CL_INFO_AUGMENT_DICTIONARY_FAILED = 6
+    CL_INFO_AUGMENT_DICTIONARY_FAILED = 6,
+    CL_INFO_AUGMENT_DISABLED = 7
 } CLInfoAugmentResult;
 
-/* Creates an independent, caller-owned Type111 candidate dictionary.
+/* Creates an independent, caller-owned Type111 candidate dictionary only
+ * when the explicit policy is CL_INFO_AUGMENT_POLICY_TYPE111. The disabled
+ * policy is the safe default. Opt-in does not establish listener, security,
+ * or session readiness; the caller must verify those prerequisites first.
  * The only wire fields are type=111 and a caller-provided canonical lowercase
  * UUID string. This external-prior-art profile remains unverified for Honda.
  * The caller must append only after all other prerequisites have succeeded,
@@ -78,7 +87,8 @@ typedef enum CLInfoAugmentResult {
  * *out_descriptor is NULL and no input object is modified. */
 CLInfoAugmentResult cl_info_create_type111_candidate(
     const CLCFAPI *api, CLCFTypeRef existing_displays,
-    const CLDisplayProfile *profile, CLCFMutableDictionaryRef *out_descriptor);
+    const CLDisplayProfile *profile, CLInfoAugmentPolicy policy,
+    CLCFMutableDictionaryRef *out_descriptor);
 
 /* Creates a separate array that retains each original descriptor plus the
  * candidate. The factory array and descriptors remain untouched and available
@@ -88,7 +98,8 @@ CLInfoAugmentResult cl_info_create_type111_candidate(
  * immutable throughout this call. */
 CLInfoAugmentResult cl_info_create_augmented_displays(
     const CLCFAPI *api, CLCFTypeRef factory_displays,
-    const CLDisplayProfile *profile, void **out_augmented_displays);
+    const CLDisplayProfile *profile, CLInfoAugmentPolicy policy,
+    void **out_augmented_displays);
 
 #ifdef __cplusplus
 }

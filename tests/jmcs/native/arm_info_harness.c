@@ -237,6 +237,7 @@ static int32_t run_append_success(void) {
     CLDisplayProfile profile = { candidate_uuid, (const void *)1,
                                  (const void *)1, (const void *)1 };
     CLInfoAugmentResult result;
+    int32_t allocations_before, sets_before, appends_before;
     allocation_number = 0;
     fail_allocation_number = 0;
     fail_append = 0;
@@ -269,7 +270,21 @@ static int32_t run_append_success(void) {
     retain_object(&primary_uuid);
     displays.values[0] = &primary;
     augmented_raw = 0;
-    result = cl_info_create_augmented_displays(&api, &displays, &profile,
+    allocations_before = allocation_number;
+    sets_before = dictionary_set_calls;
+    appends_before = append_calls;
+    candidate_raw = (void *)1;
+    result = cl_info_create_type111_candidate(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_DISABLED,
+                                               &candidate_raw);
+    if (result != CL_INFO_AUGMENT_DISABLED || candidate_raw) return 30;
+    augmented_raw = (void *)1;
+    result = cl_info_create_augmented_displays(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_DISABLED,
+                                                &augmented_raw);
+    if (result != CL_INFO_AUGMENT_DISABLED || augmented_raw) return 31;
+    if (allocation_number != allocations_before ||
+        dictionary_set_calls != sets_before || append_calls != appends_before ||
+        displays.count != 1u) return 32;
+    result = cl_info_create_augmented_displays(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &augmented_raw);
     augmented = (TestObject *)augmented_raw;
     if (result != CL_INFO_AUGMENT_OK || !augmented || augmented->count != 2u)
@@ -309,7 +324,7 @@ int32_t cl_native_info_test_entry(void) {
                 existing_uuid->string[i] = (char)(existing_uuid->string[i] - 'a' + 'A');
         }
     }
-    result = cl_info_create_type111_candidate(&api, augmented, &profile,
+    result = cl_info_create_type111_candidate(&api, augmented, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate_raw);
     if (result != CL_INFO_AUGMENT_DUPLICATE_AUXILIARY || candidate_raw) return 6;
     release_object(augmented);
@@ -318,24 +333,24 @@ int32_t cl_native_info_test_entry(void) {
     if (live_objects != 0) return 7;
 
     dictionary_callbacks_enabled = 0;
-    result = cl_info_create_type111_candidate(&api, &displays, &profile,
+    result = cl_info_create_type111_candidate(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate_raw);
     if (result != CL_INFO_AUGMENT_INVALID_ARGUMENT || candidate_raw) return 15;
     dictionary_callbacks_enabled = 1;
     array_callbacks_enabled = 0;
     augmented_raw = 0;
-    result = cl_info_create_augmented_displays(&api, &displays, &profile,
+    result = cl_info_create_augmented_displays(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &augmented_raw);
     if (result != CL_INFO_AUGMENT_INVALID_ARGUMENT || augmented_raw) return 18;
     array_callbacks_enabled = 1;
-    if (cl_info_create_type111_candidate(0, &displays, &profile,
+    if (cl_info_create_type111_candidate(0, &displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                          &candidate_raw) != CL_INFO_AUGMENT_INVALID_ARGUMENT ||
         candidate_raw) return 19;
-    if (cl_info_create_type111_candidate(&api, &displays, 0,
+    if (cl_info_create_type111_candidate(&api, &displays, 0, CL_INFO_AUGMENT_POLICY_TYPE111,
                                          &candidate_raw) != CL_INFO_AUGMENT_INVALID_ARGUMENT ||
         candidate_raw) return 20;
     force_negative_count = 1;
-    result = cl_info_create_type111_candidate(&api, &displays, &profile,
+    result = cl_info_create_type111_candidate(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate_raw);
     force_negative_count = 0;
     if (result != CL_INFO_AUGMENT_INVALID_ARGUMENT || candidate_raw) return 21;
@@ -346,11 +361,11 @@ int32_t cl_native_info_test_entry(void) {
         malformed_array.alive = 1; malformed_array.refs = 1;
         malformed_array.count = 1; malformed_array.values[0] = &malformed;
         result = cl_info_create_type111_candidate(&api, &malformed_array,
-                                                   &profile, &candidate_raw);
+                                                   &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate_raw);
         if (result != CL_INFO_AUGMENT_INVALID_ARGUMENT || candidate_raw) return 22;
     }
     profile.uuid = "invalid";
-    result = cl_info_create_type111_candidate(&api, &displays, &profile,
+    result = cl_info_create_type111_candidate(&api, &displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate_raw);
     if (result != CL_INFO_AUGMENT_INVALID_UUID || candidate_raw) return 16;
     profile.uuid = candidate_uuid;
@@ -363,7 +378,7 @@ int32_t cl_native_info_test_entry(void) {
         TestObject over_limit;
         over_limit.kind = OBJ_ARRAY; over_limit.count = 9u;
         over_limit.alive = 1; over_limit.refs = 1;
-        result = cl_info_create_type111_candidate(&api, &over_limit, &profile,
+        result = cl_info_create_type111_candidate(&api, &over_limit, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                    &candidate_raw);
         if (result != CL_INFO_AUGMENT_INVALID_ARGUMENT || candidate_raw) return 17;
     }
@@ -384,7 +399,7 @@ int32_t cl_native_info_test_entry(void) {
         typed_descriptor.keys[1] = &type_key; typed_descriptor.values[1] = &type_string;
         typed_array.kind = OBJ_ARRAY; typed_array.refs = 1; typed_array.alive = 1;
         typed_array.count = 1; typed_array.values[0] = &typed_descriptor;
-        result = cl_info_create_type111_candidate(&api, &typed_array, &profile,
+        result = cl_info_create_type111_candidate(&api, &typed_array, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                    &candidate_raw);
         if (result != CL_INFO_AUGMENT_DUPLICATE_AUXILIARY || candidate_raw) return 23;
     }
@@ -393,7 +408,7 @@ int32_t cl_native_info_test_entry(void) {
         fail_allocation_number = failure_at;
         augmented_raw = 0;
         result = cl_info_create_augmented_displays(&api, &factory_only,
-                                                    &profile, &augmented_raw);
+                                                    &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &augmented_raw);
         if (result != CL_INFO_AUGMENT_ALLOCATION_FAILED) return 100 + failure_at;
         if (augmented_raw) return 110 + failure_at;
         if (factory_only.count != 1u) return 120 + failure_at;
@@ -404,13 +419,13 @@ int32_t cl_native_info_test_entry(void) {
     fail_allocation_number = 0;
     dictionary_set_calls = 0;
     fail_dictionary_set_at = 1;
-    result = cl_info_create_type111_candidate(&api, &factory_only, &profile,
+    result = cl_info_create_type111_candidate(&api, &factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate_raw);
     if (result != CL_INFO_AUGMENT_DICTIONARY_FAILED || candidate_raw ||
         factory_only.count != 1u || live_objects != baseline_live) return 9;
     dictionary_set_calls = 0;
     fail_dictionary_set_at = 2;
-    result = cl_info_create_type111_candidate(&api, &factory_only, &profile,
+    result = cl_info_create_type111_candidate(&api, &factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate_raw);
     fail_dictionary_set_at = 0;
     if (result != CL_INFO_AUGMENT_DICTIONARY_FAILED || candidate_raw ||
@@ -419,7 +434,7 @@ int32_t cl_native_info_test_entry(void) {
     append_calls = 0;
     fail_append = 1;
     augmented_raw = 0;
-    result = cl_info_create_augmented_displays(&api, &factory_only, &profile,
+    result = cl_info_create_augmented_displays(&api, &factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &augmented_raw);
     fail_append = 0;
     if (result != CL_INFO_AUGMENT_APPEND_FAILED || augmented_raw ||
@@ -428,7 +443,7 @@ int32_t cl_native_info_test_entry(void) {
     append_calls = 0;
     fail_append_at = 2;
     augmented_raw = 0;
-    result = cl_info_create_augmented_displays(&api, &factory_only, &profile,
+    result = cl_info_create_augmented_displays(&api, &factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &augmented_raw);
     fail_append_at = 0;
     if (result != CL_INFO_AUGMENT_APPEND_FAILED || augmented_raw ||
@@ -436,7 +451,7 @@ int32_t cl_native_info_test_entry(void) {
 
     append_calls = 0;
     augmented_raw = 0;
-    result = cl_info_create_augmented_displays(&api, &factory_only, &profile,
+    result = cl_info_create_augmented_displays(&api, &factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &augmented_raw);
     augmented = (TestObject *)augmented_raw;
     if (result != CL_INFO_AUGMENT_OK || !augmented || augmented->count != 2u)
