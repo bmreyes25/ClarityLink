@@ -227,8 +227,40 @@ int main(void) {
     assert(factory_before);
     api_start_created = api_created; api_start_released = api_released;
 
+    {
+        int strings_before = string_calls;
+        int sets_before = dictionary_set_calls;
+        int appends_before = array_append_calls;
+        int allocations_before = api_created;
+        CFDataRef disabled_after;
+        candidate = (CLCFMutableDictionaryRef)(uintptr_t)1;
+        status = cl_info_create_type111_candidate(
+            &api, displays, &profile, CL_INFO_AUGMENT_POLICY_DISABLED, &candidate);
+        assert(status == CL_INFO_AUGMENT_DISABLED && !candidate);
+        augmented = (void *)(uintptr_t)1;
+        status = cl_info_create_augmented_displays(
+            &api, displays, &profile, CL_INFO_AUGMENT_POLICY_DISABLED, &augmented);
+        assert(status == CL_INFO_AUGMENT_DISABLED && !augmented);
+        candidate = (CLCFMutableDictionaryRef)(uintptr_t)1;
+        status = cl_info_create_type111_candidate(
+            &api, displays, &profile, (CLInfoAugmentPolicy)99, &candidate);
+        assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
+        augmented = (void *)(uintptr_t)1;
+        status = cl_info_create_augmented_displays(
+            &api, displays, &profile, (CLInfoAugmentPolicy)99, &augmented);
+        assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !augmented);
+        assert(string_calls == strings_before &&
+               dictionary_set_calls == sets_before &&
+               array_append_calls == appends_before &&
+               api_created == allocations_before);
+        disabled_after = serialize(displays);
+        assert(disabled_after && CFArrayGetCount(displays) == 1 &&
+               CFEqual(factory_before, disabled_after));
+        CFRelease(disabled_after);
+    }
+
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_augmented_displays(&api, displays, &profile,
+    status = cl_info_create_augmented_displays(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &augmented);
     assert(status == CL_INFO_AUGMENT_OK && augmented);
     assert(api_created - created_before == api_released - released_before + 1);
@@ -262,7 +294,7 @@ int main(void) {
 
     created_before = api_created; released_before = api_released;
     status = cl_info_create_type111_candidate(
-        &api, augmented, &profile, &candidate);
+        &api, augmented, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
     assert(status == CL_INFO_AUGMENT_DUPLICATE_AUXILIARY && !candidate);
     assert_api_balanced(created_before, released_before);
 
@@ -277,41 +309,41 @@ int main(void) {
         CFDictionarySetValue(uppercase_descriptor, uuid_key, uppercase_uuid);
         CFArrayAppendValue(uppercase_displays, uppercase_descriptor);
         status = cl_info_create_type111_candidate(
-            &api, uppercase_displays, &profile, &candidate);
+            &api, uppercase_displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
         assert(status == CL_INFO_AUGMENT_DUPLICATE_AUXILIARY && !candidate);
         CFRelease(uppercase_displays);
         CFRelease(uppercase_descriptor);
     }
 
     callbacks_retain = 0;
-    status = cl_info_create_type111_candidate(&api, displays, &profile,
+    status = cl_info_create_type111_candidate(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
-    status = cl_info_create_augmented_displays(&api, displays, &profile,
+    status = cl_info_create_augmented_displays(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &failed_augmented);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !failed_augmented);
     callbacks_retain = 1;
 
     profile.uuid = "invalid";
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_type111_candidate(&api, displays, &profile,
+    status = cl_info_create_type111_candidate(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_UUID && !candidate);
     assert_api_balanced(created_before, released_before);
     profile.uuid = "00000000-0000-0000-0000-000000000000";
-    status = cl_info_create_type111_candidate(&api, displays, &profile,
+    status = cl_info_create_type111_candidate(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_UUID && !candidate);
     profile.uuid = "abcdefab-cdef-0abc-8def-abcdefabcdef";
-    status = cl_info_create_type111_candidate(&api, displays, &profile,
+    status = cl_info_create_type111_candidate(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_UUID && !candidate);
     profile.uuid = "abcdefab-cdef-4abc-7def-abcdefabcdef";
-    status = cl_info_create_type111_candidate(&api, displays, &profile,
+    status = cl_info_create_type111_candidate(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_UUID && !candidate);
     profile.uuid = "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF";
-    status = cl_info_create_type111_candidate(&api, displays, &profile,
+    status = cl_info_create_type111_candidate(&api, displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_UUID && !candidate);
     profile.uuid = candidate_uuid;
@@ -320,10 +352,10 @@ int main(void) {
         CLCFAPI incomplete = api;
         incomplete.string_create_utf8 = NULL;
         status = cl_info_create_type111_candidate(&incomplete, displays,
-                                                   &profile, &candidate);
+                                                   &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
         assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
     }
-    status = cl_info_create_type111_candidate(&api, primary, &profile,
+    status = cl_info_create_type111_candidate(&api, primary, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
 
@@ -332,7 +364,7 @@ int main(void) {
         fail_string_at = i;
         candidate = NULL;
         created_before = api_created; released_before = api_released;
-        status = cl_info_create_type111_candidate(&api, factory_only, &profile,
+        status = cl_info_create_type111_candidate(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                    &candidate);
         assert(status == CL_INFO_AUGMENT_ALLOCATION_FAILED && !candidate);
         assert_api_balanced(created_before, released_before);
@@ -342,7 +374,7 @@ int main(void) {
     string_calls = 0;
     fail_number_create = 1;
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_type111_candidate(&api, factory_only, &profile,
+    status = cl_info_create_type111_candidate(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_ALLOCATION_FAILED && !candidate);
     assert_api_balanced(created_before, released_before);
@@ -350,7 +382,7 @@ int main(void) {
 
     fail_dictionary_create = 1;
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_type111_candidate(&api, factory_only, &profile,
+    status = cl_info_create_type111_candidate(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_ALLOCATION_FAILED && !candidate);
     assert_api_balanced(created_before, released_before);
@@ -360,7 +392,7 @@ int main(void) {
         dictionary_set_calls = 0;
         fail_dictionary_set_at = i;
         created_before = api_created; released_before = api_released;
-        status = cl_info_create_type111_candidate(&api, factory_only, &profile,
+        status = cl_info_create_type111_candidate(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                    &candidate);
         assert(status == CL_INFO_AUGMENT_DICTIONARY_FAILED && !candidate);
         assert_api_balanced(created_before, released_before);
@@ -369,7 +401,7 @@ int main(void) {
 
     fail_array_create = 1;
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_augmented_displays(&api, factory_only, &profile,
+    status = cl_info_create_augmented_displays(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &failed_augmented);
     assert(status == CL_INFO_AUGMENT_ALLOCATION_FAILED && !failed_augmented);
     assert_api_balanced(created_before, released_before);
@@ -378,14 +410,14 @@ int main(void) {
     array_append_calls = 0;
     fail_array_append_at = 1;
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_augmented_displays(&api, factory_only, &profile,
+    status = cl_info_create_augmented_displays(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &failed_augmented);
     assert(status == CL_INFO_AUGMENT_APPEND_FAILED && !failed_augmented);
     assert_api_balanced(created_before, released_before);
     array_append_calls = 0;
     fail_array_append_at = 2;
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_augmented_displays(&api, factory_only, &profile,
+    status = cl_info_create_augmented_displays(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &failed_augmented);
     assert(status == CL_INFO_AUGMENT_APPEND_FAILED && !failed_augmented);
     assert_api_balanced(created_before, released_before);
@@ -394,23 +426,23 @@ int main(void) {
 
     fail_negative_count = 1;
     created_before = api_created; released_before = api_released;
-    status = cl_info_create_augmented_displays(&api, factory_only, &profile,
+    status = cl_info_create_augmented_displays(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                 &failed_augmented);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !failed_augmented);
     assert_api_balanced(created_before, released_before);
-    status = cl_info_create_type111_candidate(&api, factory_only, &profile,
+    status = cl_info_create_type111_candidate(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
     fail_negative_count = 0;
-    status = cl_info_create_type111_candidate(NULL, factory_only, &profile,
+    status = cl_info_create_type111_candidate(NULL, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
-    status = cl_info_create_type111_candidate(&api, NULL, &profile, &candidate);
+    status = cl_info_create_type111_candidate(&api, NULL, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
-    status = cl_info_create_type111_candidate(&api, factory_only, NULL,
+    status = cl_info_create_type111_candidate(&api, factory_only, NULL, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                &candidate);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
-    status = cl_info_create_type111_candidate(&api, factory_only, &profile, NULL);
+    status = cl_info_create_type111_candidate(&api, factory_only, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, NULL);
     assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT);
 
     {
@@ -427,7 +459,7 @@ int main(void) {
         CFDictionarySetValue(existing_aux, type_key, type111);
         CFArrayAppendValue(existing_aux_array, existing_aux);
         status = cl_info_create_type111_candidate(
-            &api, existing_aux_array, &profile, &candidate);
+            &api, existing_aux_array, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
         assert(status == CL_INFO_AUGMENT_DUPLICATE_AUXILIARY && !candidate);
         CFRelease(existing_aux_array);
         CFRelease(existing_aux);
@@ -446,7 +478,7 @@ int main(void) {
         CFDictionarySetValue(string_type_aux, type_key, string_type);
         CFArrayAppendValue(string_type_array, string_type_aux);
         status = cl_info_create_type111_candidate(
-            &api, string_type_array, &profile, &candidate);
+            &api, string_type_array, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
         assert(status == CL_INFO_AUGMENT_DUPLICATE_AUXILIARY && !candidate);
         CFRelease(string_type_array);
         CFRelease(string_type_aux);
@@ -478,7 +510,7 @@ int main(void) {
         assert(malformed && malformed_displays);
         CFArrayAppendValue(malformed_displays, malformed);
         status = cl_info_create_type111_candidate(
-            &api, malformed_displays, &profile, &candidate);
+            &api, malformed_displays, &profile, CL_INFO_AUGMENT_POLICY_TYPE111, &candidate);
         assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
         CFRelease(malformed_displays);
         CFRelease(malformed);
@@ -491,7 +523,7 @@ int main(void) {
         assert(too_many);
         for (i = 0; i < 9; ++i) CFArrayAppendValue(too_many, primary);
         created_before = api_created; released_before = api_released;
-        status = cl_info_create_type111_candidate(&api, too_many, &profile,
+        status = cl_info_create_type111_candidate(&api, too_many, &profile, CL_INFO_AUGMENT_POLICY_TYPE111,
                                                    &candidate);
         assert(status == CL_INFO_AUGMENT_INVALID_ARGUMENT && !candidate);
         assert_api_balanced(created_before, released_before);

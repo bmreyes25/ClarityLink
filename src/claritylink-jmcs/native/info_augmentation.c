@@ -37,7 +37,8 @@ static void release_if(const CLCFAPI *api, CLCFTypeRef value) {
 
 static CLInfoAugmentResult create_candidate(
     const CLCFAPI *api, CLCFTypeRef existing_displays,
-    const CLDisplayProfile *profile, CLCFIndex *out_count,
+    const CLDisplayProfile *profile, CLInfoAugmentPolicy policy,
+    CLCFIndex *out_count,
     CLCFMutableDictionaryRef *out_descriptor) {
     static const char type_key_text[] = "type";
     static const char uuid_key_text[] = "uuid";
@@ -46,9 +47,15 @@ static CLInfoAugmentResult create_candidate(
     CLCFTypeRef inserted_type, inserted_uuid;
     CLCFIndex i, count;
 
-    if (out_descriptor) *out_descriptor = 0;
-    if (!out_descriptor || !api_is_complete(api) || !existing_displays ||
-        !profile || !profile->dictionary_key_callbacks ||
+    if (!out_descriptor) return CL_INFO_AUGMENT_INVALID_ARGUMENT;
+    *out_descriptor = 0;
+    if (!profile) return CL_INFO_AUGMENT_INVALID_ARGUMENT;
+    if (policy == CL_INFO_AUGMENT_POLICY_DISABLED)
+        return CL_INFO_AUGMENT_DISABLED;
+    if (policy != CL_INFO_AUGMENT_POLICY_TYPE111)
+        return CL_INFO_AUGMENT_INVALID_ARGUMENT;
+    if (!api_is_complete(api) || !existing_displays ||
+        !profile->dictionary_key_callbacks ||
         !profile->dictionary_value_callbacks ||
         !api->dictionary_callbacks_are_verified_retaining(
             profile->dictionary_key_callbacks, profile->dictionary_value_callbacks))
@@ -131,23 +138,33 @@ static CLInfoAugmentResult create_candidate(
 
 CLInfoAugmentResult cl_info_create_type111_candidate(
     const CLCFAPI *api, CLCFTypeRef existing_displays,
-    const CLDisplayProfile *profile, CLCFMutableDictionaryRef *out_descriptor) {
-    return create_candidate(api, existing_displays, profile, 0, out_descriptor);
+    const CLDisplayProfile *profile, CLInfoAugmentPolicy policy,
+    CLCFMutableDictionaryRef *out_descriptor) {
+    return create_candidate(api, existing_displays, profile, policy, 0,
+                            out_descriptor);
 }
 
 CLInfoAugmentResult cl_info_create_augmented_displays(
     const CLCFAPI *api, CLCFTypeRef factory_displays,
-    const CLDisplayProfile *profile, void **out_augmented_displays) {
+    const CLDisplayProfile *profile, CLInfoAugmentPolicy policy,
+    void **out_augmented_displays) {
     CLCFMutableDictionaryRef candidate = 0;
     void *augmented = 0;
     CLInfoAugmentResult result;
     CLCFIndex i, count;
-    if (out_augmented_displays) *out_augmented_displays = 0;
-    if (!api || !factory_displays || !profile || !profile->array_callbacks ||
-        !out_augmented_displays || !api->array_callbacks_are_verified_retaining ||
+    if (!out_augmented_displays) return CL_INFO_AUGMENT_INVALID_ARGUMENT;
+    *out_augmented_displays = 0;
+    if (!profile) return CL_INFO_AUGMENT_INVALID_ARGUMENT;
+    if (policy == CL_INFO_AUGMENT_POLICY_DISABLED)
+        return CL_INFO_AUGMENT_DISABLED;
+    if (policy != CL_INFO_AUGMENT_POLICY_TYPE111)
+        return CL_INFO_AUGMENT_INVALID_ARGUMENT;
+    if (!api || !factory_displays || !profile->array_callbacks ||
+        !api->array_callbacks_are_verified_retaining ||
         !api->array_callbacks_are_verified_retaining(profile->array_callbacks))
         return CL_INFO_AUGMENT_INVALID_ARGUMENT;
-    result = create_candidate(api, factory_displays, profile, &count, &candidate);
+    result = create_candidate(api, factory_displays, profile, policy, &count,
+                              &candidate);
     if (result != CL_INFO_AUGMENT_OK) return result;
     augmented = api->array_create_mutable(count + 1,
                                           profile->array_callbacks);
