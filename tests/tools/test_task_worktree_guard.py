@@ -15,6 +15,142 @@ SPEC.loader.exec_module(guard)
 
 
 class ScopeReservationTests(unittest.TestCase):
+    def test_recovered_finish_records_exact_publication_before_scope_release(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            common = Path(guard.git(root, "rev-parse", "--git-common-dir"))
+            if not common.is_absolute():
+                common = (root / common).resolve()
+            txid = "6f5ac5e0-3312-4acd-b187-06f28ea6d3b1"
+            transaction = common / "claritylink-legacy-recovery" / txid
+            transaction.mkdir(parents=True, mode=0o700)
+            transaction.parent.chmod(0o700)
+            receipt_data = {"transaction_id": txid, "target_task_id": "continued",
+                            "target_branch": "codex/continued", "target_worktree": str(root.resolve())}
+            receipt_bytes = json.dumps(receipt_data, sort_keys=True).encode()
+            receipt_path = transaction / "receipt.json"
+            receipt_path.write_bytes(receipt_bytes)
+            receipt_path.chmod(0o400)
+            state_path = transaction / "state.json"
+            state_path.write_text(json.dumps({"state": "TRANSFERRED",
+                                              "receipt_sha256": guard.hashlib.sha256(receipt_bytes).hexdigest()}))
+            state_path.chmod(0o600)
+            stale_temp = transaction / "state.json.finish.interrupted.tmp"
+            stale_temp.write_text("interrupted atomic-write residue")
+            stale_temp.chmod(0o600)
+            data = {"task_id": "continued", "branch": "codex/continued", "base": "codex/base",
+                    "recovered_from": {"transaction_id": txid}}
+            published = {"head": "abc123", "remote_sha": "abc123", "branch": "codex/continued",
+                         "pr": {"url": "https://github.com/bmreyes25/ClarityLink/pull/201",
+                                "baseRefName": "codex/base"}}
+            guard.finalize_recovery(root, data, data["recovered_from"], published, 201)
+            state = json.loads(state_path.read_text())
+            self.assertEqual(state["state"], "PUBLICATION_VERIFIED")
+            self.assertEqual(state["published_head"], "abc123")
+            self.assertEqual(state["pull_request_number"], 201)
+
+    def test_recovered_finish_refuses_mismatched_remote_sha(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            common = Path(guard.git(root, "rev-parse", "--git-common-dir"))
+            if not common.is_absolute():
+                common = (root / common).resolve()
+            txid = "6f5ac5e0-3312-4acd-b187-06f28ea6d3b1"
+            transaction = common / "claritylink-legacy-recovery" / txid
+            transaction.mkdir(parents=True, mode=0o700)
+            transaction.parent.chmod(0o700)
+            receipt_data = {"transaction_id": txid, "target_task_id": "continued",
+                            "target_branch": "codex/continued", "target_worktree": str(root.resolve())}
+            receipt_bytes = json.dumps(receipt_data, sort_keys=True).encode()
+            (transaction / "receipt.json").write_bytes(receipt_bytes)
+            (transaction / "receipt.json").chmod(0o400)
+            (transaction / "state.json").write_text(json.dumps({"state": "TRANSFERRED",
+                "receipt_sha256": guard.hashlib.sha256(receipt_bytes).hexdigest()}))
+            (transaction / "state.json").chmod(0o600)
+            data = {"task_id": "continued", "branch": "codex/continued", "base": "codex/base",
+                    "recovered_from": {"transaction_id": txid}}
+            published = {"head": "abc123", "remote_sha": "different", "branch": "codex/continued",
+                         "pr": {"url": "https://github.com/bmreyes25/ClarityLink/pull/201",
+                                "baseRefName": "codex/base"}}
+            with self.assertRaisesRegex(guard.GuardError, "exact prepared transaction"):
+                guard.finalize_recovery(root, data, data["recovered_from"], published, 201)
+
+    def test_recovered_finish_rejects_recovery_store_symlink(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            common = Path(guard.git(root, "rev-parse", "--git-common-dir"))
+            if not common.is_absolute():
+                common = (root / common).resolve()
+            external = Path(directory) / "external-store"
+            external.mkdir(mode=0o700)
+            (common / "claritylink-legacy-recovery").symlink_to(external)
+            data = {"task_id": "continued", "branch": "codex/continued", "base": "codex/base"}
+            recovered = {"transaction_id": "6f5ac5e0-3312-4acd-b187-06f28ea6d3b1"}
+            with self.assertRaisesRegex(guard.GuardError, "private owned directory"):
+                guard.finalize_recovery(root, data, recovered,
+                                        {"head": "abc", "remote_sha": "abc", "branch": "codex/continued",
+                                         "pr": {"url": "https://github.com/bmreyes25/ClarityLink/pull/201",
+                                                "baseRefName": "codex/base"}}, 201)
+
+    def test_recovered_finish_resumes_after_interruption_before_reservation_release(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            manifest = root / "task.json"
+            manifest.write_text("{}\n")
+            common = Path(guard.git(root, "rev-parse", "--git-common-dir"))
+            if not common.is_absolute():
+                common = (root / common).resolve()
+            txid = "6f5ac5e0-3312-4acd-b187-06f28ea6d3b1"
+            transaction = common / "claritylink-legacy-recovery" / txid
+            transaction.mkdir(parents=True, mode=0o700)
+            transaction.parent.chmod(0o700)
+            receipt_data = {"transaction_id": txid, "target_task_id": "continued",
+                            "target_branch": "codex/continued", "target_worktree": str(root.resolve())}
+            receipt_bytes = json.dumps(receipt_data, sort_keys=True).encode()
+            (transaction / "receipt.json").write_bytes(receipt_bytes)
+            (transaction / "receipt.json").chmod(0o400)
+            state_path = transaction / "state.json"
+            state_path.write_text(json.dumps({"state": "TRANSFERRED",
+                "receipt_sha256": guard.hashlib.sha256(receipt_bytes).hexdigest()}))
+            state_path.chmod(0o600)
+            data = {"task_id": "continued", "branch": "codex/continued", "base": "codex/base",
+                    "worktree": str(root.resolve()), "files": [],
+                    "recovered_from": {"transaction_id": txid}}
+            publication = {"result": "REMOTE_VERIFIED", "head": "abc123", "remote_sha": "abc123",
+                          "branch": "codex/continued", "pr": {"url": "https://github.com/bmreyes25/ClarityLink/pull/201",
+                              "baseRefName": "codex/base"}}
+            verify = subprocess.CompletedProcess([], 0, json.dumps(publication), "")
+            real_run = subprocess.run
+
+            def verify_or_git(command, *args, **kwargs):
+                if isinstance(command, list) and Path(str(command[0])).name.startswith("python"):
+                    return verify
+                return real_run(command, *args, **kwargs)
+
+            outcomes = [guard.GuardError("injected interruption"), None]
+
+            def fail_once(*_args, **_kwargs):
+                outcome = outcomes.pop(0)
+                if outcome:
+                    raise outcome
+
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, common / "locks", data)), \
+                 patch.object(guard, "classify", return_value={"status": []}), \
+                 patch.object(guard.subprocess, "run", side_effect=verify_or_git), \
+                 patch.object(guard, "release_reservations", side_effect=fail_once):
+                with self.assertRaisesRegex(guard.GuardError, "injected interruption"):
+                    guard.finish(root, 201, "codex/base")
+                self.assertEqual(json.loads(state_path.read_text())["state"], "PUBLICATION_VERIFIED")
+                result = guard.finish(root, 201, "codex/base")
+            self.assertEqual(result["result"], "TASK_COMPLETE")
+            self.assertFalse(manifest.exists())
+
     def test_guard_run_converts_timeout_to_actionable_guard_error(self):
         with patch.object(guard.subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 15)):
             with self.assertRaisesRegex(guard.GuardError, "timed out after 15 seconds"):
@@ -107,6 +243,30 @@ class ScopeReservationTests(unittest.TestCase):
                 with self.assertRaisesRegex(guard.GuardError, "differs from task manifest base"):
                     guard.finish(root, 140, "main")
 
+    def test_finish_preserves_reservations_when_exact_remote_publication_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            data = {"task_id": "stage-a", "branch": "codex/stage-a", "base": "main",
+                    "files": ["src/a.py"], "worktree": str(root)}
+            response = subprocess.CompletedProcess([], 1,
+                json.dumps({"result": "REMOTE_SHA_MISMATCH", "reason": "remote head differs"}), "")
+            real_run = subprocess.run
+
+            def verify_only(command, *args, **kwargs):
+                if isinstance(command, list) and Path(str(command[0])).name.startswith("python"):
+                    return response
+                return real_run(command, *args, **kwargs)
+
+            with patch.object(guard, "manifest", return_value=(manifest, root / "locks", data)), \
+                 patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "classify", return_value={"status": [], "outside_scope": []}), \
+                 patch.object(guard.subprocess, "run", side_effect=verify_only), \
+                 patch.object(guard, "release_reservations") as release:
+                with self.assertRaisesRegex(guard.GuardError, "scope remains reserved"):
+                    guard.finish(root, 140)
+            release.assert_not_called()
+
     def test_reservation_blocks_a_second_worktree_from_claiming_same_file(self):
         with tempfile.TemporaryDirectory() as directory:
             locks = Path(directory)
@@ -155,10 +315,11 @@ class ScopeReservationTests(unittest.TestCase):
             root = Path(directory)
             manifest = root / "task.json"
             locks = root / "locks"
-            with patch.object(guard, "git", side_effect=[str(root), "", "abc123", "abc123"]), \
+            with patch.object(guard, "git", return_value=str(root)), \
                  patch.object(guard, "canonical_origin"), \
                  patch.object(guard, "branch_and_owner", return_value="codex/task"), \
                  patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "publication_preflight", return_value={"starting_sha": "abc123"}), \
                  patch.object(guard, "layout", return_value=(manifest, locks)), \
                  patch.object(guard, "validate_paths", return_value=["src/owned.py"]):
                 data = guard.begin(root, "task-42", ["src/owned.py"])
@@ -172,16 +333,42 @@ class ScopeReservationTests(unittest.TestCase):
             root = Path(directory)
             manifest = root / "task.json"
             locks = root / "locks"
-            with patch.object(guard, "git", side_effect=[str(root), "", "abc123", "abc123"]) as git, \
+            with patch.object(guard, "git", return_value=str(root)), \
                  patch.object(guard, "canonical_origin"), \
                  patch.object(guard, "branch_and_owner", return_value="codex/task"), \
                  patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "publication_preflight", return_value={"starting_sha": "abc123"}) as preflight, \
                  patch.object(guard, "layout", return_value=(manifest, locks)), \
                  patch.object(guard, "validate_paths", return_value=["src/owned.py"]):
                 data = guard.begin(root, "task-43", ["src/owned.py"], "codex/cycle12")
             self.assertEqual(data["base"], "codex/cycle12")
-            self.assertEqual(git.call_args_list[1].args[1:], ("fetch", "--quiet", "origin", "codex/cycle12"))
-            self.assertEqual(git.call_args_list[3].args[1:], ("rev-parse", "refs/remotes/origin/codex/cycle12"))
+            preflight.assert_called_once_with(root.resolve(), "codex/cycle12")
+
+    def test_publication_preflight_rejects_historical_head_before_reservation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(guard, "git", side_effect=[str(root), "", "historical", "remote-main"]), \
+                 patch.object(guard, "canonical_origin"), \
+                 patch.object(guard, "branch_and_owner", return_value="codex/old-task"), \
+                 patch.object(guard, "porcelain", return_value=[]):
+                with self.assertRaisesRegex(guard.GuardError, "not the fetched origin/main"):
+                    guard.publication_preflight(root, "main")
+
+    def test_stacked_preflight_requires_exact_open_same_repository_pr_head(self):
+        with patch.object(guard, "guard_run", return_value=subprocess.CompletedProcess(
+                [], 0, json.dumps([{"headRefName": "codex/base", "headRefOid": "a" * 40,
+                                    "isCrossRepository": False}]), "")) as run:
+            guard.verify_publishable_base(Path("/tmp/repo"), "codex/task", "codex/base", "a" * 40)
+        self.assertIn("--head", run.call_args.args[0])
+        with patch.object(guard, "guard_run", return_value=subprocess.CompletedProcess(
+                [], 0, json.dumps([{"headRefName": "codex/base", "headRefOid": "b" * 40,
+                                    "isCrossRepository": False}]), "")):
+            with self.assertRaisesRegex(guard.GuardError, "exact head of an open same-repository PR"):
+                guard.verify_publishable_base(Path("/tmp/repo"), "codex/task", "codex/base", "a" * 40)
+
+    def test_self_referential_task_base_is_rejected_before_begin(self):
+        with self.assertRaisesRegex(guard.GuardError, "task base is the task branch itself"):
+            guard.verify_publishable_base(Path("/tmp/repo"), "codex/task", "codex/task", "a" * 40)
 
     def test_paths_reject_globs_traversal_and_restricted_roots(self):
         with tempfile.TemporaryDirectory() as directory:
