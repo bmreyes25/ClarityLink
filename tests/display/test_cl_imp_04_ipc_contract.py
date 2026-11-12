@@ -263,6 +263,39 @@ def test_process_name_binder_lookups_are_outside_compositor_lock_and_revalidated
     assert "authority.authorizedType111ProducerBinder == priorBinder" in producer
 
 
+def test_type111_producer_replacement_fences_view_and_uses_exact_binder_lifetime():
+    compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
+    producer = compositor[compositor.index("private String authorizeType111Producer("):
+                          compositor.index("private String processNameForPid(")]
+    repeated = producer[producer.index("if (priorPid == producerPid && priorBinder == producerLifetimeBinder"):
+                       producer.index("final IBinder.DeathRecipient recipient")]
+    assert "return producerLifetimeBinder.isBinderAlive()" in repeated
+    assert "plane.producerBound" not in repeated
+
+    death = compositor[compositor.index("private void onType111ProducerDeath("):
+                       compositor.index("private boolean fenceType111Presentation(")]
+    for exact_owner in (
+        "current.authorizedType111ProducerPid == deadPid",
+        "identity.equals(current.authorizedType111ProducerIdentity)",
+        "current.authorizedType111ProducerBinder == deadBinder",
+        "current.authorizedType111ProducerDeathRecipient == recipient",
+    ):
+        assert exact_owner in death
+    assert death.index("plane.producerDied(identity, deadPid)") < death.index(
+        "fenceType111Presentation(identity, true)")
+    assert 'presentation_fenced=" + presentationFenced' in death
+
+    view_fence = compositor[compositor.index("private boolean fenceType111Presentation("):
+                            compositor.index("private String processNameForPid(")]
+    assert "FrameIpcProtocol.VIEW_PRODUCER_FENCE" in view_fence
+    sink = (APP / "java/org/claritylink/android/FrameViewSink.java").read_text()
+    assert "producerFenced = true" in sink
+    assert "dispatchGate.invalidatePending(generation)" in sink
+    assert "cancelPendingDispatches()" in sink
+    assert "target.replaceGeneration(generation, clearEpoch)" in sink
+    assert "closed || producerFenced || identity == null" in sink
+
+
 def test_recovery_owner_handoffs_are_keyed_and_bounded_per_session():
     owner = (APP / "java/org/claritylink/android/Type110LabProbeOwnership.java").read_text()
     issue_body = owner[owner.index("static synchronized boolean issue("):owner.index("/** Atomically claims")]

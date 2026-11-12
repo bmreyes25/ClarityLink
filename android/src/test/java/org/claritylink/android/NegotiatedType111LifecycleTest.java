@@ -42,6 +42,8 @@ public final class NegotiatedType111LifecycleTest {
                 "stream identity and receiver owner retained separately");
         check("type111_producer_rejected".equals(lifecycle.producerBound(child, 0)),
                 "invalid producer rejected");
+        check("type111_decoder_rejected".equals(lifecycle.decoderReady(child, 1L, 32, 32)),
+                "decoder cannot initialize before a producer owns the child");
         check("accepted".equals(lifecycle.producerBound(child, 3002)),
                 "producer admission tentatively binds its identity");
         check("accepted".equals(lifecycle.producerBindFailed(child, 3002)),
@@ -68,11 +70,17 @@ public final class NegotiatedType111LifecycleTest {
                 "host-accepted frame recorded");
         check(lifecycle.snapshot().deliveredFrames == 1L, "frame receipt counted");
 
+        long samePidGeneration = lifecycle.snapshot().producerGeneration;
         check("accepted".equals(lifecycle.producerBound(child, 3002)),
-                "duplicate binding by current producer is idempotent");
+                "new producer Binder in the same PID creates a new producer epoch");
+        check(lifecycle.snapshot().producerGeneration == samePidGeneration + 1L &&
+                lifecycle.snapshot().decoderGeneration == 0L &&
+                !lifecycle.snapshot().presentationSelected &&
+                lifecycle.snapshot().deliveredFrames == 0L,
+                "same-PID producer replacement resets decoder and presentation ownership");
         check("accepted".equals(lifecycle.producerBound(child, 3003)),
                 "authorized restarted producer receives a new producer epoch");
-        check(lifecycle.snapshot().producerGeneration == 3L,
+        check(lifecycle.snapshot().producerGeneration == 4L,
                 "producer generation remains independent from child and stream generations");
         check("stale_type111_producer_death".equals(lifecycle.producerDied(child, 3002)),
                 "wrong producer death callback rejected");
@@ -84,7 +92,7 @@ public final class NegotiatedType111LifecycleTest {
                 "producer failure preserves parent and fences child media until a new producer binds");
         check("accepted".equals(lifecycle.producerBound(child, 3004)),
                 "authorized replacement producer binds to the live child");
-        check(lifecycle.snapshot().producerGeneration == 4L,
+        check(lifecycle.snapshot().producerGeneration == 5L,
                 "replacement producer receives a new independent generation");
         check("stale_type111_producer_death".equals(lifecycle.producerDied(child, 3003)),
                 "late old producer death cannot revoke its replacement");

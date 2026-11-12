@@ -97,10 +97,16 @@ final class NegotiatedType111Lifecycle {
     synchronized String producerBound(FrameStreamIdentity identity, int actualProducerPid) {
         if (!matchesChild(identity) || actualProducerPid <= 0 || receiverPid <= 0)
             return "type111_producer_rejected";
-        if (producerPid == actualProducerPid) return "accepted";
+        boolean replacingProducer = producerGeneration > 0L || decoderGeneration > 0L ||
+                presentationSelected || deliveredFrames > 0L;
         if (producerGeneration == Long.MAX_VALUE) throw new IllegalStateException("generation_exhausted");
         producerGeneration++;
         producerPid = actualProducerPid;
+        decoderGeneration = 0L;
+        if (presentationSelected) presentationGeneration++;
+        presentationSelected = false;
+        deliveredFrames = 0L;
+        if (replacingProducer) state = "TYPE111_PRODUCER_RESTART_REQUIRED";
         return "accepted";
     }
 
@@ -118,7 +124,8 @@ final class NegotiatedType111Lifecycle {
 
     synchronized String decoderReady(FrameStreamIdentity identity, long newDecoderGeneration,
             int width, int height) {
-        if (!matchesChild(identity) || receiverPid <= 0 || newDecoderGeneration <= 0 ||
+        if (!matchesChild(identity) || receiverPid <= 0 || producerPid <= 0 ||
+                newDecoderGeneration <= 0 ||
                 width <= 0 || height <= 0 || width > 1920 || height > 1080)
             return "type111_decoder_rejected";
         if (decoderGeneration != 0L && newDecoderGeneration <= decoderGeneration)
@@ -176,6 +183,7 @@ final class NegotiatedType111Lifecycle {
             return "stale_type111_producer_rollback";
         producerPid = 0;
         decoderGeneration = 0L;
+        if (presentationSelected) presentationGeneration++;
         presentationSelected = false;
         deliveredFrames = 0L;
         state = "TYPE111_PRODUCER_RESTART_REQUIRED";

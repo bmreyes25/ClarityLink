@@ -1299,12 +1299,7 @@ public final class CompositorService extends Service {
 
             if (priorPid == producerPid && priorBinder == producerLifetimeBinder &&
                     childIdentity.equals(authoritySnapshot.authorizedType111ProducerIdentity)) {
-                String existingResult = plane.producerBound(childIdentity, producerPid);
-                if (!"accepted".equals(existingResult)) {
-                    clearType111ProducerGrant(childIdentity.sessionId, childIdentity);
-                    plane.producerDied(childIdentity, producerPid);
-                }
-                return existingResult;
+                return producerLifetimeBinder.isBinderAlive() ? "accepted" : "producer_binder_unavailable";
             }
 
             final IBinder.DeathRecipient recipient = new IBinder.DeathRecipient() {
@@ -1354,10 +1349,11 @@ public final class CompositorService extends Service {
             if (priorBinder != null && priorRecipient != null &&
                     (priorBinder != producerLifetimeBinder || priorRecipient != recipient))
                 priorBinder.unlinkToDeath(priorRecipient, 0);
+            boolean viewReady = fenceType111Presentation(childIdentity, false);
             Log.i(TAG, "TYPE111_PRODUCER_SESSION_AUTHORIZED session_id=" +
                     childIdentity.sessionId + " connection_id=" + childIdentity.connectionId +
                     " generation=" + childIdentity.streamGeneration + " owner_pid=" + ownerPid +
-                    " producer_pid=" + producerPid);
+                    " producer_pid=" + producerPid + " view_ready=" + viewReady);
             return "accepted";
         }
     }
@@ -1365,8 +1361,10 @@ public final class CompositorService extends Service {
     private void onType111ProducerDeath(final ParentAuthority expected,
             final FrameStreamIdentity identity, final int deadPid, final IBinder deadBinder,
             final IBinder.DeathRecipient recipient) {
+        boolean revoked = false;
+        boolean presentationFenced = false;
+        String lifecycleResult = "stale_type111_producer_death";
         synchronized (expected) {
-            boolean revoked = false;
             synchronized (streamsLock) {
                 ParentAuthority current = parentAuthorities.get(identity.sessionId);
                 if (current == expected && current.authorizedType111ProducerPid == deadPid &&
@@ -1380,15 +1378,51 @@ public final class CompositorService extends Service {
                     revoked = true;
                 }
             }
-            if (!revoked) return;
-            Type111ControlPlane plane = controlPlane(identity.sessionId);
-            String lifecycleResult = plane == null ? "session_unavailable" :
-                    plane.producerDied(identity, deadPid);
-            Log.i(TAG, "CL_T111_LAB03_PRODUCER_DIED session_id=" + identity.sessionId +
-                    " connection_id=" + identity.connectionId + " stream_generation=" +
-                    identity.streamGeneration + " producer_pid=" + deadPid +
-                    " result=" + lifecycleResult + " type110_parent_preserved=true");
+            if (revoked) {
+                Type111ControlPlane plane = controlPlane(identity.sessionId);
+                lifecycleResult = plane == null ? "session_unavailable" :
+                        plane.producerDied(identity, deadPid);
+                presentationFenced = fenceType111Presentation(identity, true);
+            }
         }
+        if (!revoked) return;
+        Log.i(TAG, "CL_T111_LAB03_PRODUCER_DIED session_id=" + identity.sessionId +
+                " connection_id=" + identity.connectionId + " stream_generation=" +
+                identity.streamGeneration + " producer_pid=" + deadPid +
+                " result=" + lifecycleResult + " presentation_fenced=" + presentationFenced +
+                " type110_parent_preserved=true");
+    }
+
+    /** Fences Type111 view admission and clears its last frame without touching Type110. */
+    private boolean fenceType111Presentation(FrameStreamIdentity identity, boolean fence) {
+        if (identity == null || identity.streamType != FrameStreamIdentity.TYPE111) return false;
+        StreamState state = findStream(identity);
+        if (state == null) return false;
+        final IBinder sink;
+        synchronized (state.lock) {
+            synchronized (streamsLock) {
+                if (streams.get(identity.key()) != state || !identity.equals(state.identity) ||
+                        state.closing) return false;
+                sink = state.sink;
+            }
+        }
+        if (sink == null || !sink.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken("org.claritylink.android.IClarityLinkViewFrameSink");
+            data.writeInt(FrameIpcProtocol.VERSION);
+            writeIdentity(data, identity);
+            data.writeInt(fence ? 1 : 0);
+            if (!sink.transact(FrameIpcProtocol.VIEW_PRODUCER_FENCE, data, reply, 0)) return false;
+            reply.readException();
+            return reply.readInt() != 0;
+        } catch (Exception failure) {
+            Log.w(TAG, "TYPE111_VIEW_PRODUCER_FENCE_FAILED session_id=" + identity.sessionId +
+                    " generation=" + identity.streamGeneration + " fence=" + fence +
+                    " type=" + failure.getClass().getSimpleName());
+            return false;
+        } finally { reply.recycle(); data.recycle(); }
     }
 
     private String processNameForPid(int pid) {
