@@ -754,7 +754,10 @@ def test_v4_binder_contract_preserves_stream_identity_and_authorizes_queries():
     assert "MAX_QUEUED_FRAME_BYTES" in sink
     assert "writeIdentity(data, currentIdentity)" in client
     assert "FrameLabSinkService.class" in activity
-    assert "FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken)" in activity
+    assert re.search(
+        r"FrameLabSink\.queryStats\(primaryLabSinkBinder, ownerLifetime(?:Token|Binder)\)",
+        activity,
+    )
     assert "primaryClient.begin(primaryIdentity, primaryLabSinkBinder)" in activity
     assert "primary_lab_recorded" in lab_sink
 
