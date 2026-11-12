@@ -40,6 +40,13 @@ final class Type111ControlPlane {
         final long transportGeneration;
         final long decoderGeneration;
         final long presentationGeneration;
+        final long modelParentGeneration;
+        final long modelChildGeneration;
+        final long modelPresentationGeneration;
+        final int receiverPid;
+        final int producerPid;
+        final long deliveredFrames;
+        final boolean candidateEnabled;
         final boolean visible;
         final String suggestion;
         final String selectedContext;
@@ -53,6 +60,14 @@ final class Type111ControlPlane {
             transportGeneration = plane.identity == null ? 0L : plane.identity.streamGeneration;
             decoderGeneration = plane.decoderGeneration;
             presentationGeneration = plane.presentationGeneration;
+            NegotiatedType111Lifecycle.Snapshot lifecycle = plane.lifecycle.snapshot();
+            modelParentGeneration = lifecycle.parentGeneration;
+            modelChildGeneration = lifecycle.childGeneration;
+            modelPresentationGeneration = lifecycle.presentationGeneration;
+            receiverPid = lifecycle.receiverPid;
+            producerPid = lifecycle.producerPid;
+            deliveredFrames = lifecycle.deliveredFrames;
+            candidateEnabled = lifecycle.candidateEnabled;
             visible = plane.visible;
             suggestion = plane.suggestion;
             selectedContext = plane.selectedContext;
@@ -62,6 +77,7 @@ final class Type111ControlPlane {
     }
 
     final long sessionId;
+    final NegotiatedType111Lifecycle lifecycle;
     private String state = "SESSION_AVAILABLE";
     private Capability capability;
     private FrameStreamIdentity pendingIdentity;
@@ -79,14 +95,19 @@ final class Type111ControlPlane {
     private int[] viewArea;
     private int[] safeArea;
 
-    Type111ControlPlane(long sessionId) {
-        if (sessionId <= 0) throw new IllegalArgumentException("invalid_type111_session");
-        this.sessionId = sessionId;
+    Type111ControlPlane(FrameStreamIdentity parentOwner) {
+        if (parentOwner == null || !parentOwner.isValid() ||
+                parentOwner.streamType != FrameStreamIdentity.TYPE110)
+            throw new IllegalArgumentException("invalid_type111_parent_owner");
+        this.sessionId = parentOwner.sessionId;
+        this.lifecycle = new NegotiatedType111Lifecycle(parentOwner);
     }
 
     synchronized String registerCapability(Capability value) {
         if (value == null || value.sessionId != sessionId || capability != null ||
                 !"SESSION_AVAILABLE".equals(state)) return "capability_registration_rejected";
+        String candidate = lifecycle.enableCandidate();
+        if (!"accepted".equals(candidate)) return candidate;
         capability = value;
         state = "SECONDARY_CAPABILITY_REGISTERED";
         return "accepted";
@@ -96,14 +117,18 @@ final class Type111ControlPlane {
         if (capability == null || !"SECONDARY_CAPABILITY_REGISTERED".equals(state) ||
                 value == null || !value.isValid() || value.streamType != FrameStreamIdentity.TYPE111 ||
                 value.sessionId != sessionId) return "type111_setup_rejected";
+        String result = lifecycle.setup(value);
+        if (!"accepted".equals(result)) return result;
         pendingIdentity = value;
         state = "TYPE111_SETUP_PENDING";
         return "accepted";
     }
 
-    synchronized String activate(FrameStreamIdentity value) {
+    synchronized String activate(FrameStreamIdentity value, int receiverPid) {
         if (!"TYPE111_SETUP_PENDING".equals(state) || pendingIdentity == null ||
                 !pendingIdentity.equals(value)) return "type111_setup_identity_mismatch";
+        String result = lifecycle.activate(value, receiverPid);
+        if (!"accepted".equals(result)) return result;
         identity = value;
         pendingIdentity = null;
         videoWidth = capability.width;
@@ -117,6 +142,7 @@ final class Type111ControlPlane {
             boolean active, boolean instruction) {
         if (!matchesActive(requestIdentity)) return "stale_or_inactive_type111";
         if (!active) {
+            lifecycle.presentation(requestIdentity, false);
             navigationProvider = null;
             navigationActive = false;
             instructionActive = false;
@@ -142,6 +168,8 @@ final class Type111ControlPlane {
         }
         if ("showUI".equals(command)) {
             if (suggestion == null || !eligible(suggestion)) return "no_eligible_ui_suggestion";
+            String lifecycleResult = lifecycle.presentation(requestIdentity, true);
+            if (!"accepted".equals(lifecycleResult)) return lifecycleResult;
             if (!visible || !suggestion.equals(selectedContext)) presentationGeneration++;
             selectedContext = suggestion;
             visible = true;
@@ -149,6 +177,8 @@ final class Type111ControlPlane {
             return "accepted";
         }
         if ("stopUI".equals(command)) {
+            String lifecycleResult = lifecycle.presentation(requestIdentity, false);
+            if (!"accepted".equals(lifecycleResult)) return lifecycleResult;
             clearSelection();
             state = "NAVIGATION_PRESENTATION_HIDDEN";
             return "accepted";
@@ -178,16 +208,20 @@ final class Type111ControlPlane {
         if (width <= 0 || height <= 0 || width > 1920 || height > 1080 ||
                 (long) width * (long) height * 4L > FrameIpcProtocol.MAX_FRAME_BYTES)
             return "invalid_video_config";
-        if (width != videoWidth || height != videoHeight) {
-            videoWidth = width;
-            videoHeight = height;
-            decoderGeneration++;
-        }
+        long nextDecoderGeneration = decoderGeneration + 1L;
+        String lifecycleResult = lifecycle.decoderReady(requestIdentity, nextDecoderGeneration, width, height);
+        if (!"accepted".equals(lifecycleResult)) return lifecycleResult;
+        videoWidth = width;
+        videoHeight = height;
+        decoderGeneration = nextDecoderGeneration;
         return "accepted";
     }
 
-    synchronized String transportGeneration(FrameStreamIdentity oldIdentity, FrameStreamIdentity newIdentity) {
+    synchronized String transportGeneration(FrameStreamIdentity oldIdentity, FrameStreamIdentity newIdentity,
+            int receiverPid) {
         if (!canTransportGeneration(oldIdentity, newIdentity)) return "invalid_transport_generation";
+        String lifecycleResult = lifecycle.transportGeneration(oldIdentity, newIdentity, receiverPid);
+        if (!"accepted".equals(lifecycleResult)) return lifecycleResult;
         identity = newIdentity;
         videoWidth = capability.width;
         videoHeight = capability.height;
@@ -210,6 +244,8 @@ final class Type111ControlPlane {
     synchronized String teardown(FrameStreamIdentity requestIdentity) {
         if (identity == null || requestIdentity == null || !identity.equals(requestIdentity))
             return "stale_type111_teardown";
+        String lifecycleResult = lifecycle.withdrawChild(requestIdentity);
+        if (!"accepted".equals(lifecycleResult)) return lifecycleResult;
         identity = null;
         pendingIdentity = null;
         videoWidth = 0;
@@ -225,6 +261,7 @@ final class Type111ControlPlane {
     synchronized Snapshot snapshot() { return new Snapshot(this); }
 
     synchronized void parentTeardown() {
+        lifecycle.parentTeardown();
         identity = null;
         pendingIdentity = null;
         capability = null;
@@ -235,6 +272,18 @@ final class Type111ControlPlane {
         safeArea = null;
         clearSelection();
         state = "TEARDOWN";
+    }
+
+    synchronized String producerBound(FrameStreamIdentity requestIdentity, int pid) {
+        return lifecycle.producerBound(requestIdentity, pid);
+    }
+
+    synchronized String producerDied(FrameStreamIdentity requestIdentity, int pid) {
+        return lifecycle.producerDied(requestIdentity, pid);
+    }
+
+    synchronized String frameDelivered(FrameStreamIdentity requestIdentity, long frameId) {
+        return lifecycle.frameDelivered(requestIdentity, frameId);
     }
 
     private boolean matchesActive(FrameStreamIdentity value) {
