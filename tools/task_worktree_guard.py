@@ -16,6 +16,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import stat
 
 REPO_URLS = {
     "https://github.com/bmreyes25/ClarityLink.git",
@@ -159,6 +160,58 @@ def validate_paths(root: Path, values: list[str]) -> list[str]:
     return result
 
 
+def verify_publishable_base(root: Path, branch: str, base: str, base_sha: str) -> None:
+    """Require a task base that the approved publisher can publish against.
+
+    Main is the canonical starting point. A stacked task must start from the
+    exact head of an open, same-repository PR; a local branch name alone is not
+    sufficient evidence that the publisher supports it.
+    """
+    if base == branch:
+        raise GuardError("task base is the task branch itself; choose main or an open PR head")
+    if base == "main":
+        return
+    result = guard_run(["gh", "pr", "list", "-R", "bmreyes25/ClarityLink",
+                        "--head", base, "--state", "open", "--json",
+                        "headRefName,headRefOid,isCrossRepository"])
+    if result.returncode:
+        raise GuardError("publication preflight could not verify stacked PR base: " +
+                         (result.stderr or result.stdout).strip())
+    try:
+        rows = json.loads(result.stdout)
+    except (TypeError, ValueError) as exc:
+        raise GuardError("publication preflight received invalid stacked PR base data") from exc
+    if (not isinstance(rows, list) or not any(
+            isinstance(row, dict) and row.get("headRefName") == base and
+            row.get("headRefOid") == base_sha and row.get("isCrossRepository") is False
+            for row in rows)):
+        raise GuardError("stacked task base must be the exact head of an open same-repository PR")
+
+
+def publication_preflight(root: Path, base: str = "main") -> dict:
+    """Fail before reservation if this clean branch cannot be published safely."""
+    root = Path(git(root, "rev-parse", "--show-toplevel")).resolve()
+    canonical_origin(root)
+    branch = branch_and_owner(root)
+    if (not isinstance(base, str) or base.startswith("-") or "@{" in base or
+            subprocess.run(["git", "check-ref-format", f"refs/heads/{base}"],
+                           capture_output=True).returncode):
+        raise GuardError(f"invalid task base branch: {base}")
+    if porcelain(root):
+        raise GuardError("publication preflight requires a clean worktree; preserve and reconcile changes first")
+    git(root, "fetch", "--quiet", "origin", base)
+    head = git(root, "rev-parse", "HEAD")
+    base_sha = git(root, "rev-parse", f"refs/remotes/origin/{base}")
+    if head != base_sha:
+        raise GuardError(
+            f"publication preflight failed: HEAD {head} is not the fetched origin/{base} {base_sha}; "
+            "create a clean continuation from the declared base or use audited legacy recovery"
+        )
+    verify_publishable_base(root, branch, base, base_sha)
+    return {"result": "PUBLICATION_READY", "branch": branch, "base": base,
+            "starting_sha": head, "status": []}
+
+
 def path_key(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
@@ -244,7 +297,17 @@ def manifest(root: Path) -> tuple[Path, Path, dict]:
     return file, lock_dir, data
 
 
-def release_reservations(lock_dir: Path, data: dict) -> None:
+def require_active_task(data: dict) -> None:
+    transfer = data.get("transferred_to")
+    if data.get("transfer_status") == "TRANSFERRED" and isinstance(transfer, dict):
+        raise GuardError(
+            "task reservations were transferred by audited recovery "
+            f"{transfer.get('transaction_id', 'unknown')} to {transfer.get('task_id', 'unknown')}; "
+            "continue in the recorded target worktree"
+        )
+
+
+def release_reservations(lock_dir: Path, data: dict, *, allow_missing: bool = False) -> None:
     expected = {"task_id": data["task_id"], "branch": data["branch"],
                 "worktree": data["worktree"]}
     with scope_transaction(lock_dir):
@@ -252,6 +315,8 @@ def release_reservations(lock_dir: Path, data: dict) -> None:
         for path in data["files"]:
             lock = lock_dir / path_key(path)
             if not lock.is_file():
+                if allow_missing:
+                    continue
                 raise GuardError(f"scope reservation is missing for {path}; preserve remaining state")
             owner = json.loads(lock.read_text())
             if any(owner.get(key) != value for key, value in expected.items()) or owner.get("path") != path:
@@ -268,14 +333,9 @@ def begin(root: Path, task: str, files: list[str], base: str = "main") -> dict:
     if base.startswith("-") or "@{" in base or subprocess.run(
             ["git", "check-ref-format", f"refs/heads/{base}"], capture_output=True).returncode:
         raise GuardError(f"invalid task base branch: {base}")
-    dirty = porcelain(root)
-    if dirty:
-        raise GuardError("task start requires a clean worktree; preserve and reconcile existing changes first")
-    git(root, "fetch", "--quiet", "origin", base)
-    head = git(root, "rev-parse", "HEAD")
-    base_sha = git(root, "rev-parse", f"refs/remotes/origin/{base}")
-    if head != base_sha:
-        raise GuardError(f"task branch must start at fetched origin/{base} ({base_sha}); current HEAD is {head}")
+    readiness = publication_preflight(root, base)
+    head = readiness["starting_sha"]
+    base_sha = head
     paths = validate_paths(root, files)
     file, lock_dir = layout(root)
     owner = {"task_id": task, "branch": branch, "worktree": str(root),
@@ -308,6 +368,7 @@ def begin(root: Path, task: str, files: list[str], base: str = "main") -> dict:
 def extend(root: Path, files: list[str]) -> dict:
     with manifest_transaction(root):
         file, lock_dir, data = manifest(root)
+        require_active_task(data)
         paths = validate_paths(Path(data["worktree"]), files)
         additions = [path for path in paths if path not in data["files"]]
         if not additions:
@@ -322,6 +383,7 @@ def bind_pull_request(root: Path, pr: int, base: str) -> dict:
     """Bind a continuation task to its published starting SHA's open stacked PR."""
     with manifest_transaction(root):
         file, _lock_dir, data = manifest(root)
+        require_active_task(data)
         root = Path(data["worktree"])
         branch = data["branch"]
         changed = changed_paths(root)
@@ -385,6 +447,13 @@ def bind_pull_request(root: Path, pr: int, base: str) -> dict:
 
 def classify(root: Path) -> dict:
     file, _lock_dir, data = manifest(root)
+    if data.get("transfer_status") == "TRANSFERRED":
+        transfer = data.get("transferred_to", {})
+        return {"result": "TASK_TRANSFERRED", "manifest": str(file),
+                "task_id": data["task_id"], "branch": data["branch"],
+                "worktree": data["worktree"], "scope": data["files"],
+                "transferred_to": transfer, "status": [], "scoped_pending": [],
+                "outside_scope": []}
     status = porcelain(root)
     owned = set(data["files"])
     changed = changed_paths(Path(data["worktree"]))
@@ -397,6 +466,7 @@ def classify(root: Path) -> dict:
 def finish(root: Path, pr: int, base: str | None = None) -> dict:
     with manifest_transaction(root):
         file, lock_dir, data = manifest(root)
+        require_active_task(data)
         expected_base = data.get("base", "main")
         if (not isinstance(expected_base, str) or expected_base.startswith("-") or "@{" in expected_base
                 or expected_base == data["branch"]
@@ -421,10 +491,107 @@ def finish(root: Path, pr: int, base: str | None = None) -> dict:
             receipt = {"result": "VERIFY_FAILED", "reason": result.stderr[-500:]}
         if result.returncode or receipt.get("result") != "REMOTE_VERIFIED":
             raise GuardError("remote branch/PR is not verified; scope remains reserved: " + json.dumps(receipt))
-        release_reservations(lock_dir, data)
+        recovered = data.get("recovered_from")
+        if recovered:
+            finalize_recovery(root, data, recovered, receipt, pr)
+        release_reservations(lock_dir, data, allow_missing=bool(data.get("recovered_from")))
         file.unlink()
         return {"result": "TASK_COMPLETE", "task_id": data["task_id"], "branch": data["branch"],
                 "head": receipt.get("head"), "pr": receipt.get("pr")}
+
+
+def finalize_recovery(root: Path, manifest_data: dict, recovered: dict,
+                      publication: dict, pr_number: int) -> None:
+    """Record exact remote publication before releasing a recovered task's scope."""
+    transaction_id = recovered.get("transaction_id")
+    try:
+        import uuid
+        if str(uuid.UUID(transaction_id)) != transaction_id:
+            raise ValueError("non-canonical transaction ID")
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise GuardError("recovered task has an invalid transaction ID; scope remains reserved") from exc
+    common = Path(git(root, "rev-parse", "--git-common-dir"))
+    if not common.is_absolute():
+        common = (root / common).resolve()
+    store = common / "claritylink-legacy-recovery"
+    transaction = store / transaction_id
+    try:
+        store_info = store.lstat()
+    except OSError as exc:
+        raise GuardError("recovery publication store is missing or unsafe; scope remains reserved") from exc
+    if (stat.S_ISLNK(store_info.st_mode) or not stat.S_ISDIR(store_info.st_mode)
+            or store_info.st_uid != os.getuid() or stat.S_IMODE(store_info.st_mode) & 0o077):
+        raise GuardError("recovery publication store must be a private owned directory; scope remains reserved")
+    state_path = transaction / "state.json"
+    receipt_path = transaction / "receipt.json"
+    for path in (transaction, state_path, receipt_path):
+        if path.is_symlink() or not path.exists():
+            raise GuardError("recovery publication receipt is missing or unsafe; scope remains reserved")
+    if transaction.resolve(strict=True).parent != store.resolve(strict=True):
+        raise GuardError("recovery transaction escaped its private store; scope remains reserved")
+    info = transaction.stat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        raise GuardError("recovery publication store is not private and owned; scope remains reserved")
+    def read_private_file(path: Path) -> bytes:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+        with os.fdopen(fd, "rb") as stream:
+            file_info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(file_info.st_mode) or file_info.st_uid != os.getuid()
+                    or stat.S_IMODE(file_info.st_mode) & 0o077 or file_info.st_nlink != 1):
+                raise GuardError("recovery publication files must be private, singly linked regular files; "
+                                 "scope remains reserved")
+            return stream.read()
+
+    receipt_bytes = read_private_file(receipt_path)
+    receipt_hash = hashlib.sha256(receipt_bytes).hexdigest()
+    try:
+        provenance = json.loads(receipt_bytes)
+        state = json.loads(read_private_file(state_path))
+    except (OSError, ValueError) as exc:
+        raise GuardError("recovery publication receipt is unreadable; scope remains reserved") from exc
+    prior_state = state.get("state")
+    already_published = prior_state == "PUBLICATION_VERIFIED"
+    if (state.get("receipt_sha256") != receipt_hash or prior_state not in {"TRANSFERRED", "PUBLICATION_VERIFIED"}
+            or provenance.get("transaction_id") != transaction_id
+            or provenance.get("target_task_id") != manifest_data.get("task_id")
+            or provenance.get("target_branch") != manifest_data.get("branch")
+            or provenance.get("target_worktree") != str(root.resolve())
+            or publication.get("head") != publication.get("remote_sha")
+            or publication.get("branch") != manifest_data.get("branch")
+            or publication.get("pr", {}).get("baseRefName") != manifest_data.get("base")
+            or publication.get("pr", {}).get("url") is None
+            or publication.get("pr", {}).get("number") not in (None, pr_number)):
+        raise GuardError("recovery publication does not match its exact prepared transaction; scope remains reserved")
+    expected_publication = {"published_head": publication["head"], "remote_sha": publication["remote_sha"],
+                            "pull_request": publication["pr"]["url"], "pull_request_number": pr_number,
+                            "pull_request_base": manifest_data["base"]}
+    if already_published and any(state.get(key) != value for key, value in expected_publication.items()):
+        raise GuardError("recorded recovery publication differs from the reverified remote result; "
+                         "scope remains reserved")
+    state.update({"state": "PUBLICATION_VERIFIED", "published_at": int(time.time()),
+                  **expected_publication})
+    temp = state_path.with_name(f"state.json.finish.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(temp, flags, 0o600)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            json.dump(state, stream, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, state_path)
+        directory_fd = os.open(transaction, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        try:
+            temp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def main() -> int:
@@ -459,9 +626,7 @@ def main() -> int:
                 else:
                     raise
         elif args.command == "preflight":
-            status = porcelain(root)
-            result = {"result": "READY" if not status else "DIRTY_WORKTREE", "status": status,
-                      "instruction": "begin with an exact scope before editing" if not status else "preserve and reconcile; do not enter"}
+            result = publication_preflight(root, args.base or "main")
         else:
             if not args.pr:
                 raise GuardError("finish requires --pr for live remote and PR verification")
