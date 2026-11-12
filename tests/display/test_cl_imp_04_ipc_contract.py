@@ -1,10 +1,91 @@
 from pathlib import Path
+import hashlib
 import xml.etree.ElementTree as ET
 
 
 REPO = Path(__file__).resolve().parents[2]
 APP = REPO / "android/cl-imp-03-app"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
+
+
+def assert_guarded_pane_lease_instrumentation_when_configured(runner: str) -> None:
+    """Enforce the API17 pane-test contract on runner versions that expose it.
+
+    PR #165's base predates this optional hook. Permit that exception only for
+    its exact reviewed runner; otherwise validate the full guarded path.
+    """
+    if "CL_PANE_LEASE_TEST_APK" not in runner:
+        assert hashlib.sha256(runner.encode()).hexdigest() == (
+            "847c8b39ddc2c6764a373aae87c153d08c2794ad569c676b08f9991741119141"
+        )
+        assert "shell am instrument" not in runner
+        return
+    start = runner.index('if [ -n "$pane_lease_test_apk" ]; then')
+    end = runner.index("\napp_uid=", start)
+    block = runner[start:end]
+    for required in (
+        'pane_lease_test_apk=${CL_PANE_LEASE_TEST_APK:-}',
+        '[ -f "$pane_lease_test_apk" ]',
+        'adb_local -s "$serial" install "$pane_lease_test_apk"',
+        'adb_local -s "$serial" shell am instrument -w',
+        '-e class org.claritylink.renderer.Display1PaneLeaseLifecycleTest',
+        'org.claritylink.panelease.test/android.test.InstrumentationTestRunner',
+        'pane_test_normalized=$(tr -d \'\\r\' < "$pane_test_output")',
+        "grep -Eq '^OK \\([0-9]+ tests?\\)$'",
+        "grep -qE 'FAILURES!!!|INSTRUMENTATION_CODE: -1'",
+        "! printf '%s\\n' \"$pane_test_normalized\" | grep -qE 'FAILURES!!!|INSTRUMENTATION_CODE: -1' || {",
+        "pane_test_count=$(printf '%s\\n' \"$pane_test_normalized\" | sed -n",
+        'PANE_LEASE_API17_INSTRUMENTATION_PASS tests=$pane_test_count',
+    ):
+        assert required in (runner if required.startswith("pane_lease_test_apk=") else block), required
+    assert '[ "$pane_test_count" -eq 2 ]' in block
+    assert "owned || exit 7" in block
+    assert block.index("owned || exit 7") < block.index('install "$pane_lease_test_apk"')
+    assert block.index("owned || exit 7", block.index('install "$pane_lease_test_apk"')) < block.index(
+        'shell am instrument')
+    instrument_invocations = [
+        index for index in range(len(runner))
+        if runner.startswith("shell am instrument", index)
+    ]
+    assert len(instrument_invocations) == 1
+    assert start <= instrument_invocations[0] < end
+    instrumentation = block.index('adb_local -s "$serial" shell am instrument -w')
+    failure_handler = block.find("|| {", instrumentation)
+    assert failure_handler >= 0, "instrumentation command must fail closed"
+    handler_end = block.find("\n    }", failure_handler)
+    assert handler_end >= 0
+    assert "exit 8" in block[failure_handler:handler_end]
+    count_assignment = block.index("pane_test_count=")
+    normalized_output = block.index("pane_test_normalized=")
+    summary_validation = block.index("grep -Eq '^OK")
+    failure_rejection = block.index(
+        "! printf '%s\\n' \"$pane_test_normalized\" | grep -qE 'FAILURES!!!|INSTRUMENTATION_CODE: -1' || {"
+    )
+    count_check = block.index('[ "$pane_test_count" -eq 2 ]')
+    pass_marker = block.index("PANE_LEASE_API17_INSTRUMENTATION_PASS")
+    assert (
+        normalized_output < summary_validation < failure_rejection
+        < count_assignment < count_check < pass_marker
+    )
+    assert "exit 8" in block[failure_rejection:block.index("\n    }", failure_rejection)]
+    assert "CL_R4_TYPE111_BUFFER_TO_VIEW_RUNTIME_PASS" in runner
+    assert pass_marker < runner.index("CL_R4_TYPE111_BUFFER_TO_VIEW_RUNTIME_PASS")
+    for line in block.splitlines():
+        if "adb" in line:
+            assert 'adb_local -s "$serial"' in line, line
+
+
+def test_hook_free_api17_runner_is_only_the_exact_reviewed_pr165_base():
+    runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
+    assert_guarded_pane_lease_instrumentation_when_configured(runner)
+    try:
+        assert_guarded_pane_lease_instrumentation_when_configured(
+            runner + "\n# unreviewed change\n"
+        )
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("modified hook-free runner was accepted")
 
 
 def test_lab_compositor_is_private_and_runs_in_a_distinct_process():
@@ -348,7 +429,7 @@ def test_api17_runner_proves_cross_uid_denial_and_uses_privileged_shell_launch()
     assert "attacker_uid" in runner
     assert "invoke_type110_probe_privileged" in runner
     assert 'shell am startservice -n "$attacker_package/$attacker_component"' in runner
-    assert "shell am instrument" not in runner
+    assert_guarded_pane_lease_instrumentation_when_configured(runner)
     assert "Process.myUid() == appUid" in attacker
     assert "Type110ProgressProbeService" in attacker
     assert "stopService(target)" in attacker
@@ -417,7 +498,7 @@ def test_api17_runner_uses_internal_probe_and_gracefully_stops_owned_services():
     assert "TYPE110_POST_DEATH_PROBE_INTERNAL_START" in runner
     assert "TYPE110_RECOVERY_PRODUCER_PROCESS_PASS" in runner
     assert "TYPE110_POST_DEATH_PROBE_INTERNAL_START session_id=" in (APP / "java/org/claritylink/android/CompositorService.java").read_text()
-    assert "shell am instrument" not in runner
+    assert_guarded_pane_lease_instrumentation_when_configured(runner)
     assert "TYPE110_PROBE_UNOWNED_SESSION_REJECTED" not in runner
     assert "probe_session_id \"$live_session\"" not in runner
     assert "TYPE111_PARENT_TEARDOWN session_id=$live_session" not in runner
