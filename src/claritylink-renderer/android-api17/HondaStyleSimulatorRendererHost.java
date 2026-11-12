@@ -78,7 +78,8 @@ public final class HondaStyleSimulatorRendererHost implements Display1OutputBack
         publish(PaneEvent.Type.HOST_RESTORED, valid, null);
     }
     public void simulateViewportChanged(RendererViewport viewport) {
-        if (viewport == null) throw new IllegalArgumentException("synthetic viewport required");
+        // Null is the simulator's explicit invalid-viewport state and must be observable so the
+        // backend can revoke its pane lease and require a fresh valid attach after restoration.
         paneViewport = viewport;
         publish(PaneEvent.Type.VIEWPORT_CHANGED, false, viewport);
     }

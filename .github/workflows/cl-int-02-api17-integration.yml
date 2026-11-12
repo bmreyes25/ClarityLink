@@ -1,0 +1,223 @@
+name: CL-INT-02 API 17 Type110 continuity and workload
+
+# Synthetic lab only: an x86 Android 4.2.2 emulator on a GitHub runner. No Honda, ADB-to-vehicle, connected
+# iPhone, firmware, or authentication material is involved. safeForHonda() stays false and
+# VEHICLE_DEPLOYMENT_NOT_AUTHORIZED stays in force.
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_sha:
+        description: 'Workload baseline (default: 7e95839, main including merged PR #116 conversion-buffer reuse)'
+        required: false
+        default: '7e95839acfcb95af9fdab4f4b8e623b2907f6613'
+  pull_request:
+    paths:
+      - '.github/workflows/cl-int-02-api17-integration.yml'
+      - 'tools/run_cl_int_02_api17_ci.sh'
+      - 'tools/run_cl_imp_03_emulator.sh'
+      - 'tools/build_cl_imp_03_apks.sh'
+      - 'tools/build_cl_honda_111_pane_test_apk.sh'
+      - 'tools/build_cl_r12_workload_ab.sh'
+      - 'tools/build_cl_int_04_host_test_apk.sh'
+      - 'tools/run_cl_r12_api17_ci.sh'
+      - 'tools/api17_runner_guard.py'
+      - 'tools/verify_apk_dex_classes.py'
+      - 'android/cl-imp-03-app/**'
+      - 'android/src/main/java/**'
+      - 'android/src/test/**'
+      - 'src/claritylink-renderer/android-api17/**'
+      - 'tests/display/test_cl_int_02_type110_continuity.py'
+      - 'tests/display/test_cl_r4b_fault_acceptance_contract.py'
+      - 'tests/display/test_cl_imp_04_ipc_contract.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cl-int-02-api17-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api17:
+    name: API 17 ${{ matrix.kind }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [continuity, workload]
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/.ci-android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      CL_IMP_03_SDK_ROOT: ${{ github.workspace }}/.ci-android-sdk
+      CL_IMP_03_BUILD_DIR: ${{ github.workspace }}/build/cl-imp-03-int02-${{ matrix.kind }}
+      CL_INT_02_RECEIPT_DIR: ${{ github.workspace }}/build/cl-int-02-receipt-${{ matrix.kind }}
+      CL_INT_02_BASELINE_SHA: ${{ inputs.baseline_sha || '7e95839acfcb95af9fdab4f4b8e623b2907f6613' }}
+      CL_R12_AB_REPEATS: '3'
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Record exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "tested_commit=$(git rev-parse HEAD)"
+            echo "tested_tree=$(git rev-parse 'HEAD^{tree}')"
+            echo "pull_request_head=${{ github.event.pull_request.head.sha }}"
+            echo "baseline_sha=$CL_INT_02_BASELINE_SHA"
+            echo "kind=${{ matrix.kind }}"
+          } | tee source-identity.txt
+          git cat-file -e "$CL_INT_02_BASELINE_SHA^{commit}"
+
+      - name: Install fixed Java toolchain
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # setup-java v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17.0.12+7'
+
+      - name: Install Android SDK command line tools in the isolated SDK root
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: platform-tools
+
+      - name: Install API 17 platform, authentic x86 image, and build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_HOME" -type f -path '*/bin/sdkmanager' -print -quit)"
+          test -n "$sdkmanager"
+          packages=('platform-tools' 'build-tools;35.0.0' 'emulator' 'system-images;android-17;default;x86')
+          if "$sdkmanager" --list --include_obsolete | grep -F -q 'platforms;android-17'; then
+            packages+=('platforms;android-17')
+          else
+            echo 'api17_platform=archived' | tee api17-platform-source.txt
+          fi
+          "$sdkmanager" --install "${packages[@]}"
+
+      - name: Install API 17 compile platform from the official Google archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "$ANDROID_HOME/platforms/android-17/android.jar" ]; then
+            sha256sum "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
+            exit 0
+          fi
+          archive="$RUNNER_TEMP/android-17_r03.zip"
+          curl --fail --location --silent --show-error 'https://dl.google.com/android/repository/android-17_r03.zip' -o "$archive"
+          test "$(stat -c %s "$archive")" = 57030216
+          echo 'b66e73fb2639f8c916fde4369aa29012a5c531e156dbb205fe3788fe998fbbe8  '"$archive" | sha256sum --check
+          unzip -q "$archive" -d "$RUNNER_TEMP/android-17-platform"
+          platform_source="$RUNNER_TEMP/android-17-platform/android-4.2.2"
+          test -f "$platform_source/android.jar"
+          grep -F -q 'AndroidVersion.ApiLevel=17' "$platform_source/source.properties"
+          mkdir -p "$ANDROID_HOME/platforms/android-17"
+          cp -a "$platform_source/." "$ANDROID_HOME/platforms/android-17/"
+          sha256sum "$archive" "$ANDROID_HOME/platforms/android-17/android.jar" | tee api17-platform.sha256
+
+      - name: Build the continuity candidate APK from the exact source
+        if: matrix.kind == 'continuity'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          tools/build_cl_imp_03_apks.sh | tee build-output.txt
+          sha256sum "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk" | tee apk.sha256
+
+      - name: Build the workload A/B pair and instrumentation APKs
+        if: matrix.kind == 'workload'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          ab_dir="$GITHUB_WORKSPACE/build/cl-int-02-ab-$GITHUB_RUN_ID"
+          tools/build_cl_r12_workload_ab.sh "$CL_INT_02_BASELINE_SHA" "$ab_dir" | tee build-output.txt
+          cat "$ab_dir/ab-identity.txt" | tee source-ab.sha256
+          mkdir -p "$CL_IMP_03_BUILD_DIR"
+          cp "$ab_dir/candidate.apk" "$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
+          pane_dir="$GITHUB_WORKSPACE/build/cl-pane-test-$GITHUB_RUN_ID"
+          host_dir="$GITHUB_WORKSPACE/build/cl-int-04-host-test-$GITHUB_RUN_ID"
+          tools/build_cl_honda_111_pane_test_apk.sh "$pane_dir" | tee -a build-output.txt
+          tools/build_cl_int_04_host_test_apk.sh "$host_dir" | tee -a build-output.txt
+          {
+            echo "CL_R12_BASELINE_APK=$ab_dir/baseline.apk"
+            echo "CL_R12_CANDIDATE_APK=$ab_dir/candidate.apk"
+            echo "CL_PANE_LEASE_TEST_APK=$pane_dir/claritylink-pane-lease-test.apk"
+            echo "CL_INT_04_HOST_TEST_APK=$host_dir/claritylink-host-withdrawal-test.apk"
+          } >> "$GITHUB_ENV"
+          sha256sum "$ab_dir/baseline.apk" "$ab_dir/candidate.apk" "$pane_dir"/*.apk "$host_dir"/*.apk | tee apk-ab.sha256
+
+      - name: Verify the classes inside the built DEX (not the source list)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dexdump="$ANDROID_HOME/build-tools/35.0.0/dexdump"
+          test -x "$dexdump"
+          src="$(git rev-parse HEAD)"
+          apk="$CL_IMP_03_BUILD_DIR/claritylink-display-lab.apk"
+          {
+            echo "tested_commit=$src"
+            python3 -I tools/verify_apk_dex_classes.py --apk "$apk" --dexdump "$dexdump" --label candidate-lab --source-commit "$src" \
+              --require org.claritylink.renderer.Display1OutputBackend --require org.claritylink.renderer.PaneLease \
+              --require org.claritylink.renderer.PaneEvent \
+              --require 'org.claritylink.android.ClarityLinkDisplayActivity$PresentationPaneHost'
+          } | tee dex-verification.txt
+
+      - name: Enable KVM for the GitHub x86-64 runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo chmod 0666 /dev/kvm
+          test "$(uname -m)" = x86_64
+          test -r /dev/kvm && test -w /dev/kvm
+
+      - name: Boot API 17 x86 and run the CL-INT-02 ${{ matrix.kind }} scenario
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed # v2.34.0
+        with:
+          api-level: 17
+          system-image-api-level: 17
+          target: default
+          arch: x86
+          profile: Nexus 5
+          ram-size: 1024M
+          heap-size: 128M
+          disk-size: 2048M
+          avd-name: cl-int-02-api17-x86
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          disable-linux-hw-accel: false
+          script: ./tools/run_cl_int_02_api17_ci.sh ${{ matrix.kind }}
+
+      - name: Upload bounded runtime receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cl-int-02-receipt-${{ matrix.kind }}-${{ github.run_id }}
+          path: |
+            source-identity.txt
+            api17-platform.sha256
+            build-output.txt
+            apk.sha256
+            apk-ab.sha256
+            source-ab.sha256
+            dex-verification.txt
+            build/cl-int-02-receipt-${{ matrix.kind }}/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  verdict:
+    name: CL-INT-02 combined verdict
+    needs: api17
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Require both continuity and workload to pass on this commit
+        shell: bash
+        run: |
+          echo "api17 matrix result: ${{ needs.api17.result }}"
+          test "${{ needs.api17.result }}" = success
