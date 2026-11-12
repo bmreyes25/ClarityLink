@@ -75,13 +75,17 @@ def assert_guarded_pane_lease_instrumentation_when_configured(runner: str) -> No
             assert 'adb_local -s "$serial"' in line, line
 
 
-def test_hook_free_api17_runner_is_only_the_exact_reviewed_pr165_base():
+def test_api17_runner_rejects_unreviewed_instrumentation_contract_changes():
     runner = (REPO / "tools/run_cl_imp_03_emulator.sh").read_text()
     assert_guarded_pane_lease_instrumentation_when_configured(runner)
-    try:
-        assert_guarded_pane_lease_instrumentation_when_configured(
-            runner + "\n# unreviewed change\n"
+    if "CL_PANE_LEASE_TEST_APK" in runner:
+        modified = runner.replace(
+            "CL_PANE_LEASE_TEST_APK", "CL_PANE_LEASE_APK", 1
         )
+    else:
+        modified = runner + "\n# unreviewed change\n"
+    try:
+        assert_guarded_pane_lease_instrumentation_when_configured(modified)
     except AssertionError:
         pass
     else:
