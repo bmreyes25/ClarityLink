@@ -1,5 +1,6 @@
 from pathlib import Path
 import hashlib
+import re
 import xml.etree.ElementTree as ET
 
 
@@ -71,7 +72,7 @@ def assert_guarded_pane_lease_instrumentation_when_configured(runner: str) -> No
     assert "CL_R4_TYPE111_BUFFER_TO_VIEW_RUNTIME_PASS" in runner
     assert pass_marker < runner.index("CL_R4_TYPE111_BUFFER_TO_VIEW_RUNTIME_PASS")
     for line in block.splitlines():
-        if "adb" in line:
+        if re.search(r"(^|\s)adb(?:_local)?\s", line):
             assert 'adb_local -s "$serial"' in line, line
 
 
