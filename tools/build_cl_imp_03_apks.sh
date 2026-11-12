@@ -75,6 +75,7 @@ mkdir -p "$out/classes" "$out/dex"
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameLabSink.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/FrameIpcProtocol.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type111ControlPlane.java" \
+  "$repo/android/cl-imp-03-app/java/org/claritylink/android/NegotiatedType111Lifecycle.java" \
   "$repo/android/cl-imp-03-app/java/org/claritylink/android/Type111ControlClient.java" \
   "$repo/src/claritylink-renderer/android-api17/FrameDispatchGate.java" \
   "$repo/src/claritylink-renderer/android-api17/DecodedFrame.java" \

@@ -134,7 +134,7 @@ public final class CompositorService extends Service {
         /** Current Type110 stream identity; generation advances do not change ownerEpoch. */
         FrameStreamIdentity ownerIdentity;
         final IBinder ownerSink;
-        final IBinder ownerLifetimeToken;
+        final IBinder ownerLifetimeBinder;
         final long epoch;
         int ownerPid;
         String ownerProcess;
@@ -148,14 +148,14 @@ public final class CompositorService extends Service {
         int authorizedType111ProducerPid;
         FrameStreamIdentity authorizedType111ProducerIdentity;
         int authorizedOwnerDeathObserverPid;
-        IBinder ownerDeathObserverToken;
+        IBinder ownerDeathObserverBinder;
         IBinder.DeathRecipient ownerDeathObserverDeathRecipient;
-        ParentAuthority(FrameStreamIdentity ownerIdentity, IBinder ownerSink, IBinder ownerLifetimeToken,
+        ParentAuthority(FrameStreamIdentity ownerIdentity, IBinder ownerSink, IBinder ownerLifetimeBinder,
                 long epoch, int ownerPid,
                 String ownerProcess) {
             this.ownerIdentity = ownerIdentity;
             this.ownerSink = ownerSink;
-            this.ownerLifetimeToken = ownerLifetimeToken;
+            this.ownerLifetimeBinder = ownerLifetimeBinder;
             this.epoch = epoch;
             this.ownerPid = ownerPid;
             this.ownerProcess = ownerProcess;
@@ -211,7 +211,7 @@ public final class CompositorService extends Service {
             if (code == FrameIpcProtocol.LAB_REGISTER_OWNER_DEATH_QUERY_OBSERVER) {
                 final FrameStreamIdentity ownerIdentity = readIdentity(data);
                 final int observerPid = data.readInt();
-                final IBinder observerToken = data.readStrongBinder();
+                final IBinder observerBinder = data.readStrongBinder();
                 boolean observerRole = Build.VERSION.SDK_INT == 17 && observerPid > 0 &&
                         (getPackageName() + ":owner_death_test").equals(processNameForPid(observerPid));
                 boolean ownerCaller = ownerIdentity != null &&
@@ -227,29 +227,29 @@ public final class CompositorService extends Service {
                             owner != null && ownerIdentity.equals(owner.identity) &&
                             type111Sessions.containsKey(ownerIdentity.sessionId) &&
                             authority.authorizedOwnerDeathObserverPid == 0 &&
-                            observerToken != null && observerToken.isBinderAlive()) {
+                            observerBinder != null && observerBinder.isBinderAlive()) {
                         final ParentAuthority registeredAuthority = authority;
                         IBinder.DeathRecipient deathRecipient = new IBinder.DeathRecipient() {
                             public void binderDied() {
                                 synchronized (streamsLock) {
                                     if (parentAuthorities.get(ownerIdentity.sessionId) == registeredAuthority &&
-                                            registeredAuthority.ownerDeathObserverToken == observerToken) {
+                                            registeredAuthority.ownerDeathObserverBinder == observerBinder) {
                                         registeredAuthority.authorizedOwnerDeathObserverPid = 0;
-                                        registeredAuthority.ownerDeathObserverToken = null;
+                                        registeredAuthority.ownerDeathObserverBinder = null;
                                         registeredAuthority.ownerDeathObserverDeathRecipient = null;
                                     }
                                 }
                             }
                         };
                         try {
-                            observerToken.linkToDeath(deathRecipient, 0);
-                            if (observerToken.isBinderAlive()) {
-                                authority.ownerDeathObserverToken = observerToken;
+                            observerBinder.linkToDeath(deathRecipient, 0);
+                            if (observerBinder.isBinderAlive()) {
+                                authority.ownerDeathObserverBinder = observerBinder;
                                 authority.ownerDeathObserverDeathRecipient = deathRecipient;
                                 authority.authorizedOwnerDeathObserverPid = observerPid;
                                 accepted = true;
                             } else {
-                                observerToken.unlinkToDeath(deathRecipient, 0);
+                                observerBinder.unlinkToDeath(deathRecipient, 0);
                             }
                         } catch (RemoteException deadObserver) { accepted = false; }
                     }
@@ -431,9 +431,9 @@ public final class CompositorService extends Service {
             if (code == FrameIpcProtocol.PARENT_OPEN_AUTHORITY) {
                 FrameStreamIdentity ownerIdentity = readIdentity(data);
                 IBinder ownerSink = data.readStrongBinder();
-                IBinder ownerToken = data.readStrongBinder();
+                IBinder ownerLifetimeBinder = data.readStrongBinder();
                 boolean accepted = isAuthorizedParentCaller(Binder.getCallingPid()) &&
-                        openParentAuthority(ownerIdentity, ownerSink, ownerToken);
+                        openParentAuthority(ownerIdentity, ownerSink, ownerLifetimeBinder);
                 reply.writeNoException();
                 reply.writeInt(accepted ? 1 : 0);
                 return true;
@@ -463,6 +463,16 @@ public final class CompositorService extends Service {
                 int ownerPid = data.readInt();
                 FrameStreamIdentity childIdentity = readIdentity(data);
                 boolean accepted = authorizeType111Producer(ownerPid, childIdentity);
+                if (accepted && childIdentity != null) {
+                    Type111ControlPlane plane = controlPlane(childIdentity.sessionId);
+                    String lifecycleResult = plane == null ? "session_unavailable" :
+                            plane.producerBound(childIdentity, Binder.getCallingPid());
+                    accepted = "accepted".equals(lifecycleResult);
+                    Log.i(TAG, "CL_T111_LAB03_PRODUCER_BIND session_id=" + childIdentity.sessionId +
+                            " connection_id=" + childIdentity.connectionId +
+                            " stream_generation=" + childIdentity.streamGeneration +
+                            " producer_pid=" + Binder.getCallingPid() + " result=" + lifecycleResult);
+                }
                 reply.writeNoException(); reply.writeInt(accepted ? 1 : 0);
                 return true;
             }
@@ -539,7 +549,7 @@ public final class CompositorService extends Service {
                     boolean controlAccepted = compositorAccepted &&
                             (identity.streamType != FrameStreamIdentity.TYPE111 ||
                             (plane != null && "accepted".equals(plane.transportGeneration(
-                                    identity, identity.withGeneration(newGeneration)))));
+                                    identity, identity.withGeneration(newGeneration), Binder.getCallingPid()))));
                     if (controlAccepted) {
                         synchronized (streamsLock) {
                             // If teardown closed admission while the sink was processing this
@@ -905,10 +915,10 @@ public final class CompositorService extends Service {
 
     /** Establishes owner authority before capability registration; no video stream is activated here. */
     private boolean openParentAuthority(final FrameStreamIdentity ownerIdentity, final IBinder ownerSink,
-            final IBinder ownerToken) {
+            final IBinder ownerLifetimeBinder) {
         if (ownerIdentity == null || !ownerIdentity.isValid() ||
                 ownerIdentity.streamType != FrameStreamIdentity.TYPE110 || ownerSink == null ||
-                !ownerSink.isBinderAlive() || ownerToken == null || !ownerToken.isBinderAlive()) return false;
+                !ownerSink.isBinderAlive() || ownerLifetimeBinder == null || !ownerLifetimeBinder.isBinderAlive()) return false;
         final int ownerPid = Binder.getCallingPid();
         if (!isAuthorizedParentCaller(ownerPid)) return false;
         final String callerProcess = processNameForPid(ownerPid);
@@ -931,20 +941,20 @@ public final class CompositorService extends Service {
         if (ownerPidRebind && (!previousOwnerVerifiedAbsent || existingSnapshot.dead ||
                 !existingSnapshot.ownerIdentity.equals(ownerIdentity) ||
                 existingSnapshot.ownerSink != ownerSink ||
-                existingSnapshot.ownerLifetimeToken != ownerToken || !ownerToken.isBinderAlive()))
+                existingSnapshot.ownerLifetimeBinder != ownerLifetimeBinder || !ownerLifetimeBinder.isBinderAlive()))
             return false;
         boolean ownerPidRebindReserved = false;
         boolean ownerPidRebindAttempted = false;
         boolean sinkOwnerPidPrepared = false;
         try {
             if (!ownerIdentity.equals(FrameLabSink.queryIdentity(ownerSink))) return false;
-            FrameLabSink.Stats ownerStats = FrameLabSink.queryStats(ownerSink, ownerToken);
+            FrameLabSink.Stats ownerStats = FrameLabSink.queryStats(ownerSink, ownerLifetimeBinder);
             String ownerProcess = processNameForPid(ownerStats == null ? -1 : ownerStats.pid);
             boolean realSinkService = (getPackageName() + ":type110_sink").equals(ownerProcess);
             boolean protectedOwnerDeathFixture = (getPackageName() + ":owner_death_test").equals(callerProcess) &&
                     ownerStats != null && ownerStats.pid == ownerPid;
             if (!realSinkService && !protectedOwnerDeathFixture) {
-                FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerToken);
+                FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerLifetimeBinder);
                 return false;
             }
             boolean sinkBound;
@@ -955,7 +965,7 @@ public final class CompositorService extends Service {
                             current.ownerPid == existingOwnerPid &&
                             current.ownerProcess.equals(existingOwnerProcess) &&
                             current.ownerSink == ownerSink &&
-                            current.ownerLifetimeToken == ownerToken && !current.dead &&
+                            current.ownerLifetimeBinder == ownerLifetimeBinder && !current.dead &&
                             !current.ownerPidRebindInProgress &&
                             !closingSessions.contains(ownerIdentity.sessionId);
                     if (ownerPidRebindReserved) current.ownerPidRebindInProgress = true;
@@ -963,11 +973,11 @@ public final class CompositorService extends Service {
                 if (!ownerPidRebindReserved) return false;
                 ownerPidRebindAttempted = true;
                 sinkBound = FrameLabSink.prepareOwnerPidRebind(ownerSink, ownerIdentity, endpoint,
-                        existingOwnerPid, ownerPid, ownerToken);
+                        existingOwnerPid, ownerPid, ownerLifetimeBinder);
                 sinkOwnerPidPrepared = sinkBound;
             } else {
                 sinkBound = FrameLabSink.bindCompositorEpoch(ownerSink, ownerIdentity, endpoint,
-                        ownerPid, ownerToken);
+                        ownerPid, ownerLifetimeBinder);
             }
             if (!sinkBound) {
                 clearOwnerPidRebindReservation(existingSnapshot);
@@ -978,7 +988,7 @@ public final class CompositorService extends Service {
                 boolean restored = false;
                 if (ownerPidRebindAttempted) {
                     try { restored = FrameLabSink.cancelOwnerPidRebind(ownerSink, ownerIdentity, endpoint,
-                            existingOwnerPid, ownerPid, ownerToken); }
+                            existingOwnerPid, ownerPid, ownerLifetimeBinder); }
                     catch (RemoteException | RuntimeException ignored) { }
                 }
                 clearOwnerPidRebindReservation(existingSnapshot);
@@ -987,11 +997,11 @@ public final class CompositorService extends Service {
                 }
                 return false;
             }
-            try { FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerToken); }
+            try { FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerLifetimeBinder); }
             catch (RemoteException ignored) { }
             return false;
         }
-        final ParentAuthority proposed = new ParentAuthority(ownerIdentity, ownerSink, ownerToken,
+        final ParentAuthority proposed = new ParentAuthority(ownerIdentity, ownerSink, ownerLifetimeBinder,
                 android.os.SystemClock.elapsedRealtimeNanos(), ownerPid, callerProcess);
         proposed.deathRecipient = new IBinder.DeathRecipient() {
             public void binderDied() {
@@ -1015,7 +1025,7 @@ public final class CompositorService extends Service {
         };
         try {
             ownerSink.linkToDeath(proposed.deathRecipient, 0);
-            ownerToken.linkToDeath(proposed.ownerLifetimeDeathRecipient, 0);
+            ownerLifetimeBinder.linkToDeath(proposed.ownerLifetimeDeathRecipient, 0);
         } catch (RemoteException deadOwner) {
             try { ownerSink.unlinkToDeath(proposed.deathRecipient, 0); } catch (RuntimeException ignored) { }
             return false;
@@ -1037,7 +1047,7 @@ public final class CompositorService extends Service {
                     existing.ownerProcess.equals(existingOwnerProcess)) {
                 boolean sameLiveOwner = existing.ownerPid == ownerPid &&
                         existing.ownerProcess.equals(callerProcess) &&
-                        existing.ownerLifetimeToken == ownerToken && ownerToken.isBinderAlive();
+                        existing.ownerLifetimeBinder == ownerLifetimeBinder && ownerLifetimeBinder.isBinderAlive();
                 accepted = existing.ownerIdentity.equals(ownerIdentity) &&
                         existing.ownerSink.equals(ownerSink) && sameLiveOwner &&
                         !existing.dead && ownerSink.isBinderAlive();
@@ -1049,7 +1059,7 @@ public final class CompositorService extends Service {
                 if (!accepted && ownerPidRebind && previousOwnerVerifiedAbsent &&
                         existing.ownerIdentity.equals(ownerIdentity) &&
                         existing.ownerSink.equals(ownerSink) &&
-                        existing.ownerLifetimeToken == ownerToken && ownerToken.isBinderAlive() &&
+                        existing.ownerLifetimeBinder == ownerLifetimeBinder && ownerLifetimeBinder.isBinderAlive() &&
                         existing.ownerPidRebindInProgress &&
                         !closingSessions.contains(ownerIdentity.sessionId) &&
                         !pendingParentTeardowns.contains(ownerIdentity.sessionId) &&
@@ -1075,7 +1085,7 @@ public final class CompositorService extends Service {
             boolean restored = false;
             if (sinkOwnerPidPrepared) {
                 try { restored = FrameLabSink.cancelOwnerPidRebind(ownerSink, ownerIdentity, endpoint,
-                        existingOwnerPid, ownerPid, ownerToken); }
+                        existingOwnerPid, ownerPid, ownerLifetimeBinder); }
                 catch (RemoteException | RuntimeException ignored) { }
             }
             clearOwnerPidRebindReservation(existingSnapshot);
@@ -1085,7 +1095,7 @@ public final class CompositorService extends Service {
         if (accepted && rebound) {
             boolean completed = false;
             try { completed = FrameLabSink.completeOwnerPidRebind(ownerSink, ownerIdentity, endpoint,
-                    existingOwnerPid, ownerPid, ownerToken); }
+                    existingOwnerPid, ownerPid, ownerLifetimeBinder); }
             catch (RemoteException | RuntimeException ignored) { }
             if (!completed) {
                 revokeParentAuthority(existingSnapshot, "owner_pid_rebind_completion_failed");
@@ -1095,11 +1105,11 @@ public final class CompositorService extends Service {
         if (!installed) {
             try { ownerSink.unlinkToDeath(proposed.deathRecipient, 0); }
             catch (RuntimeException ignored) { }
-            try { ownerToken.unlinkToDeath(proposed.ownerLifetimeDeathRecipient, 0); }
+            try { ownerLifetimeBinder.unlinkToDeath(proposed.ownerLifetimeDeathRecipient, 0); }
             catch (RuntimeException ignored) { }
             if (proposed.dead) {
                 try {
-                    FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerToken);
+                    FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerLifetimeBinder);
                     Log.i(TAG, "TYPE110_PARENT_AUTHORITY_BIND_ROLLBACK session_id=" +
                             ownerIdentity.sessionId + " owner_epoch=" + proposed.epoch +
                             " owner_token_dead=true");
@@ -1188,12 +1198,12 @@ public final class CompositorService extends Service {
             return false;
         }
         try {
-            IBinder ownerToken;
+            IBinder ownerLifetimeBinder;
             synchronized (streamsLock) {
                 ParentAuthority authority = parentAuthorities.get(ownerIdentity.sessionId);
-                ownerToken = authority == null ? null : authority.ownerLifetimeToken;
+                ownerLifetimeBinder = authority == null ? null : authority.ownerLifetimeBinder;
             }
-            FrameLabSink.Stats actual = FrameLabSink.queryStats(ownerState.sink, ownerToken);
+            FrameLabSink.Stats actual = FrameLabSink.queryStats(ownerState.sink, ownerLifetimeBinder);
             if (actual == null || actual.pid != sinkPid || actual.frameId != lastFrameId) {
                 Log.w(TAG, "TYPE110_POST_DEATH_RECOVERY_REJECT reason=owner_sink_receipt_mismatch session_id=" +
                         ownerIdentity.sessionId + " expected_pid=" + sinkPid + " actual_pid=" +
@@ -1327,8 +1337,8 @@ public final class CompositorService extends Service {
                 ParentAuthority authority = parentAuthorities.get(sessionId);
                 authorized = authority != null && !authority.dead &&
                         authority.authorizedOwnerDeathObserverPid == callerPid &&
-                        observerRole && authority.ownerDeathObserverToken != null &&
-                        authority.ownerDeathObserverToken.isBinderAlive();
+                        observerRole && authority.ownerDeathObserverBinder != null &&
+                        authority.ownerDeathObserverBinder.isBinderAlive();
             }
         }
         if (!authorized) Log.w(TAG, "IPC_SESSION_QUERY_REJECT session_id=" + sessionId +
@@ -1430,7 +1440,7 @@ public final class CompositorService extends Service {
         }
         try {
             FrameLabSink.revokeParentAuthority(expected.ownerSink, expected.ownerIdentity,
-                    expected.ownerLifetimeToken);
+                    expected.ownerLifetimeBinder);
         } catch (RemoteException | RuntimeException unavailableOwnerSink) {
             Log.i(TAG, "TYPE110_PARENT_SINK_EPOCH_REVOKE_UNAVAILABLE session_id=" +
                     expected.ownerIdentity.sessionId + " cause=" + cause);
@@ -1464,7 +1474,7 @@ public final class CompositorService extends Service {
         }
         try { expected.ownerSink.unlinkToDeath(expected.deathRecipient, 0); }
         catch (RuntimeException ignored) { }
-        try { expected.ownerLifetimeToken.unlinkToDeath(expected.ownerLifetimeDeathRecipient, 0); }
+        try { expected.ownerLifetimeBinder.unlinkToDeath(expected.ownerLifetimeDeathRecipient, 0); }
         catch (RuntimeException ignored) { }
         Log.i(TAG, "TYPE110_PARENT_AUTHORITY_REVOKED session_id=" +
                 expected.ownerIdentity.sessionId + " owner_epoch=" + expected.epoch +
@@ -1641,7 +1651,7 @@ public final class CompositorService extends Service {
                 ownerCaller) {
             java.util.HashSet<String> contexts = new java.util.HashSet<String>();
             for (int i = 0; i < count; i++) contexts.add(data.readString());
-            Type111ControlPlane plane = new Type111ControlPlane(sessionId);
+            Type111ControlPlane plane = new Type111ControlPlane(ownerIdentity);
             try {
                 reason = plane.registerCapability(new Type111ControlPlane.Capability(
                         sessionId, uuid, width, height, fps, contexts));
@@ -1790,11 +1800,11 @@ public final class CompositorService extends Service {
         }
         if (authority != null) {
             try { FrameLabSink.revokeParentAuthority(authority.ownerSink, authority.ownerIdentity,
-                    authority.ownerLifetimeToken); }
+                    authority.ownerLifetimeBinder); }
             catch (RemoteException | RuntimeException ignored) { }
             try { authority.ownerSink.unlinkToDeath(authority.deathRecipient, 0); }
             catch (RuntimeException ignored) { }
-            try { authority.ownerLifetimeToken.unlinkToDeath(
+            try { authority.ownerLifetimeBinder.unlinkToDeath(
                     authority.ownerLifetimeDeathRecipient, 0); }
             catch (RuntimeException ignored) { }
         }
@@ -1802,6 +1812,10 @@ public final class CompositorService extends Service {
         int remainingStreams = countSessionStreams(sessionId);
         int activeTransfers = activePfdTransfers.get();
         int retainedBytes = retainedFrameBytes.get();
+        Log.i(TAG, "CL_T111_LAB03_PARENT_TEARDOWN session_id=" + sessionId +
+                " child_active=false type110_streams=" + remainingStreams +
+                " active_pfd_transfers=" + activeTransfers +
+                " retained_frame_bytes=" + retainedBytes + " parent_active=false");
         Log.i(TAG, "TYPE111_PARENT_TEARDOWN_RESOURCES session_id=" + sessionId +
                 " remaining_streams=" + remainingStreams +
                 " active_pfd_transfers=" + activeTransfers +
@@ -1824,6 +1838,11 @@ public final class CompositorService extends Service {
                 " transport_generation=" + s.transportGeneration +
                 " decoder_generation=" + s.decoderGeneration +
                 " presentation_generation=" + s.presentationGeneration +
+                " model_parent_generation=" + s.modelParentGeneration +
+                " model_child_generation=" + s.modelChildGeneration +
+                " receiver_pid=" + s.receiverPid + " producer_pid=" + s.producerPid +
+                " candidate_enabled=" + s.candidateEnabled +
+                " delivered_frames=" + s.deliveredFrames +
                 " visible=" + s.visible + " context=" + s.selectedContext +
                 " suggestion=" + s.suggestion + " video=" + s.width + "x" + s.height);
     }
@@ -1957,7 +1976,22 @@ public final class CompositorService extends Service {
                     height, rowStride, pixelFormat, rotation, cropLeft, cropTop,
                     cropRight, cropBottom, payload, checksum, downstreamFailure) &&
                     state.compositor.accept(identity.streamGeneration, timestampNs, width, height, rowStride, payloadBytes);
-            if (accepted) state.lastFrameId = frameId;
+            if (accepted) {
+                state.lastFrameId = frameId;
+                if (identity.streamType == FrameStreamIdentity.TYPE111) {
+                    Type111ControlPlane plane = controlPlane(identity.sessionId);
+                    String lifecycleResult = plane == null ? "session_unavailable" :
+                            plane.frameDelivered(identity, frameId);
+                    if ("accepted".equals(lifecycleResult))
+                        Log.i(TAG, "CL_T111_LAB03_FRAME_DELIVERED session_id=" + identity.sessionId +
+                                " connection_id=" + identity.connectionId +
+                                " stream_generation=" + identity.streamGeneration +
+                                " frame_id=" + frameId + " lifecycle=accepted");
+                    else Log.i(TAG, "CL_T111_LAB03_FRAME_TRACKING_UNAVAILABLE session_id=" +
+                            identity.sessionId + " stream_generation=" + identity.streamGeneration +
+                            " frame_id=" + frameId + " reason=" + lifecycleResult);
+                }
+            }
             else rejection = downstreamFailure[0] == null ? "frame_downstream_rejected" : downstreamFailure[0];
         }
         Log.i(TAG, "IPC_REMOTE_FRAME generation=" + identity.streamGeneration +
@@ -1995,7 +2029,7 @@ public final class CompositorService extends Service {
         final Type111ControlPlane control = identity.streamType == FrameStreamIdentity.TYPE111 ?
                 controlPlane(identity.sessionId) : null;
         if (identity.streamType == FrameStreamIdentity.TYPE111 &&
-                (control == null || !"accepted".equals(control.activate(identity)))) return false;
+                (control == null || !"accepted".equals(control.activate(identity, Binder.getCallingPid())))) return false;
         final StreamState state = new StreamState(identity, sink);
         if (!state.compositor.begin(identity.streamGeneration)) {
             if (control != null) control.teardown(identity);
@@ -2280,7 +2314,8 @@ public final class CompositorService extends Service {
                             newSink.isBinderAlive() && plane.canTransportGeneration(oldIdentity, newIdentity) &&
                             state.compositor.replaceGeneration(oldIdentity.streamGeneration,
                                     newIdentity.streamGeneration)) {
-                        if ("accepted".equals(plane.transportGeneration(oldIdentity, newIdentity))) {
+                        if ("accepted".equals(plane.transportGeneration(oldIdentity, newIdentity,
+                                Binder.getCallingPid()))) {
                             oldSink = state.sink;
                             oldRecipient = state.deathRecipient;
                             state.identity = newIdentity;
@@ -2450,7 +2485,20 @@ public final class CompositorService extends Service {
         }
         if (identity.streamType == FrameStreamIdentity.TYPE111) {
             Type111ControlPlane control = controlPlane(identity.sessionId);
-            if (control != null) control.teardown(identity);
+            String result = control == null ? "session_unavailable" : control.teardown(identity);
+            boolean type110Active = false;
+            synchronized (streamsLock) {
+                for (StreamState current : streams.values())
+                    if (current.identity.sessionId == identity.sessionId &&
+                            current.identity.streamType == FrameStreamIdentity.TYPE110) {
+                        type110Active = true;
+                        break;
+                    }
+            }
+            Log.i(TAG, "CL_T111_LAB03_CHILD_WITHDRAWN session_id=" + identity.sessionId +
+                    " connection_id=" + identity.connectionId +
+                    " stream_generation=" + identity.streamGeneration +
+                    " result=" + result + " type110_active=" + type110Active);
         }
         Log.i(TAG, "IPC_STREAM_UNREGISTERED session_id=" + identity.sessionId +
                 " stream_type=" + identity.streamType + " connection_id=" + identity.connectionId +

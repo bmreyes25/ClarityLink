@@ -16,6 +16,8 @@ decoder_only=0
 type111_mode=0
 type111_first=0
 type111_reattach=0
+type111_live_producer=0
+lab03_acceptance=0
 type110_failure=0
 owner_death=0
 owner_death_during_child_cleanup=0
@@ -72,10 +74,12 @@ elif [ "${1:-}" = "--cl-r4b-type110-failure" ]; then
   # Type111 producer before it tests Type110 sink death. The generic presentation
   # launch registers Type111 but does not start the producer service.
   type111_mode=1
+  type111_live_producer=1
   shift
 elif [ "${1:-}" = "--cl-r4b-type110-failure-type111-first" ]; then
   type110_failure=1
   type111_mode=1
+  type111_live_producer=1
   type111_first=1
   shift
 elif [ "${1:-}" = "--cl-r4b-parent-owner-death" ]; then
@@ -103,6 +107,8 @@ elif [ "${1:-}" = "--cl-r4-type111-first" ]; then
   shift
 elif [ "${1:-}" = "--cl-r4-type111" ]; then
   type111_mode=1
+  type111_live_producer=1
+  lab03_acceptance=1
   shift
 elif [ "${1:-}" = "--cl-r4-type111-reattach" ]; then
   type111_mode=1
@@ -411,7 +417,7 @@ python3 "$guard" mark-avd "$run_root" "$avd"
 avd_created=1
 grep -q '^abi.type=x86$' "$avd_dir/config.ini" || { echo 'AVD ABI mismatch.' >&2; exit 4; }
 arch -x86_64 "$emulator" -avd "$avd" -port "$port" -no-window -no-audio \
-  -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
+  -partition-size 4096 -no-snapshot -no-boot-anim -wipe-data -accel off -gpu swiftshader_indirect \
   > "$run_root/emulator.log" 2>&1 &
 emulator_launcher_pid=$!
 ready=0
@@ -631,7 +637,8 @@ start_lab_activity_privileged() {
       component=org.claritylink.android.ClarityLinkDisplayActivity
       set -- --es mode EMULATOR_PRESENTATION --es emulator_only_confirmation CL_IMP_03_OFFLINE_EMULATOR_ONLY
       case "$scenario" in
-        type111) set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true ;;
+        type111) set -- "$@" --ez type111_fixture_mode true --ez hold_after_same_uid_attack true \
+          --ez security_live_producer true ;;
         type111_decoder_shutdown_delivery) set -- "$@" --ez type111_fixture_mode true --ez decoder_shutdown_delivery_test true --ez hold_after_same_uid_attack true ;;
         type111_crash) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true ;;
         type111_crash_queue_saturated) set -- "$@" --ez type111_fixture_mode true --ez crash_after_first_frame true --ez crash_with_saturated_type111_queue true ;;
@@ -1299,6 +1306,10 @@ if [ "$type111_mode" -eq 1 ]; then
     probe_boundary_checked=1
   fi
   wait_for 'CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_PASS'
+  if [ "$type111_live_producer" -eq 1 ]; then
+    wait_for 'CL_T111_LAB03_PRODUCER_BIND '
+    wait_for 'CL_T111_LAB03_FRAME_DELIVERED '
+  fi
   wait_for 'TYPE111_PRODUCER_WAIT_BOUNDS_PASS'
   wait_for 'CL_R4_TYPE111_INFLIGHT_PRODUCER_DEATH_CLEANUP_PASS'
   wait_for 'CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS'
@@ -1894,6 +1905,22 @@ $owner_logs"
     printf '%s\n' "$logs" | grep -F "TYPE110_LAB_SINK_FRAME_ACCEPTED pid=$type110_sink_pid" | grep -E "frame_id=$((type110_last_frame + 1))([[:space:]]|$)" >/dev/null || {
       echo 'The independent Type110 sink did not record the next frame after Type111 sink death.' >&2; exit 9;
     }
+    if [ "$lab03_acceptance" -eq 1 ]; then
+    child_withdrawal=$(printf '%s\n' "$logs" | grep -F \
+      "CL_T111_LAB03_CHILD_WITHDRAWN session_id=$session_id " | tail -1)
+    parent_withdrawal=$(printf '%s\n' "$logs" | grep -F \
+      "CL_T111_LAB03_PARENT_TEARDOWN session_id=$session_id " | tail -1)
+    [ -n "$child_withdrawal" ] && printf '%s\n' "$child_withdrawal" | grep -F \
+      'result=accepted type110_active=true' >/dev/null || {
+      echo 'The negotiated child withdrawal did not preserve its Type110 parent.' >&2; exit 9;
+    }
+    [ -n "$parent_withdrawal" ] && printf '%s\n' "$parent_withdrawal" | grep -F \
+      'child_active=false' >/dev/null && printf '%s\n' "$parent_withdrawal" | grep -F \
+      'parent_active=false' >/dev/null || {
+      echo 'Parent teardown did not report cleared Type111 lifecycle state.' >&2; exit 9;
+    }
+    printf '%s\n' "$child_withdrawal" "$parent_withdrawal"
+    fi
   else
     progress_line=$(printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | tail -1)
     progress_frame=$(printf '%s\n' "$progress_line" | sed -n 's/.*type110_last_frame_id=\([0-9][0-9]*\).*/\1/p')
