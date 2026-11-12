@@ -171,6 +171,32 @@ class LegacyRecoveryTests(unittest.TestCase):
         owners = [json.loads((locks / guard.path_key(path)).read_text())["task_id"] for path in self.scope]
         self.assertEqual(owners, ["continued-task"] * len(self.scope))
 
+    def test_interrupted_apply_rejects_independent_executable_mode_change(self):
+        result = self._prepare()
+        real_apply = recovery.apply_merged_files
+
+        def apply_one_then_interrupt(root, merged):
+            path = self.scope[0]
+            real_apply(root, {path: merged[path]})
+            raise OSError("injected interrupted file application")
+
+        with patch.object(guard, "canonical_origin"), patch.object(
+                recovery, "apply_merged_files", side_effect=apply_one_then_interrupt):
+            with self.assertRaisesRegex(OSError, "injected interrupted file application"):
+                recovery.commit(self.target, result["transaction_id"], result["owner_authorization"])
+
+        recovered_path = self.target / self.scope[0]
+        self.assertEqual(recovered_path.read_text(), (self.source / self.scope[0]).read_text())
+        recovered_path.chmod(0o755)
+        with patch.object(guard, "canonical_origin"):
+            with self.assertRaisesRegex(guard.GuardError, "content or mode"):
+                recovery.commit(self.target, result["transaction_id"], result["owner_authorization"])
+
+        source_manifest, source_locks = guard.layout(self.source)
+        self.assertNotEqual(json.loads(source_manifest.read_text()).get("transfer_status"), "TRANSFERRED")
+        self.assertEqual(json.loads((source_locks / guard.path_key(self.scope[0])).read_text())["task_id"],
+                         "legacy-task")
+
     def test_source_scope_collision_blocks_prepare(self):
         _, locks = guard.layout(self.source)
         lock = locks / guard.path_key(self.scope[0])

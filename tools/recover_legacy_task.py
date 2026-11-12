@@ -367,10 +367,13 @@ def verify_resumable_target(root: Path, target_head: str,
         if file.is_symlink():
             fail(f"target path became a symlink during recovery: {path}")
         current = file.read_bytes() if file.is_file() else None
+        current_mode = ("100755" if file.stat().st_mode & 0o111 else "100644") if file.is_file() else None
         expected_current = _blob(root, target_head, path)
-        expected_merged = merged.get(path, (expected_current, None))[0]
-        if current not in {expected_current, expected_merged}:
-            fail(f"target content is neither the prepared base nor recovery output at {path}")
+        expected_current_mode = _mode(root, target_head, path)
+        expected_merged = merged.get(path, (expected_current, expected_current_mode))
+        current_state = (current, current_mode)
+        if current_state not in {(expected_current, expected_current_mode), expected_merged}:
+            fail(f"target content or mode is neither the prepared base nor recovery output at {path}")
 
 
 def run_probe(repo: Path, target_head: str, merged: dict[str, tuple[bytes | None, str | None]]) -> str:
