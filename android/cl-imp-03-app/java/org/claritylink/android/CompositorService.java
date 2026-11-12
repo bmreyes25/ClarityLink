@@ -147,6 +147,8 @@ public final class CompositorService extends Service {
         Type110LabProbeOwnership.Record pendingType110Recovery;
         int authorizedType111ProducerPid;
         FrameStreamIdentity authorizedType111ProducerIdentity;
+        IBinder authorizedType111ProducerBinder;
+        IBinder.DeathRecipient authorizedType111ProducerDeathRecipient;
         int authorizedOwnerDeathObserverPid;
         IBinder ownerDeathObserverBinder;
         IBinder.DeathRecipient ownerDeathObserverDeathRecipient;
@@ -462,17 +464,17 @@ public final class CompositorService extends Service {
             if (code == FrameIpcProtocol.TYPE111_PRODUCER_AUTHORIZE) {
                 int ownerPid = data.readInt();
                 FrameStreamIdentity childIdentity = readIdentity(data);
-                boolean accepted = authorizeType111Producer(ownerPid, childIdentity);
-                if (accepted && childIdentity != null) {
-                    Type111ControlPlane plane = controlPlane(childIdentity.sessionId);
-                    String lifecycleResult = plane == null ? "session_unavailable" :
-                            plane.producerBound(childIdentity, Binder.getCallingPid());
-                    accepted = "accepted".equals(lifecycleResult);
-                    Log.i(TAG, "CL_T111_LAB03_PRODUCER_BIND session_id=" + childIdentity.sessionId +
-                            " connection_id=" + childIdentity.connectionId +
-                            " stream_generation=" + childIdentity.streamGeneration +
-                            " producer_pid=" + Binder.getCallingPid() + " result=" + lifecycleResult);
-                }
+                IBinder producerLifetimeBinder = data.readStrongBinder();
+                Type111ControlPlane plane = childIdentity == null ? null :
+                        controlPlane(childIdentity.sessionId);
+                String lifecycleResult = plane == null ? "session_unavailable" :
+                        authorizeType111Producer(ownerPid, childIdentity, producerLifetimeBinder, plane);
+                boolean accepted = "accepted".equals(lifecycleResult);
+                Log.i(TAG, "CL_T111_LAB03_PRODUCER_BIND session_id=" +
+                        (childIdentity == null ? 0 : childIdentity.sessionId) +
+                        " connection_id=" + (childIdentity == null ? 0 : childIdentity.connectionId) +
+                        " stream_generation=" + (childIdentity == null ? 0 : childIdentity.streamGeneration) +
+                        " producer_pid=" + Binder.getCallingPid() + " result=" + lifecycleResult);
                 reply.writeNoException(); reply.writeInt(accepted ? 1 : 0);
                 return true;
             }
@@ -1247,48 +1249,180 @@ public final class CompositorService extends Service {
     }
 
     /** Grants one live Type111 producer PID access only to the exact owner-authorized child stream. */
-    private boolean authorizeType111Producer(int ownerPid, FrameStreamIdentity childIdentity) {
-        int producerPid = Binder.getCallingPid();
+    private String authorizeType111Producer(int ownerPid, final FrameStreamIdentity childIdentity,
+            final IBinder producerLifetimeBinder, final Type111ControlPlane plane) {
+        final int producerPid = Binder.getCallingPid();
         String producerProcess = processNameForPid(producerPid);
         if (ownerPid <= 0 || childIdentity == null || !childIdentity.isValid() ||
                 childIdentity.streamType != FrameStreamIdentity.TYPE111 ||
                 !(getPackageName() + ":type111_producer").equals(producerProcess) ||
-                !isAuthorizedParentCaller(ownerPid)) return false;
+                !isAuthorizedParentCaller(ownerPid) || producerLifetimeBinder == null ||
+                !producerLifetimeBinder.isBinderAlive() || plane == null) return "producer_rejected";
+        try {
+            if (!"org.claritylink.android.IType111LabProducer".equals(
+                    producerLifetimeBinder.getInterfaceDescriptor())) return "producer_binder_descriptor_rejected";
+        } catch (RemoteException unavailableBinder) {
+            return "producer_binder_unavailable";
+        }
         final ParentAuthority authoritySnapshot;
-        final int priorPid;
         synchronized (streamsLock) {
             ParentAuthority authority = parentAuthorities.get(childIdentity.sessionId);
             StreamState child = streams.get(childIdentity.key());
             if (authority == null || authority.dead || authority.ownerPid != ownerPid ||
                     !authority.ownerSink.isBinderAlive() || child == null ||
-                    !childIdentity.equals(child.identity) || child.sink == null ||
-                    type111Sessions.get(childIdentity.sessionId) == null ||
-                    closingSessions.contains(childIdentity.sessionId)) return false;
+                    child.closing || !childIdentity.equals(child.identity) || child.sink == null ||
+                    type111Sessions.get(childIdentity.sessionId) != plane ||
+                    closingSessions.contains(childIdentity.sessionId)) return "producer_session_unavailable";
             authoritySnapshot = authority;
-            priorPid = authority.authorizedType111ProducerPid;
         }
-        // Resolve a prior producer PID without holding the receiver-wide lock. Recheck
-        // the authority and grant under the lock before changing the authorization.
-        String priorProcess = processNameForPid(priorPid);
-        synchronized (streamsLock) {
-            ParentAuthority authority = parentAuthorities.get(childIdentity.sessionId);
-            StreamState child = streams.get(childIdentity.key());
-            if (authority != authoritySnapshot || authority == null || authority.dead ||
-                    authority.ownerPid != ownerPid || !authority.ownerSink.isBinderAlive() ||
-                    child == null || !childIdentity.equals(child.identity) || child.sink == null ||
-                    type111Sessions.get(childIdentity.sessionId) == null ||
-                    closingSessions.contains(childIdentity.sessionId) ||
-                    authority.authorizedType111ProducerPid != priorPid) return false;
+
+        synchronized (authoritySnapshot) {
+            final int priorPid;
+            final IBinder priorBinder;
+            final IBinder.DeathRecipient priorRecipient;
+            synchronized (streamsLock) {
+                ParentAuthority authority = parentAuthorities.get(childIdentity.sessionId);
+                StreamState child = streams.get(childIdentity.key());
+                if (authority != authoritySnapshot || authority.dead || authority.ownerPid != ownerPid ||
+                        !authority.ownerSink.isBinderAlive() || child == null || child.closing ||
+                        !childIdentity.equals(child.identity) || child.sink == null ||
+                        type111Sessions.get(childIdentity.sessionId) != plane ||
+                        closingSessions.contains(childIdentity.sessionId)) return "producer_session_changed";
+                priorPid = authority.authorizedType111ProducerPid;
+                priorBinder = authority.authorizedType111ProducerBinder;
+                priorRecipient = authority.authorizedType111ProducerDeathRecipient;
+            }
+            String priorProcess = processNameForPid(priorPid);
             if (priorPid > 0 && priorPid != producerPid &&
-                    (getPackageName() + ":type111_producer").equals(priorProcess)) return false;
-            authority.authorizedType111ProducerPid = producerPid;
-            authority.authorizedType111ProducerIdentity = childIdentity;
+                    (getPackageName() + ":type111_producer").equals(priorProcess))
+                return "prior_producer_still_active";
+
+            if (priorPid == producerPid && priorBinder == producerLifetimeBinder &&
+                    childIdentity.equals(authoritySnapshot.authorizedType111ProducerIdentity)) {
+                return producerLifetimeBinder.isBinderAlive() ? "accepted" : "producer_binder_unavailable";
+            }
+
+            final IBinder.DeathRecipient recipient = new IBinder.DeathRecipient() {
+                @Override public void binderDied() {
+                    onType111ProducerDeath(authoritySnapshot, childIdentity, producerPid,
+                            producerLifetimeBinder, this);
+                }
+            };
+            try { producerLifetimeBinder.linkToDeath(recipient, 0); }
+            catch (RemoteException deadProducer) { return "producer_binder_died_before_bind"; }
+
+            String lifecycleResult = plane.producerBound(childIdentity, producerPid);
+            if (!"accepted".equals(lifecycleResult)) {
+                producerLifetimeBinder.unlinkToDeath(recipient, 0);
+                if (priorPid > 0 && priorPid != producerPid) {
+                    clearType111ProducerGrant(childIdentity.sessionId, childIdentity);
+                    plane.producerDied(childIdentity, priorPid);
+                }
+                return lifecycleResult;
+            }
+
+            boolean committed = false;
+            synchronized (streamsLock) {
+                ParentAuthority authority = parentAuthorities.get(childIdentity.sessionId);
+                StreamState child = streams.get(childIdentity.key());
+                if (authority == authoritySnapshot && !authority.dead && authority.ownerPid == ownerPid &&
+                        authority.authorizedType111ProducerPid == priorPid &&
+                        authority.authorizedType111ProducerBinder == priorBinder &&
+                        child != null && !child.closing && childIdentity.equals(child.identity) &&
+                        child.sink != null && type111Sessions.get(childIdentity.sessionId) == plane &&
+                        !closingSessions.contains(childIdentity.sessionId) &&
+                        producerLifetimeBinder.isBinderAlive()) {
+                    authority.authorizedType111ProducerPid = producerPid;
+                    authority.authorizedType111ProducerIdentity = childIdentity;
+                    authority.authorizedType111ProducerBinder = producerLifetimeBinder;
+                    authority.authorizedType111ProducerDeathRecipient = recipient;
+                    committed = true;
+                }
+            }
+            if (!committed) {
+                if (priorPid != producerPid) plane.producerBindFailed(childIdentity, producerPid);
+                producerLifetimeBinder.unlinkToDeath(recipient, 0);
+                if (priorPid > 0 && priorPid != producerPid)
+                    clearType111ProducerGrant(childIdentity.sessionId, childIdentity);
+                return "producer_grant_commit_rejected";
+            }
+            if (priorBinder != null && priorRecipient != null &&
+                    (priorBinder != producerLifetimeBinder || priorRecipient != recipient))
+                priorBinder.unlinkToDeath(priorRecipient, 0);
+            boolean viewReady = fenceType111Presentation(childIdentity, false);
             Log.i(TAG, "TYPE111_PRODUCER_SESSION_AUTHORIZED session_id=" +
                     childIdentity.sessionId + " connection_id=" + childIdentity.connectionId +
                     " generation=" + childIdentity.streamGeneration + " owner_pid=" + ownerPid +
-                    " producer_pid=" + producerPid);
-            return true;
+                    " producer_pid=" + producerPid + " view_ready=" + viewReady);
+            return "accepted";
         }
+    }
+
+    private void onType111ProducerDeath(final ParentAuthority expected,
+            final FrameStreamIdentity identity, final int deadPid, final IBinder deadBinder,
+            final IBinder.DeathRecipient recipient) {
+        boolean revoked = false;
+        boolean presentationFenced = false;
+        String lifecycleResult = "stale_type111_producer_death";
+        synchronized (expected) {
+            synchronized (streamsLock) {
+                ParentAuthority current = parentAuthorities.get(identity.sessionId);
+                if (current == expected && current.authorizedType111ProducerPid == deadPid &&
+                        identity.equals(current.authorizedType111ProducerIdentity) &&
+                        current.authorizedType111ProducerBinder == deadBinder &&
+                        current.authorizedType111ProducerDeathRecipient == recipient) {
+                    current.authorizedType111ProducerPid = 0;
+                    current.authorizedType111ProducerIdentity = null;
+                    current.authorizedType111ProducerBinder = null;
+                    current.authorizedType111ProducerDeathRecipient = null;
+                    revoked = true;
+                }
+            }
+            if (revoked) {
+                Type111ControlPlane plane = controlPlane(identity.sessionId);
+                lifecycleResult = plane == null ? "session_unavailable" :
+                        plane.producerDied(identity, deadPid);
+                presentationFenced = fenceType111Presentation(identity, true);
+            }
+        }
+        if (!revoked) return;
+        Log.i(TAG, "CL_T111_LAB03_PRODUCER_DIED session_id=" + identity.sessionId +
+                " connection_id=" + identity.connectionId + " stream_generation=" +
+                identity.streamGeneration + " producer_pid=" + deadPid +
+                " result=" + lifecycleResult + " presentation_fenced=" + presentationFenced +
+                " type110_parent_preserved=true");
+    }
+
+    /** Fences Type111 view admission and clears its last frame without touching Type110. */
+    private boolean fenceType111Presentation(FrameStreamIdentity identity, boolean fence) {
+        if (identity == null || identity.streamType != FrameStreamIdentity.TYPE111) return false;
+        StreamState state = findStream(identity);
+        if (state == null) return false;
+        final IBinder sink;
+        synchronized (state.lock) {
+            synchronized (streamsLock) {
+                if (streams.get(identity.key()) != state || !identity.equals(state.identity) ||
+                        state.closing) return false;
+                sink = state.sink;
+            }
+        }
+        if (sink == null || !sink.isBinderAlive()) return false;
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken("org.claritylink.android.IClarityLinkViewFrameSink");
+            data.writeInt(FrameIpcProtocol.VERSION);
+            writeIdentity(data, identity);
+            data.writeInt(fence ? 1 : 0);
+            if (!sink.transact(FrameIpcProtocol.VIEW_PRODUCER_FENCE, data, reply, 0)) return false;
+            reply.readException();
+            return reply.readInt() != 0;
+        } catch (Exception failure) {
+            Log.w(TAG, "TYPE111_VIEW_PRODUCER_FENCE_FAILED session_id=" + identity.sessionId +
+                    " generation=" + identity.streamGeneration + " fence=" + fence +
+                    " type=" + failure.getClass().getSimpleName());
+            return false;
+        } finally { reply.recycle(); data.recycle(); }
     }
 
     private String processNameForPid(int pid) {
@@ -1428,16 +1562,27 @@ public final class CompositorService extends Service {
         expected.dead = true;
         ArrayList<StreamState> owned = new ArrayList<StreamState>();
         Type111ControlPlane plane;
+        IBinder producerBinderToUnlink;
+        IBinder.DeathRecipient producerRecipientToUnlink;
         synchronized (streamsLock) {
             if (parentAuthorities.get(expected.ownerIdentity.sessionId) != expected) return;
             closingSessions.add(expected.ownerIdentity.sessionId);
             pendingParentTeardowns.add(expected.ownerIdentity.sessionId);
             parentAuthorities.remove(expected.ownerIdentity.sessionId);
             if (expected.provisionalExpiry != null) authorityHandler.removeCallbacks(expected.provisionalExpiry);
+            producerBinderToUnlink = expected.authorizedType111ProducerBinder;
+            producerRecipientToUnlink = expected.authorizedType111ProducerDeathRecipient;
+            expected.authorizedType111ProducerPid = 0;
+            expected.authorizedType111ProducerIdentity = null;
+            expected.authorizedType111ProducerBinder = null;
+            expected.authorizedType111ProducerDeathRecipient = null;
             plane = type111Sessions.remove(expected.ownerIdentity.sessionId);
             for (StreamState state : streams.values())
                 if (state.identity.sessionId == expected.ownerIdentity.sessionId) owned.add(state);
         }
+        if (producerBinderToUnlink != null && producerRecipientToUnlink != null)
+            try { producerBinderToUnlink.unlinkToDeath(producerRecipientToUnlink, 0); }
+            catch (RuntimeException ignored) { }
         try {
             FrameLabSink.revokeParentAuthority(expected.ownerSink, expected.ownerIdentity,
                     expected.ownerLifetimeBinder);
@@ -2484,6 +2629,7 @@ public final class CompositorService extends Service {
             }
         }
         if (identity.streamType == FrameStreamIdentity.TYPE111) {
+            clearType111ProducerGrant(identity.sessionId, identity);
             Type111ControlPlane control = controlPlane(identity.sessionId);
             String result = control == null ? "session_unavailable" : control.teardown(identity);
             boolean type110Active = false;
@@ -2504,6 +2650,25 @@ public final class CompositorService extends Service {
                 " stream_type=" + identity.streamType + " connection_id=" + identity.connectionId +
                 " active_pfd_transfers=" + state.activePfdTransfers.get());
         return true;
+    }
+
+    private void clearType111ProducerGrant(long sessionId, FrameStreamIdentity identity) {
+        IBinder binder = null;
+        IBinder.DeathRecipient recipient = null;
+        synchronized (streamsLock) {
+            ParentAuthority authority = parentAuthorities.get(sessionId);
+            if (authority != null && identity.equals(authority.authorizedType111ProducerIdentity)) {
+                binder = authority.authorizedType111ProducerBinder;
+                recipient = authority.authorizedType111ProducerDeathRecipient;
+                authority.authorizedType111ProducerPid = 0;
+                authority.authorizedType111ProducerIdentity = null;
+                authority.authorizedType111ProducerBinder = null;
+                authority.authorizedType111ProducerDeathRecipient = null;
+            }
+        }
+        if (binder != null && recipient != null)
+            try { binder.unlinkToDeath(recipient, 0); }
+            catch (RuntimeException ignored) { }
     }
 
     private boolean closeViewSink(final StreamState state, final IBinder sink,

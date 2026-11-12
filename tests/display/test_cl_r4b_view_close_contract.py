@@ -29,8 +29,10 @@ def test_close_timeout_keeps_exact_stream_fenced_until_ack_or_death():
     assert "if (!closeViewSink(state, sinkToClose, identity)) return false;" in unregister
     assert "state.closing = true;" in unregister
     assert "resolution=retain_fenced_identity" in compositor
-    timeout = compositor[compositor.index("} catch (TimeoutException timeout)"):
-                         compositor.index("} catch (Exception failure)")]
+    close_impl = compositor[compositor.index("private boolean closeViewSink(final StreamState state"):
+                             compositor.index("private void scheduleViewCloseRetry")]
+    timeout = close_impl[close_impl.index("} catch (TimeoutException timeout)"):
+                         close_impl.index("} catch (Exception failure)")]
     assert "close.cancel" not in timeout
     assert "resolution=retain_fenced_identity" in timeout
     assert "recovery=owner_or_sink_restart_required" in compositor

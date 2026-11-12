@@ -25,6 +25,13 @@ public final class FrameDispatchGate {
         return true;
     }
 
+    /** Invalidates already queued work while preserving the active stream generation. */
+    public synchronized boolean invalidatePending(long generation) {
+        if (generation <= 0 || generation != activeGeneration) return false;
+        warningEpoch++;
+        return true;
+    }
+
     public synchronized long captureEpoch(long generation) {
         if (generation <= 0 || generation != activeGeneration || warningVisible) return -1L;
         return warningEpoch;

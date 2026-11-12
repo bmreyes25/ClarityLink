@@ -39,6 +39,13 @@ public final class FrameDispatchGateTest {
         final long resumedEpoch = gate.captureEpoch(41L);
         check(gate.mayDispatch(41L, resumedEpoch), "fresh frame accepted after clear");
 
+        long preDeathEpoch = gate.captureEpoch(41L);
+        check(gate.invalidatePending(41L), "producer death fences queued Type111 presentation work");
+        check(!gate.mayDispatch(41L, preDeathEpoch), "queued pre-death frame cannot draw");
+        final long postRestartEpoch = gate.captureEpoch(41L);
+        check(postRestartEpoch > preDeathEpoch && gate.mayDispatch(41L, postRestartEpoch),
+                "same stream can resume with fresh dispatch epoch after producer restart");
+
         // A warning racing the final draw is serialized at the actual Canvas boundary.
         final CountDownLatch drawEntered = new CountDownLatch(1);
         final CountDownLatch releaseDraw = new CountDownLatch(1);
@@ -47,7 +54,7 @@ public final class FrameDispatchGateTest {
         final AtomicBoolean drew = new AtomicBoolean(false);
         Thread drawThread = new Thread(new Runnable() {
             public void run() {
-                gate.drawIfCurrent(41L, resumedEpoch, new FrameDispatchGate.DrawAction() {
+                gate.drawIfCurrent(41L, postRestartEpoch, new FrameDispatchGate.DrawAction() {
                     public void draw() {
                         drew.set(true);
                         drawEntered.countDown();
@@ -80,7 +87,7 @@ public final class FrameDispatchGateTest {
         warningThread.join(5000L);
         check(!drawThread.isAlive() && !warningThread.isAlive(), "controlled threads terminate");
         check(drew.get(), "draw ordered before warning transition");
-        check(!gate.drawIfCurrent(41L, resumedEpoch, new FrameDispatchGate.DrawAction() {
+        check(!gate.drawIfCurrent(41L, postRestartEpoch, new FrameDispatchGate.DrawAction() {
             public void draw() { throw new AssertionError("stale draw executed"); }
         }), "no stale draw after warning transition");
 

@@ -40,6 +40,19 @@ public final class NegotiatedType111LifecycleTest {
                 "parent and child generations remain distinct");
         check(active.streamGeneration == child.streamGeneration && active.receiverPid == 3001,
                 "stream identity and receiver owner retained separately");
+        check("type111_producer_rejected".equals(lifecycle.producerBound(child, 0)),
+                "invalid producer rejected");
+        check("type111_decoder_rejected".equals(lifecycle.decoderReady(child, 1L, 32, 32)),
+                "decoder cannot initialize before a producer owns the child");
+        check("accepted".equals(lifecycle.producerBound(child, 3002)),
+                "producer admission tentatively binds its identity");
+        check("accepted".equals(lifecycle.producerBindFailed(child, 3002)),
+                "failed authorization rolls back the tentative producer identity");
+        check(lifecycle.snapshot().producerPid == 0 &&
+                "type111_frame_not_presentable".equals(lifecycle.frameDelivered(child, 1L)),
+                "failed producer admission leaves no media authority");
+        check("accepted".equals(lifecycle.producerBound(child, 3002)),
+                "producer binds after a successful authorization retry");
         check("type111_decoder_rejected".equals(lifecycle.decoderReady(
                 child.withGeneration(2L), 1L, 32, 32)), "wrong stream generation rejected");
         check("type111_decoder_rejected".equals(lifecycle.decoderReady(child, 0L, 32, 32)),
@@ -57,37 +70,41 @@ public final class NegotiatedType111LifecycleTest {
                 "host-accepted frame recorded");
         check(lifecycle.snapshot().deliveredFrames == 1L, "frame receipt counted");
 
-        check("type111_producer_rejected".equals(lifecycle.producerBound(child, 0)),
-                "invalid producer rejected");
+        long samePidGeneration = lifecycle.snapshot().producerGeneration;
         check("accepted".equals(lifecycle.producerBound(child, 3002)),
-                "actual producer pid bound");
-        check("accepted".equals(lifecycle.producerBound(child, 3002)),
-                "duplicate binding by current producer is idempotent");
+                "new producer Binder in the same PID creates a new producer epoch");
+        check(lifecycle.snapshot().producerGeneration == samePidGeneration + 1L &&
+                lifecycle.snapshot().decoderGeneration == 0L &&
+                !lifecycle.snapshot().presentationSelected &&
+                lifecycle.snapshot().deliveredFrames == 0L,
+                "same-PID producer replacement resets decoder and presentation ownership");
         check("accepted".equals(lifecycle.producerBound(child, 3003)),
                 "authorized restarted producer receives a new producer epoch");
-        check(lifecycle.snapshot().producerGeneration == 2L,
+        check(lifecycle.snapshot().producerGeneration == 4L,
                 "producer generation remains independent from child and stream generations");
         check("stale_type111_producer_death".equals(lifecycle.producerDied(child, 3002)),
                 "wrong producer death callback rejected");
         check("accepted".equals(lifecycle.producerDied(child, 3003)),
-                "actual producer death withdraws child");
+                "actual producer death revokes its child media ownership");
         check("type111_frame_not_presentable".equals(lifecycle.frameDelivered(child, 13L)),
                 "dead child cannot present a late frame");
-        check(lifecycle.parentIsActive() && "CANDIDATE_ENABLED".equals(lifecycle.snapshot().state),
-                "child failure preserves Type110 parent and candidate policy");
-
-        FrameStreamIdentity reconnect = type111(100L, 11101L, 2L);
-        check("accepted".equals(lifecycle.setup(reconnect)), "replacement child can set up");
-        check("accepted".equals(lifecycle.activate(reconnect, 3004)), "replacement receiver activates");
-        check(lifecycle.snapshot().childGeneration != active.childGeneration,
-                "replacement child gets a new generation");
-        check("accepted".equals(lifecycle.decoderReady(reconnect, 1L, 32, 32)),
-                "new decoder identity starts independently");
-        check("accepted".equals(lifecycle.presentation(reconnect, true)), "replacement presentation selected");
-        check("stale_type111_teardown".equals(lifecycle.withdrawChild(child)),
-                "late old-child teardown cannot close replacement");
-        check("accepted".equals(lifecycle.withdrawChild(reconnect)), "current child withdrawn");
-        check("already_withdrawn".equals(lifecycle.withdrawChild(reconnect)),
+        check(lifecycle.parentIsActive() && lifecycle.snapshot().state.equals("TYPE111_PRODUCER_RESTART_REQUIRED"),
+                "producer failure preserves parent and fences child media until a new producer binds");
+        check("accepted".equals(lifecycle.producerBound(child, 3004)),
+                "authorized replacement producer binds to the live child");
+        check(lifecycle.snapshot().producerGeneration == 5L,
+                "replacement producer receives a new independent generation");
+        check("stale_type111_producer_death".equals(lifecycle.producerDied(child, 3003)),
+                "late old producer death cannot revoke its replacement");
+        check("accepted".equals(lifecycle.decoderReady(child, 1L, 32, 32)),
+                "replacement producer initializes a fresh decoder generation");
+        check("type111_frame_not_presentable".equals(lifecycle.frameDelivered(child, 14L)),
+                "presentation remains hidden after producer death");
+        check("accepted".equals(lifecycle.presentation(child, true)), "replacement presentation selected");
+        check("accepted".equals(lifecycle.frameDelivered(child, 15L)),
+                "replacement producer can deliver a new frame");
+        check("accepted".equals(lifecycle.withdrawChild(child)), "current child withdrawn");
+        check("already_withdrawn".equals(lifecycle.withdrawChild(child)),
                 "repeated child teardown is idempotent");
         check(lifecycle.parentIsActive(), "child withdrawal preserves parent");
         lifecycle.parentTeardown();
@@ -109,6 +126,14 @@ public final class NegotiatedType111LifecycleTest {
                 "control-plane capability opens adapter");
         check("accepted".equals(plane.setup(child)), "control-plane setup enters adapter");
         check("accepted".equals(plane.activate(child, 4001)), "control-plane receiver binds");
+        check("accepted".equals(plane.producerBound(child, 4003)),
+                "control-plane starts a tentative producer bind");
+        check("accepted".equals(plane.producerBindFailed(child, 4003)),
+                "control-plane rolls a failed producer bind back");
+        check(plane.snapshot().producerPid == 0 &&
+                "type111_frame_not_presentable".equals(plane.frameDelivered(child, 4L)),
+                "failed producer authorization leaves the media path closed");
+        check("accepted".equals(plane.producerBound(child, 4002)), "control-plane producer binds");
         check("accepted".equals(plane.videoConfig(child, 32, 32)), "control-plane decoder binds");
         check("accepted".equals(plane.navigation(child, "maps", true, false)),
                 "control-plane navigation becomes eligible");
@@ -118,6 +143,23 @@ public final class NegotiatedType111LifecycleTest {
                 "control-plane selection updates adapter");
         check("accepted".equals(plane.frameDelivered(child, 5L)),
                 "adapter records downstream accepted frame");
+        check("accepted".equals(plane.producerDied(child, 4002)),
+                "control plane consumes actual producer death");
+        check(plane.snapshot().state.equals("TYPE111_STREAM_ACTIVE") &&
+                plane.snapshot().modelChildGeneration > 0L && plane.snapshot().producerPid == 0,
+                "producer death clears media ownership but preserves receiver child identity");
+        check("type111_frame_not_presentable".equals(plane.frameDelivered(child, 6L)),
+                "frame delivery is fenced until producer restart");
+        check("accepted".equals(plane.producerBound(child, 4002)),
+                "replacement producer rebinds after death");
+        check("accepted".equals(plane.videoConfig(child, 32, 32)),
+                "replacement producer installs fresh decoder generation");
+        check("accepted".equals(plane.presentation(child, "suggestUI", Type111ControlPlane.MAP_CONTEXT)),
+                "replacement producer requests navigation presentation again");
+        check("accepted".equals(plane.presentation(child, "showUI", null)),
+                "replacement producer restores a fresh presentation selection");
+        check("accepted".equals(plane.frameDelivered(child, 7L)),
+                "replacement producer delivers after new presentation is selected");
         Type111ControlPlane.Snapshot active = plane.snapshot();
         check(active.candidateEnabled && active.modelParentGeneration != active.modelChildGeneration,
                 "control-plane exposes separate model generations");

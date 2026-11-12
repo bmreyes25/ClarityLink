@@ -30,7 +30,7 @@ authority for whether the synthetic Display 1 frame can be shown.
 | Child generation | An adapter-owned generation assigned when the Type111 receiver sink binds, then advanced on transport replacement. |
 | Stream identity | The exact Type111 `FrameStreamIdentity`, including connection and transport generation; stale identities are rejected. |
 | Receiver readiness | The existing compositor accepts a live Type111 sink Binder and records its calling process. |
-| Producer ownership | The existing compositor must authorize the optional isolated Type111 producer against the active parent and child before the adapter records its PID. Rebinding a different PID records a new producer epoch. |
+| Producer ownership | The existing compositor must authorize the optional isolated Type111 producer against the active parent and child before the adapter records its PID. A new producer Binder records a new producer epoch even when Android reuses the PID. |
 | Decoder generation | Every accepted VideoConfig advances the adapter's decoder epoch. It is separate from the stream generation and is reset when transport identity changes. |
 | Presentation generation | The adapter tracks selection changes independently. The API17 renderer's `PaneLease` keeps its own presentation lifetime and stale-frame gate. |
 | Media delivery | A downstream-accepted RGBA frame advances the child receipt count. The H.264 fixture is generated lab content. |
@@ -64,12 +64,31 @@ only after the existing compositor authorizes its new PID for the current
 parent and stream. Child failure and withdrawal leave the Type110 owner state
 available; parent teardown invalidates all child state.
 
-The existing Android services continue to own process death and Binder death
-handling. The adapter only accepts producer PID updates after compositor
-authorization; it does not infer a process death from an absent callback.
-Explicit `producerDied` handling is covered by the adapter contract test. The
-existing API17 runner separately exercises actual producer process death,
-Binder reconnection, and producer restart.
+The Type111 producer supplies its own private control Binder during compositor
+authorization. The compositor validates its descriptor and process role, links
+an identity-fenced death recipient, accepts the lifecycle producer bind, and
+only then publishes the PID grant used by frame authorization. A repeated
+authorization from the exact current Binder is idempotent; a different Binder
+starts a new producer epoch, resets decoder and presentation state, and cannot
+be revoked by a delayed death callback for the prior Binder. If a later stream
+recheck prevents publication, the tentative lifecycle bind is rolled back.
+
+When the current producer dies, the compositor revokes its exact PID, stream
+identity, Binder, and death recipient, then fences the existing Type111 View
+sink. The sink invalidates queued dispatch epochs, cancels pending UI work,
+clears the last presented frame through the existing Activity target, and
+rejects new frames until a replacement producer is authorized. This preserves
+the Type110 parent and stream. When the sink accepts the fence, it rejects new
+frames until the replacement Binder is authorized; if the clear callback fails,
+the failure is reported and visual withdrawal remains unverified. Host tests
+cover producer generation reset, stale death rejection, and dispatch epoch
+invalidation; the Android Binder transaction path still requires runtime
+execution.
+
+These Android Binder death and rollback paths have not yet executed on the
+guarded emulator. The runtime attempt stopped earlier, at renderer attachment,
+before Type111 setup. The existing runner now requires a producer-death receipt
+for LAB-03 once the presentation prerequisite is repaired.
 
 ## Verification
 
@@ -130,3 +149,16 @@ failure, and child/parent cleanup markers from the running Android services.
   behavior.
 - No live Honda session, Honda receiver hook, factory binary, vehicle, or
   connected iPhone was used.
+
+## Producer-death review follow-up
+
+Source revision `ee09e69e2d81b0dba7604f40b4830f39023a1940` received two
+independent review findings: producer death did not itself fence the visible
+Type111 frame, and a same-PID replacement Binder could inherit stale decoder
+and presentation state. The follow-up implementation adds a private
+same-UID-only sink fence transaction and makes Binder replacement advance its
+own lifecycle epoch. Exact Binder matching protects against a delayed death
+callback revoking its successor. API17 host contracts and the APK build pass
+for the follow-up source, but the Binder/view interaction has not been
+exercised on the emulator because the existing Activity attachment failure
+occurs before Type111 setup.

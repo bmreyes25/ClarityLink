@@ -48,6 +48,7 @@ final class FrameIpcProtocol {
     static final int TYPE111_PRODUCER_AUTHORIZE = 40;
     static final int TYPE110_SINK_ADMISSION = 41;
     static final int VIEW_CLOSE = 42;
+    static final int VIEW_PRODUCER_FENCE = 47;
     static final int LAB_REGISTER_OWNER_DEATH_QUERY_OBSERVER = 43;
     static final int TYPE110_SINK_ADMISSION_CONSUME = 1;
     static final int FRAME_LAB_QUERY_IDENTITY = 26;

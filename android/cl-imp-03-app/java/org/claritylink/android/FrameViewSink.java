@@ -122,6 +122,7 @@ final class FrameViewSink extends Binder {
     private volatile long lastFrameId;
     private volatile long lastTimestampNs = -1L;
     private volatile boolean closed;
+    private volatile boolean producerFenced;
     private volatile DispatchProbe dispatchProbe;
 
     FrameDispatchGate dispatchGate() { return dispatchGate; }
@@ -163,6 +164,7 @@ final class FrameViewSink extends Binder {
         lastFrameId = 0L;
         lastTimestampNs = -1L;
         closed = false;
+        producerFenced = false;
     }
 
     synchronized void beginLegacy(long value) {
@@ -197,7 +199,8 @@ final class FrameViewSink extends Binder {
     @Override protected synchronized boolean onTransact(int code, Parcel data, final Parcel reply, int flags)
             throws RemoteException {
         if (code != FrameIpcProtocol.VIEW_FRAME && code != FrameIpcProtocol.VIEW_WARNING &&
-                code != FrameIpcProtocol.VIEW_CHANGE_GENERATION && code != FrameIpcProtocol.VIEW_CLOSE)
+                code != FrameIpcProtocol.VIEW_CHANGE_GENERATION && code != FrameIpcProtocol.VIEW_CLOSE &&
+                code != FrameIpcProtocol.VIEW_PRODUCER_FENCE)
             return super.onTransact(code, data, reply, flags);
         if (Binder.getCallingUid() != Process.myUid()) {
             reply.writeException(new SecurityException("view frame caller rejected"));
@@ -218,6 +221,26 @@ final class FrameViewSink extends Binder {
                     " stream_type=" + requestIdentity.streamType + " generation=" +
                     requestIdentity.streamGeneration + " accepted=" + (currentMatch || duplicateMatch) +
                     " queued_frames=" + queuedFrames.get() + " queued_bytes=" + queuedBytes.get());
+            return true;
+        }
+        if (code == FrameIpcProtocol.VIEW_PRODUCER_FENCE) {
+            FrameStreamIdentity requestIdentity = readIdentity(data);
+            boolean fence = data.readInt() != 0;
+            boolean accepted = version == FrameIpcProtocol.VERSION && !closed && identity != null &&
+                    identity.equals(requestIdentity) && generation == requestIdentity.streamGeneration;
+            if (accepted && fence) {
+                producerFenced = true;
+                dispatchGate.invalidatePending(generation);
+                cancelPendingDispatches();
+                long clearEpoch = generation == Long.MAX_VALUE ? generation : generation + 1L;
+                accepted = target.replaceGeneration(generation, clearEpoch);
+                Log.i(TAG, "BINDER_VIEW_PRODUCER_FENCED session_id=" + requestIdentity.sessionId +
+                        " generation=" + generation + " cleared=" + accepted);
+            } else if (accepted) {
+                producerFenced = false;
+            }
+            reply.writeNoException();
+            reply.writeInt(accepted ? 1 : 0);
             return true;
         }
         if (code == FrameIpcProtocol.VIEW_CHANGE_GENERATION) {
@@ -285,7 +308,7 @@ final class FrameViewSink extends Binder {
                 ParcelFileDescriptor.class.getClassLoader());
 
         final long dispatchEpoch = dispatchGate.captureEpoch(frameGeneration);
-        if (version != FrameIpcProtocol.VERSION || closed || identity == null ||
+        if (version != FrameIpcProtocol.VERSION || closed || producerFenced || identity == null ||
                 !identity.equals(frameIdentity) || frameGeneration != generation ||
                 dispatchEpoch < 0 ||
                 frameId <= lastFrameId || timestampNs < 0 || timestampNs <= lastTimestampNs ||
