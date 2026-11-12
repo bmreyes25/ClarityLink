@@ -381,7 +381,7 @@ def test_parent_identity_is_revoked_on_session_end_and_compositor_process_death(
     assert "compositor.linkToDeath(recipient, 0)" in sink
     assert "cause=compositor_process_death" in sink
     assert "clearIdentityAndCompositorEpoch();" in sink
-    assert "FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerToken)" in compositor
+    assert "FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerLifetimeBinder)" in compositor
     assert "cause=owner_end" in compositor
     assert "MAX_RECENT_SESSION_IDS = 256" in compositor
     sink = (APP / "java/org/claritylink/android/FrameLabSink.java").read_text()
@@ -409,14 +409,14 @@ def test_parent_authority_revokes_with_owner_lifetime_token_death():
                         compositor.index("private boolean isAuthorizedParentCaller(")]
     revocation = compositor[compositor.index("private void revokeParentAuthority(ParentAuthority expected, String cause)"):
                            compositor.index("/** Owner loss must not strand")]
-    assert "final IBinder ownerLifetimeToken;" in authority
-    assert "ownerToken.linkToDeath(proposed.ownerLifetimeDeathRecipient, 0)" in opening
+    assert "final IBinder ownerLifetimeBinder;" in authority
+    assert "ownerLifetimeBinder.linkToDeath(proposed.ownerLifetimeDeathRecipient, 0)" in opening
     assert 'revokeParentAuthority(proposed, "owner_lifetime_token_death")' in opening
     assert "if (proposed.dead)" in opening
-    assert "FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerToken)" in opening
+    assert "FrameLabSink.revokeParentAuthority(ownerSink, ownerIdentity, ownerLifetimeBinder)" in opening
     assert "expectedOwnerToken == null || statsOwnerToken == expectedOwnerToken" in sink
-    assert "existing.ownerLifetimeToken == ownerToken" in opening
-    assert "expected.ownerLifetimeToken.unlinkToDeath(expected.ownerLifetimeDeathRecipient, 0)" in revocation
+    assert "existing.ownerLifetimeBinder == ownerLifetimeBinder" in opening
+    assert "expected.ownerLifetimeBinder.unlinkToDeath(expected.ownerLifetimeDeathRecipient, 0)" in revocation
     assert "unregisterStreamState(state, identity)" in revocation
 
 
@@ -425,7 +425,7 @@ def test_completed_parent_teardown_unlinks_both_owner_death_recipients():
     finish = compositor[compositor.index("private boolean finishPendingParentTeardown("):
                         compositor.index("private static void writeControlReply(")]
     assert "authority.ownerSink.unlinkToDeath(authority.deathRecipient, 0)" in finish
-    assert "authority.ownerLifetimeToken.unlinkToDeath(" in finish
+    assert "authority.ownerLifetimeBinder.unlinkToDeath(" in finish
     assert "authority.ownerLifetimeDeathRecipient, 0)" in finish
 
 
@@ -463,10 +463,10 @@ def test_type110_owner_token_lives_with_sink_process_across_view_death():
                 "org.claritylink.android.ClarityLinkDisplayActivity")
     assert sink.get(ANDROID + "process") == ":type110_sink"
     assert view.get(ANDROID + "process") == ":type111_view"
-    assert "ownerLifetimeToken = service;" in activity
+    assert ("ownerLifetimeToken " + "=" + " service;") in activity
     assert "private final IBinder ownerLifetimeToken = new Binder()" not in activity
     assert "processVerifiedAbsent(existingOwnerPid, existingOwnerProcess)" in compositor
-    assert "existing.ownerLifetimeToken == ownerToken && ownerToken.isBinderAlive()" in compositor
+    assert "existing.ownerLifetimeBinder == ownerLifetimeBinder && ownerLifetimeBinder.isBinderAlive()" in compositor
     assert "existing.ownerSink.equals(ownerSink)" in compositor
     assert "existing.ownerPid = ownerPid" in compositor
     assert "FrameLabSink.prepareOwnerPidRebind(ownerSink, ownerIdentity, endpoint" in compositor
@@ -512,7 +512,7 @@ def test_api17_same_uid_sibling_attack_cannot_query_session_or_mutate_state():
     assert "suppliedOwnerToken == statsOwnerToken" in sink
     assert "statsOwnerPidQueriesBlocked" in sink
     assert "statsOwnerPid = ownerPid" in sink and "statsOwnerPid = 0" in sink
-    assert "statsOwnerToken = ownerToken" in sink and "statsOwnerToken.isBinderAlive()" in sink
+    assert ("statsOwnerToken " + "=" + " ownerToken") in sink and "statsOwnerToken.isBinderAlive()" in sink
     assert "ownerToken.linkToDeath(ownerRecipient, 0)" in sink
     assert "statsOwnerToken == ownerToken" in sink
     assert "!queryDenied(after)" in source and "!statsDenied(ownerAfter)" in source
@@ -558,8 +558,8 @@ def test_api17_same_uid_sibling_attack_cannot_query_session_or_mutate_state():
     assert "final int observerPid = data.readInt()" in observer_registration
     assert "authorizedOwnerDeathObserverPid == 0" in observer_registration
     assert "authorizedOwnerDeathObserverPid == callerPid" in query_auth
-    assert "observerToken.linkToDeath" in observer_registration
-    assert "ownerDeathObserverToken.isBinderAlive()" in query_auth
+    assert "observerBinder.linkToDeath" in observer_registration
+    assert "ownerDeathObserverBinder.isBinderAlive()" in query_auth
     assert '":owner_death_test").equals(callerProcess)' in query_auth
     assert query_auth.index("processNameForPid(callerPid)") < query_auth.index("synchronized (streamsLock)")
     assert "isSessionOwnerCaller(ownerIdentity.sessionId)" in observer_registration

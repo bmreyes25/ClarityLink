@@ -1313,6 +1313,16 @@ if [ "$type111_mode" -eq 1 ]; then
   wait_for 'TYPE111_PRODUCER_WAIT_BOUNDS_PASS'
   wait_for 'CL_R4_TYPE111_INFLIGHT_PRODUCER_DEATH_CLEANUP_PASS'
   wait_for 'CL_R4_TYPE111_PRODUCER_DEATH_RESTART_PASS'
+  if [ "$lab03_acceptance" -eq 1 ]; then
+    wait_for 'CL_T111_LAB03_PRODUCER_DIED '
+    producer_death_receipt=$(adb_local -s "$serial" logcat -d -s ClarityLinkCLIMP03:I '*:S' | tr -d '\r' |
+      grep -F 'CL_T111_LAB03_PRODUCER_DIED ' | tail -1)
+    printf '%s\n' "$producer_death_receipt" | grep -F 'result=accepted' | \
+      grep -F 'type110_parent_preserved=true' >/dev/null || {
+      echo 'The compositor did not revoke the exact producer and preserve its Type110 parent.' >&2; exit 9;
+    }
+    printf '%s\n' "$producer_death_receipt"
+  fi
   wait_for 'CL_R4_TYPE111_DECODER_FAULT_RECOVERY_PASS'
   wait_for 'CL_R5_API17_CONTROL_VALIDATION_PASS'
   wait_for 'CL_R6_OUTPUT_GEOMETRY_APPLIED'

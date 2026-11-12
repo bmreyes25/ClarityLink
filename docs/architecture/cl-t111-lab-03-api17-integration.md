@@ -64,12 +64,21 @@ only after the existing compositor authorizes its new PID for the current
 parent and stream. Child failure and withdrawal leave the Type110 owner state
 available; parent teardown invalidates all child state.
 
-The existing Android services continue to own process death and Binder death
-handling. The adapter only accepts producer PID updates after compositor
-authorization; it does not infer a process death from an absent callback.
-Explicit `producerDied` handling is covered by the adapter contract test. The
-existing API17 runner separately exercises actual producer process death,
-Binder reconnection, and producer restart.
+The Type111 producer supplies its own private control Binder during compositor
+authorization. The compositor validates its descriptor and process role, links
+an identity-fenced death recipient, accepts the lifecycle producer bind, and
+only then publishes the PID grant used by frame authorization. If a later
+stream recheck prevents publication, it rolls back the tentative lifecycle
+bind. A producer death revokes only the matching PID, stream identity, Binder,
+and death recipient; the adapter clears decoder, presentation, and delivery
+state while retaining the Type110 parent and receiver child for the existing
+producer-restart path. The host contract test covers failed-bind rollback,
+stale death callbacks, and producer restart.
+
+These Android Binder death and rollback paths have not yet executed on the
+guarded emulator. The runtime attempt stopped earlier, at renderer attachment,
+before Type111 setup. The existing runner now requires a producer-death receipt
+for LAB-03 once the presentation prerequisite is repaired.
 
 ## Verification
 

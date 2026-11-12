@@ -196,7 +196,7 @@ def test_recovery_probe_is_bound_to_the_exact_type111_death_identity():
     assert "FrameStreamIdentity ownerIdentity;" in compositor
     assert "authority.ownerIdentity = state.identity" in compositor
     assert "isSessionOwnerCaller(identity.sessionId)" in compositor
-    assert "existing.ownerLifetimeToken == ownerToken" in compositor
+    assert "existing.ownerLifetimeBinder == ownerLifetimeBinder" in compositor
     assert "existing.ownerProcess.equals(callerProcess)" in compositor
     assert "authorizedOwnerRebind" not in compositor
     assert "oldOwnerProcessGone" not in compositor
@@ -242,7 +242,7 @@ def test_process_name_binder_lookups_are_outside_compositor_lock_and_revalidated
     compositor = (APP / "java/org/claritylink/android/CompositorService.java").read_text()
     owner = compositor[compositor.index("private boolean openParentAuthority("):
                        compositor.index("private boolean isAuthorizedParentCaller(")]
-    producer = compositor[compositor.index("private boolean authorizeType111Producer("):
+    producer = compositor[compositor.index("private String authorizeType111Producer("):
                           compositor.index("private String processNameForPid(")]
     assert "processVerifiedAbsent(existingOwnerPid, existingOwnerProcess)" in owner
     assert owner.index("processVerifiedAbsent(existingOwnerPid, existingOwnerProcess)") < owner.rindex(
@@ -259,7 +259,8 @@ def test_process_name_binder_lookups_are_outside_compositor_lock_and_revalidated
     assert producer.index("processNameForPid(priorPid)") < producer.rindex(
         "synchronized (streamsLock)")
     assert "authority != authoritySnapshot" in producer
-    assert "authority.authorizedType111ProducerPid != priorPid" in producer
+    assert "authority.authorizedType111ProducerPid == priorPid" in producer
+    assert "authority.authorizedType111ProducerBinder == priorBinder" in producer
 
 
 def test_recovery_owner_handoffs_are_keyed_and_bounded_per_session():

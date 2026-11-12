@@ -279,7 +279,27 @@ final class Type111ControlPlane {
     }
 
     synchronized String producerDied(FrameStreamIdentity requestIdentity, int pid) {
-        return lifecycle.producerDied(requestIdentity, pid);
+        String result = lifecycle.producerDied(requestIdentity, pid);
+        if ("accepted".equals(result)) {
+            decoderGeneration = 0L;
+            videoWidth = 0;
+            videoHeight = 0;
+            clearSelection();
+            state = "TYPE111_STREAM_ACTIVE";
+        }
+        return result;
+    }
+
+    synchronized String producerBindFailed(FrameStreamIdentity requestIdentity, int pid) {
+        String result = lifecycle.producerBindFailed(requestIdentity, pid);
+        if ("accepted".equals(result)) {
+            decoderGeneration = 0L;
+            videoWidth = 0;
+            videoHeight = 0;
+            clearSelection();
+            state = "TYPE111_STREAM_ACTIVE";
+        }
+        return result;
     }
 
     synchronized String frameDelivered(FrameStreamIdentity requestIdentity, long frameId) {

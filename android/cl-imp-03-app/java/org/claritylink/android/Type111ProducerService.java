@@ -38,6 +38,8 @@ public final class Type111ProducerService extends Service {
     private boolean terminationPending;
 
     private final IBinder control = new Binder() {
+        { attachInterface(null, DESCRIPTOR); }
+
         @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
                 throws RemoteException {
             if (Binder.getCallingUid() != Process.myUid()) {
@@ -180,6 +182,7 @@ public final class Type111ProducerService extends Service {
             data.writeLong(identity.sessionId); data.writeInt(identity.streamType);
             data.writeLong(identity.connectionId); data.writeLong(identity.streamGeneration);
             data.writeInt(identity.outputId);
+            data.writeStrongBinder(control);
             if (!endpoint.transact(FrameIpcProtocol.TYPE111_PRODUCER_AUTHORIZE, data, reply, 0)) return false;
             reply.readException();
             return reply.readInt() != 0;
