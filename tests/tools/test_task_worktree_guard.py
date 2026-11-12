@@ -15,6 +15,17 @@ SPEC.loader.exec_module(guard)
 
 
 class ScopeReservationTests(unittest.TestCase):
+    def test_recovery_audit_refuses_hard_link_without_touching_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "private-target"
+            target.write_text("preserve\n")
+            audit = root / "claritylink-task-recovery.jsonl"
+            audit.hardlink_to(target)
+            with self.assertRaisesRegex(guard.GuardError, "singly linked"):
+                guard.append_recovery_audit(audit, {"event": "test"})
+            self.assertEqual(target.read_text(), "preserve\n")
+
     def test_guard_run_converts_timeout_to_actionable_guard_error(self):
         with patch.object(guard.subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 15)):
             with self.assertRaisesRegex(guard.GuardError, "timed out after 15 seconds"):
@@ -226,6 +237,139 @@ class ScopeReservationTests(unittest.TestCase):
             (root / "owned file.py").write_text("owned\n")
             (root / "unknown file.txt").write_text("unknown\n")
             self.assertEqual(guard.changed_paths(root), {"owned file.py", "unknown file.txt"})
+
+    def test_recover_self_base_requires_exact_remote_publication_then_uses_finish(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            lock_dir = root / "locks"
+            branch = "codex/task"
+            base = "codex/base"
+            start = "1" * 40
+            head = "2" * 40
+            data = {"task_id": "task-42", "branch": branch, "base": branch,
+                    "starting_sha": start, "worktree": str(root),
+                    "files": ["src/owned.py"]}
+            pr = {"headRefName": branch, "headRefOid": head, "baseRefName": base,
+                  "state": "OPEN", "isCrossRepository": False}
+            responses = [
+                subprocess.CompletedProcess([], 0, f"{head}\trefs/heads/{branch}\n", ""),
+                subprocess.CompletedProcess([], 0, json.dumps(pr), ""),
+                subprocess.CompletedProcess([], 0, json.dumps([{"headRefName": base,
+                                                                  "isCrossRepository": False}]), ""),
+                subprocess.CompletedProcess([], 0, "", ""),  # verified base ancestor
+                subprocess.CompletedProcess([], 0, "src/owned.py\0", ""),  # every committed path
+                subprocess.CompletedProcess([], 0, json.dumps({"result": "REMOTE_VERIFIED",
+                                                                  "remote_sha": head}), ""),
+            ]
+            finish_result = {"result": "TASK_COMPLETE", "task_id": "task-42",
+                             "branch": branch, "head": head, "pr": pr}
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, lock_dir, data)), \
+                 patch.object(guard, "canonical_origin"), \
+                 patch.object(guard, "branch_and_owner", return_value=branch), \
+                 patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "verify_reservation_ownership", return_value=[]), \
+                 patch.object(guard, "git", side_effect=[head, "", start, ""]) as git, \
+                 patch.object(guard, "guard_run", side_effect=responses), \
+                 patch.object(guard, "finish", return_value=finish_result) as finish:
+                result = guard.recover_self_base_and_finish(root, 140)
+
+            self.assertEqual(result["result"], "TASK_RECOVERY_COMPLETE")
+            self.assertEqual(result["base"], base)
+            self.assertEqual(result["head"], head)
+            self.assertEqual(finish.call_args.args, (root, 140, base))
+            git.assert_any_call(root, "fetch", "--quiet", "origin", base)
+            updated = json.loads(manifest.read_text())
+            self.assertEqual(updated["base"], base)
+            self.assertEqual(updated["pull_request"], 140)
+            audit = json.loads((root / "claritylink-task-recovery.jsonl").read_text())
+            self.assertEqual(audit["event"], "self_base_manifest_repair")
+            self.assertEqual(audit["starting_sha"], start)
+            self.assertEqual(audit["head"], head)
+
+    def test_recover_self_base_refuses_out_of_scope_committed_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            data = {"task_id": "task-42", "branch": "codex/task", "base": "codex/task",
+                    "starting_sha": "1" * 40, "worktree": str(root),
+                    "files": ["src/owned.py"]}
+            responses = [
+                subprocess.CompletedProcess([], 0, f"{'2' * 40}\trefs/heads/codex/task\n", ""),
+                subprocess.CompletedProcess([], 0, json.dumps({"headRefName": "codex/task",
+                    "headRefOid": "2" * 40, "baseRefName": "codex/base", "state": "OPEN",
+                    "isCrossRepository": False}), ""),
+                subprocess.CompletedProcess([], 0, json.dumps([{"headRefName": "codex/base",
+                    "isCrossRepository": False}]), ""),
+                subprocess.CompletedProcess([], 0, "", ""),
+                # With rename detection disabled, an out-of-scope rename reports
+                # both its deleted source and reserved destination.
+                subprocess.CompletedProcess([], 0, "private/source.txt\0src/owned.py\0", ""),
+            ]
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, root / "locks", data)), \
+                 patch.object(guard, "canonical_origin"), \
+                 patch.object(guard, "branch_and_owner", return_value="codex/task"), \
+                 patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "verify_reservation_ownership", return_value=[]), \
+                 patch.object(guard, "git", side_effect=["2" * 40, "", "1" * 40, ""]), \
+                 patch.object(guard, "guard_run", side_effect=responses), \
+                 patch.object(guard, "finish") as finish:
+                with self.assertRaisesRegex(guard.GuardError, "private/source.txt"):
+                    guard.recover_self_base_and_finish(root, 140)
+            finish.assert_not_called()
+            self.assertFalse((root / "claritylink-task-recovery.jsonl").exists())
+
+    def test_recover_self_base_refuses_unpublished_or_mismatched_remote_head(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = {"task_id": "task-42", "branch": "codex/task", "base": "codex/task",
+                    "starting_sha": "1" * 40, "worktree": str(root),
+                    "files": ["src/owned.py"]}
+            responses = [
+                subprocess.CompletedProcess([], 0, "", ""),
+                subprocess.CompletedProcess([], 0, "src/owned.py\0", ""),
+                subprocess.CompletedProcess([], 0, f"{'3' * 40}\trefs/heads/codex/task\n", ""),
+            ]
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(root / "task.json", root / "locks", data)), \
+                 patch.object(guard, "canonical_origin"), \
+                 patch.object(guard, "branch_and_owner", return_value="codex/task"), \
+                 patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "verify_reservation_ownership", return_value=[]), \
+                 patch.object(guard, "git", return_value="2" * 40), \
+                 patch.object(guard, "guard_run", side_effect=responses), \
+                 patch.object(guard, "finish") as finish:
+                with self.assertRaisesRegex(guard.GuardError, "remote task branch does not match"):
+                    guard.recover_self_base_and_finish(root, 140)
+            finish.assert_not_called()
+
+    def test_recover_self_base_preserves_task_on_reservation_ownership_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "task.json"
+            manifest.write_text('{"sentinel":"preserve"}\n')
+            original_manifest = manifest.read_bytes()
+            lock_dir = root / "locks"
+            lock_dir.mkdir()
+            lock_file = lock_dir / guard.path_key("src/owned.py")
+            lock_file.write_text('{"task_id":"somebody-else"}\n')
+            data = {"task_id": "task-42", "branch": "codex/task", "base": "codex/task",
+                    "starting_sha": "1" * 40, "worktree": str(root), "files": ["src/owned.py"]}
+            with patch.object(guard, "manifest_transaction", return_value=nullcontext()), \
+                 patch.object(guard, "manifest", return_value=(manifest, lock_dir, data)), \
+                 patch.object(guard, "canonical_origin"), \
+                 patch.object(guard, "branch_and_owner", return_value="codex/task"), \
+                 patch.object(guard, "porcelain", return_value=[]), \
+                 patch.object(guard, "verify_reservation_ownership",
+                              side_effect=guard.GuardError("scope owner changed")), \
+                 patch.object(guard, "finish") as finish:
+                with self.assertRaisesRegex(guard.GuardError, "scope owner changed"):
+                    guard.recover_self_base_and_finish(root, 140)
+            finish.assert_not_called()
+            self.assertEqual(manifest.read_bytes(), original_manifest)
+            self.assertTrue(lock_file.exists())
 
 
 if __name__ == "__main__":
