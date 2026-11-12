@@ -43,11 +43,12 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Standalone API17 adapter. Display admission is emulator-only and opt-in per launch. */
 public final class ClarityLinkDisplayActivity extends Activity
         implements SecondaryDisplayHost.HostedContentListener {
-    private static final class FixtureRunToken {
+    private static final class FixtureRunState {
         private boolean cancelled;
         private boolean teardownClaimed;
         synchronized boolean isCancelled() { return cancelled; }
@@ -92,16 +93,17 @@ public final class ClarityLinkDisplayActivity extends Activity
             if (!active || closing || identity == null || identity.streamGeneration != generation ||
                     renderer == null) return false;
             try {
+                long viewGeneration = activeGeneration;
                 renderer.submit(frame, viewSink.dispatchGate(), generation, dispatchEpoch);
                 log("BINDER_FRAME_SUBMITTED_TO_CONTENT_VIEW generation=" + generation +
                         " frame_id=" + frameId + " timestamp_ns=" + frame.presentationTimeNs);
                 FrameViewSink.TestControl control = warningRaceControl;
                 if (control != null && frame.presentationTimeNs == control.recoveryTimestamp) {
-                    awaitRaceRecoveryFrame(0, generation, frame.presentationTimeNs);
+                    awaitRaceRecoveryFrame(0, viewGeneration, frame.presentationTimeNs);
                 } else {
                     boolean warningRaceFrame = control != null &&
                             control.beforeViewSubmit(frame.presentationTimeNs);
-                    if (!warningRaceFrame) awaitFrame(0, generation, frame.presentationTimeNs);
+                    if (!warningRaceFrame) awaitFrame(0, viewGeneration, frame.presentationTimeNs);
                 }
                 return true;
             } catch (RuntimeException failure) {
@@ -115,12 +117,18 @@ public final class ClarityLinkDisplayActivity extends Activity
             if (!active || closing || identity == null || identity.streamGeneration != generation ||
                     renderer == null) return false;
             ClarityLinkContentView view = renderer.contentView();
-            if (view == null) return false;
-            if (visible) view.onHostSuspended(HostedContentLifecycle.WARNING_PREEMPTION, activeGeneration);
-            else view.onHostResumed(activeGeneration);
+            PresentationPaneHost host = paneHost;
+            if (host == null) return false;
+            if (visible && view != null)
+                view.onHostSuspended(HostedContentLifecycle.WARNING_PREEMPTION, activeGeneration);
+            labWarningHostState = visible ? 1 : 2;
+            host.setInterruptActive(visible);
+            // Interrupt-on revokes and clears the pane lease. Interrupt-off records state only;
+            // an explicit fresh attach is required before any later frame can be displayed.
+            if (!visible && view != null && renderer.contentView() == view)
+                view.onHostResumed(activeGeneration);
             FrameViewSink.TestControl control = warningRaceControl;
             if (control != null) control.warningApplied(visible);
-            labWarningHostState = visible ? 1 : 2;
             return true;
         }
 
@@ -133,11 +141,20 @@ public final class ClarityLinkDisplayActivity extends Activity
                         FrameStreamIdentity identity = frameIpcClient == null ? null : frameIpcClient.streamIdentity();
                         if (active && !closing && identity != null &&
                                 identity.streamGeneration == oldGeneration && renderer != null) {
-                            renderer.clear();
-                            accepted[0] = true;
-                            log("VIEW_STREAM_GENERATION_REPLACED old=" + oldGeneration +
-                                    " new=" + newGeneration + " parent_display_generation=" +
-                                    activeGeneration + " view_instance_preserved=true");
+                            ClarityLinkContentView currentView = renderer.contentView();
+                            PresentationPaneHost host = paneHost;
+                            boolean withdrawnAndReady = currentView == null && host != null &&
+                                    host.isHostValid() && host.isNavigationPageActive() &&
+                                    !host.isInterruptActive() &&
+                                    (renderer.paneLease() == null || !renderer.paneLease().isValid());
+                            if (withdrawnAndReady ||
+                                    renderer.replaceStreamGeneration(oldGeneration, newGeneration)) {
+                                if (currentView != null) renderer.clear();
+                                accepted[0] = true;
+                                log("VIEW_STREAM_GENERATION_REPLACED old=" + oldGeneration +
+                                        " new=" + newGeneration + " parent_display_generation=" +
+                                        activeGeneration + " withdrawn_view=" + (currentView == null));
+                            }
                         }
                     } catch (RuntimeException failure) {
                         log("VIEW_SESSION_GENERATION_REJECT type=" + failure.getClass().getSimpleName());
@@ -155,6 +172,8 @@ public final class ClarityLinkDisplayActivity extends Activity
     private SecondaryDisplayHost displayHost;
     private Display1OutputBackend renderer;
     private FrameLayout presentationRoot;
+    private PresentationPaneHost paneHost;
+    private long paneAttachmentGeneration;
     private TextView status;
     private Surface borrowedPresentationSurface;
     private long activeGeneration;
@@ -189,9 +208,12 @@ public final class ClarityLinkDisplayActivity extends Activity
     private boolean type110SinkFailureTest;
     private ServiceConnection securityProducerConnection;
     private boolean securityProducerBound;
+    private ServiceConnection preparedType111ProducerConnection;
+    private IBinder preparedType111ProducerBinder;
+    private boolean preparedType111ProducerBound;
     private boolean type111RunStarted;
     private volatile Thread type111FixtureWorker;
-    private volatile FixtureRunToken type111FixtureRunToken;
+    private volatile FixtureRunState type111FixtureRunState;
     private boolean compositorBound;
     private ServiceConnection ownerDeathObserverConnection;
     private boolean ownerDeathObserverBound;
@@ -214,7 +236,7 @@ public final class ClarityLinkDisplayActivity extends Activity
     private IBinder primaryLabSinkBinder;
     // The Type110 service owns the parent lifetime. The Activity is the Type111 View
     // child and may die/recreate independently without revoking the parent session.
-    private IBinder ownerLifetimeToken;
+    private IBinder ownerLifetimeBinder;
     private IBinder compositorEndpoint;
     private IBinder observedCompositorBinder;
     private IBinder.DeathRecipient compositorDeathRecipient;
@@ -232,12 +254,12 @@ public final class ClarityLinkDisplayActivity extends Activity
     private final ServiceConnection primarySinkConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName name, IBinder service) {
             primaryLabSinkBinder = service;
-            ownerLifetimeToken = service;
+            ownerLifetimeBinder = service;
             startIpcSessionWhenReady();
         }
         public void onServiceDisconnected(ComponentName name) {
             primaryLabSinkBinder = null;
-            ownerLifetimeToken = null;
+            ownerLifetimeBinder = null;
             if (active && !closing && !reentrantTeardownInProgress)
                 stopOwnedDisplay("type110-lab-sink-disconnected");
             else if (reentrantTeardownInProgress)
@@ -415,8 +437,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (!active || closing || activeGeneration <= 0 || ipcSessionStartAttempted ||
                 compositorEndpoint == null || primaryLabSinkBinder == null) return;
         ipcSessionStartAttempted = true;
-        FrameIpcClient client = new FrameIpcClient(compositorEndpoint, ownerLifetimeToken);
-        FrameIpcClient primaryClient = new FrameIpcClient(compositorEndpoint, ownerLifetimeToken);
+        FrameIpcClient client = new FrameIpcClient(compositorEndpoint, ownerLifetimeBinder);
+        FrameIpcClient primaryClient = new FrameIpcClient(compositorEndpoint, ownerLifetimeBinder);
         try {
             FrameStreamIdentity primaryIdentity = FrameLabSink.queryIdentity(primaryLabSinkBinder);
             if (primaryIdentity == null || primaryIdentity.streamType != FrameStreamIdentity.TYPE110 ||
@@ -441,7 +463,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                         "type111_state_created=false query_valid=false");
             }
             if (!FrameIpcClient.openParentAuthority(compositorEndpoint, primaryIdentity,
-                    primaryLabSinkBinder, ownerLifetimeToken))
+                    primaryLabSinkBinder, ownerLifetimeBinder))
                 throw new IllegalStateException("type110_parent_authority_open_rejected");
             int primaryRemotePid;
             int remotePid;
@@ -480,7 +502,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 if (!"frame_contract_rejected".equals(staleFrame) &&
                         !"stream_identity_rejected".equals(staleFrame))
                     throw new IllegalStateException("stale_type111_frame_not_rejected");
-                FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
+                FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeBinder);
                 primaryClient = stats == null ? null : FrameIpcClient.attachExistingType110(
                         compositorEndpoint, primaryIdentity, stats.frameId + 1L);
                 if (client == null || primaryClient == null)
@@ -560,7 +582,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 reattachSessionId = 0L;
                 lifecycleReattachPending = false;
             }
-            FrameLabSink.Stats sinkStats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
+                FrameLabSink.Stats sinkStats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeBinder);
             if (sinkStats == null || sinkStats.pid == android.os.Process.myPid())
                 throw new IllegalStateException("type110_sink_process_not_isolated");
             log("IPC_SESSION_STARTED generation=" + activeGeneration + " remote_pid=" + remotePid
@@ -675,7 +697,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         ipcSessionStartAttempted = false;
         compositorEndpoint = null;
         primaryLabSinkBinder = null;
-        ownerLifetimeToken = null;
+        ownerLifetimeBinder = null;
         ipcSubmitted = false;
         canvasDrawLogged = false;
         rendererScenarioValidated = false;
@@ -780,35 +802,17 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (!active || closing || root == null || activeGeneration <= 0) return;
         presentationRoot = root;
         final long generation = activeGeneration;
-        Display1OutputBackend.Host contentHost = new Display1OutputBackend.Host() {
-            private View ownedContent;
-            private long ownedGeneration;
-            public FrameLayout getMainLayer() { return active && !closing ? root : null; }
-            public boolean isNavigationPageActive() { return active && !closing && presentationRoot == root; }
-            public boolean attachContent(View content, long requestedGeneration) {
-                if (!isNavigationPageActive() || content == null || requestedGeneration != generation ||
-                        content.getParent() != null) return false;
-                root.addView(content);
-                ownedContent = content;
-                ownedGeneration = requestedGeneration;
-                return true;
-            }
-            public boolean detachContent(View content, long requestedGeneration) {
-                if (ownedContent != content || ownedGeneration != requestedGeneration) return false;
-                root.removeView(content);
-                ownedContent = null;
-                ownedGeneration = 0L;
-                return true;
-            }
-        };
+        final RendererViewport geometry = new RendererViewport(
+                new RendererViewport.Bounds(100, 60, 700, 420),
+                java.util.Collections.singletonList(new RendererViewport.Bounds(300, 170, 500, 270)),
+                RendererViewport.SYNTHETIC_TEST_ONLY);
+        final PresentationPaneHost contentHost = new PresentationPaneHost(root, generation, geometry);
+        paneHost = contentHost;
         try {
-            RendererViewport geometry = new RendererViewport(
-                    new RendererViewport.Bounds(100, 60, 700, 420),
-                    java.util.Collections.singletonList(new RendererViewport.Bounds(300, 170, 500, 270)),
-                    RendererViewport.SYNTHETIC_TEST_ONLY);
             renderer = new Display1OutputBackend(contentHost,
                     new Display1OutputBackend.Viewport(0, 0, 800, 480), generation, geometry);
             renderer.attach();
+            paneAttachmentGeneration = generation;
             TextView label = new TextView(root.getContext());
             label.setText("CLARITYLINK\nTEST 6A\nBINDER → VIEW\nLAB ONLY");
             label.setTextSize(14.0f);
@@ -827,6 +831,153 @@ public final class ClarityLinkDisplayActivity extends Activity
             releaseRenderer();
             if (displayHost != null) displayHost.close();
             active = false;
+        }
+    }
+
+    /**
+     * Callback-capable pane host for the Presentation root. The renderer requires an EventHost so a
+     * lease can be revoked by page, host, or viewport events; every state read fails closed once the
+     * Activity session is inactive, closing, or bound to a different root. Its identity is the
+     * generation owner, so pane generations must increase for each Presentation host lifetime.
+     */
+    private final class PresentationPaneHost implements Display1OutputBackend.EventHost {
+        private final FrameLayout root;
+        private final long hostGeneration;
+        private final java.util.List<Display1OutputBackend.PaneEventListener> listeners =
+                new java.util.concurrent.CopyOnWriteArrayList<Display1OutputBackend.PaneEventListener>();
+        private final java.util.concurrent.atomic.AtomicLong eventSequence =
+                new java.util.concurrent.atomic.AtomicLong();
+        private volatile boolean hostAvailable = true;
+        private volatile boolean hostClosed;
+        private volatile boolean pageSelected = true;
+        private volatile boolean interruptActive;
+        private volatile RendererViewport paneViewport;
+        private View ownedContent;
+        private long ownedGeneration;
+        private long lastAttachmentGeneration;
+        private final RendererViewport initialPaneViewport;
+        private final View.OnLayoutChangeListener layoutListener;
+        private final View.OnAttachStateChangeListener attachStateListener;
+
+        PresentationPaneHost(FrameLayout root, long hostGeneration, RendererViewport paneViewport) {
+            this.root = root;
+            this.hostGeneration = hostGeneration;
+            this.paneViewport = paneViewport;
+            this.initialPaneViewport = paneViewport;
+            this.layoutListener = new View.OnLayoutChangeListener() {
+                public void onLayoutChange(View view, int left, int top, int right, int bottom,
+                        int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                    int width = right - left;
+                    int height = bottom - top;
+                    if (hostClosed) return;
+                    if (width <= 0 || height <= 0) {
+                        changeViewport(null);
+                        return;
+                    }
+                    changeViewport(width == RendererViewport.LOGICAL_WIDTH &&
+                            height == RendererViewport.LOGICAL_HEIGHT ? initialPaneViewport : null);
+                }
+            };
+            this.attachStateListener = new View.OnAttachStateChangeListener() {
+                public void onViewAttachedToWindow(View view) { setHostAvailable(true); }
+                public void onViewDetachedFromWindow(View view) { setHostAvailable(false); }
+            };
+            root.addOnLayoutChangeListener(layoutListener);
+            root.addOnAttachStateChangeListener(attachStateListener);
+        }
+
+        public FrameLayout getMainLayer() { return isHostValid() ? root : null; }
+        public boolean isNavigationPageActive() { return isHostValid() && pageSelected; }
+
+        public boolean attachContent(View content, long requestedGeneration) {
+            if (!isNavigationPageActive() || content == null || requestedGeneration <= 0 ||
+                    (lastAttachmentGeneration == 0L && requestedGeneration != hostGeneration) ||
+                    requestedGeneration <= lastAttachmentGeneration || content.getParent() != null) return false;
+            root.addView(content);
+            ownedContent = content;
+            ownedGeneration = requestedGeneration;
+            lastAttachmentGeneration = requestedGeneration;
+            return true;
+        }
+
+        public boolean detachContent(View content, long requestedGeneration) {
+            if (ownedContent != content || ownedGeneration != requestedGeneration) return false;
+            root.removeView(content);
+            ownedContent = null;
+            ownedGeneration = 0L;
+            return true;
+        }
+
+        public void addPaneEventListener(Display1OutputBackend.PaneEventListener listener) {
+            if (listener == null) throw new IllegalArgumentException("listener required");
+            if (!listeners.contains(listener)) listeners.add(listener);
+        }
+
+        public void removePaneEventListener(Display1OutputBackend.PaneEventListener listener) {
+            listeners.remove(listener);
+        }
+
+        public boolean isHostValid() {
+            return hostAvailable && !hostClosed && active && !closing && presentationRoot == root;
+        }
+        public boolean isInterruptActive() { return interruptActive; }
+        public RendererViewport getPaneViewport() { return paneViewport; }
+        public Object generationOwner() { return this; }
+
+        void setNavigationPageSelected(boolean selected) {
+            if (hostClosed || pageSelected == selected) return;
+            pageSelected = selected;
+            publish(new org.claritylink.renderer.PaneEvent(
+                    selected ? org.claritylink.renderer.PaneEvent.Type.PAGE_SELECTED
+                            : org.claritylink.renderer.PaneEvent.Type.PAGE_DESELECTED,
+                    eventSequence.incrementAndGet()));
+        }
+
+        void setInterruptActive(boolean visible) {
+            if (hostClosed || interruptActive == visible) return;
+            interruptActive = visible;
+            publish(new org.claritylink.renderer.PaneEvent(
+                    visible ? org.claritylink.renderer.PaneEvent.Type.INTERRUPT_ON
+                            : org.claritylink.renderer.PaneEvent.Type.INTERRUPT_OFF,
+                    eventSequence.incrementAndGet()));
+        }
+
+        /** Invalid synthetic geometry is represented by null and revokes the pane lease. */
+        void changeViewport(RendererViewport viewport) {
+            if (hostClosed || paneViewport == viewport) return;
+            paneViewport = viewport;
+            publish(new org.claritylink.renderer.PaneEvent(
+                    org.claritylink.renderer.PaneEvent.Type.VIEWPORT_CHANGED,
+                    eventSequence.incrementAndGet(), viewport));
+        }
+
+        void setHostAvailable(boolean available) {
+            if (hostClosed || hostAvailable == available) return;
+            hostAvailable = available;
+            publish(new org.claritylink.renderer.PaneEvent(
+                    available ? org.claritylink.renderer.PaneEvent.Type.HOST_RESTORED
+                            : org.claritylink.renderer.PaneEvent.Type.HOST_LOST,
+                    eventSequence.incrementAndGet(), available));
+        }
+
+        void hostLost() {
+            if (hostClosed) return;
+            if (pageSelected) setNavigationPageSelected(false);
+            hostAvailable = false;
+            hostClosed = true;
+            root.removeOnLayoutChangeListener(layoutListener);
+            root.removeOnAttachStateChangeListener(attachStateListener);
+            publish(new org.claritylink.renderer.PaneEvent(
+                    org.claritylink.renderer.PaneEvent.Type.HOST_LOST, eventSequence.incrementAndGet()));
+        }
+
+        private void publish(org.claritylink.renderer.PaneEvent event) {
+            for (Display1OutputBackend.PaneEventListener listener : listeners) {
+                try { listener.onPaneEvent(event); }
+                catch (RuntimeException failure) {
+                    log("PANE_EVENT_LISTENER_FAILED type=" + failure.getClass().getSimpleName());
+                }
+            }
         }
     }
 
@@ -946,6 +1097,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     control.expectWarning(false);
                     requireRace(setRaceWarning(generation, false), "warning clear transaction accepted");
                     requireRace(awaitRace(control.warningCleared), "warning clear applied to View");
+                    requireRace(reattachPaneLeaseAfterInterrupt(),
+                            "fresh pane lease admitted after first warning clear");
 
                     control.pauseViewAt(midDispatch);
                     requireRace(sendRaceFrame(generation, midDispatch), "mid-dispatch frame accepted");
@@ -960,6 +1113,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     control.expectWarning(false);
                     requireRace(setRaceWarning(generation, false), "mid-dispatch warning clear accepted");
                     requireRace(awaitRace(control.warningCleared), "mid-dispatch warning clear applied");
+                    requireRace(reattachPaneLeaseAfterInterrupt(),
+                            "fresh pane lease admitted after mid-dispatch warning clear");
                     requireRace(sendRaceFrame(generation, fresh), "fresh recovery frame accepted");
                     requireRace(awaitRace(control.recoveryDrawn), "fresh frame visibly drawn after warning");
                     requireRace(!control.barrierTimedOut, "all test barriers released within bound");
@@ -1054,6 +1209,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                     control.expectWarning(false);
                     requireRace(setRaceWarning(currentGeneration, false), "warning clearance after transition");
                     requireRace(awaitRace(control.warningCleared), "warning cleared after transition");
+                    requireRace(reattachPaneLeaseAfterInterrupt(),
+                            "fresh pane lease admitted after generation-transition warning");
                     long resumedTimestamp = postMalformed + 4000L;
                     control.recoveryTimestamp = resumedTimestamp;
                     control.recoveryDrawn = new CountDownLatch(1);
@@ -1143,6 +1300,47 @@ public final class ClarityLinkDisplayActivity extends Activity
         catch (android.os.RemoteException failure) { return false; }
     }
 
+    /** Explicit fresh-generation admission after withdrawal; warning clear never revives a lease. */
+    private boolean reattachPaneLeaseAfterInterrupt() {
+        final CountDownLatch completed = new CountDownLatch(1);
+        final boolean[] admitted = new boolean[] { false };
+        Runnable admission = new Runnable() {
+            public void run() {
+                Display1OutputBackend expectedRenderer = renderer;
+                PresentationPaneHost host = paneHost;
+                if (active && !closing && expectedRenderer != null && host != null && host.isHostValid() &&
+                        host.isNavigationPageActive() && !host.isInterruptActive() &&
+                        host.getPaneViewport() != null) {
+                    long nextGeneration = Math.max(paneAttachmentGeneration,
+                            expectedRenderer.paneGeneration()) + 1L;
+                    try {
+                        expectedRenderer.attach(nextGeneration);
+                        paneAttachmentGeneration = nextGeneration;
+                        log("PANE_LEASE_REATTACHED_AFTER_WITHDRAWAL old_generation=" +
+                                (nextGeneration - 1L) + " new_generation=" + nextGeneration +
+                                " explicit_admission=true");
+                        admitted[0] = true;
+                    } catch (RuntimeException failure) {
+                        log("PANE_LEASE_REATTACH_REJECTED type=" + failure.getClass().getSimpleName() +
+                                " reason=" + String.valueOf(failure.getMessage()) +
+                                " host_valid=" + host.isHostValid() +
+                                " page_selected=" + host.isNavigationPageActive() +
+                                " interrupt_active=" + host.isInterruptActive() +
+                                " viewport_valid=" + (host.getPaneViewport() != null));
+                    }
+                }
+                completed.countDown();
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) admission.run();
+        else main.post(admission);
+        try { return completed.await(10L, TimeUnit.SECONDS) && admitted[0]; }
+        catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
     private boolean awaitLabWarningHostState(boolean visible) {
         int expected = visible ? 1 : 2;
         for (int attempt = 0; attempt < 100; attempt++) {
@@ -1173,8 +1371,8 @@ public final class ClarityLinkDisplayActivity extends Activity
                 "frame_contract_rejected".equals(reason[0]),
                 "warning_blocked_decoded_frame_rejected_at_receiver");
         ClarityLinkContentView view = renderer == null ? null : renderer.contentView();
-        requireType111(view != null && !view.hasDisplayedFrame() &&
-                view.drawnTimestampNs() != frame.presentationTimeNs,
+        requireType111((view == null || !view.hasDisplayedFrame()) &&
+                (view == null || view.drawnTimestampNs() != frame.presentationTimeNs),
                 "warning_blocked_decoded_pixels_withdrawn");
         FrameStreamIdentity identity = client == null ? null : client.streamIdentity();
         Log.i(TAG, "CL_R6_DECODED_TYPE111_WARNING_BLOCK_PASS session_id=" +
@@ -1324,8 +1522,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         }
         if (type111RunStarted) return;
         type111RunStarted = true;
-        final FixtureRunToken runToken = new FixtureRunToken();
-        type111FixtureRunToken = runToken;
+        final FixtureRunState runState = new FixtureRunState();
+        type111FixtureRunState = runState;
         // Reattached activities share the long-lived Type110 receiver. Give
         // each replacement's synthetic fixture a strictly later timestamp
         // epoch so repeated View processes do not replay the first cycle's
@@ -1345,6 +1543,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                             (blueAccessUnits[0][4] & 31) == 5, "blue_fixture_starts_with_idr_and_has_frames");
                     Type111ControlClient control = type111ControlClient;
                     FrameStreamIdentity controlIdentity = frameIpcClient.streamIdentity();
+                    prepareType111Producer(controlIdentity);
                     requireType111(control != null && control.navigation(controlIdentity,
                             "maps", true, true), "type111_navigation_eligible");
                     requireType111(control.presentation(controlIdentity, "suggestUI",
@@ -1581,13 +1780,15 @@ public final class ClarityLinkDisplayActivity extends Activity
                     requireType111(awaitLabWarningHostState(true),
                             "factory_warning_applied_to_live_output_host");
                     ClarityLinkContentView warningView = renderer == null ? null : renderer.contentView();
-                    requireType111(warningView != null && !warningView.hasDisplayedFrame(),
+                    requireType111(warningView == null || !warningView.hasDisplayedFrame(),
                             "factory_warning_withdrew_current_type111_pixels");
                     submitDecodedFrameExpectWarningReject(warningBlocked, warningGeneration);
                     requireType111(setRaceWarning(warningGeneration, false),
                             "factory_warning_clear_admitted_for_live_type111_stream");
                     requireType111(awaitLabWarningHostState(false),
                             "eligible_type111_presentation_restored_after_warning");
+                    requireType111(reattachPaneLeaseAfterInterrupt(),
+                            "fresh_pane_lease_after_warning_clear");
                     DecodedFrame warningRecovery = decodeFixtureFrame(decoder, greenAccessUnits,
                             960003L, 1800000L, 1800000000L);
                     int[] warningRecoveryRgb = readDecodedCenterRgb(warningRecovery);
@@ -1635,6 +1836,9 @@ public final class ClarityLinkDisplayActivity extends Activity
                     requireType111(frameIpcClient.streamIdentity().sessionId == oldType111.sessionId &&
                             frameIpcClient.streamIdentity().connectionId == oldType111.connectionId,
                             "type111_transport_session_and_connection_preserved");
+                    requireType111(prepareType111ProducerBinder(preparedType111ProducerBinder,
+                            frameIpcClient.streamIdentity()) > 0,
+                            "type111_producer_reauthorized_for_transport_generation");
                     requireType111(control.videoConfig(frameIpcClient.streamIdentity(), 64, 64) > 1L,
                             "type111_decoder_config_rebound_after_transport_generation");
                     String staleType111 = frameIpcClient.probeMalformed("stale_generation",
@@ -1669,7 +1873,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                             "binder_generation=" + binderGeneration + " type110_independent=true " +
                             "authentication=lab_fixture_only");
                     FrameStreamIdentity type110Identity = primaryLabIpcClient.streamIdentity();
-                    FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
+                    FrameLabSink.Stats type110Final = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeBinder);
                     if (type110Identity == null || type110Final == null)
                         throw new IllegalStateException("type110_survivor_receipt_unavailable");
                     if (delayedDeathCallbackTest && reattachSessionId <= 0L &&
@@ -1731,7 +1935,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                         });
                         return;
                     }
-                    if (runToken.isCancelled() || !active || closing) {
+                    if (runState.isCancelled() || !active || closing) {
                         log("CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE parent_session_preserved=true");
                         return;
                     }
@@ -1742,7 +1946,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                         Type111ControlClient reattachControl = type111ControlClient;
                         boolean finalReplacementTeardown = !multipleViewReplacementTest ||
                                 viewReplacementOrdinal >= 3;
-                        if (finalReplacementTeardown && !runToken.claimTeardown()) {
+                        if (finalReplacementTeardown && !runState.claimTeardown()) {
                             log("CL_R4A_FIXTURE_CANCELLED_BEFORE_PARENT_TEARDOWN parent_session_preserved=true");
                             return;
                         }
@@ -1792,7 +1996,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 } catch (Throwable failure) {
                     reentrantTeardownInProgress = false;
                     Log.e(TAG, "CL_R4_TYPE111_BUFFER_DECODE_BINDER_VIEW_FAIL", failure);
-                    if (!runToken.isCancelled()) {
+                    if (!runState.isCancelled()) {
                         try {
                             closeType111Lab("type111_fixture_failed");
                         } catch (Throwable cleanupFailure) {
@@ -2308,11 +2512,81 @@ public final class ClarityLinkDisplayActivity extends Activity
         return Base64.decode(encoded.toByteArray(), Base64.DEFAULT);
     }
 
+    /** Establish real producer Binder ownership before the negotiated lifecycle accepts VideoConfig. */
+    private void prepareType111Producer(final FrameStreamIdentity identity) throws Exception {
+        if (identity == null || identity.streamType != FrameStreamIdentity.TYPE111 ||
+                compositorEndpoint == null || !compositorEndpoint.isBinderAlive())
+            throw new IllegalStateException("type111_producer_prepare_session_unavailable");
+        final String descriptor = "org.claritylink.android.IType111LabProducer";
+        final IBinder[] producerBinder = new IBinder[1];
+        final CountDownLatch connected = new CountDownLatch(1);
+        ServiceConnection connection = new ServiceConnection() {
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                producerBinder[0] = service;
+                connected.countDown();
+            }
+            public void onServiceDisconnected(ComponentName name) {
+                withdrawType111PresentationOnProducerDeath(name, identity);
+                log("TYPE111_PREPARED_PRODUCER_DISCONNECTED component=" + name.getClassName());
+            }
+        };
+        if (!bindService(new Intent(this, Type111ProducerService.class), connection,
+                Context.BIND_AUTO_CREATE))
+            throw new IllegalStateException("type111_producer_prepare_bind_rejected");
+        boolean accepted = false;
+        try {
+            requireType111(awaitRace(connected) && producerBinder[0] != null &&
+                    producerBinder[0].isBinderAlive(), "type111_producer_service_bound_before_video_config");
+            int producerPid = prepareType111ProducerBinder(producerBinder[0], identity);
+            accepted = producerPid > 0;
+            if (!accepted || producerPid <= 0 || producerPid == android.os.Process.myPid() ||
+                    producerPid == compositorRemotePid)
+                throw new IllegalStateException("type111_producer_prepare_rejected");
+            preparedType111ProducerConnection = connection;
+            preparedType111ProducerBinder = producerBinder[0];
+            preparedType111ProducerBound = true;
+            Log.i(TAG, "CL_T111_LAB03_PRODUCER_PREPARED session_id=" + identity.sessionId +
+                    " connection_id=" + identity.connectionId + " generation=" +
+                    identity.streamGeneration + " owner_pid=" + android.os.Process.myPid() +
+                    " producer_pid=" + producerPid + " decoder_started=false");
+        } catch (Exception | Error failure) {
+            if (!preparedType111ProducerBound || preparedType111ProducerConnection != connection) {
+                try { unbindService(connection); } catch (IllegalArgumentException ignored) { }
+            }
+            throw failure;
+        }
+    }
+
+    private int prepareType111ProducerBinder(IBinder producerBinder, FrameStreamIdentity identity)
+            throws RemoteException {
+        if (producerBinder == null || !producerBinder.isBinderAlive() || identity == null ||
+                compositorEndpoint == null || !compositorEndpoint.isBinderAlive()) return 0;
+        Log.i(TAG, "CL_T111_LAB03_PRODUCER_SERVICE_BINDER_DESCRIPTOR expected=" +
+                "org.claritylink.android.IType111LabProducer" + " actual=" +
+                producerBinder.getInterfaceDescriptor() + " binder_alive=" + producerBinder.isBinderAlive());
+        Parcel data = Parcel.obtain();
+        Parcel reply = Parcel.obtain();
+        try {
+            data.writeInterfaceToken("org.claritylink.android.IType111LabProducer");
+            data.writeStrongBinder(compositorEndpoint);
+            data.writeLong(identity.sessionId);
+            data.writeInt(identity.streamType);
+            data.writeLong(identity.connectionId);
+            data.writeLong(identity.streamGeneration);
+            data.writeInt(identity.outputId);
+            if (!producerBinder.transact(IBinder.FIRST_CALL_TRANSACTION + 4, data, reply, 0))
+                throw new IllegalStateException("type111_producer_prepare_transaction_unhandled");
+            reply.readException();
+            return reply.readInt() != 0 ? reply.readInt() : 0;
+        } finally { reply.recycle(); data.recycle(); }
+    }
+
     /** Decoder process death/restart uses the genuine Binder v3 stream and existing View sink. */
     private void runIndependentType111ProducerFault(Api17BufferH264Decoder type110Decoder,
             byte[][] type110AccessUnits, long binderGeneration) throws Exception {
         final String descriptor = "org.claritylink.android.IType111LabProducer";
         final IBinder[] producerBinder = new IBinder[1];
+        final AtomicReference<FrameStreamIdentity> producerIdentity = new AtomicReference<>();
         final boolean[] producerBound = new boolean[1];
         final ServiceConnection[] recoveryConnection = new ServiceConnection[1];
         final boolean[] recoveryBound = new boolean[1];
@@ -2325,6 +2599,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 firstConnection.countDown();
             }
             public void onServiceDisconnected(ComponentName name) {
+                withdrawType111PresentationOnProducerDeath(name, producerIdentity.get());
                 death.countDown();
                 log("TYPE111_PRODUCER_BINDER_DEATH_CALLBACK component=" + name.getClassName());
             }
@@ -2336,6 +2611,7 @@ public final class ClarityLinkDisplayActivity extends Activity
             requireType111(awaitRace(firstConnection), "independent_type111_producer_service_bound");
             verifyProducerWaitBounds(producerBinder[0], descriptor);
             FrameStreamIdentity before = frameIpcClient.streamIdentity();
+            producerIdentity.set(before);
             FrameLabSink.Stats type110Before = queryType110StatsOrThrow("type110_stats_before_producer_death");
             int oldPid = startIsolatedProducer(producerBinder[0], descriptor, before,
                     frameIpcClient.nextFrameIdHint(), 9000000L, false);
@@ -2358,9 +2634,11 @@ public final class ClarityLinkDisplayActivity extends Activity
             requireType111(frameIpcClient.replaceGeneration(queueBaseIdentity.streamGeneration, queueGeneration),
                     "producer_failure_queue_generation_is_fresh");
             FrameStreamIdentity queueIdentity = frameIpcClient.streamIdentity();
+            producerIdentity.set(queueIdentity);
+            requireType111(prepareType111ProducerBinder(producerBinder[0], queueIdentity) == oldPid,
+                    "producer_reauthorized_for_fresh_queue_generation");
             requireType111(new Type111ControlClient(compositorEndpoint).videoConfig(
                     queueIdentity, 64, 64) > 0, "producer_failure_queue_video_configured");
-            long drawnBeforeFailure = renderer == null ? -1L : renderer.contentView().drawnTimestampNs();
             saturatedQueue[0] = fillType111QueueForProducerFailure(queueIdentity.streamGeneration);
             requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
                     "producer_failure_starts_with_saturated_view_queue");
@@ -2429,6 +2707,19 @@ public final class ClarityLinkDisplayActivity extends Activity
                     " frame_at_death=" + atDeath.frameId + " frame_after_death=" + afterType110.frameId);
 
             requireType111(awaitRace(death), "producer_binding_death_callback_observed");
+            saturatedQueue[0].releaseHandler.countDown();
+            requireType111(awaitRace(saturatedQueue[0].dispatchFinished),
+                    "queued_predeath_frames_finish_after_view_withdrawal");
+            requireType111(viewSink.queuedFrameCount() == 0 && viewSink.queuedByteCount() == 0,
+                    "producer_death_queue_frames_and_bytes_reclaimed");
+            requireType111(renderer == null || renderer.contentView() == null,
+                    "producer_death_left_no_type111_view_or_stale_pixels");
+            Log.i(TAG, "CL_R4_TYPE111_PRODUCER_DEATH_VIEW_CLEAR_PASS session_id=" +
+                    queueIdentity.sessionId + " connection_id=" + queueIdentity.connectionId +
+                    " stream_generation=" + queueIdentity.streamGeneration + " " +
+                    "view_detached_and_cleared=true queue_frames=" + viewSink.queuedFrameCount() +
+                    " queue_bytes=" + viewSink.queuedByteCount());
+
             FrameStreamIdentity oldIdentity = frameIpcClient.streamIdentity();
             long freshGeneration = oldIdentity.streamGeneration + 1L;
             requireType111(frameIpcClient.replaceGeneration(oldIdentity.streamGeneration, freshGeneration),
@@ -2438,20 +2729,18 @@ public final class ClarityLinkDisplayActivity extends Activity
                     freshIdentity.connectionId == oldIdentity.connectionId &&
                     freshIdentity.streamGeneration == freshGeneration,
                     "producer_restart_preserves_parent_connection_and_advances_generation");
+            requireType111(reattachPaneLeaseAfterInterrupt(),
+                    "fresh_pane_lease_admitted_after_producer_death_clear");
             String staleProducerGeneration = frameIpcClient.probeMalformed(
                     "stale_generation", freshGeneration, 9200000000L);
             requireType111("frame_contract_rejected".equals(staleProducerGeneration) ||
                     "stream_identity_rejected".equals(staleProducerGeneration),
                     "predeath_type111_generation_rejected_after_restart");
-            saturatedQueue[0].releaseHandler.countDown();
-            requireType111(awaitRace(saturatedQueue[0].dispatchFinished),
-                    "queued_predeath_frames_finish_after_generation_fence");
-            requireType111(viewSink.queuedFrameCount() == 0 && viewSink.queuedByteCount() == 0,
-                    "producer_death_queue_frames_and_bytes_reclaimed");
-            requireType111(renderer == null || renderer.contentView().drawnTimestampNs() == drawnBeforeFailure,
-                    "predeath_queued_frames_suppressed_after_generation_change");
             viewSink.setDispatchProbe(null);
-            Log.i(TAG, "CL_R4_QUEUE_PRODUCER_DEATH_PASS session_id=" + binderGeneration +
+            Log.i(TAG, "CL_R4_QUEUE_PRODUCER_DEATH_PASS session_id=" +
+                    freshIdentity.sessionId + " connection_id=" + freshIdentity.connectionId +
+                    " old_generation=" + oldIdentity.streamGeneration +
+                    " new_generation=" + freshIdentity.streamGeneration +
                     " old_producer_pid=" + oldPid + " queue_frames_before_death=" +
                     FrameViewSink.MAX_QUEUED_FRAMES + " queue_frames_after=" + viewSink.queuedFrameCount() +
                     " queue_bytes_after=" + viewSink.queuedByteCount() +
@@ -2484,6 +2773,8 @@ public final class ClarityLinkDisplayActivity extends Activity
             int freshPid = queryIsolatedProducerPid(freshProducerBinder, descriptor);
             requireType111(freshPid > 0 && freshPid != oldPid && freshPid != android.os.Process.myPid(),
                     "restarted_producer_has_new_process_identity");
+            requireType111(prepareType111ProducerBinder(freshProducerBinder, freshIdentity) == freshPid,
+                    "replacement_producer_authorized_for_fresh_generation");
             requireType111(new Type111ControlClient(compositorEndpoint).videoConfig(
                     freshIdentity, 32, 32) > 0, "video_config_rebound_for_fresh_generation");
             long restartedProducerFirstFrameId = frameIpcClient.nextFrameIdHint();
@@ -2512,6 +2803,48 @@ public final class ClarityLinkDisplayActivity extends Activity
             if (recoveryBound[0]) {
                 try { unbindService(recoveryConnection[0]); } catch (IllegalArgumentException ignored) { }
             }
+        }
+    }
+
+    /** Producer death withdraws the Type111 View lease; Type110 and the parent remain untouched. */
+    private void withdrawType111PresentationOnProducerDeath(ComponentName name,
+            FrameStreamIdentity producerIdentity) {
+        FrameStreamIdentity activeIdentity = frameIpcClient == null ? null :
+                frameIpcClient.streamIdentity();
+        if (producerIdentity == null || !producerIdentity.isValid() ||
+                producerIdentity.streamType != FrameStreamIdentity.TYPE111 ||
+                activeIdentity == null || !producerIdentity.equals(activeIdentity)) {
+            log("TYPE111_PRODUCER_DEATH_VIEW_WITHDRAWAL_IGNORED component=" +
+                    (name == null ? "unknown" : name.getClassName()) + " producer_session_id=" +
+                    (producerIdentity == null ? 0L : producerIdentity.sessionId) +
+                    " producer_connection_id=" + (producerIdentity == null ? 0L :
+                    producerIdentity.connectionId) + " producer_stream_generation=" +
+                    (producerIdentity == null ? 0L : producerIdentity.streamGeneration) +
+                    " active_stream_generation=" + (activeIdentity == null ? 0L :
+                    activeIdentity.streamGeneration) + " stale_callback_rejected=true");
+            return;
+        }
+        Display1OutputBackend current = renderer;
+        if (current == null || Looper.myLooper() != Looper.getMainLooper()) {
+            log("TYPE111_PRODUCER_DEATH_VIEW_WITHDRAWAL_UNVERIFIED reason=renderer_unavailable_or_wrong_thread");
+            return;
+        }
+        long oldGeneration = current.paneGeneration();
+        try {
+            current.withdrawPresentation();
+            boolean cleared = current.contentView() == null;
+            log("TYPE111_PRODUCER_DEATH_VIEW_WITHDRAWAL " +
+                    "component=" + (name == null ? "unknown" : name.getClassName()) +
+                    " session_id=" + producerIdentity.sessionId + " connection_id=" +
+                    producerIdentity.connectionId + " stream_generation=" +
+                    producerIdentity.streamGeneration + " pane_generation=" + oldGeneration +
+                    " lease_revoked=" + (current.paneLease() == null || !current.paneLease().isValid()) +
+                    " view_detached_and_cleared=" + cleared);
+            if (!cleared)
+                log("TYPE111_PRODUCER_DEATH_VIEW_WITHDRAWAL_UNVERIFIED generation=" + oldGeneration);
+        } catch (RuntimeException failure) {
+            log("TYPE111_PRODUCER_DEATH_VIEW_WITHDRAWAL_UNVERIFIED generation=" + oldGeneration +
+                    " reason=" + String.valueOf(failure.getMessage()));
         }
     }
 
@@ -2703,7 +3036,7 @@ public final class ClarityLinkDisplayActivity extends Activity
         IBinder sink = primaryLabSinkBinder;
         requireType111(client != null && sink != null, "type110_primary_lab_ipc_registered");
         FrameLabSink.Stats before;
-        try { before = FrameLabSink.queryStats(sink, ownerLifetimeToken); }
+        try { before = FrameLabSink.queryStats(sink, ownerLifetimeBinder); }
         catch (android.os.DeadObjectException ownerSinkDied) {
             if (type110SinkFailureTest)
                 throw new ExpectedType110SinkLoss(client.streamIdentity().sessionId, ownerSinkDied);
@@ -2718,7 +3051,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                 "type110_stream_session_matches_shared_binder_session");
         submitDecodedFrame(frame, identity.streamGeneration, false, client, true);
         FrameLabSink.Stats after;
-        try { after = FrameLabSink.queryStats(sink, ownerLifetimeToken); }
+        try { after = FrameLabSink.queryStats(sink, ownerLifetimeBinder); }
         catch (android.os.DeadObjectException ownerSinkDied) {
             if (type110SinkFailureTest)
                 throw new ExpectedType110SinkLoss(identity.sessionId, ownerSinkDied);
@@ -2735,7 +3068,7 @@ public final class ClarityLinkDisplayActivity extends Activity
 
     private FrameLabSink.Stats queryType110StatsOrThrow(String failureCode) {
         try {
-            FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
+            FrameLabSink.Stats stats = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeBinder);
             if (stats == null) throw new IllegalStateException(failureCode);
             return stats;
         } catch (android.os.RemoteException failure) {
@@ -2865,7 +3198,7 @@ public final class ClarityLinkDisplayActivity extends Activity
                     "stale_reason=" + stalePrimary);
 
             submitType110DecodedFrame(decodedType110, binderGeneration);
-            FrameLabSink.Stats type110Progress = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeToken);
+            FrameLabSink.Stats type110Progress = FrameLabSink.queryStats(primaryLabSinkBinder, ownerLifetimeBinder);
             requireType111(type110Progress != null && type110Progress.frameId > 0,
                     "type110_progressed_while_type111_handler_blocked");
             requireType111(viewSink.queuedFrameCount() == FrameViewSink.MAX_QUEUED_FRAMES,
@@ -2949,15 +3282,22 @@ public final class ClarityLinkDisplayActivity extends Activity
         final boolean[] accepted = new boolean[] { false };
         FrameStreamIdentity identity = client == null ? null : client.streamIdentity();
         final long streamGeneration = identity == null ? -1L : identity.streamGeneration;
-        requireType111(client != null && client.submit(submittedFrame, streamGeneration,
-                new FrameIpcClient.Callback() {
+        FrameIpcClient.Callback frameCallback = new FrameIpcClient.Callback() {
                     public void complete(boolean value, String reason) {
                         accepted[0] = value;
                         if (!value) log("CL_R4_BINDER_FRAME_REJECT timestamp=" +
                                 submittedFrame.presentationTimeNs + " reason=" + reason);
                         completed.countDown();
                     }
-                }), "decoded_frame_submitted_to_real_binder_pfd");
+                };
+        boolean waitedForPriorTransfer = client != null && client.hasFrameInFlight();
+        if (waitedForPriorTransfer && !awaitFrameIpcIdle(client, 2000L))
+            throw new IllegalStateException("type111_previous_frame_transfer_did_not_drain");
+        boolean transferStarted = client != null && client.submit(submittedFrame, streamGeneration, frameCallback);
+        if (waitedForPriorTransfer && transferStarted)
+            log("CL_R4_BINDER_FRAME_AFTER_BOUNDED_DRAIN timestamp=" + submittedFrame.presentationTimeNs +
+                    " wait_ms<=2000");
+        requireType111(transferStarted, "decoded_frame_submitted_to_real_binder_pfd");
         if (verifyBackpressure) {
             final boolean[] rejected = new boolean[] { false };
             boolean started = client.submit(submittedFrame, streamGeneration, new FrameIpcClient.Callback() {
@@ -2975,6 +3315,19 @@ public final class ClarityLinkDisplayActivity extends Activity
                     " timestamp_ns=" + submittedFrame.presentationTimeNs + " stream_generation=" + streamGeneration +
                     " parent_display_generation=" + activeGeneration);
         }
+    }
+
+    private boolean awaitFrameIpcIdle(FrameIpcClient client, long timeoutMs) {
+        if (client == null || timeoutMs <= 0L) return false;
+        long deadline = android.os.SystemClock.elapsedRealtime() + timeoutMs;
+        while (client.hasFrameInFlight() && android.os.SystemClock.elapsedRealtime() < deadline) {
+            try { Thread.sleep(5L); }
+            catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return !client.hasFrameInFlight();
     }
 
     private int[] readDecodedCenterRgb(DecodedFrame frame) throws Exception {
@@ -3230,8 +3583,12 @@ public final class ClarityLinkDisplayActivity extends Activity
 
     private void releaseRenderer() {
         Display1OutputBackend old = renderer;
+        PresentationPaneHost oldHost = paneHost;
         renderer = null;
+        paneHost = null;
         presentationRoot = null;
+        paneAttachmentGeneration = 0L;
+        if (oldHost != null) oldHost.hostLost();
         if (old != null) {
             try { old.close(); }
             catch (RuntimeException failure) { log("RENDERER_CLOSE_FAILED type=" + failure.getClass().getSimpleName()); }
@@ -3243,8 +3600,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (closing) return;
         closing = true;
         active = false;
-        FixtureRunToken runToken = type111FixtureRunToken;
-        if (runToken != null) runToken.cancelForDetach();
+        FixtureRunState runState = type111FixtureRunState;
+        if (runState != null) runState.cancelForDetach();
         type111RunStarted = false;
         Thread fixtureWorker = type111FixtureWorker;
         if (fixtureWorker != null && fixtureWorker != Thread.currentThread() &&
@@ -3271,8 +3628,8 @@ public final class ClarityLinkDisplayActivity extends Activity
         if (closing || (!active && displayHost == null && renderer == null)) return;
         closing = true;
         active = false;
-        FixtureRunToken runToken = type111FixtureRunToken;
-        if (runToken != null) runToken.cancelForDetach();
+        FixtureRunState runState = type111FixtureRunState;
+        if (runState != null) runState.cancelForDetach();
         type111RunStarted = false;
         Thread fixtureWorker = type111FixtureWorker;
         if (fixtureWorker != null) fixtureWorker.interrupt();
@@ -3409,6 +3766,12 @@ public final class ClarityLinkDisplayActivity extends Activity
         super.onPause();
     }
 
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        PresentationPaneHost host = paneHost;
+        if (host != null) host.setNavigationPageSelected(hasFocus);
+    }
+
     @Override protected void onDestroy() {
         if (active || displayHost != null || renderer != null)
             closeViewAttachmentPreservingParent("activity-destroy");
@@ -3417,6 +3780,12 @@ public final class ClarityLinkDisplayActivity extends Activity
             catch (IllegalArgumentException ignored) { }
             ownerDeathObserverBound = false;
             ownerDeathObserverConnection = null;
+        }
+        if (preparedType111ProducerBound && preparedType111ProducerConnection != null) {
+            try { unbindService(preparedType111ProducerConnection); }
+            catch (IllegalArgumentException ignored) { }
+            preparedType111ProducerBound = false;
+            preparedType111ProducerConnection = null;
         }
         super.onDestroy();
     }

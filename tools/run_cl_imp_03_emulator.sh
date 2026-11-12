@@ -3,6 +3,7 @@ set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 sdk=${CL_IMP_03_SDK_ROOT:-"$HOME/Android/r7c2-sdk"}
 out=${CL_IMP_03_BUILD_DIR:-"$repo/build/cl-imp-03"}
+pane_lease_test_apk=${CL_PANE_LEASE_TEST_APK:-}
 java_home=${JAVA_HOME:-"$HOME/.local/toolchains/temurin-17.0.20.1+1-aarch64/jdk-17.0.20.1+1/Contents/Home"}
 export JAVA_HOME="$java_home" PATH="$java_home/bin:$PATH"
 adb="$sdk/platform-tools/adb"
@@ -461,6 +462,35 @@ done
 case "$installed" in package:*) :;; *) echo 'Lab APK installation not visible after bounded verification.' >&2; exit 8;; esac
 attacker_installed=$(adb_local -s "$serial" shell pm path "$attacker_package" | tr -d '\r')
 case "$attacker_installed" in package:*) :;; *) echo 'Separate-UID boundary attacker is not installed.' >&2; exit 8;; esac
+if [ -n "$pane_lease_test_apk" ]; then
+  [ -f "$pane_lease_test_apk" ] || { echo 'Configured PaneLease instrumentation APK is missing.' >&2; exit 8; }
+  owned || exit 7
+  adb_local -s "$serial" install "$pane_lease_test_apk" >/dev/null
+  owned || exit 7
+  pane_test_output="$campaign_evidence/api17-pane-lease-instrumentation-$adb_port.txt"
+  pane_test_logcat="$campaign_evidence/api17-pane-lease-logcat-$adb_port.txt"
+  adb_local -s "$serial" shell am instrument -w \
+    -e class org.claritylink.renderer.Display1PaneLeaseLifecycleTest \
+    org.claritylink.panelease.test/android.test.InstrumentationTestRunner > "$pane_test_output" 2>&1 || {
+      cat "$pane_test_output" >&2
+      echo 'PaneLease API17 instrumentation command failed.' >&2
+      exit 8
+    }
+  adb_local -s "$serial" logcat -d > "$pane_test_logcat"
+  pane_test_normalized=$(tr -d '\r' < "$pane_test_output")
+  printf '%s\n' "$pane_test_normalized" | grep -Eq '^OK \([0-9]+ tests?\)$' &&
+    ! printf '%s\n' "$pane_test_normalized" | grep -qE 'FAILURES!!!|INSTRUMENTATION_CODE: -1' || {
+      cat "$pane_test_output" >&2
+      echo 'PaneLease API17 instrumentation did not report a clean PASS.' >&2
+      exit 8
+    }
+  pane_test_count=$(printf '%s\n' "$pane_test_normalized" | sed -n 's/^OK (\([0-9][0-9]*\) tests\{0,1\})$/\1/p')
+  [ "$pane_test_count" -eq 2 ] || {
+    echo "PaneLease API17 instrumentation expected exactly 2 tests; got ${pane_test_count:-none}." >&2
+    exit 8
+  }
+  echo "PANE_LEASE_API17_INSTRUMENTATION_PASS tests=$pane_test_count artifact=$run_label/evidence"
+fi
 app_uid=$(adb_local -s "$serial" shell dumpsys package "$package" | sed -n 's/.*userId=\([0-9][0-9]*\).*/\1/p' | head -1 | tr -d '\r')
 [ -n "$app_uid" ] || { echo 'Could not identify installed lab app UID.' >&2; exit 8; }
 probe_boundary_checked=0
@@ -1916,20 +1946,74 @@ $owner_logs"
       echo 'The independent Type110 sink did not record the next frame after Type111 sink death.' >&2; exit 9;
     }
     if [ "$lab03_acceptance" -eq 1 ]; then
-    child_withdrawal=$(printf '%s\n' "$logs" | grep -F \
-      "CL_T111_LAB03_CHILD_WITHDRAWN session_id=$session_id " | tail -1)
+    producer_withdrawal=$(printf '%s\n' "$logs" | grep -F \
+      "CL_T111_LAB03_PRODUCER_DIED session_id=$session_id " | tail -1)
+    producer_service_withdrawal=$(printf '%s\n' "$logs" | grep -F \
+      'TYPE111_PRODUCER_DEATH_VIEW_WITHDRAWAL component=org.claritylink.android.Type111ProducerService ' | tail -1)
+    view_clear=$(printf '%s\n' "$logs" | grep -F \
+      'CL_R4_TYPE111_PRODUCER_DEATH_VIEW_CLEAR_PASS ' | tail -1)
+    generation_rejection=$(printf '%s\n' "$logs" | grep -F \
+      'CL_R4_QUEUE_PRODUCER_DEATH_PASS ' | tail -1)
+    type110_progress=$(printf '%s\n' "$logs" | grep -F \
+      "CL_R4_TYPE110_AFTER_TYPE111_PRODUCER_DEATH_PASS " | tail -1)
+    producer_identity=$(printf '%s\n' "$producer_withdrawal" | sed -n \
+      's/.*session_id=\([0-9][0-9]*\).*connection_id=\([0-9][0-9]*\).*stream_generation=\([0-9][0-9]*\).*/\1 \2 \3/p')
+    presentation_fence_state=$(printf '%s\n' "$producer_withdrawal" | sed -n \
+      's/.*presentation_fenced=\([^[:space:]]*\).*/\1/p')
+    service_identity=$(printf '%s\n' "$producer_service_withdrawal" | sed -n \
+      's/.*session_id=\([0-9][0-9]*\).*connection_id=\([0-9][0-9]*\).*stream_generation=\([0-9][0-9]*\).*/\1 \2 \3/p')
+    clear_identity=$(printf '%s\n' "$view_clear" | sed -n \
+      's/.*session_id=\([0-9][0-9]*\).*connection_id=\([0-9][0-9]*\).*stream_generation=\([0-9][0-9]*\).*/\1 \2 \3/p')
+    rejection_identity=$(printf '%s\n' "$generation_rejection" | sed -n \
+      's/.*session_id=\([0-9][0-9]*\).*connection_id=\([0-9][0-9]*\).*old_generation=\([0-9][0-9]*\).*/\1 \2 \3/p')
+    old_generation=$(printf '%s\n' "$generation_rejection" | sed -n \
+      's/.*old_generation=\([0-9][0-9]*\).*/\1/p')
+    new_generation=$(printf '%s\n' "$generation_rejection" | sed -n \
+      's/.*new_generation=\([0-9][0-9]*\).*/\1/p')
     parent_withdrawal=$(printf '%s\n' "$logs" | grep -F \
       "CL_T111_LAB03_PARENT_TEARDOWN session_id=$session_id " | tail -1)
-    [ -n "$child_withdrawal" ] && printf '%s\n' "$child_withdrawal" | grep -F \
-      'result=accepted type110_active=true' >/dev/null || {
-      echo 'The negotiated child withdrawal did not preserve its Type110 parent.' >&2; exit 9;
+    [ -n "$producer_withdrawal" ] && printf '%s\n' "$producer_withdrawal" | grep -F \
+      'result=accepted' | grep -F 'type110_parent_preserved=true' >/dev/null || {
+      echo 'Producer death did not revoke Type111 presentation while preserving Type110.' >&2; exit 9;
+    }
+    [ -n "$producer_service_withdrawal" ] && printf '%s\n' "$producer_service_withdrawal" | \
+      grep -F 'lease_revoked=true view_detached_and_cleared=true' >/dev/null || {
+      echo 'Producer service did not report exact lease revocation and View clearing.' >&2; exit 9;
+    }
+    [ -n "$producer_identity" ] && [ "$producer_identity" = "$service_identity" ] &&
+      [ "$producer_identity" = "$clear_identity" ] || {
+      echo 'Producer death and Activity View-clear receipts do not match the exact stream identity.' >&2; exit 9;
+    }
+    case "$presentation_fence_state" in
+      true) withdrawal_evidence_class=COMPOSITOR_PRESENTATION_FENCE_VERIFIED ;;
+      false) withdrawal_evidence_class=OLD_GENERATION_REJECTED_AFTER_RECOVERY ;;
+      *) echo 'Compositor producer-death receipt has no valid presentation fence result.' >&2; exit 9 ;;
+    esac
+    # The rejected old generation must be the exact producer-death stream
+    # generation, not merely another generation in the same session/connection.
+    expected_rejection_identity="$producer_identity"
+    [ -n "$generation_rejection" ] && [ "$rejection_identity" = "$expected_rejection_identity" ] &&
+      [ -n "$old_generation" ] && [ -n "$new_generation" ] &&
+      [ "$new_generation" -gt "$old_generation" ] &&
+      printf '%s\n' "$generation_rejection" | grep -F \
+        'old_generation_suppressed=true' | grep -F 'stale_reason=stream_identity_rejected' >/dev/null || {
+      echo 'The remote compositor did not reject the exact pre-death Type111 generation after recovery.' >&2; exit 9;
+    }
+    [ -n "$view_clear" ] && printf '%s\n' "$view_clear" | grep -F \
+      'view_detached_and_cleared=true queue_frames=0 queue_bytes=0' >/dev/null || {
+      echo 'Producer death did not prove an empty, cleared Type111 View.' >&2; exit 9;
+    }
+    [ -n "$type110_progress" ] || {
+      echo 'Type110 did not record frame progress after Type111 producer death.' >&2; exit 9;
     }
     [ -n "$parent_withdrawal" ] && printf '%s\n' "$parent_withdrawal" | grep -F \
       'child_active=false' >/dev/null && printf '%s\n' "$parent_withdrawal" | grep -F \
       'parent_active=false' >/dev/null || {
       echo 'Parent teardown did not report cleared Type111 lifecycle state.' >&2; exit 9;
     }
-    printf '%s\n' "$child_withdrawal" "$parent_withdrawal"
+    printf '%s\n' "$producer_service_withdrawal" "$producer_withdrawal" "$view_clear" \
+      "$generation_rejection" "$type110_progress" "$parent_withdrawal"
+    echo "TYPE111_PRESENTATION_WITHDRAWAL_EVIDENCE=$withdrawal_evidence_class"
     fi
   else
     progress_line=$(printf '%s\n' "$logs" | grep -F "CL_R4A_VIEW_REATTACH_PASS session_id=$session_id " | tail -1)

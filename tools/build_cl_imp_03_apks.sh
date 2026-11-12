@@ -93,8 +93,8 @@ mkdir -p "$out/assets"
 cp "$repo/tests/fixtures/cl-imp-08/type110-red-32x32.h264.b64" "$out/assets/type110-red-32x32.h264.b64"
 cp "$repo/tests/fixtures/cl-imp-08/type111-blue-32x32.h264.b64" "$out/assets/type111-blue-32x32.h264.b64"
 cp "$repo/tests/fixtures/cl-imp-08/type111-green-64x64.h264.b64" "$out/assets/type111-green-64x64.h264.b64"
-"$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$out/dex" \
-  $(find "$out/classes" -name '*.class' -print)
+find "$out/classes" -type f -name '*.class' -exec "$build_tools/d8" \
+  --min-api 17 --lib "$platform/android.jar" --output "$out/dex" {} +
 key=${CL_IMP_03_KEYSTORE:-"$out/cl-imp-03-debug.keystore"}
 if [ ! -f "$key" ]; then
   "$java_home/bin/keytool" -genkeypair -keystore "$key" -storepass android -keypass android \
@@ -134,8 +134,8 @@ mkdir -p "$attacker_classes" "$attacker_dex"
   -d "$attacker_classes" \
   "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackActivity.java" \
   "$repo/android/cl-r4-boundary-attacker/java/org/claritylink/attacker/ExportBoundaryAttackService.java"
-"$build_tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$attacker_dex" \
-  $(find "$attacker_classes" -type f -name '*.class' -print)
+find "$attacker_classes" -type f -name '*.class' -exec "$build_tools/d8" \
+  --min-api 17 --lib "$platform/android.jar" --output "$attacker_dex" {} +
 attacker_unsigned="$attacker_out/cl-r4-boundary-attacker-unsigned.apk"
 attacker_aligned="$attacker_out/cl-r4-boundary-attacker-aligned.apk"
 "$build_tools/aapt" package -f \

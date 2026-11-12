@@ -26,6 +26,7 @@ public final class Type111ProducerService extends Service {
     private static final int START_PRODUCER = IBinder.FIRST_CALL_TRANSACTION;
     private static final int TERMINATE_PRODUCER = IBinder.FIRST_CALL_TRANSACTION + 1;
     private static final int QUERY_PID = IBinder.FIRST_CALL_TRANSACTION + 2;
+    private static final int PREPARE_PRODUCER = IBinder.FIRST_CALL_TRANSACTION + 4;
     private static final long MAX_WAIT_MS = 15000L;
     private static final int MAX_IN_FLIGHT = 1;
     private volatile boolean running;
@@ -42,6 +43,13 @@ public final class Type111ProducerService extends Service {
 
         @Override protected boolean onTransact(int code, Parcel data, Parcel reply, int flags)
                 throws RemoteException {
+            // BinderProxy.getInterfaceDescriptor() uses INTERFACE_TRANSACTION without a token.
+            // Respond before enforcing the private producer token so authorized consumers can
+            // verify this exact lifetime Binder instead of receiving an empty descriptor.
+            if (code == IBinder.INTERFACE_TRANSACTION) {
+                if (reply != null) reply.writeString(DESCRIPTOR);
+                return true;
+            }
             if (Binder.getCallingUid() != Process.myUid()) {
                 reply.writeException(new SecurityException("private producer caller rejected"));
                 return true;
@@ -85,6 +93,12 @@ public final class Type111ProducerService extends Service {
                 return true;
             }
             if (code == QUERY_PID) {
+                int callerPid = Binder.getCallingPid();
+                if (!isAuthorizedViewCaller(callerPid)) {
+                    Log.w(TAG, "TYPE111_PRODUCER_CONTROL_REJECT operation=query caller_pid=" + callerPid);
+                    reply.writeException(new SecurityException("private producer query caller rejected"));
+                    return true;
+                }
                 reply.writeNoException();
                 reply.writeInt(Process.myPid());
                 reply.writeInt(running ? 1 : 0);
@@ -95,7 +109,26 @@ public final class Type111ProducerService extends Service {
                 }
                 return true;
             }
+            if (code == PREPARE_PRODUCER) {
+                int ownerPid = Binder.getCallingPid();
+                if (!isAuthorizedViewCaller(ownerPid)) {
+                    Log.w(TAG, "TYPE111_PRODUCER_CONTROL_REJECT operation=prepare caller_pid=" + ownerPid);
+                    reply.writeNoException(); reply.writeInt(0); reply.writeInt(Process.myPid());
+                    return true;
+                }
+                IBinder endpoint = data.readStrongBinder();
+                FrameStreamIdentity identity = readIdentity(data);
+                boolean accepted = prepareProducer(endpoint, identity, ownerPid);
+                reply.writeNoException(); reply.writeInt(accepted ? 1 : 0); reply.writeInt(Process.myPid());
+                return true;
+            }
             if (code == IBinder.FIRST_CALL_TRANSACTION + 3) {
+                int callerPid = Binder.getCallingPid();
+                if (!isAuthorizedViewCaller(callerPid)) {
+                    Log.w(TAG, "TYPE111_PRODUCER_CONTROL_REJECT operation=wait caller_pid=" + callerPid);
+                    reply.writeException(new SecurityException("private producer wait caller rejected"));
+                    return true;
+                }
                 long timeout = data.readLong();
                 if (timeout < 0L || timeout > MAX_WAIT_MS) {
                     Log.w(TAG, "TYPE111_PRODUCER_WAIT_REJECT pid=" + Process.myPid() +
@@ -166,6 +199,25 @@ public final class Type111ProducerService extends Service {
         return true;
     }
 
+    /** Bind this genuine service Binder to one negotiated stream before decoder readiness is admitted. */
+    private synchronized boolean prepareProducer(IBinder endpoint, FrameStreamIdentity identity,
+            int ownerPid) {
+        if (running || terminationPending || endpoint == null || identity == null ||
+                identity.streamType != FrameStreamIdentity.TYPE111 ||
+                identity.outputId != FrameStreamIdentity.OUTPUT_SECONDARY_VIEW || !identity.isValid() ||
+                ownerPid <= 0 || !isAuthorizedViewCaller(ownerPid)) return false;
+        if (activeOwnerPid == ownerPid && identity.equals(activeIdentity))
+            return control.isBinderAlive();
+        if (!authorizeWithCompositor(endpoint, identity, ownerPid)) return false;
+        activeOwnerPid = ownerPid;
+        activeIdentity = identity;
+        Log.i(TAG, "TYPE111_PRODUCER_PREPARED owner_pid=" + ownerPid + " producer_pid=" +
+                Process.myPid() + " session_id=" + identity.sessionId + " connection_id=" +
+                identity.connectionId + " generation=" + identity.streamGeneration +
+                " decoder_started=false");
+        return true;
+    }
+
     private synchronized boolean requestTermination(int ownerPid, FrameStreamIdentity identity) {
         if (terminationPending || ownerPid != activeOwnerPid || !sameIdentity(identity, activeIdentity) ||
                 !(running || completed)) return false;
@@ -176,6 +228,9 @@ public final class Type111ProducerService extends Service {
     private boolean authorizeWithCompositor(IBinder endpoint, FrameStreamIdentity identity, int ownerPid) {
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
+            String controlDescriptor = control.getInterfaceDescriptor();
+            Log.i(TAG, "TYPE111_PRODUCER_AUTH_BINDER_DESCRIPTOR expected=" + DESCRIPTOR +
+                    " actual=" + controlDescriptor + " binder_alive=" + control.isBinderAlive());
             data.writeInterfaceToken(FrameIpcProtocol.DESCRIPTOR);
             data.writeInt(FrameIpcProtocol.VERSION);
             data.writeInt(ownerPid);
