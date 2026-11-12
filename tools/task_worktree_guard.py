@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import time
@@ -245,20 +246,30 @@ def manifest(root: Path) -> tuple[Path, Path, dict]:
 
 
 def release_reservations(lock_dir: Path, data: dict) -> None:
-    expected = {"task_id": data["task_id"], "branch": data["branch"],
-                "worktree": data["worktree"]}
     with scope_transaction(lock_dir):
-        locks: list[Path] = []
-        for path in data["files"]:
-            lock = lock_dir / path_key(path)
-            if not lock.is_file():
-                raise GuardError(f"scope reservation is missing for {path}; preserve remaining state")
-            owner = json.loads(lock.read_text())
-            if any(owner.get(key) != value for key, value in expected.items()) or owner.get("path") != path:
-                raise GuardError(f"scope reservation ownership mismatch for {path}; preserve remaining state")
-            locks.append(lock)
+        locks = _owned_reservation_locks(lock_dir, data)
         for lock in locks:
             lock.unlink()
+
+
+def _owned_reservation_locks(lock_dir: Path, data: dict) -> list[Path]:
+    expected = {"task_id": data["task_id"], "branch": data["branch"],
+                "worktree": data["worktree"]}
+    locks: list[Path] = []
+    for path in data["files"]:
+        lock = lock_dir / path_key(path)
+        if not lock.is_file():
+            raise GuardError(f"scope reservation is missing for {path}; preserve remaining state")
+        owner = json.loads(lock.read_text())
+        if any(owner.get(key) != value for key, value in expected.items()) or owner.get("path") != path:
+            raise GuardError(f"scope reservation ownership mismatch for {path}; preserve remaining state")
+        locks.append(lock)
+    return locks
+
+
+def verify_reservation_ownership(lock_dir: Path, data: dict) -> list[Path]:
+    with scope_transaction(lock_dir):
+        return _owned_reservation_locks(lock_dir, data)
 
 
 def begin(root: Path, task: str, files: list[str], base: str = "main") -> dict:
@@ -427,9 +438,139 @@ def finish(root: Path, pr: int, base: str | None = None) -> dict:
                 "head": receipt.get("head"), "pr": receipt.get("pr")}
 
 
+def append_recovery_audit(audit_file: Path, audit: dict) -> None:
+    if audit_file.is_symlink():
+        raise GuardError("recovery audit path is a symlink; preserve task metadata")
+    fd = os.open(audit_file, os.O_WRONLY | os.O_APPEND | os.O_CREAT |
+                 getattr(os, "O_NOFOLLOW", 0), 0o600)
+    audit_stat = os.fstat(fd)
+    if (not stat.S_ISREG(audit_stat.st_mode) or audit_stat.st_mode & 0o077 or
+            audit_stat.st_nlink != 1 or audit_stat.st_uid != os.geteuid()):
+        os.close(fd)
+        raise GuardError("recovery audit file must be private, singly linked, and owned by this user")
+    with os.fdopen(fd, "a") as stream:
+        stream.write(json.dumps(audit, sort_keys=True) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def recover_self_base_and_finish(root: Path, pr: int) -> dict:
+    """Repair only a verified self-base manifest, then use ordinary finish gates.
+
+    This command never releases reservations itself. It verifies ownership, scope,
+    remote branch, PR head/base, and ancestry; records an audit event; corrects the
+    manifest base atomically; then delegates reservation release to ``finish``.
+    """
+    with manifest_transaction(root):
+        file, lock_dir, data = manifest(root)
+        root = Path(data["worktree"])
+        branch = data["branch"]
+        canonical_origin(root)
+        if branch_and_owner(root) != branch:
+            raise GuardError("task branch ownership changed; preserve its reservation")
+        if porcelain(root):
+            raise GuardError("recovery requires a clean worktree; preserve its reservation")
+        verify_reservation_ownership(lock_dir, data)
+
+        head = git(root, "rev-parse", "HEAD")
+        remote = guard_run(["git", "ls-remote", "--heads", "origin", f"refs/heads/{branch}"])
+        remote_sha = remote.stdout.split()[0] if remote.returncode == 0 and remote.stdout.split() else ""
+        if remote.returncode or remote_sha != head:
+            raise GuardError("remote task branch does not match exact local HEAD")
+
+        pr_result = guard_run(["gh", "pr", "view", str(pr), "-R", "bmreyes25/ClarityLink",
+                               "--json", "headRefName,headRefOid,baseRefName,state,isCrossRepository"])
+        if pr_result.returncode:
+            raise GuardError("recovery could not read the task PR: " +
+                             (pr_result.stderr or pr_result.stdout).strip())
+        try:
+            receipt = json.loads(pr_result.stdout)
+        except (TypeError, ValueError) as exc:
+            raise GuardError("recovery could not parse the task PR receipt") from exc
+        if (not isinstance(receipt, dict) or receipt.get("headRefName") != branch or
+                receipt.get("headRefOid") != head or receipt.get("state") != "OPEN" or
+                receipt.get("isCrossRepository") is not False):
+            raise GuardError("recovery requires an open same-repository PR at exact task HEAD")
+        base = receipt.get("baseRefName")
+        if (not isinstance(base, str) or not base or base == branch or base.startswith("-") or
+                "@{" in base or subprocess.run(["git", "check-ref-format", f"refs/heads/{base}"],
+                                               capture_output=True).returncode):
+            raise GuardError("verified PR base is invalid or not distinct from task branch")
+        old_base = data.get("base", "main")
+        if old_base not in (branch, base):
+            raise GuardError("manifest base is not the known self-base corruption or verified PR base")
+
+        if base != "main":
+            base_pr_result = guard_run(["gh", "pr", "list", "-R", "bmreyes25/ClarityLink",
+                                        "--head", base, "--state", "open", "--json",
+                                        "headRefName,isCrossRepository"])
+            if base_pr_result.returncode:
+                raise GuardError("recovery could not inspect the stacked PR base")
+            try:
+                base_prs = json.loads(base_pr_result.stdout)
+            except (TypeError, ValueError) as exc:
+                raise GuardError("recovery could not parse the stacked PR base list") from exc
+            if (not isinstance(base_prs, list) or not any(
+                    isinstance(item, dict) and item.get("headRefName") == base and
+                    item.get("isCrossRepository") is False for item in base_prs)):
+                raise GuardError("stacked PR base is not the head of an open same-repository PR")
+
+        git(root, "fetch", "--quiet", "origin", base)
+        base_ancestor = guard_run(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                                  f"refs/remotes/origin/{base}", head], timeout=10)
+        if base_ancestor.returncode:
+            raise GuardError("verified PR base is not an ancestor of task HEAD")
+
+        starting_sha = data["starting_sha"]
+        actual_start = git(root, "merge-base", f"refs/remotes/origin/{base}", head)
+        if starting_sha != actual_start:
+            raise GuardError("recorded start is not the independently verified PR branch point")
+        merges = git(root, "rev-list", "--merges", f"{starting_sha}..{head}")
+        if merges:
+            raise GuardError("recovery refuses merge history because exact per-commit scope is ambiguous")
+        changed = guard_run(["git", "-C", str(root), "log", "--no-renames", "--format=", "--name-only", "-z",
+                             f"{starting_sha}..{head}"])
+        if changed.returncode:
+            raise GuardError("could not verify every committed task path")
+        changed_paths_from_start = {path for path in changed.stdout.split("\0") if path}
+        outside_scope = sorted(changed_paths_from_start - set(data["files"]))
+        if outside_scope:
+            raise GuardError("task history contains paths outside its reservation: " +
+                             ", ".join(outside_scope))
+
+        verifier = Path(__file__).with_name("verify_remote_publication.py")
+        verification = guard_run([sys.executable, str(verifier), "--repo", str(root),
+                                  "--pr", str(pr), "--base", base], timeout=20)
+        if verification.returncode:
+            raise GuardError("ordinary publication verification failed; reservation remains held: " +
+                             (verification.stderr or verification.stdout).strip())
+        try:
+            publication = json.loads(verification.stdout)
+        except (TypeError, ValueError) as exc:
+            raise GuardError("ordinary publication verification returned invalid JSON") from exc
+        if publication.get("result") != "REMOTE_VERIFIED" or publication.get("remote_sha") != head:
+            raise GuardError("ordinary publication verification did not confirm exact task HEAD")
+
+        if old_base == branch:
+            manifest_dir = file.parent
+            audit_file = manifest_dir / "claritylink-task-recovery.jsonl"
+            audit = {"event": "self_base_manifest_repair", "task_id": data["task_id"],
+                     "branch": branch, "worktree": str(root), "starting_sha": starting_sha,
+                     "head": head, "pr": pr, "old_base": old_base, "verified_base": base,
+                     "verified_at": int(time.time())}
+            append_recovery_audit(audit_file, audit)
+            data = {**data, "base": base, "pull_request": pr}
+            atomic_manifest_write(file, data)
+
+    completion = finish(root, pr, base)
+    return {"result": "TASK_RECOVERY_COMPLETE", "recovery": "self_base_manifest_repaired",
+            "base": base, "head": head, "pr": pr, "completion": completion}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("begin", "extend", "bind-pr", "status", "finish", "preflight", "postflight"))
+    parser.add_argument("command", choices=("begin", "extend", "bind-pr", "status", "finish",
+                                             "recover-finish", "preflight", "postflight"))
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--task")
     parser.add_argument("--file", action="append", default=[])
@@ -464,8 +605,13 @@ def main() -> int:
                       "instruction": "begin with an exact scope before editing" if not status else "preserve and reconcile; do not enter"}
         else:
             if not args.pr:
-                raise GuardError("finish requires --pr for live remote and PR verification")
-            result = finish(root, args.pr, args.base)
+                raise GuardError(f"{args.command} requires --pr for live remote and PR verification")
+            if args.command == "recover-finish":
+                if args.base is not None:
+                    raise GuardError("recover-finish derives its base from the verified PR; omit --base")
+                result = recover_self_base_and_finish(root, args.pr)
+            else:
+                result = finish(root, args.pr, args.base)
         if args.command == "postflight" and result.get("result") == "TASK_STATUS":
             if not result.get("status"):
                 result["next_step"] = "run tools/task_worktree_guard.py finish --pr <open-pr-number> after the published branch and PR SHA verify"
