@@ -76,7 +76,7 @@ def test_runner_interleaves_repeated_pairs_and_reports_every_run():
 def test_pane_lease_instrumentation_is_built_run_and_reported_separately():
     assert "build_cl_honda_111_pane_test_apk.sh" in WORKFLOW and "CL_PANE_LEASE_TEST_APK" in WORKFLOW
     assert "am instrument -w" in RUNNER and "Display1PaneLeaseLifecycleTest" in RUNNER
-    assert "OK (7 tests)" in RUNNER and "SyntheticFrameFillTest" in RUNNER and "PaneLeaseFdLifecycleTest" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
+    assert "OK (8 tests)" in RUNNER and "SyntheticFrameFillTest" in RUNNER and "PaneLeaseFdLifecycleTest" in RUNNER and "Display1RendererViewportInPlaceTest" in RUNNER
     assert "CL_PANE_LEASE_INSTRUMENTATION=" in RUNNER
     assert RUNNER.index("exit 13") < RUNNER.index("echo 'CL_R12_API17_RUNTIME_PASS'")
 
@@ -306,13 +306,13 @@ def test_real_instrumentation_blocks_report_pass_only_on_the_expected_ok_line(tm
     env = {"CL_PANE_LEASE_TEST_APK": str(apk), "CL_INT_04_HOST_TEST_APK": str(apk)}
     start = RUNNER.index("pane_lease_instrumentation=NOT_RUN")
     blocks = RUNNER[start:RUNNER.index("run_performance()")]
-    for output, expected in (("OK (7 tests)", "PANE=PASS HOST=PASS"), ("FAILURES!!!", "PANE=FAIL HOST=FAIL")):
+    for output, expected in (("OK (8 tests)", "PANE=PASS HOST=PASS"), ("FAILURES!!!", "PANE=FAIL HOST=FAIL")):
         receipt = tmp_path / f"receipt-{expected.split()[0]}"
         receipt.mkdir()
         script = "\n".join([
             "set -euo pipefail",
             f'receipt="{receipt}"',
-            f'adbq() {{ case "$*" in *instrument*) echo "{output}";; esac; return 0; }}',
+            f'adbq() {{ case "$*" in *Display1HostExpiryTest*) if [[ "{output}" == "FAILURES!!!" ]]; then echo "{output}"; else echo "OK (7 tests)"; fi;; *instrument*) echo "{output}";; esac; return 0; }}',
             blocks,
             'echo "PANE=$pane_lease_instrumentation HOST=$host_withdrawal_instrumentation"',
         ])

@@ -119,7 +119,7 @@ if [[ -n "${CL_PANE_LEASE_TEST_APK:-}" ]]; then
     org.claritylink.panelease.test/android.test.InstrumentationTestRunner \
     | tr -d '\r' | tee "$receipt/pane-lease-instrumentation.txt" || true
   adbq logcat -d > "$receipt/pane-lease-logcat.txt" 2>&1 || true
-  if grep -q '^OK (7 tests)' "$receipt/pane-lease-instrumentation.txt"; then
+  if grep -q '^OK (8 tests)' "$receipt/pane-lease-instrumentation.txt"; then
     pane_lease_instrumentation=PASS
   else
     pane_lease_instrumentation=FAIL
