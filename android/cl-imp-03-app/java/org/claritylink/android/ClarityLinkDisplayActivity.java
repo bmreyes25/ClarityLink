@@ -1018,7 +1018,12 @@ public final class ClarityLinkDisplayActivity extends Activity
                         warningResumeValidated = true;
                         log("CLIMP09_WARNING_RESUME_PASS generation=" + generation + " timestamp=2");
                     }
-                    if (ipcSessionReady && !ipcSubmitted) submitSyntheticFrame(generation);
+                    // A reattached Type111 fixture owns this replacement View's frame path.
+                    // Do not race its first decoded Binder/PFD frame with the unrelated
+                    // timestamp-1 compatibility frame; ordinary lab starts still submit it.
+                    if (ipcSessionReady && !ipcSubmitted &&
+                            !(type111FixtureMode && reattachSessionId > 0L))
+                        submitSyntheticFrame(generation);
                     if (expectedTimestampNs == 2L && warningResumeValidated && !diagnosticRunStarted) {
                         if (type111FixtureMode) startType111FixtureRun(generation);
                         else startDiagnosticRun(generation);

@@ -272,6 +272,34 @@ def test_reconnected_frame_waits_boundedly_for_prior_pfd_transfer():
     assert "return !client.hasFrameInFlight()" in idle
 
 
+def test_reattached_type111_fixture_does_not_race_compatibility_frame():
+    callback = method_body(ACTIVITY, "private void awaitFrame(final int attempt,")
+    compatibility = callback.index("if (ipcSessionReady && !ipcSubmitted &&")
+    fixture_guard = callback.index("!(type111FixtureMode && reattachSessionId > 0L)", compatibility)
+    compatibility_submit = callback.index("submitSyntheticFrame(generation);", fixture_guard)
+    replacement_fixture = callback.index("if (type111FixtureMode) startType111FixtureRun(generation)")
+    assert compatibility < fixture_guard < compatibility_submit < replacement_fixture
+
+    # The correction only prevents the unrelated competing frame. Real transport and
+    # decode failures remain fatal, and generation/delivery fencing remains enforced.
+    rejected_callback = method_body(ACTIVITY, "private void submitSyntheticFrame(final long generation)")
+    assert 'if (!accepted)' in rejected_callback
+    assert 'stopOwnedDisplay("ipc-frame-rejected")' in rejected_callback
+    decoded_submission = method_body(ACTIVITY,
+        "private void submitDecodedFrame(final DecodedFrame frame, final long binderGeneration,\n            boolean verifyBackpressure, FrameIpcClient client, boolean primaryLabOutput,")
+    expected_probe = decoded_submission[decoded_submission.index("if (verifyBackpressure)"):]
+    assert '"backpressure".equals(reason)' in expected_probe
+    assert "!started && rejected[0]" in expected_probe
+    assert "stopOwnedDisplay" not in expected_probe
+    assert 'requireType111(transferStarted, "decoded_frame_submitted_to_real_binder_pfd")' in decoded_submission
+    assert 'requireType111(awaitRace(completed) && accepted[0], "decoded_frame_accepted_by_remote_receiver")' in decoded_submission
+    assert "awaitFrameIpcIdle(client, 2000L)" in decoded_submission
+
+    client = (REPO / "android/cl-imp-03-app/java/org/claritylink/android/FrameIpcClient.java").read_text()
+    assert "generation != activeGeneration" in method_body(
+        client, "boolean submit(final DecodedFrame frame, final long generation, final Callback callback)")
+
+
 def test_content_attach_keeps_generation_fencing_and_ownership():
     host = host_class()
     attach = method_body(host, "public boolean attachContent(")
