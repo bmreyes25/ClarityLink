@@ -24,6 +24,12 @@ baseline_sha="$(git -C "$repo" rev-parse --verify "$baseline_ref^{commit}")"
 candidate_sha="$(git -C "$repo" rev-parse HEAD)"
 activity='android/cl-imp-03-app/java/org/claritylink/android/MessengerFramePerformanceActivity.java'
 git -C "$repo" cat-file -e "$baseline_sha:$activity" || { echo 'Baseline ref has no performance Activity.' >&2; exit 4; }
+baseline_activity_blob="$(git -C "$repo" rev-parse "$baseline_sha:$activity")"
+candidate_activity_blob="$(git -C "$repo" rev-parse "$candidate_sha:$activity")"
+if [[ "$baseline_activity_blob" == "$candidate_activity_blob" ]]; then
+  echo "Baseline and candidate performance Activity blobs are identical ($baseline_activity_blob); refusing an invalid workload A/B comparison." >&2
+  exit 10
+fi
 mkdir -p "$out"
 work="$(mktemp -d /tmp/cl-r12-wab-XXXXXX)"
 trap 'git -C "$repo" worktree remove --force "$work/baseline" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
@@ -45,7 +51,9 @@ fi
   echo "ab_mode=workload"
   echo "baseline_activity_ref=$baseline_ref"
   echo "baseline_activity_commit=$baseline_sha"
+  echo "baseline_activity_blob=$baseline_activity_blob"
   echo "candidate_commit=$candidate_sha"
+  echo "candidate_activity_blob=$candidate_activity_blob"
   echo "baseline_activity_sha256=$(sha256sum "$work/baseline/$activity" | awk '{print $1}')"
   echo "candidate_activity_sha256=$(sha256sum "$repo/$activity" | awk '{print $1}')"
   echo "renderer_tree_sha256_both=$(cd "$repo" && git ls-files -s -- src/claritylink-renderer/android-api17 | sha256sum | awk '{print $1}')"
