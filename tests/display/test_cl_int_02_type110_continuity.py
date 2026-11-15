@@ -338,7 +338,8 @@ def test_workload_mode_delegates_to_the_unchanged_r12_gates():
 
 
 def test_workflow_pins_the_baseline_and_runs_both_kinds():
-    assert "7e95839acfcb95af9fdab4f4b8e623b2907f6613" in WORKFLOW
+    assert "eb50c212faf405bbcef469f062893c8be211ff1" in WORKFLOW
+    assert "7e95839acfcb95af9fdab4f4b8e623b2907f6613" not in WORKFLOW
     assert re.search(r"kind:\s*\[continuity, workload\]", WORKFLOW)
     assert "tools/build_cl_r12_workload_ab.sh" in WORKFLOW
     assert "./tools/run_cl_int_02_api17_ci.sh ${{ matrix.kind }}" in WORKFLOW
@@ -360,6 +361,17 @@ def test_workflow_pins_the_baseline_and_runs_both_kinds():
         assert f"'{watched_input}'" in WORKFLOW, watched_input
     assert "PresentationPaneHost" in WORKFLOW        # DEX check covers the fixed class
     assert "permissions:\n  contents: read" in WORKFLOW
+
+
+def test_workload_builder_rejects_identical_activity_before_building_apks():
+    builder = (REPO / "tools/build_cl_r12_workload_ab.sh").read_text()
+    baseline_blob = builder.index('baseline_activity_blob="$(git -C "$repo" rev-parse "$baseline_sha:$activity")"')
+    reject_equal = builder.index('if [[ "$baseline_activity_blob" == "$candidate_activity_blob" ]]')
+    first_build = builder.index('"$work/baseline/tools/build_cl_imp_03_apks.sh"')
+    assert baseline_blob < reject_equal < first_build
+    assert "refusing an invalid workload A/B comparison" in builder
+    assert "baseline_activity_blob=$baseline_activity_blob" in builder
+    assert "candidate_activity_blob=$candidate_activity_blob" in builder
 
 
 def test_workflow_stays_synthetic_lab_only():
