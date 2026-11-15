@@ -447,8 +447,8 @@ def test_activity_uses_one_owner_lifetime_token_for_all_type110_authority_opener
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     assert "private final IBinder ownerLifetimeToken;" in client
     assert "FrameIpcClient(IBinder endpoint, IBinder ownerLifetimeToken)" in client
-    assert "new FrameIpcClient(compositorEndpoint, ownerLifetimeToken)" in activity
-    assert activity.count("new FrameIpcClient(compositorEndpoint, ownerLifetimeToken)") == 2
+    assert "new FrameIpcClient(compositorEndpoint, ownerLifetimeBinder)" in activity
+    assert activity.count("new FrameIpcClient(compositorEndpoint, ownerLifetimeBinder)") == 2
 
 
 def test_type110_owner_token_lives_with_sink_process_across_view_death():
@@ -463,7 +463,7 @@ def test_type110_owner_token_lives_with_sink_process_across_view_death():
                 "org.claritylink.android.ClarityLinkDisplayActivity")
     assert sink.get(ANDROID + "process") == ":type110_sink"
     assert view.get(ANDROID + "process") == ":type111_view"
-    assert ("ownerLifetimeToken " + "=" + " service;") in activity
+    assert ("ownerLifetimeBinder " + "=" + " service;") in activity
     assert "private final IBinder ownerLifetimeToken = new Binder()" not in activity
     assert "processVerifiedAbsent(existingOwnerPid, existingOwnerProcess)" in compositor
     assert "existing.ownerLifetimeBinder == ownerLifetimeBinder && ownerLifetimeBinder.isBinderAlive()" in compositor
@@ -523,7 +523,15 @@ def test_api17_same_uid_sibling_attack_cannot_query_session_or_mutate_state():
     assert "boolean end = rawEnd(owner)" in source
     assert "boolean producerStart = rawProducerStart" in source
     assert "boolean producerStop = rawProducerStop()" in source
-    assert "producer_pid_before=" in source and "producer_pid_after=" in source
+    assert "boolean producerQueryDenied = producerQueryDenied();" in source
+    assert "boolean producerWaitDenied = producerWaitDenied();" in source
+    assert "producer_query_denied=true producer_wait_denied=true" in source
+    assert "producer_pid_before=" not in source and "producer_pid_after=" not in source
+    producer = (APP / "java/org/claritylink/android/Type111ProducerService.java").read_text()
+    query = producer[producer.index("if (code == QUERY_PID)"):producer.index("if (code == PREPARE_PRODUCER)")]
+    wait = producer[producer.index("if (code == IBinder.FIRST_CALL_TRANSACTION + 3)"):producer.index("return super.onTransact")]
+    assert query.index("isAuthorizedViewCaller(callerPid)") < query.index("reply.writeNoException()")
+    assert wait.index("isAuthorizedViewCaller(callerPid)") < wait.index("long timeout = data.readLong()")
     assert "test_barrier_arm_wait_release_rejected=true" in source
     activity = (APP / "java/org/claritylink/android/ClarityLinkDisplayActivity.java").read_text()
     assert "awaitCrossUidRunnerRelease" in activity
@@ -617,7 +625,7 @@ def test_parent_owner_loss_cancels_activity_fixture_worker():
     start = activity.index("private void stopOwnedDisplay")
     end = activity.index("/** Release only the Activity-owned View attachment", start)
     stop = activity[start:end]
-    assert "runToken.cancelForDetach();" in stop
+    assert "runState.cancelForDetach();" in stop
     assert "fixtureWorker.interrupt();" in stop
     assert "closeIpcSession();" in stop
     assert "binder.linkToDeath(compositorDeathRecipient, 0)" in activity

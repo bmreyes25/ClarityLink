@@ -95,7 +95,13 @@ public final class Display1OutputBackend {
         if (lease != null && lease.isValid()) throw new IllegalStateException("already attached");
         if (newPaneGeneration <= 0) throw new IllegalArgumentException("positive pane generation required");
         if (listener != null) unsubscribe();
-        if (eventHost != null) hostAvailable = eventHost.isHostValid();
+        if (eventHost != null) {
+            hostAvailable = eventHost.isHostValid();
+            // A prior viewport event revokes and unsubscribes this backend. On a later explicit
+            // fresh-generation attach, derive admission from current host state instead of the
+            // stale value cached by the now-removed listener.
+            paneViewportValid = eventHost.getPaneViewport() != null;
+        }
         Object owner = eventHost == null ? host : eventHost.generationOwner();
         synchronized (USED_GENERATIONS) {
             Long previous = USED_GENERATIONS.get(owner);
@@ -205,6 +211,13 @@ public final class Display1OutputBackend {
 
     public void clear() { requireUiThread(); if (view != null) view.clearFrame(); }
 
+    /** Revokes only this experimental presentation lease and removes its last View frame. */
+    public synchronized void withdrawPresentation() {
+        requireUiThread();
+        if (closed) return;
+        revokeLease();
+    }
+
     /**
      * Applies an accepted Type111 ViewArea/SafeArea to the live View inside the current lease.
      * This is presentation geometry admitted by the matching control identity, not a change of
@@ -229,6 +242,21 @@ public final class Display1OutputBackend {
         view.replaceSessionGeneration(oldGeneration, newGeneration);
         generation = newGeneration;
         lastSubmittedTimestampNs = -1L;
+    }
+
+    /** Advances only the negotiated stream identity while retaining the parent Display view. */
+    public synchronized boolean replaceStreamGeneration(long oldGeneration, long newGeneration) {
+        requireUiThread();
+        // The Activity's trusted stream callback can arrive before this View has drawn its first
+        // frame. In that case no stream generation is bound yet, but the attached lease still
+        // scopes the callback. Once bound, only the exact current generation may advance.
+        boolean identityMatches = activeStreamGeneration == 0L || activeStreamGeneration == oldGeneration;
+        if (oldGeneration <= 0 || newGeneration <= oldGeneration || !identityMatches || closed ||
+                lease == null || !lease.isValid() || view == null) return false;
+        activeStreamGeneration = newGeneration;
+        lastSubmittedTimestampNs = -1L;
+        lastGateGeneration = newGeneration;
+        return true;
     }
 
     public synchronized void close() {

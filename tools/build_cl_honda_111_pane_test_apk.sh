@@ -26,15 +26,17 @@ sources=(
   "$repo/android/src/test/java/org/claritylink/android/SyntheticFrameFillTest.java"
   "$repo/android/src/test/java/org/claritylink/renderer/PaneLeaseFdLifecycleTest.java"
 )
-{
-  find "$repo/android/src/main/java" -name '*.java' -print
-  find "$repo/src/claritylink-renderer/android-api17" -name '*.java' -print
-  printf '%s\n' "${sources[@]}"
-} > "$out/sources.txt"
+java_sources=()
+while IFS= read -r -d '' source; do java_sources+=("$source"); done < <(
+  find "$repo/android/src/main/java" "$repo/src/claritylink-renderer/android-api17" \
+    -type f -name '*.java' -print0
+)
+java_sources+=("${sources[@]}")
+printf '%s\n' "${java_sources[@]}" > "$out/sources.txt"
 "${JAVAC:-javac}" -source 1.7 -target 1.7 -Xlint:all -bootclasspath "$platform/android.jar" \
-  -d "$out/classes" @"$out/sources.txt"
-"$tools/d8" --min-api 17 --lib "$platform/android.jar" --output "$out/dex" \
-  $(find "$out/classes" -name '*.class' -print)
+  -d "$out/classes" "${java_sources[@]}"
+find "$out/classes" -type f -name '*.class' -exec "$tools/d8" \
+  --min-api 17 --lib "$platform/android.jar" --output "$out/dex" {} +
 "$tools/aapt" package -f -M "$repo/android/cl-honda-111-pane-test/AndroidManifest.xml" \
   -I "$platform/android.jar" -F "$out/unsigned.apk"
 (cd "$out/dex" && "$tools/aapt" add "$out/unsigned.apk" classes.dex >/dev/null)

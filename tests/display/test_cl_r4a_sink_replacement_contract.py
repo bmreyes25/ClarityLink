@@ -100,10 +100,10 @@ def test_lifecycle_detach_cancels_fixture_worker_without_parent_teardown():
     worker_catch = activity[activity.index("private void startType111FixtureRun"):
                             activity.index("private byte[] type111Fixture")]
 
-    assert "runToken.cancelForDetach();" in lifecycle
+    assert "runState.cancelForDetach();" in lifecycle
     assert "fixtureWorker.interrupt();" in lifecycle
-    assert "if (!runToken.isCancelled())" in worker_catch
-    assert "if (finalReplacementTeardown && !runToken.claimTeardown())" in worker_catch
+    assert "if (!runState.isCancelled())" in worker_catch
+    assert "if (finalReplacementTeardown && !runState.claimTeardown())" in worker_catch
     assert "if (previousWorker != null && previousWorker.isAlive())" in worker_catch
     assert "CL_R4A_FIXTURE_CANCELLED_BY_VIEW_LIFECYCLE" in worker_catch
 

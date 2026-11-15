@@ -9,6 +9,43 @@ import org.claritylink.android.HondaStyleDisplayHostSimulator;
 
 /** API 17 instrumentation acceptance matrix for the simulator-only pane lease. */
 public final class Display1PaneLeaseLifecycleTest extends InstrumentationTestCase {
+    public void testTrustedStreamReplacementBeforeFirstFrameKeepsFreshPaneLease() throws Throwable {
+        final HondaStyleDisplayHostSimulator simulator = new HondaStyleDisplayHostSimulator(
+                getInstrumentation().getTargetContext());
+        final HondaStyleSimulatorRendererHost host = new HondaStyleSimulatorRendererHost(simulator);
+        final Display1OutputBackend backend = new Display1OutputBackend(host,
+                new Display1OutputBackend.Viewport(0, 0, 800, 480), 1L);
+        runTestOnUiThread(new Runnable() { public void run() { backend.attach(); } });
+        final boolean[] replaced = new boolean[] { false };
+        runTestOnUiThread(new Runnable() { public void run() {
+            replaced[0] = backend.replaceStreamGeneration(77L, 78L);
+        } });
+        assertTrue(replaced[0]);
+        assertTrue(backend.paneLease().isValid());
+        assertNotNull(backend.contentView());
+        runTestOnUiThread(new Runnable() { public void run() { backend.close(); } });
+        assertFalse(simulator.hasClarityContent());
+        assertEquals(0, host.listenerCountForTest());
+
+        final HondaStyleDisplayHostSimulator replacementSimulator = new HondaStyleDisplayHostSimulator(
+                getInstrumentation().getTargetContext());
+        final HondaStyleSimulatorRendererHost replacementHost =
+                new HondaStyleSimulatorRendererHost(replacementSimulator);
+        final Display1OutputBackend replacementBackend = new Display1OutputBackend(replacementHost,
+                new Display1OutputBackend.Viewport(0, 0, 800, 480), 1L);
+        runTestOnUiThread(new Runnable() { public void run() { replacementBackend.attach(); } });
+        runTestOnUiThread(new Runnable() { public void run() { replacementBackend.withdrawPresentation(); } });
+        assertFalse(replacementBackend.paneLease().isValid());
+        assertNull(replacementBackend.contentView());
+        assertFalse(replacementSimulator.hasClarityContent());
+        assertEquals(0, replacementHost.listenerCountForTest());
+        runTestOnUiThread(new Runnable() { public void run() { replacementBackend.attach(2L); } });
+        assertTrue(replacementBackend.paneLease().isValid());
+        assertNotNull(replacementBackend.contentView());
+        runTestOnUiThread(new Runnable() { public void run() { replacementBackend.close(); } });
+        assertFalse(replacementSimulator.hasClarityContent());
+    }
+
     public void testLeaseLifecycleTypedRejectionAndCleanup() throws Throwable {
         final Throwable[] contractFailure = new Throwable[1];
         runTestOnUiThread(new Runnable() {
@@ -26,6 +63,8 @@ public final class Display1PaneLeaseLifecycleTest extends InstrumentationTestCas
         runTestOnUiThread(new Runnable() { public void run() { backend.attach(); } });
         assertTrue(backend.paneLease().isValid());
         assertEquals(1, host.listenerCountForTest());
+        assertAttachRejected(backend, 1L);
+        assertTrue("duplicate attach must preserve the current lease", backend.paneLease().isValid());
 
         runTestOnUiThread(new Runnable() { public void run() { host.simulatePageDeselected(); } });
         assertFalse(backend.paneLease().isValid());
@@ -63,6 +102,18 @@ public final class Display1PaneLeaseLifecycleTest extends InstrumentationTestCas
         assertFalse(backend.paneLease().isValid());
         attach(backend, 7L);
 
+        runTestOnUiThread(new Runnable() { public void run() { host.simulateViewportChanged(null); } });
+        assertFalse(backend.paneLease().isValid());
+        assertNull(backend.contentView());
+        assertFalse(simulator.hasClarityContent());
+        assertAttachRejected(backend, 8L);
+        runTestOnUiThread(new Runnable() { public void run() {
+            host.simulateViewportChanged(RendererViewport.fullCanvasTestOnly());
+        } });
+        // The rejected attempt still consumes generation 8 for this owner lifetime; recovery
+        // must use a strictly newer generation rather than retrying the rejected identity.
+        attach(backend, 9L);
+
         boolean localViewportRejected = false;
         try {
             new RendererViewport(new RendererViewport.Bounds(0, 0, 400, 200),
@@ -97,11 +148,24 @@ public final class Display1PaneLeaseLifecycleTest extends InstrumentationTestCas
                 backend.submit(frame(9L, 2, 2), typedGate, 55L, typedEpoch));
         assertTrue(backend.paneLease().isValid());
         runTestOnUiThread(new Runnable() { public void run() { backend.replaceGeneration(1L, 2L); } });
-        assertEquals(7L, backend.paneGeneration());
+        assertEquals(9L, backend.paneGeneration());
         assertEquals(Display1OutputBackend.PresentStatus.PRESENTED,
                 backend.submit(frame(1L, 2, 2), typedGate, 55L, typedEpoch));
 
-        for (long generation = 8L; generation < 108L; generation++) {
+        final boolean[] streamGenerationReplaced = new boolean[] { false };
+        runTestOnUiThread(new Runnable() { public void run() {
+            streamGenerationReplaced[0] = backend.replaceStreamGeneration(55L, 56L);
+        } });
+        assertTrue(streamGenerationReplaced[0]);
+        assertTrue(typedGate.replaceGeneration(55L, 56L));
+        assertEquals(Display1OutputBackend.PresentStatus.IDENTITY_MISMATCH,
+                backend.submit(frame(2L, 2, 2), typedGate, 55L, typedEpoch));
+        final long reboundEpoch = typedGate.captureEpoch(56L);
+        assertEquals(Display1OutputBackend.PresentStatus.PRESENTED,
+                backend.submit(frame(2L, 2, 2), typedGate, 56L, reboundEpoch));
+        assertTrue(backend.paneLease().isValid());
+
+        for (long generation = 10L; generation < 110L; generation++) {
             final long next = generation;
             runTestOnUiThread(new Runnable() { public void run() { host.simulatePageDeselected(); } });
             assertNull(backend.contentView());

@@ -140,8 +140,10 @@ public final class SameUidRegistrationAttackTestService extends Service {
         if (!queryDenied(before) || !statsDenied(ownerBefore) || !statsDenied(childBefore) ||
                 !sinkStatsDeniedBefore || !owner.equals(sinkIdentityBefore))
             throw new IllegalStateException("same_uid_query_disclosure_not_blocked");
-        ProducerState producerBefore = queryProducer();
-        if (producerBefore.pid <= 0) throw new IllegalStateException("producer_not_live_before_attack");
+        boolean producerQueryDenied = producerQueryDenied();
+        boolean producerWaitDenied = producerWaitDenied();
+        if (!producerQueryDenied || !producerWaitDenied)
+            throw new IllegalStateException("same_uid_producer_query_or_wait_not_denied");
 
         Parcel probeData = Parcel.obtain();
         Parcel probeReply = Parcel.obtain();
@@ -220,12 +222,10 @@ public final class SameUidRegistrationAttackTestService extends Service {
         Type111ControlClient.FrameStats childAfter = control.queryFrameStats(child);
         boolean sinkStatsDeniedAfter = sinkStatsDenied(ownerSink);
         FrameStreamIdentity sinkIdentityAfter = FrameLabSink.queryIdentity(ownerSink);
-        ProducerState producerAfter = queryProducer();
         if (probeAuthorizationAccepted || authority || unauthorizedAdmission != null || !directSinkMutationDenied || invalidOwner || capability || duplicateOwner ||
                 duplicateChild || wrongSession || wrongType || wrongConnection || wrongOutput ||
                 oldGeneration || futureGeneration || oldSinkReplacement || warningChange || teardown || end ||
-                producerStart || producerStop || producerAfter.pid != producerBefore.pid ||
-                producerAfter.running != producerBefore.running || producerAfter.completed != producerBefore.completed ||
+                producerStart || producerStop || !producerQueryDenied || !producerWaitDenied ||
                 transferArm || transferWait || transferFinishedWait || transferRelease || teardownArm ||
                 teardownWait || teardownContenderWait || teardownRelease || delayedArm || delayedFire ||
                 frameAccepted[0] || !"frame_caller_not_authorized".equals(frameReason[0]) ||
@@ -245,8 +245,8 @@ public final class SameUidRegistrationAttackTestService extends Service {
                 "duplicate_type110_rejected=true duplicate_type111_rejected=true teardown_rejected=true " +
                 "probe_authorization_rejected=true unauthorized_type110_end_rejected=true " +
                 "direct_type110_sink_generation_mutation_rejected=true " +
-                "producer_start_rejected=true producer_terminate_rejected=true producer_pid_before=" +
-                producerBefore.pid + " producer_pid_after=" + producerAfter.pid +
+                "producer_start_rejected=true producer_terminate_rejected=true " +
+                "producer_query_denied=true producer_wait_denied=true " +
                 " test_barrier_arm_wait_release_rejected=true delayed_callback_arm_fire_rejected=true" +
                 " frame_rejected=true reason=" + frameReason[0] +
                 " before_after_state_equal=true " +
@@ -354,24 +354,26 @@ public final class SameUidRegistrationAttackTestService extends Service {
         } finally { reply.recycle(); data.recycle(); }
     }
 
-    private ProducerState queryProducer() throws RemoteException {
+    private boolean producerQueryDenied() throws RemoteException {
+        return producerTransactionDenied(IBinder.FIRST_CALL_TRANSACTION + 2, false);
+    }
+
+    private boolean producerWaitDenied() throws RemoteException {
+        return producerTransactionDenied(IBinder.FIRST_CALL_TRANSACTION + 3, true);
+    }
+
+    private boolean producerTransactionDenied(int code, boolean includeWaitTimeout)
+            throws RemoteException {
         Parcel data = Parcel.obtain(), reply = Parcel.obtain();
         try {
             data.writeInterfaceToken("org.claritylink.android.IType111LabProducer");
-            if (!producerEndpoint.transact(IBinder.FIRST_CALL_TRANSACTION + 2, data, reply, 0))
-                throw new IllegalStateException("producer_query_missing");
-            reply.readException();
-            ProducerState state = new ProducerState();
-            state.pid = reply.readInt(); state.running = reply.readInt() != 0;
-            state.completed = reply.readInt() != 0;
-            int count = reply.readInt();
-            if (count < 0 || count > 4) throw new IllegalStateException("producer_count_invalid");
-            for (int i = 0; i < count; i++) reply.readLong();
-            return state;
+            if (includeWaitTimeout) data.writeLong(15000L);
+            if (!producerEndpoint.transact(code, data, reply, 0)) return false;
+            try { reply.readException(); }
+            catch (SecurityException expected) { return true; }
+            return false;
         } finally { reply.recycle(); data.recycle(); }
     }
-
-    private static final class ProducerState { int pid; boolean running; boolean completed; }
 
     private boolean rawBegin(FrameStreamIdentity identity, IBinder sink) throws RemoteException {
         Parcel data = Parcel.obtain();
