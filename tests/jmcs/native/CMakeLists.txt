@@ -3,6 +3,14 @@ project(claritylink_native_info_test C)
 
 enable_testing()
 
+add_executable(test_honda_setup_bridge
+  honda_setup_bridge_harness.c
+  ../../../src/claritylink-jmcs/native/honda_setup_bridge.c
+  ../../../src/claritylink-jmcs/native/setup_dispatch.c)
+target_compile_options(test_honda_setup_bridge PRIVATE
+  -Wall -Wextra -Werror -UNDEBUG -std=c11)
+add_test(NAME honda_setup_bridge COMMAND test_honda_setup_bridge)
+
 if(APPLE)
   add_executable(test_info_augmentation
     test_info_augmentation.c
