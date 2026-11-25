@@ -1,0 +1,8 @@
+{
+  "collector.py": "fb4d0fb92d504cd0c35ced81c06aad4eb2b0b4528a393bdf50363fa2485b06ae",
+  "parsers.py": "75976f12fe81f92a73f30e137d5f0544cf9cad124d23d4f9ea7080b0fbdfb85c",
+  "privileged.py": "01ab8bd98d2ad2dd9a167debabbdf7195d49bf44276da1b5eb3cce6251edab26",
+  "root_access_v2.py": "020049a344162408f0716d73b3e2ced4e402d78270430964536c3a9b30f5cdb5",
+  "root_access_v2_profile.json": "00883ff0c058938475bbb3941e08fee700eabc6a0aed0b4da49aa0953e73ff2f",
+  "root_integrity_preflight.py": "390b757cf61b0933dec10515ea7ff5b64fbea57fab7eedfe4877bd8950fd615f"
+}

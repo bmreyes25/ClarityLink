@@ -5,6 +5,20 @@ session-level approval covers the reviewed actions as a group; unchanged
 phases do not need duplicate approvals. Approval does not prove feasibility or
 restoration.
 
+## Policy version CL-HONDA-DIAGNOSTICS-V2
+
+This policy separates three authorization classes. Routine offline engineering
+(source review, synthetic tests, emulators, and host-only prototypes) needs no
+vehicle approval and remains available while `safeForHonda() == false`.
+Owner-approved controlled diagnostics use one exact, bounded parked session
+approval with technical checks proportionate to the method. The versioned
+`CL-HONDA-ROOT-ACCESS-V2` profile is the only proposed legacy-SuperSU route.
+High-risk vehicle changes, including native injection, receiver modification,
+display ownership changes, firmware changes, and any possible factory-warning
+interference, retain separate safety, technical, and recovery requirements.
+`safeForHonda() == false` blocks deployment; it does not block offline work or
+a properly approved controlled diagnostic.
+
 | Level | Examples | Before a live session |
 |---|---|---|
 | **1 — Routine** | Previously reviewed fixed diagnostics; ordinary ADB reads; offline and synthetic work | Current owner-approved session scope, exact target/endpoint, readiness check, fixed actions, private evidence, and stop/recovery plan |
@@ -13,9 +27,15 @@ restoration.
 
 Privileged access is a method to evaluate, not blanket permission. Record
 what the exact implementation may log, write, prompt, start, or change. The
-read target does not make an invocation read-only. If effects are unresolved,
-investigate offline or select another method; do not execute it to discover its
-side effects.
+read target does not make an invocation read-only. A Level 2 privileged
+diagnostic can proceed when a fixed runner has checked the exact executable,
+owner, path, symlink chain, mount and effective unprivileged writeability; the
+owner explicitly accepts the named residual effects for one bounded session;
+and current target and source pins match. A hash alone never establishes
+immutability. If the executable is writable or replaceable by an unprivileged
+actor, the mount/path view is ambiguous, or the owner has not accepted possible
+privilege-daemon, policy, request, logging or persistent-write effects, refuse
+that privileged method and continue independent work.
 
 ## One session
 
@@ -46,7 +66,9 @@ report.
 
 - No driving tests, CAN/control transmission, deliberate warning interference,
   or vehicle-control changes.
-- No arbitrary shell or privilege escalation. No unreviewed attachment,
+- No arbitrary shell, privilege fallback, device scan or escalation. A reviewed
+  fixed-operation `su -c` profile is allowed only under its exact session
+  authorization and legacy-binary integrity checks. No unreviewed attachment,
   injection, receiver/display change, or persistent installation.
 - Stop immediately on an abnormal warning, loss of the exact power state bound
   to the session, unexpected engine/exhaust behavior, unexpected process or

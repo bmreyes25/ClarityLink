@@ -8,6 +8,8 @@ See [R7C3 report](43t1-r7c3-final-android-integration-closure.md): test-only JNI
 
 ## Current / latest milestones
 
+- [CL-HONDA-ROOT-ACCESS-V2 — bounded owner-authorized root/ADB diagnostics](50-cl-honda-root-access-v2.md) — conditional SuperSU integrity gate and fixed, source-bound collector implemented offline; no live session or vehicle authorization claimed.
+
 - [CL-HONDA-RUNTIME-EVIDENCE-20261030 — offline campaign preparation](44a-honda-runtime-diagnostic-campaign-preparation.md) — existing evidence reconciled; endpoint joins and privacy-preserving log summaries prepared; Honda session remains unauthorized; the human phase controller exists, but a fixed campaign capture profile, qualified safety review, and separate owner approval are still outstanding.
 
 - [43T1-R7C4 — final Android integration closure](43t1-r7c4-final-android-integration-closure.md) — JDK/pytest restored; API17 Dalvik native socket/JNI path and 100 synthetic lifecycle cycles pass; deterministic framework races and full fault matrix remain blocked; R7D closed.

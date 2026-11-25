@@ -44,6 +44,54 @@ def test_parse_api17_numeric_metadata(line, expected):
     assert preflight.parse_ls_numeric(line)["mode_octal"] == expected
 
 
+@pytest.mark.parametrize(("line", "expected_links", "expected_size"), [
+    (b"-rwsrwsrwx 1 0 0 75348 2026-11-25 12:00 su\n", 1, 75348),
+    (b"-rwsrwsrwx 2 0 0 75348 Nov 25 12:00 su\n", 2, 75348),
+    (b"-rwsrwsrwx 0 0 75348 2026-11-25 12:00 su\n", None, 75348),
+])
+def test_parse_api17_numeric_ls_with_and_without_link_count(line, expected_links, expected_size):
+    parsed = preflight.parse_ls_numeric(line)
+    assert parsed["uid"] == parsed["gid"] == 0
+    assert parsed["file_type"] == "regular"
+    assert parsed["link_count"] == expected_links
+    assert parsed["size_bytes"] == expected_size
+    assert parsed["setuid"] is True and parsed["setgid"] is True
+    assert parsed["mode_octal"] == "0o6777"
+
+
+@pytest.mark.parametrize(("line", "expected_name"), [
+    (b"drwxr-xr-x 0 0 2025-01-02 03:04 ", ""),
+    (b"drwxr-xr-x 0 0 2025-01-02 03:04 system", "system"),
+])
+def test_api17_directory_numeric_rows_may_omit_size(line, expected_name):
+    parsed = preflight.parse_api17_ls_numeric_line(line, expected_name=expected_name)
+    assert parsed["file_type"] == "directory"
+    assert parsed["uid"] == parsed["gid"] == 0
+    assert parsed["size_bytes"] is None
+    assert parsed["mode_octal"] == "0o0755"
+
+
+@pytest.mark.parametrize("line", [
+    b"drwxr-xr-x 0 root 2025-01-02 03:04 system",
+    b"drwxr-xr-x 0 0 unknown 03:04 system",
+    b"drwxr-xr-x 0 0 2025-01-02 03:04",
+])
+def test_api17_directory_rows_without_size_fail_closed_on_bad_columns(line):
+    with pytest.raises(collector.SafetyStop):
+        preflight.parse_api17_ls_numeric_line(line, expected_name="system")
+
+
+@pytest.mark.parametrize("line", [
+    b"-rwsrwsrwx 1 0 0 75348 unknown-date 12:00 su\n",
+    b"-rwsrwsrwx 1 0 0 75348 2026-11-25 12:00 extra su\n",
+    b"-rwsrwsrwx 0 root 75348 2026-11-25 12:00 su\n",
+    b"?rwsrwsrwx 1 0 0 75348 2026-11-25 12:00 su\n",
+])
+def test_api17_numeric_ls_rejects_unknown_or_malformed_layout(line):
+    with pytest.raises(collector.SafetyStop):
+        preflight.parse_ls_numeric(line)
+
+
 @pytest.mark.parametrize("raw", [
     b"", b"lrwxrwxrwx 0 0 1 2026-09-25 12:00 su -> /data/su\n",
     b"-rwsr-sr-x root root 75348 2026-09-25 12:00 su\n",
