@@ -101,7 +101,9 @@ output. The parser validates regular-file rows with numeric owner, size and
 timestamp; it also accepts the fixed numeric directory row form without a
 size column. The root basename is empty. It accepts a separately tested
 numeric link-count layout and rejects unknown dates, ambiguous columns,
-malformed mode/owner, unexpected names and symlinks. Source:
+malformed mode/owner, unexpected names and symlinks. The `jmcs` UID/GID
+validator normalizes ADB CRLF/CR line endings before requiring all four
+identity slots to be zero. Source:
 [Android 4.2.2 Toolbox `ls.c`](https://android.googlesource.com/platform/system/core/%2B/android-4.2.2_r1.2/toolbox/ls.c).
 
 The earlier Offline CI collection failure was caused by the active campaign

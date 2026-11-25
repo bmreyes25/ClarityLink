@@ -347,9 +347,11 @@ def test_jmcs_executable_link_parser_requires_exact_stock_path():
 
 def test_process_status_must_bind_all_uid_and_gid_slots_to_root():
     good = "Uid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\n"
-    assert __import__("re").search(r"(?m)^Uid:\s*0\s+0\s+0\s+0$", good)
+    assert v2.jmcs_uid_gid_are_root(good.encode())
+    assert v2.jmcs_uid_gid_are_root(good.replace("\n", "\r\n").encode())
+    assert v2.jmcs_uid_gid_are_root(good.replace("\n", "\r").encode())
     bad = good.replace("Gid:\t0\t0\t0\t0", "Gid:\t0\t0\t2000\t2000")
-    assert not __import__("re").search(r"(?m)^Gid:\s*0\s+0\s+0\s+0$", bad)
+    assert not v2.jmcs_uid_gid_are_root(bad.encode())
 
 
 class FullFakeAdb:
@@ -441,7 +443,7 @@ class FullFakeAdb:
             tail[19] = "98765"
             return 0, ("42 (jmcs) " + " ".join(tail) + "\n").encode(), b""
         if command_text == "cat /proc/42/status":
-            return 0, b"Name:\tjmcs\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\n", b""
+            return 0, b"Name:\tjmcs\r\nUid:\t0\t0\t0\t0\r\nGid:\t0\t0\t0\t0\r\n", b""
         if command_text == "cat /proc/42/cmdline":
             return 0, b"/system/bin/jmcs\0", b""
         if command_text == "ls -l /proc/42/exe":

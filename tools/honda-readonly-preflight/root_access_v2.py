@@ -76,6 +76,13 @@ def parse_su_digest(raw: bytes) -> str:
     return match.group(1).decode("ascii").lower()
 
 
+def jmcs_uid_gid_are_root(raw_status: bytes) -> bool:
+    """Validate all real/effective/saved/fs IDs after normalizing ADB CRLF."""
+    status = raw_status.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
+    return bool(re.search(r"(?m)^Uid:\s*0\s+0\s+0\s+0$", status)
+                and re.search(r"(?m)^Gid:\s*0\s+0\s+0\s+0$", status))
+
+
 def fixed_su_digest_argv(adb: FixedAdb, endpoint: str) -> tuple[str, ...]:
     """Build the one fixed API-17 BusyBox SHA-256 operation for the su path."""
     if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", endpoint) or endpoint.lower() == "auto":
@@ -555,9 +562,7 @@ class Session:
         for leaf in ("stat", "status", "cmdline"):
             identity[leaf] = self.root(phase, "jmcs_" + leaf, "process", pid=pid, leaf=leaf)
         # Preserve exact process identity consistency across each snapshot.
-        status = identity["status"].decode("utf-8", "replace")
-        if (not re.search(r"(?m)^Uid:\s*0\s+0\s+0\s+0$", status)
-                or not re.search(r"(?m)^Gid:\s*0\s+0\s+0\s+0$", status)
+        if (not jmcs_uid_gid_are_root(identity["status"])
                 or identity["cmdline"].replace(b"\x00", b"").strip() != b"/system/bin/jmcs"):
             raise V2Stop("jmcs UID/GID/cmdline did not match the stock receiver")
         exe = self.root(phase, "jmcs_executable_link", "exe", pid=pid)
