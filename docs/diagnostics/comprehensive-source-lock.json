@@ -17,7 +17,7 @@
     "docs/diagnostics/comprehensive-runtime-campaign.md": "235264c489451e13d8752ab1d12888c49b987c9b302754f7bc3cd678266094ea",
     "docs/diagnostics/evidence-coverage.json": "bfec81fe9a9b9b234d65427067c4a0242ba489f227708a21471cf1ad019888aa",
     "docs/safety/experiment-risk-levels.md": "bfeb69363ddf1a37d1de7f8633cd5d218557afce646bca21ef918b8c9e587006",
-    "docs/safety/vehicle-testing.md": "b563cde85d1c48e82d989b84a8301ce8833e67ef625f6be91b7e73ac06993cde",
+    "docs/safety/vehicle-testing.md": "1eb2e0b685d83510858a62a56fdb5235c1c3f762364f056653bb22887fb306ac",
     "docs/security/single-owner-cp-review-policy.md": "1849f54dac795c4b09028aa143f5fbb6232766e48e9ee64a533280e8bd1a1803",
     "docs/security/vehicle-safety-gates.md": "dff245cec6fbf91a9cd38306f41d9079037985c014b01e0783f2c4de4e3b7176",
     "tests/honda/test_campaign_runner.py": "b2e2e7d265651256e0a942d0cc86bb4b00df8956cdd18b5f9c7465b9c3770d1f",

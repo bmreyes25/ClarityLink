@@ -129,8 +129,11 @@ mount/path/mode/hash assessment reads, 86 `su` invocation plus immediately
 preceding digest reads, and 15 display/network reads. The runner and profile
 both enforce that reviewed limit; there is no silent allowance change. The
 API-17 Toolbox parser follows the Android 4.2.2 source format: numeric long
-output has mode, UID, GID, size, ISO timestamp and basename, without a link
-count; the root basename is empty. See the upstream
+regular-file output has mode, UID, GID, size, ISO timestamp and basename,
+without a link count; the root directory basename is empty. The host parser
+also accepts the fixed directory-row form with numeric UID/GID and timestamp
+but no size, while the `su` regular-file size remains mandatory. Unknown or
+ambiguous layouts stop preflight. See the upstream
 [Android 4.2.2 Toolbox `ls.c`](https://android.googlesource.com/platform/system/core/%2B/android-4.2.2_r1.2/toolbox/ls.c).
 The fixed `su` digest operation is `/system/xbin/busybox sha256sum
 /system/xbin/su`; it has no utility-path fallback. Missing BusyBox or its

@@ -59,6 +59,28 @@ def test_parse_api17_numeric_ls_with_and_without_link_count(line, expected_links
     assert parsed["mode_octal"] == "0o6777"
 
 
+@pytest.mark.parametrize(("line", "expected_name"), [
+    (b"drwxr-xr-x 0 0 2025-01-02 03:04 ", ""),
+    (b"drwxr-xr-x 0 0 2025-01-02 03:04 system", "system"),
+])
+def test_api17_directory_numeric_rows_may_omit_size(line, expected_name):
+    parsed = preflight.parse_api17_ls_numeric_line(line, expected_name=expected_name)
+    assert parsed["file_type"] == "directory"
+    assert parsed["uid"] == parsed["gid"] == 0
+    assert parsed["size_bytes"] is None
+    assert parsed["mode_octal"] == "0o0755"
+
+
+@pytest.mark.parametrize("line", [
+    b"drwxr-xr-x 0 root 2025-01-02 03:04 system",
+    b"drwxr-xr-x 0 0 unknown 03:04 system",
+    b"drwxr-xr-x 0 0 2025-01-02 03:04",
+])
+def test_api17_directory_rows_without_size_fail_closed_on_bad_columns(line):
+    with pytest.raises(collector.SafetyStop):
+        preflight.parse_api17_ls_numeric_line(line, expected_name="system")
+
+
 @pytest.mark.parametrize("line", [
     b"-rwsrwsrwx 1 0 0 75348 unknown-date 12:00 su\n",
     b"-rwsrwsrwx 1 0 0 75348 2026-11-25 12:00 extra su\n",

@@ -97,10 +97,11 @@ reads. A full fake-ADB run must exercise all three phases at exactly this
 count; no real ADB process is used by the harness.
 
 Android 4.2.2 AOSP `toolbox/ls.c` confirms that `-n` selects numeric long
-output with mode, UID, GID, size, ISO timestamp and basename, without link
-count. The root basename is empty. The parser accepts that exact form plus a
-separately tested numeric link-count layout, and rejects unknown dates,
-ambiguous columns, malformed mode/owner, unexpected names and symlinks. Source:
+output. The parser validates regular-file rows with numeric owner, size and
+timestamp; it also accepts the fixed numeric directory row form without a
+size column. The root basename is empty. It accepts a separately tested
+numeric link-count layout and rejects unknown dates, ambiguous columns,
+malformed mode/owner, unexpected names and symlinks. Source:
 [Android 4.2.2 Toolbox `ls.c`](https://android.googlesource.com/platform/system/core/%2B/android-4.2.2_r1.2/toolbox/ls.c).
 
 The earlier Offline CI collection failure was caused by the active campaign
@@ -113,8 +114,8 @@ source revision. The campaign itself, its profile, and its historical evidence
 were not rewritten. V2 and comprehensive source locks are repinned to their
 actual source contents.
 
-Latest offline verification: full Honda suite **909 passed, 2 skipped, 19
-subtests passed**; the focused V2/root-integrity/campaign set **181 passed**.
+Latest offline verification: full Honda suite **915 passed, 2 skipped, 19
+subtests passed**; the focused V2/root-integrity set **83 passed**.
 The comprehensive source-lock verifier reports all 33 pinned sources valid.
 Raw Honda output is never included in this report or public Git.
 

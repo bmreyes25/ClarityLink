@@ -328,6 +328,18 @@ def test_su_path_chain_rejects_symlinks_and_wrong_names():
             b"-rwsrwsrwx 0 0 75348 2026-11-25 00:00 replacement"))
 
 
+def test_su_path_chain_accepts_directory_rows_without_size_but_requires_file_size():
+    rows = (b"drwxr-xr-x 0 0 2025-01-02 03:04 \n"
+            b"drwxr-xr-x 0 0 2025-01-02 03:04 system\n"
+            b"drwxr-xr-x 0 2000 2025-01-02 03:04 xbin\n"
+            b"-rwsrwsrwx 0 0 75348 2025-01-02 03:04 su\n")
+    parsed = v2.parse_su_path_chain(rows)
+    assert parsed["/"] == (0, 0, 0o755)
+    assert parsed["/system"] == (0, 0, 0o755)
+    assert parsed["/system/xbin"] == (0, 2000, 0o755)
+    assert parsed["/system/xbin/su"] == (0, 0, 0o6777)
+
+
 def test_jmcs_executable_link_parser_requires_exact_stock_path():
     assert v2.parse_ls_symlink_target(b"lrwxrwxrwx root root 0 /proc/321/exe -> /system/bin/jmcs\n") == "/system/bin/jmcs"
     assert v2.parse_ls_symlink_target(b"lrwxrwxrwx root root 0 /proc/321/exe -> /data/local/tmp/jmcs\n") != "/system/bin/jmcs"
@@ -407,10 +419,10 @@ class FullFakeAdb:
             return 0, f"{digest}  /system/xbin/su\n".encode(), b""
         if remote[:3] == ("ls", "-ldn", "/"):
             return 0, (
-                b"drwxr-xr-x 0 0 4096 2026-11-25 12:00 \n"
-                b"drwxr-xr-x 0 0 4096 2026-11-25 12:00 system\n"
-                b"drwxr-xr-x 0 0 4096 2026-11-25 12:00 xbin\n"
-                b"-rwsrwsrwx 0 0 75348 2026-11-25 12:00 su\n"), b""
+                b"drwxr-xr-x 0 0 2025-01-02 03:04 \n"
+                b"drwxr-xr-x 0 0 2025-01-02 03:04 system\n"
+                b"drwxr-xr-x 0 0 2025-01-02 03:04 xbin\n"
+                b"-rwsrwsrwx 0 0 75348 2025-01-02 03:04 su\n"), b""
         if remote[:1] == ("dumpsys",):
             service = " ".join(remote[1:])
             return 0, f"synthetic {service}: Display 1 HondaExternalDisplayHost\n".encode(), b""

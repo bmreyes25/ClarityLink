@@ -43,15 +43,17 @@ OVERLAY_FILESYSTEMS = frozenset({"overlay", "aufs", "unionfs"})
 
 
 def _api17_ls_layout(fields: list[str], *, has_name: bool = True
-                     ) -> tuple[int, int, int, int, int | None]:
-    """Return UID/GID/size/date indexes for known toolbox numeric long rows.
+                     ) -> tuple[int, int, int | None, int, int | None]:
+    """Return UID/GID/optional-size/date indexes for known numeric long rows.
 
     Android toolbox variants have been observed/documented with and without a
     link-count column. Accept either exact numeric layout only when the
     following date tokens match the legacy `ls` month/day/time or ISO-date/time
     forms. Unknown/localized formats fail closed rather than shifting owners.
     """
-    if len(fields) < (7 if has_name else 6):
+    directory_without_size = fields[0].startswith("d")
+    minimum = (6 if has_name else 5) if directory_without_size else (7 if has_name else 6)
+    if len(fields) < minimum:
         raise SafetyStop("numeric ls output has too few columns")
 
     def valid_timestamp(index: int) -> bool:
@@ -68,6 +70,12 @@ def _api17_ls_layout(fields: list[str], *, has_name: bool = True
         return False
 
     layouts = []
+    # Some API-17 `ls -ldn` builds omit a size column for directories while
+    # retaining mode, numeric UID/GID and timestamp. Root has no basename.
+    if (directory_without_size
+            and all(fields[i].isdecimal() for i in (1, 2))
+            and valid_timestamp(3)):
+        layouts.append((1, 2, None, 3, None))
     # `mode uid gid size date... name`
     if (all(fields[i].isdecimal() for i in (1, 2, 3))
             and valid_timestamp(4)):
@@ -121,7 +129,8 @@ def parse_api17_ls_numeric_line(raw_line: bytes, *, expected_name: str | None = 
                 int(fields[links_index]) if links_index is not None else None),
             "mode_string": mode_string, "mode_octal": f"0o{bits:04o}",
             "setuid": bool(bits & 0o4000), "setgid": bool(bits & 0o2000),
-            "size_bytes": int(fields[size_index]), "date_column_index": date_index,
+            "size_bytes": int(fields[size_index]) if size_index is not None else None,
+            "date_column_index": date_index,
             "name": fields[-1] if has_name else ""}
 
 
