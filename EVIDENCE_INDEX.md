@@ -51,6 +51,8 @@
 
 # Evidence index
 
+- [CL-HONDA-ROOT-ACCESS-V2](step-reports/50-cl-honda-root-access-v2.md) — versioned, bounded owner-approved SuperSU/ADB diagnostic workflow; offline checks only, no Honda session performed.
+
 ## R6H1 Gate 1 CPC200/LIVI Link hardware bring-up
 
 - [R6H1 report](step-reports/43t1-r6h1-gate1-hardware-authority-bringup.md): exact R6H merge and R6H1 starting HEAD; CPC200 absent; stopped before provisioning/authentication; below G1-T0.
