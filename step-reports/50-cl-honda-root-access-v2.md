@@ -51,6 +51,11 @@ and final interactive YES. YES is followed by source/authorization revalidation
 and durable one-use ledger consumption before ADB. Replay, changed source,
 expired authorization, wrong endpoint, or wrong target stops the run.
 
+Profile revision 2.2 pins the unprivileged legacy-`su` digest operation to
+`/system/xbin/busybox sha256sum /system/xbin/su`. It has no utility fallback;
+missing BusyBox or applet output stops before SuperSU invocation. This keeps
+the digest check explicit on API 17 without changing the 141-command budget.
+
 The three snapshots are disconnected baseline, owner-operated normal wired
 CarPlay connected, and normal post-disconnect. They record root identity;
 `jmcs` PID/start-time, all UID/GID slots, command line and executable link;
@@ -108,10 +113,10 @@ source revision. The campaign itself, its profile, and its historical evidence
 were not rewritten. V2 and comprehensive source locks are repinned to their
 actual source contents.
 
-Latest offline verification: full Honda suite **906 passed, 2 skipped, 19
-subtests passed**; the focused runner/integrity/campaign set **178 passed**.
+Latest offline verification: full Honda suite **909 passed, 2 skipped, 19
+subtests passed**; the focused V2/root-integrity/campaign set **181 passed**.
 The comprehensive source-lock verifier reports all 33 pinned sources valid.
-No raw Honda output has been collected.
+Raw Honda output is never included in this report or public Git.
 
 **Observation →** The old campaign has an internal mode-policy conflict. A
 versioned controlled path can evaluate the same archived binary without

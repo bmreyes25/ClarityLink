@@ -1,7 +1,7 @@
 {
-  "schema": "claritylink-honda-root-access-profile-v2.1",
+  "schema": "claritylink-honda-root-access-profile-v2.2",
   "campaign": "CL-HONDA-ROOT-ACCESS-V2",
-  "revision": "2.1",
+  "revision": "2.2",
   "target": {
     "model": "MY16ADA",
     "android_release": "4.2.2",
@@ -29,6 +29,7 @@
   ],
   "fixed_unprivileged_operations": [
     "exact target identity properties", "/proc/mounts", "su file and path-chain metadata",
+    "fixed /system/xbin/busybox sha256sum /system/xbin/su",
     "dumpsys display", "dumpsys window", "dumpsys SurfaceFlinger",
     "dumpsys activity services", "/proc/net/dev"
   ],

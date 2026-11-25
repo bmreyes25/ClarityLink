@@ -172,10 +172,11 @@ def test_generated_authorization_draft_is_private_nonexpiring_and_never_authoriz
         v2.validate_authorization(draft, endpoint="OWNER_FILL_EXACT_ALREADY_AUTHORIZED_ENDPOINT")
 
 
-def test_v21_profile_explicitly_pins_141_command_budget():
+def test_v22_profile_explicitly_pins_141_command_budget_and_hash_operation():
     profile = json.loads(v2.PROFILE_PATH.read_text())
-    assert profile["revision"] == "2.1"
+    assert profile["revision"] == "2.2"
     assert profile["limits"]["commands"] == v2.MAX_COMMANDS == 141
+    assert "fixed /system/xbin/busybox sha256sum /system/xbin/su" in profile["fixed_unprivileged_operations"]
     assert profile["limits"]["command_budget_basis"] == (
         "exact three-phase total: 24 identity + 16 su assessment + "
         "86 root/digest + 15 display/network = 141")
@@ -259,7 +260,8 @@ def test_root_hash_is_last_read_before_privileged_invocation(tmp_path):
         records = []
         def plan(self, operation, args):
             if operation == "hash-su":
-                return (self.adb, "-s", self.serial, "shell", "sha256sum", "/system/xbin/su")
+                return (self.adb, "-s", self.serial, "shell", "/system/xbin/busybox",
+                        "sha256sum", "/system/xbin/su")
             if operation == "ls-su-n":
                 return (self.adb, "-s", self.serial, "shell", "ls", "-n", "/system/xbin/su")
             if operation == "read":
@@ -277,7 +279,7 @@ def test_root_hash_is_last_read_before_privileged_invocation(tmp_path):
     session.commands = 0; session.used = 0; session.files = []; session.adb = fake
     result = session.root("phase", "identity", "identity")
     assert result.startswith(b"uid=0")
-    assert fake.records[-2][-2:] == ("sha256sum", "/system/xbin/su")
+    assert fake.records[-2][-3:] == ("/system/xbin/busybox", "sha256sum", "/system/xbin/su")
     assert fake.records[-1][-2:] == ("-c", "id")
 
 
@@ -288,6 +290,25 @@ def test_archived_owner_identity_and_mode_are_kept_exact():
     assert v2.parse_su_digest((v2.EXPECTED_SU_SHA256 + "  /system/xbin/su\n").encode()) == v2.EXPECTED_SU_SHA256
     with pytest.raises(v2.V2Stop):
         v2.parse_su_digest((v2.EXPECTED_SU_SHA256 + "  /data/local/tmp/su\n").encode())
+
+
+@pytest.mark.parametrize(("raw", "reason"), [
+    (b"/system/bin/sh: /system/xbin/busybox: not found\r\n", "busybox executable"),
+    (b"/system/xbin/busybox: sha256sum: applet not found\r\n", "sha256sum applet"),
+])
+def test_busybox_hash_prerequisite_failures_are_explicit(raw, reason):
+    with pytest.raises(v2.V2Stop, match=reason):
+        v2.parse_su_digest(raw)
+
+
+def test_v22_su_hash_command_is_exact_and_has_no_fallback():
+    class Adb:
+        adb = "/opt/homebrew/bin/adb"
+    command = v2.fixed_su_digest_argv(Adb(), "192.0.2.22:5555")
+    assert command == ("/opt/homebrew/bin/adb", "-s", "192.0.2.22:5555", "shell",
+                       "/system/xbin/busybox", "sha256sum", "/system/xbin/su")
+    with pytest.raises(v2.V2Stop):
+        v2.fixed_su_digest_argv(Adb(), "auto")
 
 
 def test_su_path_chain_rejects_symlinks_and_wrong_names():
@@ -341,7 +362,7 @@ class FullFakeAdb:
         elif operation == "read":
             remote = ("cat", *args)
         elif operation == "hash-su":
-            remote = ("sha256sum", "/system/xbin/su")
+            remote = ("/system/xbin/busybox", "sha256sum", "/system/xbin/su")
         elif operation == "ls-su-n":
             remote = ("ls", "-n", "/system/xbin/su")
         elif operation == "dumpsys":
@@ -378,7 +399,7 @@ class FullFakeAdb:
             if self.malformed_su:
                 return 0, b"-rwsrwsrwx 1 root root mystery su\n", b""
             return 0, b"-rwsrwsrwx 0 0 75348 2026-11-25 12:00 su\n", b""
-        if remote[:2] == ("sha256sum", "/system/xbin/su"):
+        if remote[:3] == ("/system/xbin/busybox", "sha256sum", "/system/xbin/su"):
             self.su_digest_count += 1
             digest = v2.EXPECTED_SU_SHA256
             if self.changing_su_digest and self.su_digest_count == 2:

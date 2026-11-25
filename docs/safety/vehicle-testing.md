@@ -84,7 +84,7 @@ from phase behavior, not guessed from ports.
 
 Before an owner session:
 
-1. Review revision 2.1 of `tools/honda-readonly-preflight/root_access_v2_profile.json`.
+1. Review revision 2.2 of `tools/honda-readonly-preflight/root_access_v2_profile.json`.
    Make a private, non-expiring draft with
    `python3 tools/honda-readonly-preflight/root_access_v2.py --authorization <private-draft-json> --make-authorization-draft`.
    This contacts no device and leaves endpoint, expiry, risk acceptance,
@@ -124,7 +124,7 @@ The local checks establish command bounds and fail-closed behavior only. They
 do not authorize a live run or prove Honda behavior. A fresh owner-approved
 session is still required.
 
-Revision 2.1 budgets exactly 141 ADB commands: 24 target-identity reads, 16
+Revision 2.2 budgets exactly 141 ADB commands: 24 target-identity reads, 16
 mount/path/mode/hash assessment reads, 86 `su` invocation plus immediately
 preceding digest reads, and 15 display/network reads. The runner and profile
 both enforce that reviewed limit; there is no silent allowance change. The
@@ -132,6 +132,9 @@ API-17 Toolbox parser follows the Android 4.2.2 source format: numeric long
 output has mode, UID, GID, size, ISO timestamp and basename, without a link
 count; the root basename is empty. See the upstream
 [Android 4.2.2 Toolbox `ls.c`](https://android.googlesource.com/platform/system/core/%2B/android-4.2.2_r1.2/toolbox/ls.c).
+The fixed `su` digest operation is `/system/xbin/busybox sha256sum
+/system/xbin/su`; it has no utility-path fallback. Missing BusyBox or its
+`sha256sum` applet fails the preflight before any SuperSU invocation.
 
 ## Separate HondaHack UI observation
 

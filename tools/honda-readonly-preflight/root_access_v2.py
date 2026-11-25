@@ -29,9 +29,9 @@ from root_integrity_preflight import (EXPECTED_SU_PATH, EXPECTED_SU_SIZE,
                                       parse_ls_numeric, parse_api17_ls_numeric_line)
 from parsers import parse_proc_stat_start_time
 
-SCHEMA = "claritylink-honda-root-access-authorization-v2.1"
+SCHEMA = "claritylink-honda-root-access-authorization-v2.2"
 CAMPAIGN = "CL-HONDA-ROOT-ACCESS-V2"
-PROFILE_REVISION = "2.1"
+PROFILE_REVISION = "2.2"
 HERE = Path(__file__).resolve().parent
 PROFILE_PATH = HERE / "root_access_v2_profile.json"
 SOURCE_LOCK_PATH = HERE / "root_access_v2_source_lock.json"
@@ -65,10 +65,23 @@ def _mode_bits(mode_text: str) -> int:
 
 
 def parse_su_digest(raw: bytes) -> str:
+    if (b"/system/bin/sh: /system/xbin/busybox: not found" in raw
+            or raw.startswith(b"/system/xbin/busybox: not found")):
+        raise V2Stop("fixed /system/xbin/busybox executable is unavailable; su identity is unverified")
+    if b"sha256sum: applet not found" in raw:
+        raise V2Stop("BusyBox sha256sum applet is unavailable; su identity is unverified")
     match = re.fullmatch(rb"([0-9a-fA-F]{64})\s+/system/xbin/su\s*", raw)
     if not match:
-        raise V2Stop("su digest output did not identify exactly /system/xbin/su")
+        raise V2Stop("fixed BusyBox digest output did not identify exactly /system/xbin/su")
     return match.group(1).decode("ascii").lower()
+
+
+def fixed_su_digest_argv(adb: FixedAdb, endpoint: str) -> tuple[str, ...]:
+    """Build the one fixed API-17 BusyBox SHA-256 operation for the su path."""
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", endpoint) or endpoint.lower() == "auto":
+        raise V2Stop("exact ADB endpoint required for the fixed su digest operation")
+    return (adb.adb, "-s", endpoint, "shell", "/system/xbin/busybox",
+            "sha256sum", EXPECTED_SU_PATH)
 
 
 def parse_su_path_chain(raw: bytes) -> dict[str, tuple[int, int, int]]:
@@ -179,7 +192,7 @@ def source_binding() -> tuple[str, str]:
                       "privileged.py"}
     if not isinstance(lock, dict) or set(lock) != expected_files:
         raise V2Stop("V2 source lock file set changed")
-    if (profile.get("schema") != "claritylink-honda-root-access-profile-v2.1"
+    if (profile.get("schema") != "claritylink-honda-root-access-profile-v2.2"
             or profile.get("campaign") != CAMPAIGN
             or profile.get("revision") != PROFILE_REVISION
             or profile.get("target", {}).get("model") != "MY16ADA"
@@ -200,6 +213,7 @@ def source_binding() -> tuple[str, str]:
                 "/proc/<jmcs-pid>/fd listing", "/proc/net/{tcp,tcp6,udp,udp6,unix}"]
             or profile.get("fixed_unprivileged_operations") != [
                 "exact target identity properties", "/proc/mounts", "su file and path-chain metadata",
+                    "fixed /system/xbin/busybox sha256sum /system/xbin/su",
                 "dumpsys display", "dumpsys window", "dumpsys SurfaceFlinger",
                 "dumpsys activity services", "/proc/net/dev"]
             or profile.get("limits", {}).get("active_session_seconds") != MAX_SECONDS
@@ -419,7 +433,8 @@ class Session:
         mount = covering_mount(mount_raw)
         metadata_raw = self._ordinary("ls-su-n")
         metadata = parse_ls_numeric(metadata_raw)
-        digest_raw = self._ordinary("hash-su")
+        digest_raw = self._ordinary_direct(
+            "hash-su", fixed_su_digest_argv(self.adb, self.endpoint))
         digest = parse_su_digest(digest_raw)
         path_argv = (self.adb.adb, "-s", self.endpoint, "shell", "ls", "-ldn",
                      "/", "/system", "/system/xbin", EXPECTED_SU_PATH)
@@ -465,7 +480,8 @@ class Session:
             return
         if remote == ("cat", "/proc/net/dev"):
             return
-        allowed = {self.adb.plan("hash-su", ()), self.adb.plan("ls-su-n", ()),
+        allowed = {fixed_su_digest_argv(self.adb, self.endpoint),
+                   self.adb.plan("ls-su-n", ()),
                    self.adb.plan("read", ("/proc/mounts",))}
         if argv in allowed:
             return
@@ -514,7 +530,8 @@ class Session:
     def root(self, phase: str, name: str, operation: str, **kwargs) -> bytes:
         # Mount/path/mode are assessed once per phase. The digest is the final
         # target read before each individual privileged invocation.
-        digest = self.call(phase, name + "_su_sha256", self.adb.plan("hash-su", ()), 5, 4096)
+        digest = self.call(phase, name + "_su_sha256",
+                           fixed_su_digest_argv(self.adb, self.endpoint), 5, 4096)
         if parse_su_digest(digest) != EXPECTED_SU_SHA256:
             raise V2Stop("legacy-su digest changed immediately before invocation")
         argv = fixed_root_argv(self.endpoint, operation, **kwargs)
