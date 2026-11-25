@@ -42,16 +42,65 @@ MOUNT_OCTAL_ESCAPE = re.compile(r"\\([0-7]{3})")
 OVERLAY_FILESYSTEMS = frozenset({"overlay", "aufs", "unionfs"})
 
 
-def parse_ls_numeric(raw: bytes) -> dict[str, int | str]:
-    """Parse Android 4.2 toolbox `ls -n` for exactly one regular file."""
-    lines = [line.split() for line in raw.decode("utf-8", "replace").splitlines() if line.strip()]
-    if len(lines) != 1 or len(lines[0]) < 7:
-        raise SafetyStop("numeric ls output did not identify exactly one su file")
-    mode, uid, gid = lines[0][:3]
-    if (len(mode) != 10 or mode[0] != "-" or not uid.isdecimal()
-            or not gid.isdecimal() or not lines[0][3].isdecimal() or lines[0][-1] != "su"):
-        raise SafetyStop("numeric ls output has an unexpected file type, owner, or path")
-    permissions = mode[1:]
+def _api17_ls_layout(fields: list[str], *, has_name: bool = True
+                     ) -> tuple[int, int, int, int, int | None]:
+    """Return UID/GID/size/date indexes for known toolbox numeric long rows.
+
+    Android toolbox variants have been observed/documented with and without a
+    link-count column. Accept either exact numeric layout only when the
+    following date tokens match the legacy `ls` month/day/time or ISO-date/time
+    forms. Unknown/localized formats fail closed rather than shifting owners.
+    """
+    if len(fields) < (7 if has_name else 6):
+        raise SafetyStop("numeric ls output has too few columns")
+
+    def valid_timestamp(index: int) -> bool:
+        tail = fields[index:-1] if has_name else fields[index:]
+        if len(tail) == 2:
+            date, clock = tail
+            return (re.fullmatch(r"\d{4}-\d{2}-\d{2}", date) is not None
+                    and re.fullmatch(r"\d{2}:\d{2}(?::\d{2})?", clock) is not None)
+        if len(tail) == 3:
+            month, day, clock = tail
+            return (re.fullmatch(r"[A-Za-z]{3}", month) is not None
+                    and day.isdecimal()
+                    and re.fullmatch(r"\d{2}:\d{2}(?::\d{2})?", clock) is not None)
+        return False
+
+    layouts = []
+    # `mode uid gid size date... name`
+    if (all(fields[i].isdecimal() for i in (1, 2, 3))
+            and valid_timestamp(4)):
+        layouts.append((1, 2, 3, 4, None))
+    # `mode links uid gid size date... name`
+    if (all(fields[i].isdecimal() for i in (1, 2, 3, 4))
+            and valid_timestamp(5)):
+        layouts.append((2, 3, 4, 5, 1))
+    if len(layouts) != 1:
+        raise SafetyStop("numeric ls output has an unknown or ambiguous API-17 column layout")
+    return layouts[0]
+
+
+def parse_api17_ls_numeric_line(raw_line: bytes, *, expected_name: str | None = None
+                                ) -> dict[str, int | str | None]:
+    """Parse one API-17 toolbox numeric `ls` row without assuming link count."""
+    try:
+        fields = raw_line.decode("utf-8", "strict").split()
+    except UnicodeDecodeError as exc:
+        raise SafetyStop("numeric ls output is not UTF-8") from exc
+    if not fields:
+        raise SafetyStop("numeric ls output row is empty")
+    mode_string = fields[0]
+    if len(mode_string) != 10 or mode_string[0] not in "-dlcbps":
+        raise SafetyStop("numeric ls output has an unsupported file type or mode")
+    has_name = expected_name != ""
+    uid_index, gid_index, size_index, date_index, links_index = _api17_ls_layout(
+        fields, has_name=has_name)
+    if has_name and expected_name is not None and fields[-1] != expected_name:
+        raise SafetyStop("numeric ls output path/name does not match the fixed target")
+    if links_index is not None and int(fields[links_index]) < 1:
+        raise SafetyStop("numeric ls output link count is invalid")
+    permissions = mode_string[1:]
     allowed = (set("r-"), set("w-"), set("xSs"), set("r-"), set("w-"), set("xSs"),
                set("r-"), set("w-"), set("xTt"))
     if any(char not in allowed[index] for index, char in enumerate(permissions)):
@@ -65,10 +114,26 @@ def parse_ls_numeric(raw: bytes) -> dict[str, int | str]:
                 bits |= 1 << (8 - index * 3 - offset)
             elif char in "st" and offset == 2:
                 bits |= 1 << (8 - index * 3 - offset)
-    return {"file_type": "regular", "uid": int(uid), "gid": int(gid),
-            "mode_string": mode, "mode_octal": f"0o{bits:04o}",
+    file_type = {"-": "regular", "d": "directory", "l": "symlink",
+                 "c": "character", "b": "block", "p": "fifo", "s": "socket"}[mode_string[0]]
+    return {"file_type": file_type, "uid": int(fields[uid_index]),
+            "gid": int(fields[gid_index]), "link_count": (
+                int(fields[links_index]) if links_index is not None else None),
+            "mode_string": mode_string, "mode_octal": f"0o{bits:04o}",
             "setuid": bool(bits & 0o4000), "setgid": bool(bits & 0o2000),
-            "size_bytes": int(lines[0][3])}
+            "size_bytes": int(fields[size_index]), "date_column_index": date_index,
+            "name": fields[-1] if has_name else ""}
+
+
+def parse_ls_numeric(raw: bytes) -> dict[str, int | str | None]:
+    """Parse Android 4.2 toolbox `ls -n` for exactly one regular su file."""
+    lines = [line for line in raw.splitlines() if line.strip()]
+    if len(lines) != 1:
+        raise SafetyStop("numeric ls output did not identify exactly one su file")
+    result = parse_api17_ls_numeric_line(lines[0], expected_name="su")
+    if result["file_type"] != "regular":
+        raise SafetyStop("numeric ls su path is not a regular file")
+    return result
 
 
 def _unescape_mount_field(value: str) -> str:

@@ -7,7 +7,7 @@ the receiver. A successful local readiness check is not live authorization.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -26,17 +26,18 @@ from collector import (FixedAdb, SafetyStop, parse_ps_jmcs,
                        EXPECTED_HARDWARE, REPO_ROOT)
 from root_integrity_preflight import (EXPECTED_SU_PATH, EXPECTED_SU_SIZE,
                                       EXPECTED_SU_SHA256, covering_mount,
-                                      parse_ls_numeric)
+                                      parse_ls_numeric, parse_api17_ls_numeric_line)
 from parsers import parse_proc_stat_start_time
 
-SCHEMA = "claritylink-honda-root-access-authorization-v2"
+SCHEMA = "claritylink-honda-root-access-authorization-v2.1"
 CAMPAIGN = "CL-HONDA-ROOT-ACCESS-V2"
+PROFILE_REVISION = "2.1"
 HERE = Path(__file__).resolve().parent
 PROFILE_PATH = HERE / "root_access_v2_profile.json"
 SOURCE_LOCK_PATH = HERE / "root_access_v2_source_lock.json"
 MAX_SECONDS = 900
 MAX_OUTPUT = 12 * 1024 * 1024
-MAX_COMMANDS = 120
+MAX_COMMANDS = 141
 MAX_FDS = 192
 PROCESS_LEAVES = frozenset({"stat", "status", "cmdline", "maps"})
 NETWORK_TABLES = {"tcp": "/proc/net/tcp", "tcp6": "/proc/net/tcp6",
@@ -73,21 +74,20 @@ def parse_su_digest(raw: bytes) -> str:
 def parse_su_path_chain(raw: bytes) -> dict[str, tuple[int, int, int]]:
     """Parse exact `ls -ldn` results and reject links or substituted paths."""
     expected = ("/", "/system", "/system/xbin", EXPECTED_SU_PATH)
-    rows = [line.split() for line in raw.decode("utf-8", "replace").splitlines()
-            if line.strip()]
+    expected_names = ("", "system", "xbin", "su")
+    rows = [line for line in raw.splitlines() if line.strip()]
     if len(rows) != len(expected):
         raise V2Stop("su path chain metadata is incomplete")
     result: dict[str, tuple[int, int, int]] = {}
-    for path, row in zip(expected, rows):
-        if (len(row) < 4 or len(row[0]) != 10 or not row[1].isdecimal()
-                or not row[2].isdecimal() or "->" in row or row[-1] != path):
-            raise V2Stop("su path contains a symlink, substituted path, or malformed metadata")
-        if (path == EXPECTED_SU_PATH and row[0][0] != "-") or (
-                path != EXPECTED_SU_PATH and row[0][0] != "d"):
+    for path, name, row in zip(expected, expected_names, rows):
+        if b" -> " in row:
+            raise V2Stop("su path contains a symlink")
+        metadata = parse_api17_ls_numeric_line(row, expected_name=name)
+        if (metadata["file_type"] != "regular" if path == EXPECTED_SU_PATH
+                else metadata["file_type"] != "directory"):
             raise V2Stop("su path has an unexpected filesystem object type")
-        bits = sum(1 << (8 - i) for i, char in enumerate(row[0][1:10])
-                   if char in "rwx")
-        result[path] = (int(row[1]), int(row[2]), bits)
+        result[path] = (int(metadata["uid"]), int(metadata["gid"]),
+                        int(str(metadata["mode_octal"]), 8))
     if any(uid != 0 for uid, _gid, _mode in result.values()):
         raise V2Stop("su path is not root-owned throughout")
     return result
@@ -179,8 +179,9 @@ def source_binding() -> tuple[str, str]:
                       "privileged.py"}
     if not isinstance(lock, dict) or set(lock) != expected_files:
         raise V2Stop("V2 source lock file set changed")
-    if (profile.get("schema") != "claritylink-honda-root-access-profile-v2"
+    if (profile.get("schema") != "claritylink-honda-root-access-profile-v2.1"
             or profile.get("campaign") != CAMPAIGN
+            or profile.get("revision") != PROFILE_REVISION
             or profile.get("target", {}).get("model") != "MY16ADA"
             or profile.get("target", {}).get("android_release") != EXPECTED_ANDROID_RELEASE
             or profile.get("target", {}).get("android_sdk") != EXPECTED_ANDROID_SDK
@@ -203,6 +204,9 @@ def source_binding() -> tuple[str, str]:
                 "dumpsys activity services", "/proc/net/dev"]
             or profile.get("limits", {}).get("active_session_seconds") != MAX_SECONDS
             or profile.get("limits", {}).get("commands") != MAX_COMMANDS
+            or profile.get("limits", {}).get("command_budget_basis") != (
+                "exact three-phase total: 24 identity + 16 su assessment + "
+                "86 root/digest + 15 display/network = 141")
             or profile.get("limits", {}).get("combined_stdout_stderr_bytes") != MAX_OUTPUT
             or profile.get("limits", {}).get("per_command_seconds") != 10
             or profile.get("limits", {}).get("per_command_bytes") != 2 * 1024 * 1024
@@ -224,7 +228,9 @@ def validate_authorization(value: object, *, endpoint: str, now: datetime | None
                            profile_sha256: str | None = None) -> dict:
     if not isinstance(value, dict) or value.get("schema") != SCHEMA or value.get("campaign") != CAMPAIGN:
         raise V2Stop("authorization schema/campaign mismatch")
-    if value.get("endpoint") != endpoint or value.get("target_properties") != V2_TARGET_IDENTITY:
+    if (not isinstance(endpoint, str) or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", endpoint)
+            or endpoint.startswith("OWNER_") or value.get("endpoint") != endpoint
+            or value.get("target_properties") != V2_TARGET_IDENTITY):
         raise V2Stop("authorization endpoint or target identity mismatch")
     run_id = value.get("run_id")
     if not isinstance(run_id, str) or not re.fullmatch(r"[0-9a-f]{32}", run_id):
@@ -299,10 +305,13 @@ def _read_auth(path: Path, endpoint: str) -> dict:
                                   profile_sha256=profile_hash)
 
 
-def write_authorization_draft(path: Path, endpoint: str) -> Path:
-    """Write a non-authorizing private draft; every owner gate starts false."""
-    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", endpoint) or endpoint.lower() == "auto":
-        raise V2Stop("draft requires an exact endpoint, never auto-selection")
+def write_authorization_draft(path: Path, endpoint: str | None) -> Path:
+    """Write a non-authorizing, non-expiring draft for completion at the car."""
+    if endpoint is None:
+        endpoint = "OWNER_FILL_EXACT_ALREADY_AUTHORIZED_ENDPOINT"
+    elif (not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", endpoint)
+          or endpoint.lower() == "auto"):
+        raise V2Stop("draft endpoint must be exact or omitted; auto-selection is forbidden")
     requested = path.expanduser().absolute()
     if (requested == REPO_ROOT or REPO_ROOT in requested.parents
             or requested.exists() or requested.is_symlink()
@@ -311,7 +320,6 @@ def write_authorization_draft(path: Path, endpoint: str) -> Path:
             or stat.S_IMODE(requested.parent.stat().st_mode) & 0o077):
         raise V2Stop("draft path must be new inside an existing owner-only directory outside Git")
     lock_hash, profile_hash = source_binding()
-    now = datetime.now(timezone.utc)
     draft = {
         "schema": SCHEMA, "campaign": CAMPAIGN, "endpoint": endpoint,
         "target_properties": V2_TARGET_IDENTITY, "run_id": uuid.uuid4().hex,
@@ -319,9 +327,9 @@ def write_authorization_draft(path: Path, endpoint: str) -> Path:
                                            "normal_stock_carplay_transitions"],
         "owner_approved": False, "parked": False, "parking_brake_set": False,
         "owner_present": False, "approved_power_state": False,
-        "power_state": "PARKED_ON_READY_ABSENT",
+        "power_state": "",
         "factory_display_cluster_audio_normal": False,
-        "expires_utc": (now + timedelta(minutes=10)).isoformat(),
+        "expires_utc": None,
         "source_lock_sha256": lock_hash, "profile_sha256": profile_hash,
     }
     fd = os.open(requested, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -350,7 +358,8 @@ def _private_output(path: Path) -> Path:
 
 
 class Session:
-    def __init__(self, endpoint: str, output: Path):
+    def __init__(self, endpoint: str, output: Path, *, source_lock_sha256: str,
+                 profile_sha256: str, expires_utc: str):
         self.endpoint = endpoint
         self.output = output
         self.started = time.monotonic()
@@ -361,12 +370,26 @@ class Session:
         self.adb = FixedAdb(endpoint, resolve_auto=False)
         self.process_binding: tuple[int, int] | None = None
         self.su_environment: dict | None = None
+        self.expected_source_lock_sha256 = source_lock_sha256
+        self.expected_profile_sha256 = profile_sha256
+        self.authorization_expires_utc = expires_utc
 
     def _check_budget(self, *, next_bytes: int = 0) -> None:
         if time.monotonic() - self.started >= MAX_SECONDS:
             raise V2Stop("15-minute session bound reached")
         if self.commands >= MAX_COMMANDS or self.used + next_bytes > MAX_OUTPUT:
             raise V2Stop("session command/output budget exhausted")
+        expires_text = getattr(self, "authorization_expires_utc", None)
+        if expires_text:
+            expiry = datetime.fromisoformat(expires_text.replace("Z", "+00:00"))
+            if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+                raise V2Stop("owner authorization expired during session")
+        expected_lock = getattr(self, "expected_source_lock_sha256", None)
+        expected_profile = getattr(self, "expected_profile_sha256", None)
+        if expected_lock is not None and expected_profile is not None:
+            current_lock, current_profile = source_binding()
+            if current_lock != expected_lock or current_profile != expected_profile:
+                raise V2Stop("V2 source/profile changed during session")
 
     def _ordinary(self, operation: str, *args: str, timeout: int = 5,
                   maximum: int = 128 * 1024) -> bytes:
@@ -375,6 +398,10 @@ class Session:
                                       max_bytes=min(maximum, MAX_OUTPUT - self.used))
         self.commands += 1
         self.used += len(out) + len(err)
+        if code == 124:
+            raise V2Stop(f"unprivileged {operation} timed out; stop without retry")
+        if code == 125:
+            raise V2Stop(f"unprivileged {operation} exceeded its output ceiling; stop without retry")
         if code != 0 or self.used > MAX_OUTPUT or self.commands > MAX_COMMANDS:
             raise V2Stop(f"unprivileged {operation} failed or exceeded session bounds")
         self._persist("preflight", operation + "_" + str(self.commands), out, err)
@@ -476,6 +503,10 @@ class Session:
             self.files.append({"path": str(err_path.relative_to(self.output)),
                                "sha256": hashlib.sha256(err).hexdigest(), "bytes": len(err),
                                "kind": "stderr"})
+        if code == 124:
+            raise V2Stop(f"fixed operation timed out in {phase}/{name}; no retry")
+        if code == 125:
+            raise V2Stop(f"fixed operation exceeded its output ceiling in {phase}/{name}; no retry")
         if code != 0:
             raise V2Stop(f"fixed operation failed in {phase}/{name}; no retry")
         return out
@@ -583,12 +614,13 @@ class Session:
         self.files.append({"path": str(rel), "sha256": hashlib.sha256(out).hexdigest(),
                            "bytes": len(out)})
 
-    def finalize(self, run_id: str, stop: str) -> None:
+    def finalize(self, run_id: str, stop: str, stop_reason: str | None = None) -> None:
         manifest = {"campaign": CAMPAIGN, "schema": 2, "run_id": run_id,
                     "endpoint": self.endpoint, "started_utc": self.started_utc,
                     "created_utc": datetime.now(timezone.utc).isoformat(),
                     "commands": self.commands, "output_bytes": self.used,
-                    "stop_status": stop, "side_effects": ["SuperSU may create daemon/request/log state"],
+                    "stop_status": stop, "stop_reason": stop_reason,
+                    "side_effects": ["SuperSU may create daemon/request/log state"],
                     "artifacts": self.files}
         path = self.output / "manifest.json"
         path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
@@ -601,7 +633,7 @@ class Session:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--serial", required=True)
+    parser.add_argument("--serial")
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--dry-run", action="store_true")
@@ -614,9 +646,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.make_authorization_draft:
             draft = write_authorization_draft(args.authorization, args.serial)
             print(f"Non-authorizing draft written: {draft}")
-            print("Edit only after reviewing the exact profile; keep owner/readiness gates false until the session decision.")
+            print("Endpoint, risk acceptance, expiry, power state and owner/readiness gates require current owner input at the vehicle.")
             return 0
         if args.dry_run:
+            if args.serial is None:
+                raise V2Stop("dry-run command planning requires one exact endpoint")
             source_lock_hash, profile_hash = source_binding()
             print(shlex.join(fixed_root_argv(args.serial, "identity")))
             print("Three snapshots: disconnected baseline, normal CarPlay connected, post-disconnect.")
@@ -626,6 +660,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.output is None:
             raise V2Stop("live execution requires a new private --output path")
+        if args.serial is None:
+            raise V2Stop("live execution requires one exact ADB endpoint")
         auth = _read_auth(args.authorization, args.serial)
         run_id = auth["run_id"]
         auth_digest = hashlib.sha256(args.authorization.read_bytes()).hexdigest()
@@ -639,7 +675,10 @@ def main(argv: list[str] | None = None) -> int:
         home = Path.home()
         consume_run_id(auth["run_id"], home / "Library/Application Support/ClarityLink/root-access-v2/consumed" / auth["run_id"])
         output = _private_output(args.output)
-        session = Session(args.serial, output)
+        session = Session(args.serial, output,
+                          source_lock_sha256=auth["source_lock_sha256"],
+                          profile_sha256=auth["profile_sha256"],
+                          expires_utc=auth["expires_utc"])
         # Refuse device identity drift before any `su` call.
         session.verify_target()
         session.assess_su()
@@ -650,13 +689,14 @@ def main(argv: list[str] | None = None) -> int:
                 raise V2Stop("owner stopped before next phase")
             session.verify_target()
             session.collect_phase(phase)
-        session.finalize(auth["run_id"], "COMPLETE_FIXED_DIAGNOSTIC")
+        session.finalize(auth["run_id"], "COMPLETE_FIXED_DIAGNOSTIC",
+                         "All three owner-confirmed snapshots completed within the fixed profile.")
         print(f"Private evidence saved: {output}")
         return 0
     except (V2Stop, SafetyStop, OSError, ValueError, json.JSONDecodeError) as exc:
         if session is not None and output is not None and output.exists():
             try:
-                session.finalize(run_id, "ABORTED_" + type(exc).__name__)
+                session.finalize(run_id, "ABORTED_" + type(exc).__name__, str(exc))
             except OSError:
                 pass
         print(f"Stopped: {exc}", file=sys.stderr)

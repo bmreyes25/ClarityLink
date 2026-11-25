@@ -1,6 +1,7 @@
 {
-  "schema": "claritylink-honda-root-access-profile-v2",
+  "schema": "claritylink-honda-root-access-profile-v2.1",
   "campaign": "CL-HONDA-ROOT-ACCESS-V2",
+  "revision": "2.1",
   "target": {
     "model": "MY16ADA",
     "android_release": "4.2.2",
@@ -33,7 +34,8 @@
   ],
   "limits": {
     "active_session_seconds": 900,
-    "commands": 120,
+    "commands": 141,
+    "command_budget_basis": "exact three-phase total: 24 identity + 16 su assessment + 86 root/digest + 15 display/network = 141",
     "combined_stdout_stderr_bytes": 12582912,
     "per_command_seconds": 10,
     "per_command_bytes": 2097152,

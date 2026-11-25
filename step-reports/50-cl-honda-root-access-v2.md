@@ -41,9 +41,10 @@ source pins remain historical and cannot authorize this root session.
 ## V2 workflow
 
 `tools/honda-readonly-preflight/root_access_v2.py` accepts only an exact ADB
-endpoint and exact fixed operations. The draft helper starts every owner and
-readiness field false, writes mode 0600 in an existing owner-only directory,
-and performs no device I/O. A live invocation requires profile/source-lock
+endpoint and exact fixed operations. The draft helper leaves the endpoint,
+expiry, risk acceptance and power state blank and starts every owner/readiness
+field false. It writes mode 0600 in an existing owner-only directory and
+performs no device I/O. A live invocation requires profile/source-lock
 hashes, target properties, one fresh 128-bit run ID, exact scope, a 15-minute
 expiry, `PARKED_ON_READY_ABSENT`, an explicit SuperSU side-effect acceptance,
 and final interactive YES. YES is followed by source/authorization revalidation
@@ -59,7 +60,7 @@ metadata. A private correlation summary joins exact `jmcs` socket FD inodes to
 network table rows. A match demonstrates process ownership only; it does not
 label an endpoint as control or media without phase evidence.
 
-Limits are 15 minutes, 120 commands, 12 MiB combined output, 10 seconds and
+Limits are 15 minutes, 141 commands, 12 MiB combined output, 10 seconds and
 2 MiB per command, and at most 192 `jmcs` FD rows. There is no retry, endpoint
 fallback, device scan, `adb root`, custom helper, memory read, process attach,
 packet capture, or arbitrary-shell argument. Raw records stay outside Git in
@@ -84,7 +85,33 @@ Host tests verify `06777` risk classification, read-only versus writable mount,
 symlink/path/ownership/hash/size checks, parent write-bit rejection, exact
 target and authorization binding, expiry, missing risk acceptance, replay,
 source tampering, command allowlisting, output/timeout stop behavior, and
-private abort manifests. All raw Honda output remains uncollected.
+private abort manifests. The exact 141-command budget is the sum of 24 target
+identity reads, 16 SuperSU mount/path/mode/hash assessment reads, 86 elevated
+invocation and immediately preceding digest reads, and 15 display/network
+reads. A full fake-ADB run must exercise all three phases at exactly this
+count; no real ADB process is used by the harness.
+
+Android 4.2.2 AOSP `toolbox/ls.c` confirms that `-n` selects numeric long
+output with mode, UID, GID, size, ISO timestamp and basename, without link
+count. The root basename is empty. The parser accepts that exact form plus a
+separately tested numeric link-count layout, and rejects unknown dates,
+ambiguous columns, malformed mode/owner, unexpected names and symlinks. Source:
+[Android 4.2.2 Toolbox `ls.c`](https://android.googlesource.com/platform/system/core/%2B/android-4.2.2_r1.2/toolbox/ls.c).
+
+The earlier Offline CI collection failure was caused by the active campaign
+source lock retaining the collector digest from commit `d16488b`, before commit
+`26e58e4` changed the fixed `hash-jmcs` command to use the documented BusyBox
+path. The lock is now updated to the actual current collector SHA-256; the old
+digest remains in Git history and was not represented as the new digest. Any
+approval bound to the previous source map is stale and cannot authorize this
+source revision. The campaign itself, its profile, and its historical evidence
+were not rewritten. V2 and comprehensive source locks are repinned to their
+actual source contents.
+
+Latest offline verification: full Honda suite **906 passed, 2 skipped, 19
+subtests passed**; the focused runner/integrity/campaign set **178 passed**.
+The comprehensive source-lock verifier reports all 33 pinned sources valid.
+No raw Honda output has been collected.
 
 **Observation →** The old campaign has an internal mode-policy conflict. A
 versioned controlled path can evaluate the same archived binary without

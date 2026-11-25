@@ -84,17 +84,18 @@ from phase behavior, not guessed from ports.
 
 Before an owner session:
 
-1. Review `tools/honda-readonly-preflight/root_access_v2_profile.json`. Make a
-   private draft with
-   `python3 tools/honda-readonly-preflight/root_access_v2.py --serial <exact-private-endpoint> --authorization <new-private-0600-json> --make-authorization-draft`.
-   This contacts no device and writes every approval/readiness flag as false.
-   Run the same command with `--dry-run` to read the current profile and
-   source-lock hashes. Bind the authorization to those hashes, exact endpoint,
-   expected target properties, a fresh 128-bit run ID, the fixed scope, an
-   expiry within 15 minutes, and the exact risk-acceptance sentence in the
-   tool. Set `power_state` to `PARKED_ON_READY_ABSENT` and each owner/readiness
-   field only after verifying it. Keep the authorization under mode 0600 in
-   an owner-only directory. A draft is not authorization.
+1. Review revision 2.1 of `tools/honda-readonly-preflight/root_access_v2_profile.json`.
+   Make a private, non-expiring draft with
+   `python3 tools/honda-readonly-preflight/root_access_v2.py --authorization <private-draft-json> --make-authorization-draft`.
+   This contacts no device and leaves endpoint, expiry, risk acceptance,
+   power-state and all owner/readiness fields blank or false. Run
+   `python3 tools/honda-readonly-preflight/root_access_v2.py --serial <exact-private-endpoint> --authorization <private-draft-json> --dry-run`
+   once the owner supplies the exact already-authorized endpoint. At the car,
+   after physical readiness confirmation, create a fresh run ID and expiry
+   within 15 minutes, enter the exact endpoint, acknowledge the named risk,
+   and set the approval/readiness fields. Bind the authorization to the current
+   profile/source-lock hashes and target properties. Keep it mode 0600 in an
+   owner-only directory. A draft is not authorization.
 2. Prepare an existing owner-only evidence parent directory (mode 0700), a new
    output path beneath it, and the local consumed-run ledger. Use the exact
    already-authorized endpoint; do not run `adb devices` or switch transports.
@@ -122,6 +123,15 @@ Before an owner session:
 The local checks establish command bounds and fail-closed behavior only. They
 do not authorize a live run or prove Honda behavior. A fresh owner-approved
 session is still required.
+
+Revision 2.1 budgets exactly 141 ADB commands: 24 target-identity reads, 16
+mount/path/mode/hash assessment reads, 86 `su` invocation plus immediately
+preceding digest reads, and 15 display/network reads. The runner and profile
+both enforce that reviewed limit; there is no silent allowance change. The
+API-17 Toolbox parser follows the Android 4.2.2 source format: numeric long
+output has mode, UID, GID, size, ISO timestamp and basename, without a link
+count; the root basename is empty. See the upstream
+[Android 4.2.2 Toolbox `ls.c`](https://android.googlesource.com/platform/system/core/%2B/android-4.2.2_r1.2/toolbox/ls.c).
 
 ## Separate HondaHack UI observation
 

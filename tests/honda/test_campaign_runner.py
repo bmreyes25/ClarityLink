@@ -51,7 +51,14 @@ def test_historical_cp_profile_pins_are_unchanged_and_policy_drift_fails_closed(
     assert campaign.BASELINE_COMMAND_MANIFEST_SHA256 == expected_manifest
     assert campaign.command_manifest_sha256() == expected_manifest
     assert sum(len(phase.operations) for phase in campaign.phases()) == 135
-    assert hashlib.sha256(campaign.SOURCE_LOCK_FILE.read_bytes()).hexdigest() == expected_source_lock
+    historical_lock = TOOLS / "campaign_source_hashes_d16488b.json"
+    assert hashlib.sha256(historical_lock.read_bytes()).hexdigest() == expected_source_lock
+    historical_sources = json.loads(historical_lock.read_text())
+    assert historical_sources["collector.py"] == (
+        "077abdb15945e516a8e4866b79085074ba2df06700bec08bc559f683401735fb")
+    # The current C-P source lock accurately pins the later collector update;
+    # old approvals bound to the preserved historical lock cannot authorize it.
+    assert campaign.source_hashes() == json.loads(campaign.SOURCE_LOCK_FILE.read_text())
     monkeypatch.setattr(campaign, "PROFILE_FILE", HISTORICAL_PROFILE_FILE)
     monkeypatch.setattr(campaign, "PROFILE_HASH_FILE", HISTORICAL_PROFILE_HASH_FILE)
     with pytest.raises(collector.SafetyStop, match="profile file does not match the executable fixed profile"):
