@@ -1,0 +1,50 @@
+{
+  "schema": "claritylink-honda-root-access-profile-v2",
+  "campaign": "CL-HONDA-ROOT-ACCESS-V2",
+  "target": {
+    "model": "MY16ADA",
+    "android_release": "4.2.2",
+    "android_sdk": "17",
+    "product_device": "vcm30t30a",
+    "product_board": "Andromeda",
+    "hardware": "vcm30t30",
+    "receiver_process": "/system/bin/jmcs"
+  },
+  "transport": "One exact existing owner-authorized ADB endpoint; no device enumeration, scan, fallback, or transport change.",
+  "legacy_su": {
+    "path": "/system/xbin/su",
+    "sha256": "d95fdbb551aca66d8a81471ea7683f58dba75a09d5cdc4712209b955574eab26",
+    "archived_size_bytes": 75348,
+    "archived_mode_octal": "06777",
+    "archived_owner": "root:root",
+    "mode_risk": "HIGH: group and other have write permission bits; eligibility requires current read-only covering mount, exact non-symlink path, and non-writable root-owned parent directories.",
+    "invocation_effects": ["SuperSU authorization prompt/policy", "daemon start or contact", "request/log state", "possible persistent target writes"],
+    "hash_is_sufficient_integrity_proof": false
+  },
+  "phases": ["disconnected_baseline", "normal_stock_carplay_connected", "normal_post_disconnect"],
+  "fixed_root_operations": [
+    "id", "ps", "/proc/<jmcs-pid>/{stat,status,cmdline,exe,maps}",
+    "/proc/<jmcs-pid>/fd listing", "/proc/net/{tcp,tcp6,udp,udp6,unix}"
+  ],
+  "fixed_unprivileged_operations": [
+    "exact target identity properties", "/proc/mounts", "su file and path-chain metadata",
+    "dumpsys display", "dumpsys window", "dumpsys SurfaceFlinger",
+    "dumpsys activity services", "/proc/net/dev"
+  ],
+  "limits": {
+    "active_session_seconds": 900,
+    "commands": 120,
+    "combined_stdout_stderr_bytes": 12582912,
+    "per_command_seconds": 10,
+    "per_command_bytes": 2097152,
+    "max_jmcs_fd_rows": 192,
+    "retry": false,
+    "fallback": false
+  },
+  "privacy": {
+    "raw_output": "Private host path outside the Git worktree, owner-only directory 0700 and files 0600.",
+    "public": "Never include raw /proc, endpoint, serial, network addresses, credentials, keys, or session secrets.",
+    "memory_or_secrets": "No memory, environ, keys, credentials, decrypted traffic, process attachment, or packet capture."
+  },
+  "cleanup": "Stop ADB collection, preserve partial host evidence, do not attempt to remove SuperSU daemon/log/policy state; those side effects may persist. Owner restores normal stock CarPlay disconnect and factory UI state through ordinary controls."
+}
