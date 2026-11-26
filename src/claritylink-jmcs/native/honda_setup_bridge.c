@@ -17,12 +17,11 @@ static void initialize_bridge_result(CLHondaSetupBridgeResult *result) {
     result->child.readiness_result = CL_NATIVE_READINESS_ERROR;
     result->child.prepare_result = CL_NATIVE_PREPARE_ERROR;
     result->callback_context = 0;
+    result->type111_callback_context = 0;
     result->captured_release_response = 0;
     result->captured_withdraw_type111 = 0;
     result->captured_withdraw_parent_type111 = 0;
-    result->parent_session = 0;
     result->parent_generation = 0;
-    result->stream_connection = 0;
     result->stream_generation = 0;
     result->pending = 0;
     result->awaiting_delivery = 0;
@@ -50,13 +49,11 @@ static void release_candidate(CLHondaSetupBridgeResult *result) {
 }
 
 static int32_t withdraw_child(CLHondaSetupBridgeResult *result) {
-    if (!result->captured_withdraw_type111 || !result->parent_session ||
-        result->parent_generation == 0 || !result->stream_connection ||
-        result->stream_generation == 0)
+    if (!result->captured_withdraw_type111 ||
+        result->parent_generation == 0 || result->stream_generation == 0)
         return -1;
     return result->captured_withdraw_type111(
-        result->callback_context, result->parent_session,
-        result->parent_generation, result->stream_connection,
+        result->type111_callback_context, result->parent_generation,
         result->stream_generation);
 }
 
@@ -105,6 +102,7 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
         return out_result->code;
     }
     out_result->callback_context = bindings->context;
+    out_result->type111_callback_context = bindings->type111_ops.context;
     out_result->captured_release_response = bindings->release_response;
     out_result->captured_withdraw_type111 =
         bindings->type111_ops.withdraw_type111;
@@ -146,9 +144,7 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
                 : CL_HONDA_BRIDGE_CHILD_REJECTED;
         return out_result->code;
     }
-    out_result->parent_session = child_request.parent_session;
     out_result->parent_generation = child_request.parent_generation;
-    out_result->stream_connection = child_request.stream_connection;
     out_result->stream_generation = child_request.stream_generation;
 
     if (bindings->build_response_candidate(
@@ -250,9 +246,9 @@ CLHondaBridgeCode cl_honda_setup_bridge_parent_ended(
         result->withdrawal_attempted = 1;
         result->withdrawal_status =
             (result->captured_withdraw_parent_type111 &&
-             result->parent_session && result->parent_generation != 0)
+             result->parent_generation != 0)
                 ? result->captured_withdraw_parent_type111(
-                      result->callback_context, result->parent_session,
+                      result->type111_callback_context,
                       result->parent_generation)
                 : -1;
         result->resources_may_remain = result->withdrawal_status != 0;

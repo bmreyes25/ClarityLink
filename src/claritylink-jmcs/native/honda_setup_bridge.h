@@ -82,16 +82,18 @@ typedef struct CLHondaSetupBridgeResult {
     void *candidate_response;
     void *selected_response;
     CLNativeSetupResult child;
+    /* Main context belongs to extract/build/release callbacks. Type111 context
+     * is captured separately from type111_ops.context and used for every
+     * prepare/commit/rollback/withdraw operation. Both must outlive cleanup. */
     void *callback_context;
+    void *type111_callback_context;
     CLHondaReleaseResponseFn captured_release_response;
-    int32_t (*captured_withdraw_type111)(
-        void *context, const void *parent_session, uint64_t parent_generation,
-        const void *stream_connection, uint64_t stream_generation);
+    int32_t (*captured_withdraw_type111)(void *context,
+                                         uint64_t parent_generation,
+                                         uint64_t stream_generation);
     int32_t (*captured_withdraw_parent_type111)(
-        void *context, const void *parent_session, uint64_t parent_generation);
-    const void *parent_session;
+        void *context, uint64_t parent_generation);
     uint64_t parent_generation;
-    const void *stream_connection;
     uint64_t stream_generation;
     int32_t pending;
     int32_t awaiting_delivery;

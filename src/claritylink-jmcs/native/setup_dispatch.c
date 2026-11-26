@@ -234,23 +234,18 @@ CLNativeSetupCode cl_native_setup_finalize_type111(
 }
 
 int32_t cl_native_setup_withdraw_type111(
-    const CLNativeSetupOps *ops, const void *parent_session,
-    uint64_t parent_generation, const void *stream_connection,
+    const CLNativeSetupOps *ops, uint64_t parent_generation,
     uint64_t stream_generation) {
-    if (!ops || !ops->withdraw_type111 || !parent_session ||
-        parent_generation == 0 || !stream_connection || stream_generation == 0)
+    if (!ops || !ops->withdraw_type111 || parent_generation == 0 ||
+        stream_generation == 0)
         return -1;
-    return ops->withdraw_type111(ops->context, parent_session,
-                                 parent_generation, stream_connection,
+    return ops->withdraw_type111(ops->context, parent_generation,
                                  stream_generation);
 }
 
 int32_t cl_native_setup_withdraw_parent_type111(
-    const CLNativeSetupOps *ops, const void *parent_session,
-    uint64_t parent_generation) {
-    if (!ops || !ops->withdraw_parent_type111 || !parent_session ||
-        parent_generation == 0)
+    const CLNativeSetupOps *ops, uint64_t parent_generation) {
+    if (!ops || !ops->withdraw_parent_type111 || parent_generation == 0)
         return -1;
-    return ops->withdraw_parent_type111(ops->context, parent_session,
-                                       parent_generation);
+    return ops->withdraw_parent_type111(ops->context, parent_generation);
 }

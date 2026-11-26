@@ -14,6 +14,8 @@ extern "C" {
  * this interface does not describe a Honda private struct layout. */
 typedef struct CLNativeSetupRequest {
     int32_t stream_type;
+    /* Honda object handles are borrowed during synchronous validate/prepare;
+     * delayed cleanup uses only project-owned generation keys below. */
     const void *parent_session;
     uint64_t parent_generation;
     const void *stream_connection;
@@ -62,6 +64,8 @@ typedef enum CLNativeSetupCode {
 } CLNativeSetupCode;
 
 typedef struct CLNativeSetupOps {
+    /* Must remain valid through every prepared transaction and later
+     * generation-keyed withdrawal associated with this context. */
     void *context;
     /* Called unchanged for 100/101/110 and unknown types. Return 0 on stock
      * success; response_entry is borrowed from the factory owner. */
@@ -93,12 +97,12 @@ typedef struct CLNativeSetupOps {
      * storage or its borrowed capability handle. */
     void (*rollback_type111)(void *context, void *transaction,
                              const void *candidate_entry);
-    int32_t (*withdraw_type111)(void *context, const void *parent_session,
-                                uint64_t parent_generation,
-                                const void *stream_connection,
+    /* Delayed cleanup must not retain or dereference borrowed Honda object
+     * handles. parent_generation is unique and not reused until all its child
+     * state is gone; stream_generation is unique within that parent. */
+    int32_t (*withdraw_type111)(void *context, uint64_t parent_generation,
                                 uint64_t stream_generation);
     int32_t (*withdraw_parent_type111)(void *context,
-                                       const void *parent_session,
                                        uint64_t parent_generation);
 } CLNativeSetupOps;
 
@@ -131,8 +135,10 @@ typedef struct CLNativeSetupResult {
  * too-many-request and missing-result-array errors leave outputs untouched.
  * A null opaque_request in any element invalidates every result before any
  * factory callback is invoked.
- * The prepare callback must retain or encode its immutable identity and
- * required handle lifetimes in the transaction before returning. A prepared
+ * The prepare callback must retain or encode its immutable project-owned
+ * generation identity and required resource lifetimes in the transaction
+ * before returning; it must not retain borrowed Honda handles. Parent
+ * generations cannot be reused until all child state is withdrawn. A prepared
  * result is transaction state: the caller must not modify, drop, or reuse it
  * and must finalize it exactly once. Passing serialization_succeeded=0 is the
  * abort/rollback path. The adapter allocates no memory and bounds processing
@@ -163,12 +169,10 @@ CLNativeSetupCode cl_native_setup_finalize_type111(
 /* Independent stream and parent teardown are delegated to project-owned
  * lifecycle callbacks. No Type110 callback or state is reachable here. */
 int32_t cl_native_setup_withdraw_type111(
-    const CLNativeSetupOps *ops, const void *parent_session,
-    uint64_t parent_generation, const void *stream_connection,
+    const CLNativeSetupOps *ops, uint64_t parent_generation,
     uint64_t stream_generation);
 int32_t cl_native_setup_withdraw_parent_type111(
-    const CLNativeSetupOps *ops, const void *parent_session,
-    uint64_t parent_generation);
+    const CLNativeSetupOps *ops, uint64_t parent_generation);
 
 #ifdef __cplusplus
 }
