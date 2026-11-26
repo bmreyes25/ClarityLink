@@ -20,6 +20,8 @@ typedef struct MockState {
     int prepare_calls;
     int commit_calls;
     int rollback_calls;
+    int withdraw_calls;
+    int withdraw_parent_calls;
     int stock_status;
     int extract_count;
     int extract_result;
@@ -27,6 +29,8 @@ typedef struct MockState {
     int validate_ready;
     int authority_unavailable;
     int commit_status;
+    int withdraw_status;
+    int withdraw_parent_status;
     void *session;
     const void *request;
     const void *stream_descriptor;
@@ -137,15 +141,20 @@ static int32_t withdraw_child(void *context, const void *parent,
                               uint64_t parent_generation,
                               const void *connection,
                               uint64_t stream_generation) {
-    (void)context; (void)parent; (void)parent_generation;
-    (void)connection; (void)stream_generation;
-    return 0;
+    MockState *mock = (MockState *)context;
+    if (parent != mock->session || parent_generation != 3 ||
+        connection != (const void *)(uintptr_t)0x5550 || stream_generation != 8)
+        return -1;
+    ++mock->withdraw_calls;
+    return mock->withdraw_status;
 }
 
 static int32_t withdraw_parent(void *context, const void *parent,
                                uint64_t parent_generation) {
-    (void)context; (void)parent; (void)parent_generation;
-    return 0;
+    MockState *mock = (MockState *)context;
+    if (parent != mock->session || parent_generation != 3) return -1;
+    ++mock->withdraw_parent_calls;
+    return mock->withdraw_parent_status;
 }
 
 static void configure(MockState *mock, CLHondaSetupBridgeBindings *bindings) {
@@ -211,13 +220,27 @@ static int test_child_pending_commit_and_original_preservation(void) {
         mock.candidate_response.type110_entry != mock.stock_response.type110_entry ||
         mock.candidate_response.type111_entry != &mock.child_entry)
         return 1;
-    if (cl_honda_setup_bridge_complete(&bindings, &result, 1) !=
-            CL_HONDA_BRIDGE_TYPE111_COMMITTED ||
+    if (cl_honda_setup_bridge_complete(&result, 1) !=
+            CL_HONDA_BRIDGE_PENDING_DELIVERY ||
         mock.commit_calls != 1 || mock.rollback_calls != 0 ||
-        result.selected_response != &mock.candidate_response ||
-        !result.candidate_transferred || result.pending ||
-        mock.stock_release_calls != 1 || result.stock_response != 0)
+        !result.awaiting_delivery || result.pending ||
+        result.selected_response != &mock.candidate_response)
         return 2;
+    /* Replacing the caller's binding table after prepare cannot redirect
+       delivery cleanup to another callback context. */
+    bindings.context = 0;
+    bindings.type111_ops.withdraw_type111 = 0;
+    if (cl_honda_setup_bridge_delivery(&result, CL_HONDA_DELIVERY_SENT) !=
+            CL_HONDA_BRIDGE_TYPE111_COMMITTED ||
+        mock.stock_release_calls != 1 || mock.release_calls != 1 ||
+        !result.delivery_confirmed || result.stock_response ||
+        result.candidate_response)
+        return 3;
+    if (cl_honda_setup_bridge_parent_ended(&result) !=
+            CL_HONDA_BRIDGE_PARENT_ENDED || mock.withdraw_parent_calls != 1 ||
+        cl_honda_setup_bridge_parent_ended(&result) !=
+            CL_HONDA_BRIDGE_PARENT_ENDED || mock.withdraw_parent_calls != 1)
+        return 4;
     return 0;
 }
 
@@ -271,7 +294,7 @@ static int test_invalid_readiness_build_and_serialize_rollback(void) {
     if (cl_honda_setup_bridge_call(&bindings, 1, mock.session, mock.request,
                                    &result) != CL_HONDA_BRIDGE_TYPE111_PENDING)
         return 4;
-    if (cl_honda_setup_bridge_complete(&bindings, &result, 0) !=
+    if (cl_honda_setup_bridge_complete(&result, 0) !=
             CL_HONDA_BRIDGE_SERIALIZATION_FAILED ||
         mock.rollback_calls != 1 || mock.release_calls != 1 ||
         result.selected_response != &mock.stock_response || result.pending)
@@ -288,7 +311,7 @@ static int test_commit_failure_and_duplicate_reject(void) {
                                    &result) != CL_HONDA_BRIDGE_TYPE111_PENDING)
         return 1;
     mock.commit_status = -1;
-    if (cl_honda_setup_bridge_complete(&bindings, &result, 1) !=
+    if (cl_honda_setup_bridge_complete(&result, 1) !=
             CL_HONDA_BRIDGE_COMMIT_FAILED ||
         mock.rollback_calls != 1 || mock.release_calls != 1 ||
         result.selected_response != &mock.stock_response)
@@ -299,6 +322,81 @@ static int test_commit_failure_and_duplicate_reject(void) {
                                    &result) != CL_HONDA_BRIDGE_EXTRACT_FAILED ||
         mock.stock_calls != 1 || mock.prepare_calls != 0 ||
         result.selected_response != &mock.stock_response)
+        return 3;
+    return 0;
+}
+
+static int test_delivery_failure_and_parent_loss_cleanup(void) {
+    MockState mock;
+    CLHondaSetupBridgeBindings bindings;
+    CLHondaSetupBridgeResult result;
+    configure(&mock, &bindings);
+    if (cl_honda_setup_bridge_call(&bindings, 1, mock.session, mock.request,
+                                   &result) != CL_HONDA_BRIDGE_TYPE111_PENDING ||
+        cl_honda_setup_bridge_complete(&result, 1) !=
+            CL_HONDA_BRIDGE_PENDING_DELIVERY)
+        return 1;
+    if (cl_honda_setup_bridge_delivery(
+            &result, CL_HONDA_DELIVERY_NOT_PUBLISHED) !=
+            CL_HONDA_BRIDGE_DELIVERY_FAILED ||
+        mock.withdraw_calls != 1 || mock.release_calls != 1 ||
+        result.selected_response != &mock.stock_response ||
+        result.stock_response != 0 || mock.stock_release_calls != 0)
+        return 2;
+    if (cl_honda_setup_bridge_parent_ended(&result) !=
+            CL_HONDA_BRIDGE_PARENT_ENDED || mock.withdraw_parent_calls != 0)
+        return 3;
+
+    configure(&mock, &bindings);
+    if (cl_honda_setup_bridge_call(&bindings, 1, mock.session, mock.request,
+                                   &result) != CL_HONDA_BRIDGE_TYPE111_PENDING ||
+        cl_honda_setup_bridge_complete(&result, 1) !=
+            CL_HONDA_BRIDGE_PENDING_DELIVERY)
+        return 4;
+    if (cl_honda_setup_bridge_parent_ended(&result) !=
+            CL_HONDA_BRIDGE_PARENT_ENDED || mock.withdraw_parent_calls != 1 ||
+        mock.release_calls != 1 || mock.stock_release_calls != 1 ||
+        result.candidate_response || result.stock_response ||
+        cl_honda_setup_bridge_delivery(&result, CL_HONDA_DELIVERY_SENT) !=
+            CL_HONDA_BRIDGE_INVALID_ARGUMENT)
+        return 5;
+    return 0;
+}
+
+static int test_failed_withdrawal_is_not_reported_as_clean(void) {
+    MockState mock;
+    CLHondaSetupBridgeBindings bindings;
+    CLHondaSetupBridgeResult result;
+    configure(&mock, &bindings);
+    mock.withdraw_status = -41;
+    if (cl_honda_setup_bridge_call(&bindings, 1, mock.session, mock.request,
+                                   &result) != CL_HONDA_BRIDGE_TYPE111_PENDING ||
+        cl_honda_setup_bridge_complete(&result, 1) !=
+            CL_HONDA_BRIDGE_PENDING_DELIVERY)
+        return 1;
+    if (cl_honda_setup_bridge_delivery(
+            &result, CL_HONDA_DELIVERY_NOT_PUBLISHED) !=
+            CL_HONDA_BRIDGE_CLEANUP_FAILED ||
+        !result.withdrawal_attempted || result.withdrawal_status != -41 ||
+        !result.resources_may_remain || mock.withdraw_calls != 1 ||
+        mock.release_calls != 1 || mock.stock_release_calls != 1 ||
+        result.stock_response || result.selected_response ||
+        cl_honda_setup_bridge_delivery(
+            &result, CL_HONDA_DELIVERY_PARTIAL_OR_UNKNOWN) !=
+            CL_HONDA_BRIDGE_INVALID_ARGUMENT)
+        return 2;
+
+    configure(&mock, &bindings);
+    mock.withdraw_parent_status = -42;
+    if (cl_honda_setup_bridge_call(&bindings, 1, mock.session, mock.request,
+                                   &result) != CL_HONDA_BRIDGE_TYPE111_PENDING ||
+        cl_honda_setup_bridge_complete(&result, 1) !=
+            CL_HONDA_BRIDGE_PENDING_DELIVERY ||
+        cl_honda_setup_bridge_parent_ended(&result) !=
+            CL_HONDA_BRIDGE_CLEANUP_FAILED ||
+        result.withdrawal_status != -42 || !result.resources_may_remain ||
+        cl_honda_setup_bridge_parent_ended(&result) !=
+            CL_HONDA_BRIDGE_CLEANUP_FAILED || mock.withdraw_parent_calls != 1)
         return 3;
     return 0;
 }
@@ -314,6 +412,10 @@ int main(void) {
     if (result) return 40 + result;
     result = test_commit_failure_and_duplicate_reject();
     if (result) return 50 + result;
+    result = test_delivery_failure_and_parent_loss_cleanup();
+    if (result) return 60 + result;
+    result = test_failed_withdrawal_is_not_reported_as_clean();
+    if (result) return 70 + result;
     puts("HONDA_SETUP_BRIDGE_PASS stock_once=PASS type111_gate=PASS rollback=PASS");
     return 0;
 }

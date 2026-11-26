@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[3]
 BRIDGE = ROOT / "src/claritylink-jmcs/native/honda_setup_bridge.c"
 DISPATCH = ROOT / "src/claritylink-jmcs/native/setup_dispatch.c"
 HARNESS = ROOT / "tests/jmcs/native/honda_setup_bridge_harness.c"
+CFLITE_ADAPTER = ROOT / "src/claritylink-jmcs/native/honda_cflite_adapter.c"
+CFLITE_HARNESS = ROOT / "tests/jmcs/native/honda_cflite_adapter_synthetic_harness.c"
 
 
 def checked(command: list[str], timeout: int = 30) -> str:
@@ -32,6 +34,17 @@ def test_synthetic_whole_request_bridge_contract(tmp_path: Path) -> None:
              str(DISPATCH), str(BRIDGE), str(HARNESS), "-o", str(exe)])
     output = checked([str(exe)], timeout=10)
     assert "HONDA_SETUP_BRIDGE_PASS" in output
+
+
+def test_synthetic_typed_honda_cflite_adapter(tmp_path: Path) -> None:
+    clang = shutil.which("clang")
+    if not clang:
+        pytest.fail("clang required for synthetic CFLite adapter contract")
+    exe = tmp_path / "honda_cflite_adapter_synthetic"
+    checked([clang, "-Wall", "-Wextra", "-Werror", "-UNDEBUG", "-std=c11",
+             str(CFLITE_ADAPTER), str(CFLITE_HARNESS), "-o", str(exe)])
+    output = checked([str(exe)], timeout=10)
+    assert "SYNTHETIC_CFLITE_ADAPTER_PASS" in output
 
 
 def ndk_bin(ndk: Path) -> Path | None:
@@ -59,7 +72,8 @@ def test_api17_armv7_thumb_bridge_object_has_expected_abi(tmp_path: Path) -> Non
         pytest.skip("NDK clang/readelf/objdump unavailable")
 
     objects = []
-    for name, source in (("bridge", BRIDGE), ("dispatch", DISPATCH)):
+    for name, source in (("bridge", BRIDGE), ("dispatch", DISPATCH),
+                         ("cflite_adapter", CFLITE_ADAPTER)):
         obj = tmp_path / f"{name}.o"
         checked([str(clang), "--target=armv7a-linux-androideabi17",
                  "-mcpu=cortex-a9", "-mthumb", "-mfloat-abi=soft",

@@ -16,8 +16,21 @@ static void initialize_bridge_result(CLHondaSetupBridgeResult *result) {
     result->child.rollback_callback = 0;
     result->child.readiness_result = CL_NATIVE_READINESS_ERROR;
     result->child.prepare_result = CL_NATIVE_PREPARE_ERROR;
+    result->callback_context = 0;
+    result->captured_release_response = 0;
+    result->captured_withdraw_type111 = 0;
+    result->captured_withdraw_parent_type111 = 0;
+    result->parent_session = 0;
+    result->parent_generation = 0;
+    result->stream_connection = 0;
+    result->stream_generation = 0;
     result->pending = 0;
-    result->candidate_transferred = 0;
+    result->awaiting_delivery = 0;
+    result->delivery_confirmed = 0;
+    result->parent_ended = 0;
+    result->withdrawal_attempted = 0;
+    result->withdrawal_status = 0;
+    result->resources_may_remain = 0;
 }
 
 static void rollback_child(CLHondaSetupBridgeResult *result) {
@@ -26,12 +39,25 @@ static void rollback_child(CLHondaSetupBridgeResult *result) {
     result->pending = 0;
 }
 
-static void release_candidate(const CLHondaSetupBridgeBindings *bindings,
-                              CLHondaSetupBridgeResult *result) {
-    if (result->candidate_response && bindings && bindings->release_response)
-        bindings->release_response(bindings->context,
-                                   result->candidate_response);
+static void release_response(CLHondaSetupBridgeResult *result, void *response) {
+    if (response && result->captured_release_response)
+        result->captured_release_response(result->callback_context, response);
+}
+
+static void release_candidate(CLHondaSetupBridgeResult *result) {
+    release_response(result, result->candidate_response);
     result->candidate_response = 0;
+}
+
+static int32_t withdraw_child(CLHondaSetupBridgeResult *result) {
+    if (!result->captured_withdraw_type111 || !result->parent_session ||
+        result->parent_generation == 0 || !result->stream_connection ||
+        result->stream_generation == 0)
+        return -1;
+    return result->captured_withdraw_type111(
+        result->callback_context, result->parent_session,
+        result->parent_generation, result->stream_connection,
+        result->stream_generation);
 }
 
 CLHondaBridgeCode cl_honda_setup_bridge_call(
@@ -58,11 +84,7 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
     out_result->stock_status = bindings->original_setup(
         receiver_session, request_dictionary, &out_result->stock_response);
     out_result->selected_response = out_result->stock_response;
-    if (out_result->stock_status != 0) {
-        out_result->code = CL_HONDA_BRIDGE_STOCK_ERROR;
-        return out_result->code;
-    }
-    if (!out_result->stock_response) {
+    if (out_result->stock_status != 0 || !out_result->stock_response) {
         out_result->code = CL_HONDA_BRIDGE_STOCK_ERROR;
         return out_result->code;
     }
@@ -82,6 +104,12 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
         out_result->code = CL_HONDA_BRIDGE_BINDING_UNAVAILABLE;
         return out_result->code;
     }
+    out_result->callback_context = bindings->context;
+    out_result->captured_release_response = bindings->release_response;
+    out_result->captured_withdraw_type111 =
+        bindings->type111_ops.withdraw_type111;
+    out_result->captured_withdraw_parent_type111 =
+        bindings->type111_ops.withdraw_parent_type111;
 
     child_request.stream_type = 0;
     child_request.parent_session = 0;
@@ -95,6 +123,11 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
         &child_request, &type111_count);
     if (extracted == CL_HONDA_EXTRACT_NONE && type111_count == 0) {
         out_result->code = CL_HONDA_BRIDGE_STOCK_ONLY;
+        return out_result->code;
+    }
+    if (extracted == CL_HONDA_EXTRACT_AUTHORITY_UNAVAILABLE ||
+        extracted == CL_HONDA_EXTRACT_BINDING_UNAVAILABLE) {
+        out_result->code = CL_HONDA_BRIDGE_BINDING_UNAVAILABLE;
         return out_result->code;
     }
     if (extracted != CL_HONDA_EXTRACT_ONE_TYPE111 || type111_count != 1 ||
@@ -113,13 +146,17 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
                 : CL_HONDA_BRIDGE_CHILD_REJECTED;
         return out_result->code;
     }
+    out_result->parent_session = child_request.parent_session;
+    out_result->parent_generation = child_request.parent_generation;
+    out_result->stream_connection = child_request.stream_connection;
+    out_result->stream_generation = child_request.stream_generation;
 
     if (bindings->build_response_candidate(
             bindings->context, out_result->stock_response,
             out_result->child.candidate_entry, &candidate_response) != 0 ||
         !candidate_response || candidate_response == out_result->stock_response) {
         if (candidate_response && candidate_response != out_result->stock_response)
-            bindings->release_response(bindings->context, candidate_response);
+            release_response(out_result, candidate_response);
         rollback_child(out_result);
         out_result->code = CL_HONDA_BRIDGE_RESPONSE_BUILD_FAILED;
         return out_result->code;
@@ -132,16 +169,15 @@ CLHondaBridgeCode cl_honda_setup_bridge_call(
 }
 
 CLHondaBridgeCode cl_honda_setup_bridge_complete(
-    const CLHondaSetupBridgeBindings *bindings,
     CLHondaSetupBridgeResult *result, int32_t serialization_succeeded) {
     CLNativeSetupCode finalized;
-    if (!bindings || !result || !result->pending ||
+    if (!result || !result->pending ||
         result->code != CL_HONDA_BRIDGE_TYPE111_PENDING ||
         (serialization_succeeded != 0 && serialization_succeeded != 1))
         return CL_HONDA_BRIDGE_INVALID_ARGUMENT;
     if (!serialization_succeeded) {
         rollback_child(result);
-        release_candidate(bindings, result);
+        release_candidate(result);
         result->selected_response = result->stock_response;
         result->code = CL_HONDA_BRIDGE_SERIALIZATION_FAILED;
         return result->code;
@@ -149,16 +185,89 @@ CLHondaBridgeCode cl_honda_setup_bridge_complete(
     finalized = cl_native_setup_finalize_type111(&result->child, 1);
     result->pending = 0;
     if (finalized != CL_NATIVE_SETUP_TYPE111_COMMITTED) {
-        release_candidate(bindings, result);
+        release_candidate(result);
         result->selected_response = result->stock_response;
         result->code = CL_HONDA_BRIDGE_COMMIT_FAILED;
         return result->code;
     }
-    bindings->release_response(bindings->context, result->stock_response);
-    result->stock_response = 0;
+    result->awaiting_delivery = 1;
     result->selected_response = result->candidate_response;
-    result->candidate_response = 0;
-    result->candidate_transferred = 1;
-    result->code = CL_HONDA_BRIDGE_TYPE111_COMMITTED;
+    result->code = CL_HONDA_BRIDGE_PENDING_DELIVERY;
+    return result->code;
+}
+
+CLHondaBridgeCode cl_honda_setup_bridge_delivery(
+    CLHondaSetupBridgeResult *result, CLHondaDeliveryOutcome outcome) {
+    if (!result || !result->awaiting_delivery || result->parent_ended ||
+        result->code != CL_HONDA_BRIDGE_PENDING_DELIVERY ||
+        outcome < CL_HONDA_DELIVERY_SENT ||
+        outcome > CL_HONDA_DELIVERY_PARTIAL_OR_UNKNOWN)
+        return CL_HONDA_BRIDGE_INVALID_ARGUMENT;
+    result->awaiting_delivery = 0;
+    if (outcome == CL_HONDA_DELIVERY_SENT) {
+        release_response(result, result->stock_response);
+        result->stock_response = 0;
+        release_candidate(result);
+        result->selected_response = 0;
+        result->delivery_confirmed = 1;
+        result->code = CL_HONDA_BRIDGE_TYPE111_COMMITTED;
+        return result->code;
+    }
+
+    result->withdrawal_attempted = 1;
+    result->withdrawal_status = withdraw_child(result);
+    result->resources_may_remain = result->withdrawal_status != 0;
+    release_candidate(result);
+    result->code = result->resources_may_remain
+        ? CL_HONDA_BRIDGE_CLEANUP_FAILED
+        : CL_HONDA_BRIDGE_DELIVERY_FAILED;
+    if (outcome == CL_HONDA_DELIVERY_NOT_PUBLISHED) {
+        if (result->resources_may_remain) {
+            release_response(result, result->stock_response);
+            result->stock_response = 0;
+            result->selected_response = 0;
+        } else {
+            result->selected_response = result->stock_response;
+            result->stock_response = 0; /* Transfer stock +1 for fallback. */
+        }
+        return result->code;
+    }
+    release_response(result, result->stock_response);
+    result->stock_response = 0;
+    result->selected_response = 0;
+    return result->code;
+}
+
+CLHondaBridgeCode cl_honda_setup_bridge_parent_ended(
+    CLHondaSetupBridgeResult *result) {
+    if (!result) return CL_HONDA_BRIDGE_INVALID_ARGUMENT;
+    if (result->parent_ended)
+        return result->resources_may_remain
+            ? CL_HONDA_BRIDGE_CLEANUP_FAILED
+            : CL_HONDA_BRIDGE_PARENT_ENDED;
+    if (result->pending) rollback_child(result);
+    else if (result->awaiting_delivery || result->delivery_confirmed) {
+        result->withdrawal_attempted = 1;
+        result->withdrawal_status =
+            (result->captured_withdraw_parent_type111 &&
+             result->parent_session && result->parent_generation != 0)
+                ? result->captured_withdraw_parent_type111(
+                      result->callback_context, result->parent_session,
+                      result->parent_generation)
+                : -1;
+        result->resources_may_remain = result->withdrawal_status != 0;
+    }
+    result->awaiting_delivery = 0;
+    result->delivery_confirmed = 0;
+    release_candidate(result);
+    if (result->stock_response) {
+        release_response(result, result->stock_response);
+        result->stock_response = 0;
+    }
+    result->selected_response = 0;
+    result->parent_ended = 1;
+    result->code = result->resources_may_remain
+        ? CL_HONDA_BRIDGE_CLEANUP_FAILED
+        : CL_HONDA_BRIDGE_PARENT_ENDED;
     return result->code;
 }
