@@ -164,27 +164,21 @@ static void rollback_type111(void *opaque, void *transaction,
     mock->last_rollback_parent_generation = mock->prepared_parent_generation;
 }
 
-static int32_t withdraw_type111(void *opaque, const void *parent_session,
-                                uint64_t parent_generation,
-                                const void *stream_connection,
+static int32_t withdraw_type111(void *opaque, uint64_t parent_generation,
                                 uint64_t stream_generation) {
     Mock *mock = (Mock *)opaque;
     check_stack(mock);
     ++mock->withdraw_calls;
-    mock->last_parent = parent_session;
-    mock->last_connection = stream_connection;
     mock->last_parent_generation = parent_generation;
     mock->last_stream_generation = stream_generation;
     return 0;
 }
 
 static int32_t withdraw_parent_type111(void *opaque,
-                                       const void *parent_session,
                                        uint64_t parent_generation) {
     Mock *mock = (Mock *)opaque;
     check_stack(mock);
     ++mock->withdraw_parent_calls;
-    mock->last_parent = parent_session;
     mock->last_parent_generation = parent_generation;
     return 0;
 }
@@ -440,17 +434,16 @@ static int test_commit_failure_and_teardown_forwarding(void) {
         alternate.rollback_calls != 0)
         return 3;
     ops = make_ops(&mock, 1);
-    if (cl_native_setup_withdraw_type111(&ops, parent, 17, connection, 23) != 0 ||
-        mock.withdraw_calls != 1 || mock.last_parent != parent ||
-        mock.last_connection != connection || mock.last_parent_generation != 17 ||
+    if (cl_native_setup_withdraw_type111(&ops, 17, 23) != 0 ||
+        mock.withdraw_calls != 1 || mock.last_parent_generation != 17 ||
         mock.last_stream_generation != 23)
         return 4;
-    if (cl_native_setup_withdraw_parent_type111(&ops, parent, 17) != 0 ||
-        mock.withdraw_parent_calls != 1 || mock.last_parent != parent ||
+    if (cl_native_setup_withdraw_parent_type111(&ops, 17) != 0 ||
+        mock.withdraw_parent_calls != 1 ||
         mock.last_parent_generation != 17)
         return 5;
-    if (cl_native_setup_withdraw_type111(&ops, 0, 17, connection, 23) != -1 ||
-        cl_native_setup_withdraw_parent_type111(&ops, parent, 0) != -1)
+    if (cl_native_setup_withdraw_type111(&ops, 0, 23) != -1 ||
+        cl_native_setup_withdraw_parent_type111(&ops, 0) != -1)
         return 6;
     return mock.stack_alignment_failures == 0 ? 0 : 7;
 }
