@@ -11,6 +11,14 @@ target_compile_options(test_honda_setup_bridge PRIVATE
   -Wall -Wextra -Werror -UNDEBUG -std=c11)
 add_test(NAME honda_setup_bridge COMMAND test_honda_setup_bridge)
 
+add_executable(test_honda_cflite_adapter_synthetic
+  honda_cflite_adapter_synthetic_harness.c
+  ../../../src/claritylink-jmcs/native/honda_cflite_adapter.c)
+target_compile_options(test_honda_cflite_adapter_synthetic PRIVATE
+  -Wall -Wextra -Werror -UNDEBUG -std=c11)
+add_test(NAME honda_cflite_adapter_synthetic
+  COMMAND test_honda_cflite_adapter_synthetic)
+
 if(APPLE)
   add_executable(test_info_augmentation
     test_info_augmentation.c
